@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 64" fill="none" width="280" height="64">
+  <defs>
+    <linearGradient id="nexPillarLeftSvg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="nexCenterPlaneSvg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="nexPillarRightSvg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <linearGradient id="nexRoofFacetSvg" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#BAE6FD" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="nexTextIndigoSvg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <filter id="cyanGlowSvg" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#38BDF8" flood-opacity="0.6"/>
+    </filter>
+  </defs>
+
+  <!-- 3D Architectural Spatial 'N' Nexus Mark -->
+  <g transform="translate(6, 6)">
+    <path d="M6,13 L19,5.5 L19,38 L6,45 Z" fill="url(#nexPillarLeftSvg)"/>
+    <path d="M19,17.5 L35,8 L35,39.5 L19,49 Z" fill="url(#nexCenterPlaneSvg)" fill-opacity="0.96"/>
+    <path d="M19,17.5 L35,8" stroke="#E0F2FE" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
+    <path d="M35,8 L48,15.5 L48,47 L35,39.5 Z" fill="url(#nexPillarRightSvg)"/>
+    <polygon points="19,5.5 35,8 25,14 9,11.5" fill="url(#nexRoofFacetSvg)"/>
+    <circle cx="27" cy="5.5" r="3.5" fill="#38BDF8" filter="url(#cyanGlowSvg)"/>
+    <circle cx="27" cy="5.5" r="1.5" fill="#FFFFFF"/>
+  </g>
+
+  <!-- NexSpace Typography Wordmark -->
+  <text x="66" y="36" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-weight="800" font-size="27" fill="#0F172A" letter-spacing="-0.03em">Nex</text>
+  <text x="118" y="36" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-weight="700" font-size="27" fill="url(#nexTextIndigoSvg)" letter-spacing="-0.02em">Space</text>
+  <text x="67" y="49" font-family="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif" font-weight="700" font-size="8.5" fill="#64748B" letter-spacing="0.22em">FLEXIBLE WORKSPACE</text>
+</svg>
+
