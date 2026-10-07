@@ -24,7 +24,10 @@ const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Landmark
 };
 
+import { useLanguage } from '../context/language-context';
+
 export function PartnerLogos() {
+  const { t } = useLanguage();
   // Duplicate logos for seamless infinite marquee loop
   const marqueeItems = [...PARTNER_LOGOS, ...PARTNER_LOGOS];
 
@@ -32,11 +35,8 @@ export function PartnerLogos() {
     <div className='border-border/60 mx-auto mt-14 max-w-6xl border-t pt-8'>
       <div className='mb-6 flex flex-col items-center justify-center gap-1.5 text-center'>
         <p className='text-muted-foreground text-xs font-semibold tracking-wider uppercase'>
-          Powering workplace for the world’s top enterprises
+          {t('hero.trustedBy')}
         </p>
-        <span className='text-muted-foreground/70 text-[11px]'>
-          Trusted by high-growth startups and Fortune 500 hybrid workforces
-        </span>
       </div>
 
       {/* Marquee Container with fade edge masks */}

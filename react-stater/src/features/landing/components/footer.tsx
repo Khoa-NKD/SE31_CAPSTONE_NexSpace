@@ -8,6 +8,7 @@ import {
   SUPPORTED_CURRENCIES,
   SUPPORTED_LANGUAGES
 } from '../constants/navigation';
+import { useLanguage } from '../context/language-context';
 
 const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   ShieldCheck,
@@ -16,23 +17,23 @@ const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> =
 };
 
 export function Footer() {
+  const { t } = useLanguage();
   const [selectedCurrency, setSelectedCurrency] = useState('USD');
   const [selectedLang, setSelectedLang] = useState('en');
 
   return (
-    <footer className='border-t border-slate-800 bg-[#131b2e] text-slate-200'>
+    <footer className='relative border-t border-slate-800/80 bg-[#0a0f1d] text-slate-200 overflow-hidden'>
+      {/* Top Horizon Gradient Guide */}
+      <div className='pointer-events-none absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent' />
       <div className='mx-auto grid max-w-[1440px] grid-cols-2 gap-8 px-6 py-16 md:grid-cols-5 lg:px-12'>
         {/* Col 1: Brand & Overview */}
         <div className='col-span-2 space-y-4 md:col-span-1'>
           <a href='/' className='inline-block'>
             <NexSpaceLogo inverted className='h-9 w-auto' />
           </a>
-          <p className='text-xs leading-relaxed text-slate-400'>
-            The Cloud Workspace &amp; Hybrid Office Operating System.
-          </p>
+          <p className='text-xs leading-relaxed text-slate-400'>{t('footer.tagline')}</p>
           <p className='pt-2 text-[11px] leading-relaxed text-slate-400'>
-            &copy; {new Date().getFullYear()} NexSpace Technologies Inc. All rights reserved.
-            Commercial Real Estate Cloud &amp; Marketplace.
+            &copy; {new Date().getFullYear()} {t('footer.rights')}
           </p>
         </div>
 

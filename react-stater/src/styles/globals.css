@@ -167,7 +167,26 @@
       0 8px 10px -6px rgba(15, 23, 42, 0.04);
   }
   .font-display {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family:
+      'Plus Jakarta Sans',
+      system-ui,
+      -apple-system,
+      sans-serif;
+    letter-spacing: -0.02em;
+  }
+  /* Strict Single Typography Enforcement for Landing Page */
+  .landing-scope,
+  .landing-scope *,
+  [data-landing-root],
+  [data-landing-root] *,
+  [data-radix-popper-content-wrapper] *,
+  [data-slot='dialog-content'] *,
+  [data-slot='sheet-content'] * {
+    font-family:
+      'Plus Jakarta Sans',
+      system-ui,
+      -apple-system,
+      sans-serif !important;
   }
   .glass-card {
     background: rgba(255, 255, 255, 0.85);

@@ -10,6 +10,7 @@ import {
   DialogHeader,
   DialogTitle
 } from '@/components/ui/dialog';
+import { useLanguage } from '../context/language-context';
 
 function handleTalkAdvisor() {
   toast.success('Workspace Strategist Scheduled!', {
@@ -18,6 +19,7 @@ function handleTalkAdvisor() {
 }
 
 export function EnterpriseCta() {
+  const { t } = useLanguage();
   const [isRoiModalOpen, setIsRoiModalOpen] = useState(false);
   const [teamSize, setTeamSize] = useState(100);
   const [currentLeasePerDesk, setCurrentLeasePerDesk] = useState(350);
@@ -46,16 +48,15 @@ export function EnterpriseCta() {
           <div className='relative z-10 mx-auto max-w-3xl'>
             <span className='mb-4 inline-flex items-center gap-1.5 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs font-semibold tracking-wider text-indigo-200 uppercase'>
               <Sparkles className='h-3.5 w-3.5' />
-              <span>Enterprise &amp; Hybrid Consulting</span>
+              <span>{t('cta.badge')}</span>
             </span>
 
             <h2 className='font-display text-3xl font-extrabold tracking-tight text-white sm:text-4xl lg:text-5xl'>
-              Not sure where to start? Let’s talk it through.
+              {t('cta.title')}
             </h2>
 
             <p className='mx-auto mt-5 max-w-2xl text-base leading-relaxed text-slate-300'>
-              We’ll review your existing office footprint, model hybrid scenarios, and outline a
-              data-driven path to immediate savings and employee impact—in one 30-minute session.
+              {t('cta.subtitle')}
             </p>
 
             <div className='mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row'>
@@ -64,7 +65,7 @@ export function EnterpriseCta() {
                 className='h-12 w-full cursor-pointer bg-white px-7 text-sm font-bold text-[#0b1c30] shadow-xl transition-all duration-150 hover:bg-slate-100 sm:w-auto active:scale-[0.98]'
               >
                 <Headphones className='mr-2 h-5 w-5 text-[#4b41e1]' />
-                Talk to a Workspace Advisor
+                {t('cta.talkAdvisor')}
               </Button>
 
               <Button
@@ -73,7 +74,7 @@ export function EnterpriseCta() {
                 className='h-12 w-full cursor-pointer border-slate-600 bg-white/5 px-7 text-sm font-medium text-white backdrop-blur-xs transition-colors hover:bg-white/15 hover:text-white sm:w-auto active:scale-[0.98]'
               >
                 <Calculator className='mr-2 h-5 w-5 text-indigo-300' />
-                Calculate Space ROI
+                {t('cta.calcRoi')}
               </Button>
             </div>
           </div>
