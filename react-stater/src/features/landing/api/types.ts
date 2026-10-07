@@ -21,11 +21,15 @@ export interface WorkspaceItem {
 
 export interface PlatformLayer {
   layerNumber: string;
+  subtitle: string;
   title: string;
   description: string;
   iconName: string;
   href: string;
   ctaText: string;
+  highlights: string[];
+  metricLabel: string;
+  metricValue: string;
 }
 
 export interface TestimonialItem {
@@ -38,6 +42,23 @@ export interface TestimonialItem {
   location: string;
   avatarInitials: string;
   rating: number;
+  category?: 'people' | 'operations' | 'cre';
+}
+
+export interface ResourceArticle {
+  id: string;
+  title: string;
+  summary: string;
+  readTime: string;
+  category: string;
+  date: string;
+  href: string;
+}
+
+export interface PlatformStat {
+  value: string;
+  label: string;
+  description: string;
 }
 
 export interface SearchFilters {

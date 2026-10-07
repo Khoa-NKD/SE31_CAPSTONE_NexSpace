@@ -12,9 +12,9 @@ export interface SolutionItem {
 
 export const MAIN_NAV_ITEMS: NavItem[] = [
   { label: 'Workspaces', href: '#workspaces' },
+  { label: 'Platform', href: '#platform' },
   { label: 'Enterprise', href: '#enterprise' },
-  { label: 'Network', href: '#network' },
-  { label: 'Pricing', href: '#pricing' }
+  { label: 'Resources', href: '#resources' }
 ];
 
 export const SOLUTIONS_ITEMS: SolutionItem[] = [

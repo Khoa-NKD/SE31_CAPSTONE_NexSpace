@@ -1,9 +1,11 @@
 import React from 'react';
 import { Navbar } from './navbar';
 import { HeroSection } from './hero-section';
+import { StatsBar } from './stats-bar';
 import { PlatformLayers } from './platform-layers';
 import { MarketplaceShowcase } from './marketplace-showcase';
 import { TestimonialsSection } from './testimonials-section';
+import { ResourcesSection } from './resources-section';
 import { EnterpriseCta } from './enterprise-cta';
 import { Footer } from './footer';
 
@@ -14,23 +16,29 @@ export default function LandingPage() {
       <Navbar />
 
       <main>
-        {/* 2. Hero & Elevated Search Engine */}
+        {/* 2. Hero & Elevated Search Engine with Infinite Marquee */}
         <HeroSection />
 
-        {/* 3. The Three Layers Platform Section (Bento / Modular Architecture) */}
+        {/* 3. Key Enterprise Impact Stats Banner */}
+        <StatsBar />
+
+        {/* 4. The Smart Office Platform (3-Layer Interactive Architectural Switcher) */}
         <PlatformLayers />
 
-        {/* 4. Live Marketplace Showcase Section */}
+        {/* 5. Live Marketplace Showcase & Landlord Callout */}
         <MarketplaceShowcase />
 
-        {/* 5. Testimonial & Enterprise Case Study Section */}
+        {/* 6. Real Results from Real Teams (Categorized Enterprise Reviews) */}
         <TestimonialsSection />
 
-        {/* 6. Enterprise Conversion CTA Banner */}
+        {/* 7. Workplace Insights & Resources */}
+        <ResourcesSection />
+
+        {/* 8. Enterprise Consultation & Interactive Lease ROI Modeler */}
         <EnterpriseCta />
       </main>
 
-      {/* 7. Comprehensive Platform Footer */}
+      {/* 9. Comprehensive Platform Footer */}
       <Footer />
     </div>
   );
