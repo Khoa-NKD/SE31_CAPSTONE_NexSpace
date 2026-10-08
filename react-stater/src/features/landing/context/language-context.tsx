@@ -1,0 +1,291 @@
+import React, { createContext, useContext, useState, useMemo } from 'react';
+
+export type Language = 'en' | 'vi';
+
+export interface LanguageContextType {
+  language: Language;
+  setLanguage: (lang: Language) => void;
+  t: (key: string) => string;
+}
+
+const TRANSLATIONS: Record<Language, Record<string, string>> = {
+  en: {
+    // Navbar
+    'nav.solutions': 'Solutions',
+    'nav.workspaces': 'Workspaces',
+    'nav.platform': 'Platform',
+    'nav.reviews': 'Impact & Reviews',
+    'nav.resources': 'Resources',
+    'nav.signIn': 'Sign In',
+    'nav.listSpace': 'List Your Space',
+    'nav.getStarted': 'Get Started',
+    'nav.hostBadge': 'Host',
+
+    // Solutions Menu
+    'solutions.enterprise.title': 'Enterprise Workplace',
+    'solutions.enterprise.desc': 'Scalable office portfolios & unified PayOS billing',
+    'solutions.teams.title': 'Agile Hybrid Teams',
+    'solutions.teams.desc': 'On-demand desks & private meeting suites',
+    'solutions.landlords.title': 'Landlords & Operators',
+    'solutions.landlords.desc': 'Monetize vacant commercial real estate assets',
+
+    // Hero Section
+    'hero.badge': 'NEXT-GEN WORKPLACE CLOUD & SPATIAL PLATFORM',
+    'hero.title': 'Beyond flexible office space.',
+    'hero.subtitle':
+      'Global workspace access on demand. Simplify corporate governance. Continuously model and optimize your workplace strategy—all on one unified platform.',
+    'hero.liveStatus': 'Instant Access Active — 48 spaces open nearby',
+    'hero.trustedBy': 'POWERING HYBRID WORKPLACES FOR LEADING ENTERPRISES',
+
+    // Search Card
+    'search.hotDesk': 'Hot Desk',
+    'search.dedicatedDesk': 'Dedicated Desk',
+    'search.privateOffice': 'Private Office',
+    'search.meetingRoom': 'Meeting Room',
+    'search.locationLabel': 'City or Neighborhood',
+    'search.locationDefault': 'District 1, Ho Chi Minh City',
+    'search.dateLabel': 'Date & Hours',
+    'search.dateDefault': 'Today, Flexible hours',
+    'search.capacityLabel': 'Capacity',
+    'search.capacityDefault': '1 - 4 People',
+    'search.btn': 'Find Workspaces',
+    'search.toastSearching': 'Searching available workspaces in',
+
+    // Platform Layers
+    'platform.badge': 'THE SMART OFFICE PLATFORM',
+    'platform.title': 'One platform. Three layers.',
+    'platform.subtitle':
+      'Built to orchestrate your entire workplace strategy—from on-demand bookings to enterprise portfolio telemetry.',
+    'platform.interactiveTour': 'Explore Interactive Architecture',
+    'platform.layer1.title': 'Workspace Access',
+    'platform.layer1.tag': 'Layer 1: On-Demand Real Estate',
+    'platform.layer1.desc':
+      'Global on-demand access to premier desks, meeting suites, and private serviced offices with zero rigid long-term commitments.',
+    'platform.layer2.title': 'Workplace Operations',
+    'platform.layer2.tag': 'Layer 2: PayOS Governance',
+    'platform.layer2.desc':
+      'Centralized billing, policy-driven spend controls, and automated compliance for distributed hybrid workforce teams.',
+    'platform.layer3.title': 'Portfolio Strategy',
+    'platform.layer3.tag': 'Layer 3: Predictive Analytics',
+    'platform.layer3.desc':
+      'Continuous telemetry on space density, cost-per-seat efficiency, and real estate ROI to model your true workplace footprint.',
+    'platform.tourTitle': 'NexSpace Architecture Walkthrough',
+    'platform.tourDesc':
+      'A unified ecosystem designed for agility, financial governance, and portfolio intelligence.',
+    'platform.close': 'Close Tour',
+
+    // Marketplace Showcase
+    'market.badge': 'LIVE NETWORK INVENTORY',
+    'market.title': 'Better spaces in prime locations',
+    'market.subtitle':
+      'Real-time availability with verified acoustic isolation, ergonomic task seating, and enterprise connectivity.',
+    'market.all': 'All Locations',
+    'market.reserveBtn': 'Reserve Space',
+    'market.landlordTitle': 'Are you a Commercial Landlord or Coworking Operator?',
+    'market.landlordSubtitle':
+      'List your inventory on the NexSpace Cloud Marketplace to access 5,000+ enterprise teams and eliminate vacancy.',
+    'market.landlordBtn': 'List Your Space Today',
+
+    // Testimonials
+    'testimonials.badge': 'REAL RESULTS FROM REAL TEAMS',
+    'testimonials.title': 'Proven enterprise impact.',
+    'testimonials.subtitle':
+      'From 38% lease cost reduction to seamless team collaboration, see why industry leaders ditch rigid leases for NexSpace.',
+    'testimonials.all': 'All Stories',
+    'testimonials.people': 'People & Culture',
+    'testimonials.operations': 'Workplace Operations',
+    'testimonials.cre': 'CRE & Finance',
+
+    // Resources
+    'resources.badge': 'HYBRID WORKPLACE RESEARCH',
+    'resources.title': 'Resources to build better workspaces',
+    'resources.subtitle':
+      'Explore actionable frameworks, benchmarks, and tactical guides on agile real estate.',
+    'resources.readArticle': 'Read article',
+
+    // Enterprise CTA & ROI
+    'cta.badge': 'ENTERPRISE WORKPLACE CONSULTATION',
+    'cta.title': "Not sure where to start? Let's talk it through.",
+    'cta.subtitle':
+      'Our workplace advisors will analyze your headcount distribution and craft a custom flexible roadmap.',
+    'cta.talkAdvisor': 'Talk to a Workplace Advisor',
+    'cta.calcRoi': 'Calculate Lease ROI',
+    'cta.roiModalTitle': 'Commercial Real Estate ROI Modeler',
+    'cta.roiModalDesc':
+      'Simulate your savings when shifting from traditional 5-year commercial leases to NexSpace.',
+    'cta.teamSize': 'Team Size (Headcount)',
+    'cta.leaseRate': 'Current Traditional Lease Cost / Desk / Mo',
+    'cta.monthlyTraditional': 'Traditional Monthly Lease:',
+    'cta.annualSavingsEst': 'Annual Projected Savings (38% Avg):',
+    'cta.scheduleSession': 'Schedule Custom Strategy Session',
+
+    // Footer
+    'footer.tagline': 'The Cloud Workspace & Hybrid Office Operating System.',
+    'footer.rights':
+      'NexSpace Technologies Inc. All rights reserved. Commercial Real Estate Cloud & Marketplace.'
+  },
+  vi: {
+    // Navbar
+    'nav.solutions': 'Giải pháp',
+    'nav.workspaces': 'Không gian',
+    'nav.platform': 'Nền tảng',
+    'nav.reviews': 'Đánh giá & Hiệu quả',
+    'nav.resources': 'Tài nguyên',
+    'nav.signIn': 'Đăng nhập',
+    'nav.listSpace': 'Cho thuê không gian',
+    'nav.getStarted': 'Bắt đầu ngay',
+    'nav.hostBadge': 'Đối tác',
+
+    // Solutions Menu
+    'solutions.enterprise.title': 'Văn phòng Doanh nghiệp',
+    'solutions.enterprise.desc': 'Tối ưu danh mục văn phòng & hệ thống thanh toán PayOS tập trung',
+    'solutions.teams.title': 'Đội nhóm Agile Hybrid',
+    'solutions.teams.desc': 'Đặt bàn làm việc linh hoạt & phòng họp riêng theo giờ',
+    'solutions.landlords.title': 'Chủ tòa nhà & Vận hành',
+    'solutions.landlords.desc': 'Khai thác và lấp đầy mặt bằng bất động sản thương mại',
+
+    // Hero Section
+    'hero.badge': 'HỆ ĐIỀU HÀNH KHÔNG GIAN LÀM VIỆC ĐIỆN TOÁN ĐÁM MÂY THẾ HỆ MỚI',
+    'hero.title': 'Vượt xa khái niệm văn phòng linh hoạt thông thường.',
+    'hero.subtitle':
+      'Tiếp cận mạng lưới không gian làm việc toàn cầu theo yêu cầu. Đơn giản hóa quản trị ngân sách và tối ưu hóa chiến lược danh mục bất động sản—tất cả trên một nền tảng hợp nhất.',
+    'hero.liveStatus': 'Mạng lưới sẵn sàng — 48 địa điểm đang mở gần bạn',
+    'hero.trustedBy': 'ĐỒNG HÀNH CÙNG CÁC TẬP ĐOÀN HÀNG ĐẦU',
+
+    // Search Card
+    'search.hotDesk': 'Bàn làm việc linh hoạt',
+    'search.dedicatedDesk': 'Bàn làm việc cố định',
+    'search.privateOffice': 'Văn phòng riêng',
+    'search.meetingRoom': 'Phòng họp cao cấp',
+    'search.locationLabel': 'Khu vực / Thành phố',
+    'search.locationDefault': 'Quận 1, TP. Hồ Chí Minh',
+    'search.dateLabel': 'Thời gian đặt chỗ',
+    'search.dateDefault': 'Hôm nay, Giờ linh hoạt',
+    'search.capacityLabel': 'Quy mô số người',
+    'search.capacityDefault': '1 - 4 Người',
+    'search.btn': 'Tìm kiếm không gian',
+    'search.toastSearching': 'Đang tìm kiếm không gian làm việc khả dụng tại',
+
+    // Platform Layers
+    'platform.badge': 'NỀN TẢNG VĂN PHÒNG THÔNG MINH',
+    'platform.title': 'Một nền tảng. Ba tầng kiến trúc.',
+    'platform.subtitle':
+      'Được thiết kế để chỉ huy toàn diện chiến lược không gian làm việc của bạn—từ đặt chỗ tức thì đến dữ liệu phân tích danh mục bất động sản.',
+    'platform.interactiveTour': 'Khám phá kiến trúc tương tác',
+    'platform.layer1.title': 'Tiếp cận không gian',
+    'platform.layer1.tag': 'Tầng 1: Bất động sản theo yêu cầu',
+    'platform.layer1.desc':
+      'Tiếp cận tức thì mạng lưới bàn làm việc, phòng họp và văn phòng trọn gói cao cấp mà không bị ràng buộc hợp đồng dài hạn.',
+    'platform.layer2.title': 'Vận hành văn phòng',
+    'platform.layer2.tag': 'Tầng 2: Quản trị tài chính PayOS',
+    'platform.layer2.desc':
+      'Hóa đơn tập trung, kiểm soát ngân sách theo chính sách công ty và tự động hóa tuân thủ cho đội ngũ nhân sự làm việc phân tán.',
+    'platform.layer3.title': 'Chiến lược danh mục',
+    'platform.layer3.tag': 'Tầng 3: Phân tích dự báo thông minh',
+    'platform.layer3.desc':
+      'Theo dõi liên tục mật độ sử dụng mặt bằng, chi phí trên mỗi nhân sự và ROI để mô hình hóa quy mô văn phòng tối ưu nhất.',
+    'platform.tourTitle': 'Kiến trúc chi tiết hệ thống NexSpace',
+    'platform.tourDesc':
+      'Hệ sinh thái đồng nhất được thiết kế cho tính linh hoạt, kỷ luật tài chính và dữ liệu thời gian thực.',
+    'platform.close': 'Đóng xem',
+
+    // Marketplace Showcase
+    'market.badge': 'MẠNG LƯỚI KHÔNG GIAN THỰC TẾ',
+    'market.title': 'Không gian đẳng cấp tại các vị trí đắc địa',
+    'market.subtitle':
+      'Khả năng đặt chỗ thời gian thực với tiêu chuẩn cách âm chuẩn hóa, bàn làm việc công thái học và kết nối internet tốc độ cao.',
+    'market.all': 'Tất cả địa điểm',
+    'market.reserveBtn': 'Đặt chỗ ngay',
+    'market.landlordTitle': 'Bạn là Chủ tòa nhà hoặc Không gian Co-working?',
+    'market.landlordSubtitle':
+      'Đưa không gian của bạn lên NexSpace Marketplace để tiếp cận hơn 5,000+ doanh nghiệp đa quốc gia và tối ưu hóa dòng tiền cho thuê.',
+    'market.landlordBtn': 'Đăng ký đối tác cho thuê',
+
+    // Testimonials
+    'testimonials.badge': 'HIỆU QUẢ ĐÃ ĐƯỢC CHỨNG MINH',
+    'testimonials.title': 'Tác động thực tế cho các tập đoàn hàng đầu',
+    'testimonials.subtitle':
+      'Từ việc cắt giảm 38% chi phí thuê truyền thống đến tăng cường gắn kết đội ngũ, xem lý do vì sao các lãnh đạo lựa chọn NexSpace.',
+    'testimonials.all': 'Tất cả câu chuyện',
+    'testimonials.people': 'Nhân sự & Văn hóa',
+    'testimonials.operations': 'Vận hành & Kế toán',
+    'testimonials.cre': 'Bất động sản & Tài chính',
+
+    // Resources
+    'resources.badge': 'KIẾN THỨC & XU HƯỚNG',
+    'resources.title': 'Dữ liệu & Cẩm nang cho nơi làm việc tương lai',
+    'resources.subtitle':
+      'Khám phá các báo cáo phân tích, nghiên cứu xu hướng làm việc linh hoạt và hướng dẫn tối ưu danh mục bất động sản năm 2026.',
+    'resources.readArticle': 'Đọc bài viết',
+
+    // Enterprise CTA & ROI
+    'cta.badge': 'TƯ VẤN DOANH NGHIỆP',
+    'cta.title': 'Chưa biết bắt đầu từ đâu? Hãy cùng chuyên gia trao đổi.',
+    'cta.subtitle':
+      'Các chuyên gia chiến lược bất động sản của NexSpace sẽ phân tích dữ liệu quy mô nhân sự và thiết kế giải pháp không gian tối ưu nhất.',
+    'cta.talkAdvisor': 'Đặt lịch tư vấn chuyên gia',
+    'cta.calcRoi': 'Tính toán tiết kiệm chi phí (ROI)',
+    'cta.roiModalTitle': 'Mô hình tính toán ROI Bất động sản Thương mại',
+    'cta.roiModalDesc':
+      'Mô phỏng khoản chi phí bạn sẽ tiết kiệm khi chuyển từ hợp đồng thuê cố định 5 năm sang giải pháp NexSpace.',
+    'cta.teamSize': 'Quy mô đội ngũ (Số lượng nhân sự)',
+    'cta.leaseRate': 'Chi phí thuê văn phòng truyền thống / bàn / tháng',
+    'cta.monthlyTraditional': 'Chi phí thuê cố định hàng tháng:',
+    'cta.annualSavingsEst': 'Ước tính tiết kiệm hàng năm (Trung bình 38%):',
+    'cta.scheduleSession': 'Lên lịch tư vấn chiến lược chuyên sâu',
+
+    // Footer
+    'footer.tagline':
+      'Hệ điều hành không gian làm việc đám mây & Sàn giao dịch bất động sản thương mại.',
+    'footer.rights':
+      'NexSpace Technologies Inc. Bảo lưu mọi quyền. Đám mây & Sàn giao dịch Bất động sản Thương mại.'
+  }
+};
+
+const LanguageContext = createContext<LanguageContextType | undefined>(undefined);
+
+export function LanguageProvider({ children }: { children: React.ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const saved = localStorage.getItem('nexspace_lang');
+        if (saved === 'en' || saved === 'vi') {
+          return saved;
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return 'vi';
+  });
+
+  const setLanguage = (lang: Language) => {
+    setLanguageState(lang);
+    try {
+      localStorage.setItem('nexspace_lang', lang);
+    } catch {
+      // ignore
+    }
+  };
+
+  const t = useMemo(() => {
+    return (key: string): string => {
+      const dict = TRANSLATIONS[language] || TRANSLATIONS.vi;
+      return dict[key] || TRANSLATIONS.en[key] || key;
+    };
+  }, [language]);
+
+  return (
+    <LanguageContext.Provider value={{ language, setLanguage, t }}>
+      {children}
+    </LanguageContext.Provider>
+  );
+}
+
+export function useLanguage() {
+  const context = useContext(LanguageContext);
+  if (!context) {
+    throw new Error('useLanguage must be used within a LanguageProvider');
+  }
+  return context;
+}

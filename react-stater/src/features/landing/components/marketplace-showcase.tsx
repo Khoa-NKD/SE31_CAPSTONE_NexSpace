@@ -6,22 +6,24 @@ import { WORKSPACE_ITEMS } from '../api/data';
 import type { WorkspaceCity, WorkspaceItem } from '../api/types';
 import { WorkspaceCard } from './workspace-card';
 import { ReserveModal } from './reserve-modal';
+import { useLanguage } from '../context/language-context';
 
 interface MarketplaceShowcaseProps {
   initialCity?: WorkspaceCity | 'all';
 }
 
-const CITY_TABS: { id: WorkspaceCity | 'all'; label: string }[] = [
-  { id: 'all', label: 'All Locations' },
-  { id: 'hcm', label: 'Ho Chi Minh City' },
-  { id: 'hanoi', label: 'Hanoi' },
-  { id: 'danang', label: 'Da Nang' }
-];
-
 export function MarketplaceShowcase({ initialCity = 'all' }: MarketplaceShowcaseProps) {
+  const { t } = useLanguage();
   const [activeCity, setActiveCity] = useState<WorkspaceCity | 'all'>(initialCity);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceItem | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const cityTabs: { id: WorkspaceCity | 'all'; label: string }[] = [
+    { id: 'all', label: t('market.all') },
+    { id: 'hcm', label: 'TP. Hồ Chí Minh' },
+    { id: 'hanoi', label: 'Hà Nội' },
+    { id: 'danang', label: 'Đà Nẵng' }
+  ];
 
   const filteredWorkspaces =
     activeCity === 'all'
@@ -41,20 +43,19 @@ export function MarketplaceShowcase({ initialCity = 'all' }: MarketplaceShowcase
           <div>
             <div className='inline-flex items-center gap-1.5 text-xs font-semibold tracking-wider text-[#4b41e1] uppercase'>
               <Sparkles className='h-3.5 w-3.5' />
-              <span>Live Network Inventory</span>
+              <span>{t('market.badge')}</span>
             </div>
             <h2 className='text-foreground font-display mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl'>
-              Better spaces in prime locations
+              {t('market.title')}
             </h2>
             <p className='text-muted-foreground mt-2 max-w-2xl text-base leading-relaxed'>
-              Real-time availability with verified acoustic isolation, ergonomic task seating, and
-              enterprise-grade fiber connectivity.
+              {t('market.subtitle')}
             </p>
           </div>
 
           {/* City Filter Tabs */}
           <div className='bg-muted/80 border-border/80 inline-flex self-start rounded-xl border p-1 md:self-auto'>
-            {CITY_TABS.map((city) => {
+            {cityTabs.map((city) => {
               const isActive = activeCity === city.id;
               return (
                 <button
@@ -98,15 +99,13 @@ export function MarketplaceShowcase({ initialCity = 'all' }: MarketplaceShowcase
             <div className='space-y-2 text-left'>
               <div className='inline-flex items-center gap-2 text-xs font-bold tracking-wider text-[#4b41e1] uppercase'>
                 <Building className='h-4 w-4' />
-                <span>For Commercial Property Owners &amp; Organizers</span>
+                <span>{t('market.landlordTitle')}</span>
               </div>
               <h3 className='text-foreground font-display text-2xl font-bold tracking-tight'>
-                Got extra space? Monetize with NexSpace.
+                {t('market.landlordTitle')}
               </h3>
               <p className='text-muted-foreground max-w-2xl text-sm leading-relaxed'>
-                Join Southeast Asia’s fastest-growing marketplace of flexible and dedicated office
-                space. List by the hour, day, or month—and connect with enterprise corporate tenants
-                with instant PayOS payouts.
+                {t('market.landlordSubtitle')}
               </p>
             </div>
 
@@ -114,8 +113,8 @@ export function MarketplaceShowcase({ initialCity = 'all' }: MarketplaceShowcase
               asChild
               className='bg-[#4b41e1] hover:bg-[#4338CA] shrink-0 text-white shadow-md active:scale-[0.98]'
             >
-              <a href='#advisor' className='flex items-center gap-2'>
-                <span>List Your Workspace</span>
+              <a href='#enterprise' className='flex items-center gap-2'>
+                <span>{t('market.landlordBtn')}</span>
                 <ArrowRight className='h-4 w-4' />
               </a>
             </Button>

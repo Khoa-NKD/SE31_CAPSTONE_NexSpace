@@ -2,8 +2,11 @@ import React from 'react';
 import { motion } from 'motion/react';
 import { ArrowRight, BookOpen, Clock } from 'lucide-react';
 import { RESOURCE_ARTICLES } from '../api/data';
+import { useLanguage } from '../context/language-context';
 
 export function ResourcesSection() {
+  const { t } = useLanguage();
+
   return (
     <section id='resources' className='border-border/60 scroll-mt-20 border-b py-24'>
       <div className='mx-auto max-w-[1440px] px-6 lg:px-12'>
@@ -11,14 +14,13 @@ export function ResourcesSection() {
         <div className='mx-auto max-w-3xl text-center'>
           <div className='inline-flex items-center gap-1.5 text-xs font-semibold tracking-wider text-[#4b41e1] uppercase'>
             <BookOpen className='h-3.5 w-3.5' />
-            <span>Workplace Insights &amp; Resources</span>
+            <span>{t('resources.badge')}</span>
           </div>
           <h2 className='text-foreground font-display mt-2 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl'>
-            Design a workplace that actually works.
+            {t('resources.title')}
           </h2>
           <p className='text-muted-foreground mt-3 text-lg leading-relaxed'>
-            Insights, commercial lease strategies, and real-world playbooks to help modern
-            enterprises stay agile.
+            {t('resources.subtitle')}
           </p>
         </div>
 

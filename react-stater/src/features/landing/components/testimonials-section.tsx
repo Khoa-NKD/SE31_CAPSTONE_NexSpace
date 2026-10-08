@@ -3,17 +3,20 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Building2, Star, Users } from 'lucide-react';
 import { TESTIMONIALS } from '../api/data';
 
+import { useLanguage } from '../context/language-context';
+
 type CategoryFilter = 'all' | 'people' | 'operations' | 'cre';
 
-const CATEGORY_TABS: { id: CategoryFilter; label: string }[] = [
-  { id: 'all', label: 'All Stories' },
-  { id: 'people', label: 'People & Hybrid Teams' },
-  { id: 'operations', label: 'Operations & Finance' },
-  { id: 'cre', label: 'Corporate Real Estate' }
-];
-
 export function TestimonialsSection() {
+  const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState<CategoryFilter>('all');
+
+  const categoryTabs: { id: CategoryFilter; label: string }[] = [
+    { id: 'all', label: t('testimonials.all') },
+    { id: 'people', label: t('testimonials.people') },
+    { id: 'operations', label: t('testimonials.operations') },
+    { id: 'cre', label: t('testimonials.cre') }
+  ];
 
   const filteredTestimonials =
     activeCategory === 'all'
@@ -21,24 +24,26 @@ export function TestimonialsSection() {
       : TESTIMONIALS.filter((item) => item.category === activeCategory);
 
   return (
-    <section className='border-border/60 bg-muted/20 border-b py-24'>
+    <section
+      id='reviews'
+      className='border-border/60 bg-slate-50/50 backdrop-blur-xs scroll-mt-20 border-b py-24 dark:bg-slate-900/30'
+    >
       <div className='mx-auto max-w-[1440px] px-6 lg:px-12'>
         {/* Section Header */}
         <div className='mx-auto max-w-3xl text-center'>
           <span className='border-indigo-200 bg-indigo-50 text-[#4b41e1] dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 inline-block rounded-full border px-4 py-1 text-xs font-semibold tracking-wide uppercase'>
-            Real Results From Real Teams
+            {t('testimonials.badge')}
           </span>
           <h2 className='text-foreground font-display mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl'>
-            Proven enterprise impact.
+            {t('testimonials.title')}
           </h2>
           <p className='text-muted-foreground mt-3 text-lg leading-relaxed'>
-            From 38% lease cost reduction to seamless team collaboration, see why industry leaders
-            ditch rigid leases for NexSpace.
+            {t('testimonials.subtitle')}
           </p>
 
           {/* Category Filter Pills */}
           <div className='mt-8 flex flex-wrap items-center justify-center gap-2'>
-            {CATEGORY_TABS.map((tab) => {
+            {categoryTabs.map((tab) => {
               const isActive = activeCategory === tab.id;
               return (
                 <button

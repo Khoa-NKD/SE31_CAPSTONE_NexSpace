@@ -3,6 +3,7 @@ import { motion } from 'motion/react';
 import { Sparkles } from 'lucide-react';
 import { SearchCard } from './search-card';
 import { PartnerLogos } from './partner-logos';
+import { useLanguage } from '../context/language-context';
 import type { WorkspaceType } from '../api/types';
 
 interface HeroSectionProps {
@@ -10,20 +11,13 @@ interface HeroSectionProps {
 }
 
 export function HeroSection({ onSearch }: HeroSectionProps) {
+  const { t } = useLanguage();
+
   return (
     <section className='border-border/60 relative overflow-hidden border-b pt-16 pb-20'>
-      {/* Background radial dot grid with ambient light glow */}
+      {/* Subtle local ambient hero illumination */}
       <div
-        className='pointer-events-none absolute inset-0 opacity-40'
-        style={{
-          backgroundImage: 'radial-gradient(#CBD5E1 1px, transparent 1px)',
-          backgroundSize: '24px 24px'
-        }}
-        aria-hidden='true'
-      />
-
-      <div
-        className='pointer-events-none absolute -top-40 left-1/2 -z-10 h-[500px] w-[800px] -translate-x-1/2 rounded-full bg-indigo-500/10 blur-3xl'
+        className='pointer-events-none absolute -top-24 left-1/2 -z-10 h-[480px] w-[750px] -translate-x-1/2 rounded-full bg-indigo-500/8 blur-3xl dark:bg-indigo-500/15'
         aria-hidden='true'
       />
 
@@ -37,7 +31,7 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
         >
           <div className='border-indigo-200 bg-indigo-50/90 text-[#4b41e1] dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 mb-5 inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold tracking-wide shadow-2xs'>
             <span className='bg-[#4b41e1] h-2 w-2 animate-pulse rounded-full' />
-            <span>NEXT-GEN WORKPLACE CLOUD &amp; SPATIAL PLATFORM</span>
+            <span>{t('hero.badge')}</span>
             <Sparkles className='h-3.5 w-3.5 text-indigo-500' />
           </div>
 
@@ -47,7 +41,7 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
             transition={{ duration: 0.5, delay: 0.1 }}
             className='text-foreground font-display text-4xl font-extrabold tracking-tight sm:text-5xl lg:text-6xl'
           >
-            Beyond flexible office space.
+            {t('hero.title')}
           </motion.h1>
 
           <motion.p
@@ -56,8 +50,7 @@ export function HeroSection({ onSearch }: HeroSectionProps) {
             transition={{ duration: 0.5, delay: 0.2 }}
             className='text-muted-foreground mx-auto mt-5 max-w-3xl text-lg font-normal leading-relaxed sm:text-xl'
           >
-            Global workspace access on demand. Simplify corporate governance. Continuously model and
-            optimize your workplace strategy—all on one unified platform.
+            {t('hero.subtitle')}
           </motion.p>
         </motion.div>
 

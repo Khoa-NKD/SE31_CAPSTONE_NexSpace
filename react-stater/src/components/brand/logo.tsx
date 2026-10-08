@@ -155,7 +155,7 @@ export function NexSpaceLogo({
       <text
         x='66'
         y={isHorizontal ? '36' : '36'}
-        fontFamily="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif"
+        fontFamily="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
         fontWeight='800'
         fontSize='27'
         fill={inverted ? '#FFFFFF' : '#0F172A'}
@@ -169,7 +169,7 @@ export function NexSpaceLogo({
       <text
         x='118'
         y={isHorizontal ? '36' : '36'}
-        fontFamily="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif"
+        fontFamily="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
         fontWeight='700'
         fontSize='27'
         fill='url(#nexTextIndigo)'
@@ -183,7 +183,7 @@ export function NexSpaceLogo({
         <text
           x='67'
           y='49'
-          fontFamily="'Plus Jakarta Sans', 'Inter', -apple-system, sans-serif"
+          fontFamily="'Plus Jakarta Sans', system-ui, -apple-system, sans-serif"
           fontWeight='700'
           fontSize='8.5'
           fill={inverted ? '#94A3B8' : '#64748B'}

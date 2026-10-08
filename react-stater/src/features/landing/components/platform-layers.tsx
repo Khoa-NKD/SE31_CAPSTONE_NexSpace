@@ -21,6 +21,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { PLATFORM_LAYERS } from '../api/data';
+import { useLanguage } from '../context/language-context';
 
 const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   Compass,
@@ -29,6 +30,7 @@ const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
 };
 
 export function PlatformLayers() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState(0);
   const [isVideoModalOpen, setIsVideoModalOpen] = useState(false);
 
@@ -36,19 +38,21 @@ export function PlatformLayers() {
   const Icon = ICONS_MAP[activeLayer.iconName] || Compass;
 
   return (
-    <section id='platform' className='border-border/60 bg-muted/20 scroll-mt-20 border-b py-24'>
+    <section
+      id='platform'
+      className='border-border/60 bg-slate-50/50 backdrop-blur-xs scroll-mt-20 border-b py-24 dark:bg-slate-900/30'
+    >
       <div className='mx-auto max-w-[1440px] px-6 lg:px-12'>
         {/* Section Header */}
         <div className='mx-auto max-w-3xl text-center'>
           <span className='border-indigo-200 bg-indigo-50 text-[#4b41e1] dark:border-indigo-900 dark:bg-indigo-950/40 dark:text-indigo-300 inline-block rounded-full border px-4 py-1 text-xs font-semibold tracking-wide uppercase'>
-            The Smart Office Platform
+            {t('platform.badge')}
           </span>
           <h2 className='text-foreground font-display mt-3 text-3xl font-extrabold tracking-tight sm:text-4xl lg:text-5xl'>
-            One platform. Three layers.
+            {t('platform.title')}
           </h2>
           <p className='text-muted-foreground mt-3 text-lg leading-relaxed'>
-            Built to orchestrate your entire workplace strategy—from on-demand bookings to
-            enterprise portfolio telemetry.
+            {t('platform.subtitle')}
           </p>
 
           {/* Interactive Play Video Trigger */}
@@ -61,7 +65,7 @@ export function PlatformLayers() {
               <span className='bg-indigo-100 text-[#4b41e1] dark:bg-indigo-950 dark:text-indigo-300 flex h-7 w-7 items-center justify-center rounded-full'>
                 <Play className='ml-0.5 h-3.5 w-3.5 fill-current' />
               </span>
-              <span>See it in action. Play product tour</span>
+              <span>{t('platform.interactiveTour')}</span>
             </button>
           </div>
         </div>

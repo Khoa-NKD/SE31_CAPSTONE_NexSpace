@@ -4,6 +4,7 @@ import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { createServerFn } from '@tanstack/react-start';
 
 import { Toaster } from '@/components/ui/sonner';
+import { TooltipProvider } from '@/components/ui/tooltip';
 import { ActiveThemeProvider } from '@/components/themes/active-theme';
 import ThemeProvider from '@/components/themes/theme-provider';
 import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
@@ -41,7 +42,7 @@ export const Route = createRootRouteWithContext<{
       { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
         rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap'
+        href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap'
       },
       { rel: 'stylesheet', href: appCss },
       { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
@@ -77,14 +78,16 @@ function RootDocument() {
       <body className='bg-background overflow-x-hidden overscroll-none font-sans antialiased'>
         <ThemeProvider
           attribute='class'
-          defaultTheme='system'
+          defaultTheme='light'
           enableSystem
           disableTransitionOnChange
           enableColorScheme
         >
           <ActiveThemeProvider initialTheme={activeTheme}>
-            <Toaster />
-            <Outlet />
+            <TooltipProvider>
+              <Toaster />
+              <Outlet />
+            </TooltipProvider>
           </ActiveThemeProvider>
         </ThemeProvider>
         <TanStackRouterDevtools position='bottom-left' />
