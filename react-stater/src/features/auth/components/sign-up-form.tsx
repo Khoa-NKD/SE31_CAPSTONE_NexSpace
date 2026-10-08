@@ -93,7 +93,7 @@ function PasswordStrengthMeter({
 
 import { useLanguage } from '../../landing/context/language-context';
 
-export default function SignUpForm({ onSuccess }: { onSuccess?: () => void }) {
+export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) => void }) {
   const [loading, startTransition] = useTransition();
   const { t } = useLanguage();
 
@@ -109,10 +109,10 @@ export default function SignUpForm({ onSuccess }: { onSuccess?: () => void }) {
     validators: {
       onSubmit: signUpSchema
     },
-    onSubmit: () => {
+    onSubmit: ({ value }) => {
       startTransition(() => {
         toast.success('Account created successfully!');
-        onSuccess?.();
+        onSuccess?.(value.email);
       });
     }
   });
