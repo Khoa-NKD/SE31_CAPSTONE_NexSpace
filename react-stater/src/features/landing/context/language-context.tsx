@@ -148,7 +148,19 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.signUp.strength.weak': 'Weak',
     'auth.signUp.strength.fair': 'Fair',
     'auth.signUp.strength.good': 'Good',
-    'auth.signUp.strength.strong': 'Strong'
+    'auth.signUp.strength.strong': 'Strong',
+
+    // Email Verification
+    'auth.verify.support': 'Support',
+    'auth.verify.platform': 'Commercial Real Estate Cloud',
+    'auth.verify.title': 'Check your email',
+    'auth.verify.subtitle': 'We’ve sent a 6-digit verification code to',
+    'auth.verify.changeEmail': '(Change)',
+    'auth.verify.expiresIn': 'Code expires in',
+    'auth.verify.btn': 'Verify & Continue',
+    'auth.verify.didNotReceive': 'Didn’t receive the code?',
+    'auth.verify.resend': 'Resend',
+    'auth.verify.trust': 'SOC-2 Type II Certified • 256-bit SSL Encryption'
   },
   vi: {
     // Navbar
@@ -290,7 +302,19 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.signUp.strength.weak': 'Yếu',
     'auth.signUp.strength.fair': 'Trung bình',
     'auth.signUp.strength.good': 'Tốt',
-    'auth.signUp.strength.strong': 'Mạnh'
+    'auth.signUp.strength.strong': 'Mạnh',
+
+    // Email Verification
+    'auth.verify.support': 'Hỗ trợ',
+    'auth.verify.platform': 'Nền tảng Đám mây Bất động sản Thương mại',
+    'auth.verify.title': 'Kiểm tra hộp thư của bạn',
+    'auth.verify.subtitle': 'Chúng tôi đã gửi mã xác thực 6 số đến',
+    'auth.verify.changeEmail': '(Thay đổi)',
+    'auth.verify.expiresIn': 'Mã sẽ hết hạn sau',
+    'auth.verify.btn': 'Xác thực & Tiếp tục',
+    'auth.verify.didNotReceive': 'Chưa nhận được mã?',
+    'auth.verify.resend': 'Gửi lại',
+    'auth.verify.trust': 'Chứng nhận SOC-2 Type II • Mã hoá 256-bit SSL'
   }
 };
 
