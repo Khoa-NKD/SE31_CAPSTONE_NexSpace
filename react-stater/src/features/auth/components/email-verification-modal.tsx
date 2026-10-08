@@ -29,19 +29,9 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className='max-w-[440px] p-8 sm:p-10 bg-surface-card border-border-subtle rounded-3xl shadow-2xl overflow-hidden'
+        className='max-w-[440px] p-8 sm:p-10 bg-white dark:bg-slate-900 border border-border-subtle dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden'
       >
-        {/* Dynamic Dot Grid Background via Tailwind pseudo-element or standard CSS */}
-        <div 
-          className="absolute inset-0 z-0 opacity-[0.08] dark:opacity-[0.12] pointer-events-none mix-blend-normal"
-          style={{
-            backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)',
-            backgroundSize: '24px 24px'
-          }}
-        />
-        
-        {/* Subtle Ambient Glow */}
-        <div className="absolute -top-24 -left-20 w-[300px] h-[300px] bg-secondary/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
+
 
         <DialogTitle className='sr-only'>{t('auth.verify.title')}</DialogTitle>
         <DialogDescription className='sr-only'>{t('auth.verify.subtitle')}</DialogDescription>
@@ -49,23 +39,23 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
         <div className='flex flex-col items-center relative z-10 w-full'>
           {/* Header Icon - Premium Glass Variant */}
           <div className='flex justify-center mb-2'>
-            <div className='w-14 h-14 rounded-full bg-secondary/10 dark:bg-secondary/20 flex items-center justify-center text-secondary ring-8 ring-secondary/5 dark:ring-secondary/10'>
+            <div className='w-14 h-14 rounded-full bg-indigo-50 dark:bg-indigo-900/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400 ring-8 ring-indigo-50/50 dark:ring-indigo-900/20'>
               <Mail className='h-6 w-6 stroke-[1.5]' />
             </div>
           </div>
 
           {/* Headline & Instructions */}
-          <h1 className='text-headline-md font-headline-md font-bold text-on-surface text-center mt-5 text-[24px] tracking-tight'>
+          <h1 className='text-headline-md font-headline-md font-bold text-slate-900 dark:text-white text-center mt-5 text-[24px] tracking-tight'>
             {t('auth.verify.title')}
           </h1>
-          <p className='text-body-base font-body-base text-on-surface-variant text-center mt-2.5 leading-relaxed'>
+          <p className='text-body-base font-body-base text-slate-600 dark:text-slate-300 text-center mt-2.5 leading-relaxed'>
             {t('auth.verify.subtitle')}
-            <span className='block mt-1 font-semibold text-on-surface'>
+            <span className='block mt-1 font-semibold text-slate-900 dark:text-white'>
               {email}
               <button
                 type='button'
                 onClick={onClose}
-                className='ml-1.5 text-secondary hover:text-indigo-dark font-medium underline underline-offset-2 inline-block transition-colors text-body-sm focus:outline-none rounded px-0.5 cursor-pointer'
+                className='ml-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium underline underline-offset-2 inline-block transition-colors text-body-sm focus:outline-none rounded px-0.5 cursor-pointer'
               >
                 {t('auth.verify.changeEmail')}
               </button>
@@ -89,10 +79,10 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
                       index={index}
                       className={cn(
                         'w-[46px] h-[56px] sm:w-[50px] sm:h-[60px]',
-                        'rounded-xl border border-border-interactive bg-surface-card text-center font-mono font-semibold text-2xl text-on-surface shadow-sm transition-all caret-secondary',
+                        'rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center font-mono font-semibold text-2xl text-slate-900 dark:text-white shadow-sm transition-all caret-indigo-600',
                         'first:rounded-xl first:border-l last:rounded-xl',
-                        'focus:border-secondary focus:ring-4 focus:ring-secondary/20',
-                        'data-[active=true]:border-secondary data-[active=true]:ring-4 data-[active=true]:ring-secondary/20 data-[active=true]:z-10 data-[active=true]:scale-[1.02]',
+                        'focus:border-indigo-600 focus:ring-4 focus:ring-indigo-600/20',
+                        'data-[active=true]:border-indigo-600 data-[active=true]:ring-4 data-[active=true]:ring-indigo-600/20 data-[active=true]:z-10 data-[active=true]:scale-[1.02]',
                         'aria-invalid:border-status-danger aria-invalid:ring-status-danger/20'
                       )}
                     />
@@ -115,7 +105,7 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
             <button
               type='submit'
               disabled={value.length < 6}
-              className='w-full h-12 bg-secondary hover:bg-indigo-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-label-base text-[15px] font-semibold rounded-xl shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-secondary/40 cursor-pointer'
+              className='w-full h-12 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-label-base text-[15px] font-semibold rounded-xl shadow-md hover:shadow-lg active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-500/30 flex items-center justify-center gap-2 cursor-pointer'
             >
               <span>{t('auth.verify.btn')}</span>
               <ArrowRight className='h-4 w-4 stroke-[2.5]' />
@@ -124,12 +114,12 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
 
           {/* Secondary Resend Trigger */}
           <div className='mt-6 text-center w-full'>
-            <p className='text-body-sm font-body-sm text-on-surface-variant'>
+            <p className='text-body-sm font-body-sm text-on-surface-variant dark:text-slate-400'>
               {t('auth.verify.didNotReceive')}
               <button
                 type='button'
                 disabled
-                className='text-on-surface font-semibold cursor-not-allowed ml-1 inline-flex items-center gap-1 transition-colors'
+                className='text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold disabled:cursor-not-allowed disabled:opacity-70 ml-1 inline-flex items-center gap-1 transition-colors'
               >
                 <span>{t('auth.verify.resend')} (30s)</span>
               </button>
