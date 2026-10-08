@@ -7,6 +7,7 @@ import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
+import { Link } from '@tanstack/react-router';
 
 // Schema validation
 const signInSchema = z.object({
@@ -161,13 +162,12 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
               {t('auth.signIn.rememberMe')}
             </span>
           </label>
-          <a
-            href='#'
-            onClick={(e) => e.preventDefault()}
+          <Link
+            to='/auth/reset-password'
             className='font-label-base text-label-base text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-600/50 rounded-sm'
           >
             {t('auth.signIn.forgotPassword')}
-          </a>
+          </Link>
         </div>
 
         {/* Submit Button */}

@@ -178,7 +178,32 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.verify.btn': 'Verify & Continue',
     'auth.verify.didNotReceive': 'Didn’t receive the code?',
     'auth.verify.resend': 'Resend',
-    'auth.verify.trust': 'SOC-2 Type II Certified • 256-bit SSL Encryption'
+    'auth.verify.trust': 'SOC-2 Type II Certified • 256-bit SSL Encryption',
+
+    // Reset Password
+    'auth.resetPassword.title': 'Reset password',
+    'auth.resetPassword.subtitle': "Don't worry, we'll send you reset instructions.",
+    'auth.resetPassword.email': 'Email',
+    'auth.resetPassword.emailPlaceholder': 'you@company.com',
+    'auth.resetPassword.requestBtn': 'Reset password',
+    'auth.resetPassword.backToLogin': 'Back to log in',
+    'auth.resetPassword.verifyTitle': 'Check your email',
+    'auth.resetPassword.verifySubtitle': 'We sent a password reset link to',
+    'auth.resetPassword.verifyBtn': 'Verify',
+    'auth.resetPassword.resendText': "Didn't receive the email?",
+    'auth.resetPassword.resendLink': 'Click to resend',
+    'auth.resetPassword.newPasswordTitle': 'Set new password',
+    'auth.resetPassword.newPasswordSubtitle':
+      'Your new password must be different from previous used passwords.',
+    'auth.resetPassword.password': 'Password',
+    'auth.resetPassword.passwordPlaceholder': '••••••••',
+    'auth.resetPassword.confirmPassword': 'Confirm Password',
+    'auth.resetPassword.confirmPasswordPlaceholder': '••••••••',
+    'auth.resetPassword.updateBtn': 'Reset password',
+    'auth.resetPassword.successTitle': 'Password reset',
+    'auth.resetPassword.successSubtitle':
+      'Your password has been successfully reset. Click below to log in magically.',
+    'auth.resetPassword.successBtn': 'Continue'
   },
   vi: {
     // Navbar
@@ -350,7 +375,32 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.verify.btn': 'Xác thực & Tiếp tục',
     'auth.verify.didNotReceive': 'Chưa nhận được mã?',
     'auth.verify.resend': 'Gửi lại',
-    'auth.verify.trust': 'Chứng nhận SOC-2 Type II • Mã hoá 256-bit SSL'
+    'auth.verify.trust': 'Chứng nhận SOC-2 Type II • Mã hoá 256-bit SSL',
+
+    // Reset Password
+    'auth.resetPassword.title': 'Khôi phục mật khẩu',
+    'auth.resetPassword.subtitle': 'Đừng lo, chúng tôi sẽ gửi hướng dẫn khôi phục cho bạn.',
+    'auth.resetPassword.email': 'Email',
+    'auth.resetPassword.emailPlaceholder': 'bạn@côngty.com',
+    'auth.resetPassword.requestBtn': 'Khôi phục mật khẩu',
+    'auth.resetPassword.backToLogin': 'Quay lại đăng nhập',
+    'auth.resetPassword.verifyTitle': 'Kiểm tra hộp thư',
+    'auth.resetPassword.verifySubtitle': 'Chúng tôi đã gửi mã xác nhận tới',
+    'auth.resetPassword.verifyBtn': 'Xác thực',
+    'auth.resetPassword.resendText': 'Không nhận được email?',
+    'auth.resetPassword.resendLink': 'Gửi lại',
+    'auth.resetPassword.newPasswordTitle': 'Thiết lập mật khẩu mới',
+    'auth.resetPassword.newPasswordSubtitle':
+      'Mật khẩu mới của bạn phải khác với các mật khẩu đã sử dụng trước đó.',
+    'auth.resetPassword.password': 'Mật khẩu',
+    'auth.resetPassword.passwordPlaceholder': '••••••••',
+    'auth.resetPassword.confirmPassword': 'Xác nhận mật khẩu',
+    'auth.resetPassword.confirmPasswordPlaceholder': '••••••••',
+    'auth.resetPassword.updateBtn': 'Cập nhật mật khẩu',
+    'auth.resetPassword.successTitle': 'Khôi phục thành công',
+    'auth.resetPassword.successSubtitle':
+      'Mật khẩu của bạn đã được khôi phục thành công. Nhấn nút bên dưới để đăng nhập.',
+    'auth.resetPassword.successBtn': 'Tiếp tục'
   }
 };
 
