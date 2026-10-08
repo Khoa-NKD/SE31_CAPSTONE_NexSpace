@@ -28,11 +28,7 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent 
-        className='max-w-[440px] p-8 sm:p-10 bg-white dark:bg-slate-900 border border-border-subtle dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden'
-      >
-
-
+      <DialogContent className='max-w-[440px] p-8 sm:p-10 bg-white dark:bg-slate-900 border border-border-subtle dark:border-slate-800 rounded-3xl shadow-2xl overflow-hidden'>
         <DialogTitle className='sr-only'>{t('auth.verify.title')}</DialogTitle>
         <DialogDescription className='sr-only'>{t('auth.verify.subtitle')}</DialogDescription>
 
@@ -96,7 +92,8 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
               <div className='inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-status-warning/20 bg-status-warning/10 text-caption-code font-caption-code'>
                 <span className='w-1.5 h-1.5 rounded-full bg-status-warning animate-pulse'></span>
                 <span className='text-status-warning font-medium tracking-normal text-[13px]'>
-                  {t('auth.verify.expiresIn')} <span className='font-mono font-bold ml-1'>04:59</span>
+                  {t('auth.verify.expiresIn')}{' '}
+                  <span className='font-mono font-bold ml-1'>04:59</span>
                 </span>
               </div>
             </div>
@@ -130,4 +127,3 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
     </Dialog>
   );
 }
-
