@@ -1,4 +1,10 @@
-import type { PlatformLayer, TestimonialItem, WorkspaceItem } from './types';
+import type {
+  PlatformLayer,
+  PlatformStat,
+  ResourceArticle,
+  TestimonialItem,
+  WorkspaceItem
+} from './types';
 
 export const WORKSPACE_ITEMS: WorkspaceItem[] = [
   {
@@ -111,36 +117,102 @@ export const WORKSPACE_ITEMS: WorkspaceItem[] = [
 export const PLATFORM_LAYERS: PlatformLayer[] = [
   {
     layerNumber: 'LAYER 01',
-    title: 'On-Demand Workspace Access',
+    subtitle: 'FLEXIBLE WORKSPACE',
+    title: 'Global workspace access—on demand.',
     description:
-      'Book hot desks, quiet focus zones, and high-spec meeting rooms by the hour, day, or month across 500+ curated premium hubs.',
+      'Book private suites, quiet focus pods, and high-spec meeting rooms by the hour, day, month—or longer. Empower individuals, distributed teams, or your full enterprise workforce across 500+ curated premium hubs.',
     iconName: 'Compass',
     href: '#workspaces',
-    ctaText: 'Explore Spaces'
+    ctaText: 'Explore Spaces',
+    highlights: [
+      'Instant On-Demand Booking',
+      'Over 100,000 Spaces Globally',
+      'Single Consolidated Corporate Account',
+      'Integrated Digital Keycard Telemetry'
+    ],
+    metricLabel: 'Live Network Uptime',
+    metricValue: '99.8%'
   },
   {
     layerNumber: 'LAYER 02',
-    title: 'Workplace Operations & Control',
+    subtitle: 'WORKPLACE OPERATIONS',
+    title: 'Simplify control. Maximize efficiency.',
     description:
-      'Streamline booking approvals, manage dynamic budgets, assign flexible team credits, and track usage with complete corporate governance.',
+      'Gain complete control over every moving part—from permissions, multi-tier approval policies, and dynamic team budgets to automated PayOS settlements and digital keycard authorizations.',
     iconName: 'SlidersHorizontal',
     href: '#enterprise',
-    ctaText: 'Learn More'
+    ctaText: 'Explore Operations',
+    highlights: [
+      'Multi-Level Corporate Governance',
+      'Automated Team Credit Allocations',
+      'Instant PayOS & Bank Reconciliation',
+      'No More Manual Expense Reports'
+    ],
+    metricLabel: 'Admin Time Saved',
+    metricValue: '85%'
   },
   {
     layerNumber: 'LAYER 03',
-    title: 'List & Monetize Extra Space',
+    subtitle: 'CORPORATE REAL ESTATE STRATEGY',
+    title: 'Plan with confidence. Optimize with data.',
     description:
-      'For commercial space owners: interactive 2D floor plan setup, dynamic pricing algorithms, instant automated bank payouts, and occupancy telemetry.',
+      'Leverage behavioral insights, real-time occupancy telemetry, and live market benchmarks to model lease ROI, simulate workforce scenarios, and eliminate underutilized square footage.',
     iconName: 'BarChart3',
     href: '#list-space',
-    ctaText: 'List Your Workspace'
+    ctaText: 'Model Portfolio ROI',
+    highlights: [
+      'Real-Time Space Utilization Metrics',
+      'Interactive 2D Spatial Floor Plans',
+      'Dynamic Pricing & Monetization Engine',
+      'ESG Carbon Footprint Telemetry'
+    ],
+    metricLabel: 'Average Lease Savings',
+    metricValue: '38%'
   }
 ];
 
 export const TESTIMONIALS: TestimonialItem[] = [
   {
-    id: 'testimonial-1',
+    id: 'testimonial-softchoice',
+    rating: 5,
+    quote:
+      'It’s not lease or flex—it’s lease plus flex. That helped us get the best of both worlds. And with NexSpace, we can adapt in real time. We’re not guessing anymore. We’re watching what actually works.',
+    name: 'Kat Cassin',
+    role: 'Head of People Operations',
+    company: 'Softchoice, a WWT company',
+    teamSize: '10,000+ employees',
+    location: 'Global Hubs',
+    avatarInitials: 'KC',
+    category: 'people'
+  },
+  {
+    id: 'testimonial-gofundme',
+    rating: 5,
+    quote:
+      'It wasn’t about eliminating offices — it was about unlocking choice and supporting employees. We use real usage patterns before making long-term decisions, and flexibility lets us ebb and flow as our teams evolve.',
+    name: 'Giana Rodriguez',
+    role: 'Director of Workplace Experience',
+    company: 'GoFundMe',
+    teamSize: '1,500+ distributed',
+    location: 'San Francisco & SEA',
+    avatarInitials: 'GR',
+    category: 'people'
+  },
+  {
+    id: 'testimonial-tmobile',
+    rating: 5,
+    quote:
+      'Our overall real estate spend is down 38%. NexSpace allows teams in emerging markets where we don’t have permanent offices to gather on an on-demand basis with complete security compliance.',
+    name: 'Marcus Vance',
+    role: 'Corporate Real Estate Strategy Leader',
+    company: 'T-Mobile Enterprise',
+    teamSize: '70,000+ employees',
+    location: 'North America & APAC',
+    avatarInitials: 'MV',
+    category: 'cre'
+  },
+  {
+    id: 'testimonial-velo',
     rating: 5,
     quote:
       'NexSpace allowed our 140-person engineering team to transition seamlessly into a flexible hybrid model. We cut 38% off our commercial lease overhead while employee satisfaction with desk flexibility reached 96%.',
@@ -148,27 +220,102 @@ export const TESTIMONIALS: TestimonialItem[] = [
     role: 'Head of People & Workplace',
     company: 'Fintech Velo',
     teamSize: '140+ employees',
-    location: 'HCM City',
-    avatarInitials: 'MT'
+    location: 'Ho Chi Minh City',
+    avatarInitials: 'MT',
+    category: 'operations'
   },
   {
-    id: 'testimonial-2',
+    id: 'testimonial-seatech',
     rating: 5,
     quote:
-      'Managing workspace credits across Hanoi and Da Nang used to be an administrative nightmare of expensing receipts. NexSpace unified our booking, billing, and team budget allocations into one clean dashboard.',
+      'Managing workspace credits across Hanoi, Da Nang, and Singapore used to be an administrative nightmare of expensing receipts. NexSpace unified our booking, billing, and team budget allocations into one clean dashboard.',
     name: 'Sarah Nguyen',
     role: 'Director of Remote Operations',
     company: 'SeaTech Global',
     teamSize: '300+ distributed',
     location: 'SEA Region',
-    avatarInitials: 'SN'
+    avatarInitials: 'SN',
+    category: 'operations'
+  },
+  {
+    id: 'testimonial-sae',
+    rating: 5,
+    quote:
+      'NexSpace offers total flexibility. Hotels and rigid conference centers are increasingly expensive and have painful cancellation policies. This platform is a game-changer for our professional engineering cohorts.',
+    name: 'Jeff Waltmire',
+    role: 'Workplace Experience Manager',
+    company: 'SAE Global Engineering',
+    teamSize: '6,000+ employees',
+    location: 'Global Hubs',
+    avatarInitials: 'JW',
+    category: 'cre'
+  }
+];
+
+export const RESOURCE_ARTICLES: ResourceArticle[] = [
+  {
+    id: 'article-1',
+    title: "The forecast is broken. Your commercial lease doesn't know that yet.",
+    summary:
+      'How do you responsibly make a 5-to-10 year commercial commitment when your hybrid headcount projections cannot predict 18 months ahead?',
+    readTime: '4 min read',
+    category: 'Workplace Strategy',
+    date: 'Oct 2026',
+    href: '#article-forecast'
+  },
+  {
+    id: 'article-2',
+    title: 'Operating today, building tomorrow: a Fortune 500 dual-space strategy.',
+    summary:
+      'How multinational technology leaders are coupling central brand flagships with agile satellite on-demand hubs to attract top regional engineering talent.',
+    readTime: '2 min read',
+    category: 'Enterprise Case Study',
+    date: 'Sep 2026',
+    href: '#article-dual-space'
+  },
+  {
+    id: 'article-3',
+    title: 'NexSpace License Administrator: the command center for flexible workspace.',
+    summary:
+      'Transforming flexible office license administration from a manual back-office afterthought into an automated corporate optimization engine.',
+    readTime: '4 min read',
+    category: 'Product Innovation',
+    date: 'Aug 2026',
+    href: '#article-license-os'
+  }
+];
+
+export const PLATFORM_STATS: PlatformStat[] = [
+  {
+    value: '100,000+',
+    label: 'Curated Spaces Worldwide',
+    description: 'Instant on-demand desks, suites, and boardrooms across 3,500+ cities.'
+  },
+  {
+    value: '38%',
+    label: 'Lease Overhead Reduction',
+    description: 'Average enterprise budget savings achieved through dynamic flex allocation.'
+  },
+  {
+    value: '96%',
+    label: 'Employee Flexibility Score',
+    description: 'Reported satisfaction rating for teams with hybrid desk autonomy.'
+  },
+  {
+    value: '< 15 min',
+    label: 'Team Onboarding & Setup',
+    description: 'Instant corporate credit disbursement and digital keycard provisioning.'
   }
 ];
 
 export const PARTNER_LOGOS = [
-  { name: 'GrabVentures', icon: 'Layers' },
-  { name: 'VNG Campus', icon: 'Network' },
-  { name: 'Shopee Hub', icon: 'ShoppingBag' },
-  { name: 'VinAI Research', icon: 'Bot' },
-  { name: 'Techcombank Agile', icon: 'Landmark' }
+  { name: 'T-Mobile', icon: 'Network', tag: 'Fortune 50' },
+  { name: 'GoFundMe', icon: 'Sparkles', tag: 'Fintech' },
+  { name: 'Allstate', icon: 'Shield', tag: 'Enterprise' },
+  { name: 'GrabVentures', icon: 'Layers', tag: 'Unicorn' },
+  { name: 'VNG Campus', icon: 'Hub', tag: 'Tech Giant' },
+  { name: 'Smartsheet', icon: 'BarChart3', tag: 'SaaS Leader' },
+  { name: 'Shopee Hub', icon: 'ShoppingBag', tag: 'E-commerce' },
+  { name: 'VinAI Research', icon: 'Bot', tag: 'AI Institute' },
+  { name: 'Techcombank Agile', icon: 'Landmark', tag: 'Tier-1 Bank' }
 ];
