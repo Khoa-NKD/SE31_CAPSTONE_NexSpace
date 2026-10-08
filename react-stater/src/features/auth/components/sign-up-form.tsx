@@ -51,13 +51,7 @@ const getLabel = (s: number, t: (k: string) => string) => {
   return t('auth.signUp.strength.strong');
 };
 
-function PasswordStrengthMeter({
-  password,
-  t
-}: {
-  password?: string;
-  t: (k: string) => string;
-}) {
+function PasswordStrengthMeter({ password, t }: { password?: string; t: (k: string) => string }) {
   const score = getPasswordStrength(password || '');
 
   if (!password) return null;

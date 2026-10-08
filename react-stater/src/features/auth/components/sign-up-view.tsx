@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { Link } from '@tanstack/react-router';
 import { InteractiveGridPattern } from './interactive-grid';
 import SignUpForm from './sign-up-form';
 import { NexSpaceLogo } from '@/components/brand/logo';
@@ -14,9 +14,9 @@ import {
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { useLanguage } from '../../landing/context/language-context';
 import { EmailVerificationModal } from './email-verification-modal';
+import { motion } from 'motion/react';
 
 function SignUpContent() {
-  const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
   const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
 
@@ -30,13 +30,18 @@ function SignUpContent() {
 
   return (
     <div className='relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background md:grid lg:max-w-none lg:grid-cols-2 lg:px-0'>
-      <EmailVerificationModal 
-        isOpen={!!verificationEmail} 
-        onClose={closeVerificationModal} 
-        email={verificationEmail || ''} 
+      <EmailVerificationModal
+        isOpen={!!verificationEmail}
+        onClose={closeVerificationModal}
+        email={verificationEmail || ''}
       />
       {/* Left Side: Form Section */}
-      <div className='flex h-full w-full flex-col p-6 lg:p-10 relative z-10'>
+      <motion.div
+        initial={{ opacity: 0, x: -20, filter: 'blur(4px)' }}
+        animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.5, ease: 'easeOut', delay: 0.1 }}
+        className='flex h-full w-full flex-col p-6 lg:p-10 relative z-10'
+      >
         {/* Static Header Navigation */}
         <header className='flex items-center justify-between w-full'>
           <Link
@@ -126,15 +131,20 @@ function SignUpContent() {
             </p>
           </div>
         </main>
-      </div>
+      </motion.div>
 
       {/* Right Side: Branding & Visuals (Hidden on small screens) */}
-      <div className='relative hidden h-full flex-col lg:flex overflow-hidden'>
+      <motion.div
+        initial={{ opacity: 0, x: 20 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, ease: 'easeOut' }}
+        className='relative hidden h-full flex-col lg:flex overflow-hidden'
+      >
         {/* Background Image */}
         <img
           src='/images/register-bg.jpg'
           alt='Premium Workspace'
-          className='absolute inset-0 h-full w-full object-cover object-center'
+          className='absolute inset-0 h-full w-full object-cover object-center motion-safe:transition-transform motion-safe:duration-1000'
           fetchPriority='high'
           decoding='async'
         />
@@ -173,7 +183,7 @@ function SignUpContent() {
             </blockquote>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }
