@@ -11,7 +11,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
-import { LanguageProvider, useLanguage } from '../../landing/context/language-context';
+import { useLanguage } from '../../landing/context/language-context';
 
 function SignUpContent() {
   const navigate = useNavigate();
@@ -163,9 +163,5 @@ function SignUpContent() {
 }
 
 export default function SignUpViewPage() {
-  return (
-    <LanguageProvider>
-      <SignUpContent />
-    </LanguageProvider>
-  );
+  return <SignUpContent />;
 }

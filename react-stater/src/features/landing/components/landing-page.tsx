@@ -9,47 +9,44 @@ import { ResourcesSection } from './resources-section';
 import { EnterpriseCta } from './enterprise-cta';
 import { Footer } from './footer';
 import { LandingBackground } from './landing-background';
-import { LanguageProvider } from '../context/language-context';
 
 export default function LandingPage() {
   return (
-    <LanguageProvider>
-      <div
-        data-landing-root='true'
-        className='landing-scope relative min-h-screen text-foreground antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
-        style={{ fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif' }}
-      >
-        {/* Brand Unified Spatial Background System */}
-        <LandingBackground />
-        {/* 1. Header Navigation */}
-        <Navbar />
+    <div
+      data-landing-root='true'
+      className='landing-scope relative min-h-screen text-foreground antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
+      style={{ fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif' }}
+    >
+      {/* Brand Unified Spatial Background System */}
+      <LandingBackground />
+      {/* 1. Header Navigation */}
+      <Navbar />
 
-        <main>
-          {/* 2. Hero & Elevated Search Engine with Infinite Marquee */}
-          <HeroSection />
+      <main>
+        {/* 2. Hero & Elevated Search Engine with Infinite Marquee */}
+        <HeroSection />
 
-          {/* 3. Key Enterprise Impact Stats Banner */}
-          <StatsBar />
+        {/* 3. Key Enterprise Impact Stats Banner */}
+        <StatsBar />
 
-          {/* 4. The Smart Office Platform (3-Layer Interactive Architectural Switcher) */}
-          <PlatformLayers />
+        {/* 4. The Smart Office Platform (3-Layer Interactive Architectural Switcher) */}
+        <PlatformLayers />
 
-          {/* 5. Live Marketplace Showcase & Landlord Callout */}
-          <MarketplaceShowcase />
+        {/* 5. Live Marketplace Showcase & Landlord Callout */}
+        <MarketplaceShowcase />
 
-          {/* 6. Real Results from Real Teams (Categorized Enterprise Reviews) */}
-          <TestimonialsSection />
+        {/* 6. Real Results from Real Teams (Categorized Enterprise Reviews) */}
+        <TestimonialsSection />
 
-          {/* 7. Workplace Insights & Resources */}
-          <ResourcesSection />
+        {/* 7. Workplace Insights & Resources */}
+        <ResourcesSection />
 
-          {/* 8. Enterprise Consultation & Interactive Lease ROI Modeler */}
-          <EnterpriseCta />
-        </main>
+        {/* 8. Enterprise Consultation & Interactive Lease ROI Modeler */}
+        <EnterpriseCta />
+      </main>
 
-        {/* 9. Comprehensive Platform Footer */}
-        <Footer />
-      </div>
-    </LanguageProvider>
+      {/* 9. Comprehensive Platform Footer */}
+      <Footer />
+    </div>
   );
 }
