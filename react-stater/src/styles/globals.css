@@ -167,6 +167,65 @@
       0 8px 10px -6px rgba(15, 23, 42, 0.04);
   }
   .font-display {
-    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-family:
+      'Plus Jakarta Sans',
+      system-ui,
+      -apple-system,
+      sans-serif;
+    letter-spacing: -0.02em;
   }
+  /* Strict Single Typography Enforcement for Landing Page */
+  .landing-scope,
+  .landing-scope *,
+  [data-landing-root],
+  [data-landing-root] *,
+  [data-radix-popper-content-wrapper] *,
+  [data-slot='dialog-content'] *,
+  [data-slot='sheet-content'] * {
+    font-family:
+      'Plus Jakarta Sans',
+      system-ui,
+      -apple-system,
+      sans-serif !important;
+  }
+  .glass-card {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(16px);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+  }
+  :is(.dark) .glass-card {
+    background: rgba(15, 23, 42, 0.75);
+    border: 1px solid rgba(51, 65, 85, 0.6);
+  }
+  .animate-marquee {
+    display: flex;
+    width: max-content;
+    animation: marquee 35s linear infinite;
+  }
+  .animate-marquee:hover {
+    animation-play-state: paused;
+  }
+}
+
+@keyframes marquee {
+  0% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
 }
