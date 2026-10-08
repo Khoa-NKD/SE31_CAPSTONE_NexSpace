@@ -9,6 +9,7 @@ import { ActiveThemeProvider } from '@/components/themes/active-theme';
 import ThemeProvider from '@/components/themes/theme-provider';
 import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
 import { seo } from '@/lib/seo';
+import { LanguageProvider } from '@/features/landing/context/language-context';
 
 import appCss from '@/styles/globals.css?url';
 
@@ -84,10 +85,12 @@ function RootDocument() {
           enableColorScheme
         >
           <ActiveThemeProvider initialTheme={activeTheme}>
-            <TooltipProvider>
-              <Toaster />
-              <Outlet />
-            </TooltipProvider>
+            <LanguageProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Outlet />
+              </TooltipProvider>
+            </LanguageProvider>
           </ActiveThemeProvider>
         </ThemeProvider>
         <TanStackRouterDevtools position='bottom-left' />

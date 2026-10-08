@@ -1,3 +1,4 @@
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { InteractiveGridPattern } from './interactive-grid';
@@ -11,14 +12,29 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
-import { LanguageProvider, useLanguage } from '../../landing/context/language-context';
+import { useLanguage } from '../../landing/context/language-context';
+import { EmailVerificationModal } from './email-verification-modal';
 
 function SignUpContent() {
   const navigate = useNavigate();
   const { language, setLanguage, t } = useLanguage();
+  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+
+  const handleSuccess = (email: string) => {
+    setVerificationEmail(email);
+  };
+
+  const closeVerificationModal = () => {
+    setVerificationEmail(null);
+  };
 
   return (
     <div className='relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-background md:grid lg:max-w-none lg:grid-cols-2 lg:px-0'>
+      <EmailVerificationModal 
+        isOpen={!!verificationEmail} 
+        onClose={closeVerificationModal} 
+        email={verificationEmail || ''} 
+      />
       {/* Left Side: Form Section */}
       <div className='flex h-full w-full flex-col p-6 lg:p-10 relative z-10'>
         {/* Static Header Navigation */}
@@ -97,7 +113,7 @@ function SignUpContent() {
               </p>
             </div>
 
-            <SignUpForm onSuccess={() => navigate({ to: '/dashboard/overview' })} />
+            <SignUpForm onSuccess={handleSuccess} />
 
             <p className='text-center text-sm text-muted-foreground mt-4'>
               {t('auth.signUp.alreadyHaveAccount')}{' '}
@@ -163,9 +179,5 @@ function SignUpContent() {
 }
 
 export default function SignUpViewPage() {
-  return (
-    <LanguageProvider>
-      <SignUpContent />
-    </LanguageProvider>
-  );
+  return <SignUpContent />;
 }
