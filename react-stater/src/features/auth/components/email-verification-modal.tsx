@@ -4,6 +4,7 @@ import { Mail, ArrowRight } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp';
+import { cn } from '@/lib/utils';
 
 interface EmailVerificationModalProps {
   isOpen: boolean;
@@ -28,35 +29,43 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent 
-        className='max-w-[440px] p-8 bg-surface-card border-border-subtle rounded-2xl shadow-xl overflow-hidden'
-        style={{
-          backgroundImage: 'radial-gradient(rgba(148, 163, 184, 0.28) 1px, transparent 1px)',
-          backgroundSize: '24px 24px'
-        }}
+        className='max-w-[440px] p-8 sm:p-10 bg-surface-card border-border-subtle rounded-3xl shadow-2xl overflow-hidden'
       >
+        {/* Dynamic Dot Grid Background via Tailwind pseudo-element or standard CSS */}
+        <div 
+          className="absolute inset-0 z-0 opacity-[0.08] dark:opacity-[0.12] pointer-events-none mix-blend-normal"
+          style={{
+            backgroundImage: 'radial-gradient(currentColor 1.5px, transparent 1.5px)',
+            backgroundSize: '24px 24px'
+          }}
+        />
+        
+        {/* Subtle Ambient Glow */}
+        <div className="absolute -top-24 -left-20 w-[300px] h-[300px] bg-secondary/20 blur-[100px] rounded-full pointer-events-none z-0"></div>
+
         <DialogTitle className='sr-only'>{t('auth.verify.title')}</DialogTitle>
         <DialogDescription className='sr-only'>{t('auth.verify.subtitle')}</DialogDescription>
 
         <div className='flex flex-col items-center relative z-10 w-full'>
-          {/* Header Icon */}
-          <div className='flex justify-center'>
-            <div className='w-12 h-12 rounded-full bg-surface-muted flex items-center justify-center text-outline ring-8 ring-surface-muted/50'>
-              <Mail className='h-6 w-6' />
+          {/* Header Icon - Premium Glass Variant */}
+          <div className='flex justify-center mb-2'>
+            <div className='w-14 h-14 rounded-full bg-secondary/10 dark:bg-secondary/20 flex items-center justify-center text-secondary ring-8 ring-secondary/5 dark:ring-secondary/10'>
+              <Mail className='h-6 w-6 stroke-[1.5]' />
             </div>
           </div>
 
           {/* Headline & Instructions */}
-          <h1 className='text-headline-md font-headline-md font-bold text-on-surface text-center mt-5 text-[22px] leading-7'>
+          <h1 className='text-headline-md font-headline-md font-bold text-on-surface text-center mt-5 text-[24px] tracking-tight'>
             {t('auth.verify.title')}
           </h1>
-          <p className='text-body-base font-body-base text-on-surface-variant text-center mt-2 leading-relaxed'>
+          <p className='text-body-base font-body-base text-on-surface-variant text-center mt-2.5 leading-relaxed'>
             {t('auth.verify.subtitle')}
             <span className='block mt-1 font-semibold text-on-surface'>
               {email}
               <button
                 type='button'
                 onClick={onClose}
-                className='ml-1 text-outline hover:text-on-surface font-medium underline inline-block transition-colors text-body-sm font-body-sm focus:outline-none focus:ring-1 focus:ring-secondary rounded px-0.5 cursor-pointer'
+                className='ml-1.5 text-secondary hover:text-indigo-dark font-medium underline underline-offset-2 inline-block transition-colors text-body-sm focus:outline-none rounded px-0.5 cursor-pointer'
               >
                 {t('auth.verify.changeEmail')}
               </button>
@@ -64,21 +73,28 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
           </p>
 
           {/* Form Context */}
-          <form className='mt-6 w-full' onSubmit={onSubmit}>
+          <form className='mt-8 w-full' onSubmit={onSubmit}>
             {/* OTP Input Component */}
-            <div className='flex justify-center mb-6 w-full'>
+            <div className='flex justify-center mb-8 w-full'>
               <InputOTP
                 maxLength={6}
                 value={value}
                 onChange={(val) => setValue(val)}
-                containerClassName='gap-2'
+                containerClassName='gap-2 sm:gap-3'
               >
-                <InputOTPGroup className='gap-2 flex'>
+                <InputOTPGroup className='gap-2 sm:gap-3 flex'>
                   {[0, 1, 2, 3, 4, 5].map((index) => (
                     <InputOTPSlot
                       key={index}
                       index={index}
-                      className='w-12 h-[52px] rounded-xl border border-border-interactive bg-surface-card text-center font-mono font-bold text-2xl text-on-surface shadow-sm focus:border-secondary focus:ring-2 focus:ring-secondary/20 transition-all caret-secondary first:rounded-xl first:border-l last:rounded-xl aria-invalid:border-status-danger aria-invalid:ring-status-danger/20 data-[active=true]:border-secondary data-[active=true]:ring-secondary/20 data-[active=true]:ring-[3px]'
+                      className={cn(
+                        'w-[46px] h-[56px] sm:w-[50px] sm:h-[60px]',
+                        'rounded-xl border border-border-interactive bg-surface-card text-center font-mono font-semibold text-2xl text-on-surface shadow-sm transition-all caret-secondary',
+                        'first:rounded-xl first:border-l last:rounded-xl',
+                        'focus:border-secondary focus:ring-4 focus:ring-secondary/20',
+                        'data-[active=true]:border-secondary data-[active=true]:ring-4 data-[active=true]:ring-secondary/20 data-[active=true]:z-10 data-[active=true]:scale-[1.02]',
+                        'aria-invalid:border-status-danger aria-invalid:ring-status-danger/20'
+                      )}
                     />
                   ))}
                 </InputOTPGroup>
@@ -86,33 +102,34 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
             </div>
 
             {/* Expiry Timer Pill Badge */}
-            <div className='flex justify-center mb-6'>
-              <div className='inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-border-interactive/60 bg-surface-card text-caption-code font-caption-code shadow-sm'>
-                <span className='text-on-surface-variant font-medium tracking-normal text-[12px]'>
-                  {t('auth.verify.expiresIn')} <span className='font-mono font-semibold text-[#92400E] ml-1'>04:59</span>
+            <div className='flex justify-center mb-8'>
+              <div className='inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-status-warning/20 bg-status-warning/10 text-caption-code font-caption-code'>
+                <span className='w-1.5 h-1.5 rounded-full bg-status-warning animate-pulse'></span>
+                <span className='text-status-warning font-medium tracking-normal text-[13px]'>
+                  {t('auth.verify.expiresIn')} <span className='font-mono font-bold ml-1'>04:59</span>
                 </span>
               </div>
             </div>
 
-            {/* Primary CTA Button */}
+            {/* Primary CTA Button - Refactored to be prominent */}
             <button
               type='submit'
               disabled={value.length < 6}
-              className='w-full h-11 bg-surface-muted hover:bg-border-interactive disabled:opacity-50 disabled:cursor-not-allowed text-on-surface font-label-base text-label-base font-medium rounded-lg shadow-sm flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-secondary/40 focus:ring-offset-2 cursor-pointer'
+              className='w-full h-12 bg-secondary hover:bg-indigo-dark disabled:opacity-50 disabled:cursor-not-allowed text-white font-label-base text-[15px] font-semibold rounded-xl shadow-[0_4px_14px_0_rgba(99,102,241,0.39)] flex items-center justify-center gap-2 active:scale-[0.98] transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-secondary/40 cursor-pointer'
             >
               <span>{t('auth.verify.btn')}</span>
-              <ArrowRight className='h-[18px] w-[18px]' />
+              <ArrowRight className='h-4 w-4 stroke-[2.5]' />
             </button>
           </form>
 
           {/* Secondary Resend Trigger */}
           <div className='mt-6 text-center w-full'>
-            <p className='text-body-sm font-body-sm text-on-surface'>
+            <p className='text-body-sm font-body-sm text-on-surface-variant'>
               {t('auth.verify.didNotReceive')}
               <button
                 type='button'
                 disabled
-                className='text-on-surface font-semibold cursor-not-allowed ml-1 inline-flex items-center gap-1'
+                className='text-on-surface font-semibold cursor-not-allowed ml-1 inline-flex items-center gap-1 transition-colors'
               >
                 <span>{t('auth.verify.resend')} (30s)</span>
               </button>
@@ -123,3 +140,4 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
     </Dialog>
   );
 }
+
