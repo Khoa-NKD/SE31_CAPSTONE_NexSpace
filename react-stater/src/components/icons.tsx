@@ -7,6 +7,7 @@ import {
   IconBold,
   IconBox,
   IconBrandGithub,
+  IconBrandGoogle,
   IconBrandTwitter,
   IconBrightness,
   IconCalendar,
@@ -140,6 +141,7 @@ export const Icons = {
 
   // Brand
   github: IconBrandGithub,
+  google: IconBrandGoogle,
   twitter: IconBrandTwitter,
   logo: IconCommand,
   nexSpace: NexSpaceLogo,

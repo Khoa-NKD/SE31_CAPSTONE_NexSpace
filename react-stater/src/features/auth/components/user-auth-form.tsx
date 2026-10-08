@@ -4,7 +4,7 @@ import { useAppForm } from '@/lib/form';
 import { useTransition } from 'react';
 import { toast } from 'sonner';
 import * as z from 'zod';
-import GithubSignInButton from './github-auth-button';
+import GoogleSignInButton from './google-auth-button';
 
 const formSchema = z.object({
   email: z.string().email({ message: 'Enter a valid email address' })
@@ -61,7 +61,7 @@ export default function UserAuthForm() {
           <span className='bg-background text-muted-foreground px-2'>Or continue with</span>
         </div>
       </div>
-      <GithubSignInButton />
+      <GoogleSignInButton />
     </>
   );
 }

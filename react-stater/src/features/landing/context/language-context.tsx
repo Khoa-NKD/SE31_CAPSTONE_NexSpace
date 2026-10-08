@@ -122,7 +122,45 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     // Footer
     'footer.tagline': 'The Cloud Workspace & Hybrid Office Operating System.',
     'footer.rights':
-      'NexSpace Technologies Inc. All rights reserved. Commercial Real Estate Cloud & Marketplace.'
+      'NexSpace Technologies Inc. All rights reserved. Commercial Real Estate Cloud & Marketplace.',
+
+    // Auth
+    'auth.backToHome': 'Back to home',
+    'auth.signUp.title': 'Create an account',
+    'auth.signUp.subtitle': 'Enter your details below to create your NexSpace account and explore premium workspaces.',
+    'auth.signUp.fullName': 'Full Name',
+    'auth.signUp.fullName.ph': 'John Doe',
+    'auth.signUp.email': 'Email Address',
+    'auth.signUp.email.ph': 'name@company.com',
+    'auth.signUp.password': 'Password',
+    'auth.signUp.password.ph': '••••••••',
+    'auth.signUp.confirmPassword': 'Confirm Password',
+    'auth.signUp.agreeTerms.prefix': 'I agree to the',
+    'auth.signUp.agreeTerms.tos': 'Terms of Service',
+    'auth.signUp.agreeTerms.and': 'and',
+    'auth.signUp.agreeTerms.privacy': 'Privacy Policy',
+    'auth.signUp.subscribe': 'Subscribe to marketing emails',
+    'auth.signUp.btn': 'Create account',
+    'auth.signUp.alreadyHaveAccount': 'Already have an account?',
+    'auth.signUp.signIn': 'Sign in',
+    'auth.signUp.orContinue': 'Or continue with',
+    'auth.signUp.google': 'Continue with Google',
+    'auth.signUp.strength.weak': 'Weak',
+    'auth.signUp.strength.fair': 'Fair',
+    'auth.signUp.strength.good': 'Good',
+    'auth.signUp.strength.strong': 'Strong',
+
+    // Email Verification
+    'auth.verify.support': 'Support',
+    'auth.verify.platform': 'Commercial Real Estate Cloud',
+    'auth.verify.title': 'Check your email',
+    'auth.verify.subtitle': 'We’ve sent a 6-digit verification code to',
+    'auth.verify.changeEmail': '(Change)',
+    'auth.verify.expiresIn': 'Code expires in',
+    'auth.verify.btn': 'Verify & Continue',
+    'auth.verify.didNotReceive': 'Didn’t receive the code?',
+    'auth.verify.resend': 'Resend',
+    'auth.verify.trust': 'SOC-2 Type II Certified • 256-bit SSL Encryption'
   },
   vi: {
     // Navbar
@@ -238,7 +276,45 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'footer.tagline':
       'Hệ điều hành không gian làm việc đám mây & Sàn giao dịch bất động sản thương mại.',
     'footer.rights':
-      'NexSpace Technologies Inc. Bảo lưu mọi quyền. Đám mây & Sàn giao dịch Bất động sản Thương mại.'
+      'NexSpace Technologies Inc. Bảo lưu mọi quyền. Đám mây & Sàn giao dịch Bất động sản Thương mại.',
+
+    // Auth
+    'auth.backToHome': 'Về trang chủ',
+    'auth.signUp.title': 'Tạo tài khoản',
+    'auth.signUp.subtitle': 'Nhập thông tin chi tiết dưới đây để tạo tài khoản NexSpace và khám phá các không gian làm việc cao cấp.',
+    'auth.signUp.fullName': 'Họ và Tên',
+    'auth.signUp.fullName.ph': 'Nguyễn Văn A',
+    'auth.signUp.email': 'Địa chỉ Email',
+    'auth.signUp.email.ph': 'ten@congty.com',
+    'auth.signUp.password': 'Mật khẩu',
+    'auth.signUp.password.ph': '••••••••',
+    'auth.signUp.confirmPassword': 'Xác nhận Mật khẩu',
+    'auth.signUp.agreeTerms.prefix': 'Tôi đồng ý với',
+    'auth.signUp.agreeTerms.tos': 'Điều khoản Dịch vụ',
+    'auth.signUp.agreeTerms.and': 'và',
+    'auth.signUp.agreeTerms.privacy': 'Chính sách Bảo mật',
+    'auth.signUp.subscribe': 'Đăng ký nhận email tiếp thị',
+    'auth.signUp.btn': 'Tạo tài khoản',
+    'auth.signUp.alreadyHaveAccount': 'Đã có tài khoản?',
+    'auth.signUp.signIn': 'Đăng nhập',
+    'auth.signUp.orContinue': 'Hoặc tiếp tục với',
+    'auth.signUp.google': 'Tiếp tục với Google',
+    'auth.signUp.strength.weak': 'Yếu',
+    'auth.signUp.strength.fair': 'Trung bình',
+    'auth.signUp.strength.good': 'Tốt',
+    'auth.signUp.strength.strong': 'Mạnh',
+
+    // Email Verification
+    'auth.verify.support': 'Hỗ trợ',
+    'auth.verify.platform': 'Nền tảng Đám mây Bất động sản Thương mại',
+    'auth.verify.title': 'Kiểm tra hộp thư của bạn',
+    'auth.verify.subtitle': 'Chúng tôi đã gửi mã xác thực 6 số đến',
+    'auth.verify.changeEmail': '(Thay đổi)',
+    'auth.verify.expiresIn': 'Mã sẽ hết hạn sau',
+    'auth.verify.btn': 'Xác thực & Tiếp tục',
+    'auth.verify.didNotReceive': 'Chưa nhận được mã?',
+    'auth.verify.resend': 'Gửi lại',
+    'auth.verify.trust': 'Chứng nhận SOC-2 Type II • Mã hoá 256-bit SSL'
   }
 };
 
