@@ -89,6 +89,7 @@ import {
   IconCrown,
   IconX
 } from '@tabler/icons-react';
+import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
 
 export type Icon = React.ComponentType<IconProps>;
 
@@ -141,6 +142,8 @@ export const Icons = {
   github: IconBrandGithub,
   twitter: IconBrandTwitter,
   logo: IconCommand,
+  nexSpace: NexSpaceLogo,
+  nexSpaceMark: NexSpaceMark,
 
   // Communication
   chat: IconMessage,

@@ -48,11 +48,11 @@ export default function AppSidebar() {
             <SidebarMenuButton size='lg' asChild>
               <Link to='/dashboard/overview' aria-label='Dashboard'>
                 <div className='bg-primary text-primary-foreground flex aspect-square size-8 shrink-0 items-center justify-center rounded-md'>
-                  <Icons.logo className='size-4' />
+                  <Icons.nexSpaceMark className='size-5' />
                 </div>
                 <div className='grid flex-1 text-left text-sm leading-tight'>
-                  <span className='truncate font-semibold'>React Stater</span>
-                  <span className='text-muted-foreground truncate text-xs'>Dashboard</span>
+                  <span className='truncate font-semibold'>NexSpace</span>
+                  <span className='text-muted-foreground truncate text-xs'>Workspace Cloud</span>
                 </div>
               </Link>
             </SidebarMenuButton>
