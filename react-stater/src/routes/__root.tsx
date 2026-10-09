@@ -10,6 +10,7 @@ import ThemeProvider from '@/components/themes/theme-provider';
 import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
 import { seo } from '@/lib/seo';
 import { LanguageProvider } from '@/features/landing/context/language-context';
+import { CurrencyProvider } from '@/features/landing/context/currency-context';
 
 import appCss from '@/styles/globals.css?url';
 
@@ -86,10 +87,12 @@ function RootDocument() {
         >
           <ActiveThemeProvider initialTheme={activeTheme}>
             <LanguageProvider>
-              <TooltipProvider>
-                <Toaster />
-                <Outlet />
-              </TooltipProvider>
+              <CurrencyProvider>
+                <TooltipProvider>
+                  <Toaster />
+                  <Outlet />
+                </TooltipProvider>
+              </CurrencyProvider>
             </LanguageProvider>
           </ActiveThemeProvider>
         </ThemeProvider>

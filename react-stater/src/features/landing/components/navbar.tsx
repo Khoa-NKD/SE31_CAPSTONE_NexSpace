@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { ArrowRight, Building2, Check, ChevronDown, LogIn, Menu, X } from 'lucide-react';
+import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -12,10 +12,12 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/co
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
+import { useCurrency } from '../context/currency-context';
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
+  const { currency, setCurrency } = useCurrency();
   const navigate = useNavigate();
 
   const handleMobileNavigate = (to: string) => {
@@ -52,12 +54,12 @@ export function Navbar() {
     <header className='border-border/80 sticky top-0 z-50 w-full border-b bg-white/85 backdrop-blur-md transition-all dark:bg-slate-950/85'>
       <div className='mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between px-6 lg:px-12'>
         {/* Brand Logo */}
-        <div className='flex items-center gap-3'>
+        <div className='flex items-center gap-6'> {/* Increased gap from gap-3 to gap-6 */}
           <a
             href='/'
-            className='focus-visible:ring-indigo-600 flex items-center gap-2.5 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2'
+            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2'
           >
-            <NexSpaceLogo className='mr-4 h-9 w-auto cursor-pointer' />
+            <NexSpaceLogo className='mr-8 h-9 w-auto cursor-pointer' />
           </a>
         </div>
 
@@ -115,14 +117,7 @@ export function Navbar() {
             </span>
           </a>
 
-          {/* 2. Member Access: Sign In (Clean text link) */}
-          <Link
-            to='/auth/sign-in'
-            className='hidden cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-foreground sm:inline-flex'
-          >
-            <LogIn className='h-3.5 w-3.5 text-muted-foreground' />
-            <span>{t('nav.signIn')}</span>
-          </Link>
+
 
           {/* Hairline Divider between Links and Controls */}
           <div className='hidden h-4 w-px bg-border/60 sm:block' />
@@ -150,7 +145,7 @@ export function Navbar() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='w-44 p-1.5 shadow-lg'>
                 <DropdownMenuItem
-                  onClick={() => setLanguage('vi')}
+                  onSelect={() => setLanguage('vi')}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
                     language === 'vi'
                       ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
@@ -166,7 +161,7 @@ export function Navbar() {
                   )}
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setLanguage('en')}
+                  onSelect={() => setLanguage('en')}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
                     language === 'en'
                       ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
@@ -183,15 +178,72 @@ export function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            {/* Micro Divider */}
+            <div className='mx-0.5 h-3.5 w-px bg-border/70' />
+
+            {/* Embedded Currency Switcher */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type='button'
+                  aria-label='Change Currency'
+                  className='flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95 outline-none'
+                >
+                  <span className='text-sm leading-none font-bold'>
+                    {currency === 'VND' ? '₫' : '$'}
+                  </span>
+                  <span className='text-[11px] font-bold uppercase tracking-wider'>{currency}</span>
+                  <ChevronDown className='h-3 w-3 opacity-60' />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end' className='w-44 p-1.5 shadow-lg'>
+                <DropdownMenuItem
+                  onSelect={() => setCurrency('USD')}
+                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
+                    currency === 'USD'
+                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <div className='flex items-center gap-2'>
+                    <span className='text-base leading-none font-bold'>$</span>
+                    <span>USD ($)</span>
+                  </div>
+                  {currency === 'USD' && (
+                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
+                  )}
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onSelect={() => setCurrency('VND')}
+                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
+                    currency === 'VND'
+                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <div className='flex items-center gap-2'>
+                    <span className='text-base leading-none font-bold'>₫</span>
+                    <span>VND (₫)</span>
+                  </div>
+                  {currency === 'VND' && (
+                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Zone 3: Sole Radiant CTA Button */}
           <Link
-            to='/dashboard/overview'
-            className='group flex cursor-pointer items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-3.5 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-150 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]'
+            to='/auth/sign-in'
+            className='group flex cursor-pointer items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]'
           >
-            <span>{t('nav.getStarted')}</span>
-            <ArrowRight className='h-3.5 w-3.5 transition-transform duration-150 group-hover:translate-x-0.5' />
+            <span>{t('nav.signIn')}</span>
+            <div className="relative h-3.5 w-3.5">
+              <DoorClosed className="absolute inset-0 h-3.5 w-3.5 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
+              <DoorOpen className="absolute inset-0 h-3.5 w-3.5 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+            </div>
           </Link>
 
           {/* Mobile Menu Hamburger */}
@@ -254,19 +306,14 @@ export function Navbar() {
                       </span>
                     </a>
                     <Button
-                      variant='outline'
-                      className='w-full cursor-pointer justify-center gap-2 rounded-xl text-xs font-semibold'
+                      className='group flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg active:scale-95'
                       onClick={() => handleMobileNavigate('/auth/sign-in')}
                     >
-                      <LogIn className='h-4 w-4' />
                       <span>{t('nav.signIn')}</span>
-                    </Button>
-                    <Button
-                      className='flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20'
-                      onClick={() => handleMobileNavigate('/dashboard/overview')}
-                    >
-                      <span>{t('nav.getStarted')}</span>
-                      <ArrowRight className='h-4 w-4' />
+                      <div className="relative h-4 w-4">
+                        <DoorClosed className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
+                        <DoorOpen className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+                      </div>
                     </Button>
                   </div>
                 </div>
