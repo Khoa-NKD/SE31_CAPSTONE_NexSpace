@@ -1,4 +1,5 @@
 import { ArrowRight, Calendar, CheckCircle2, ChevronDown, Clock, Lock, Monitor, ShieldCheck, Timer } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { DateTimePickerModal } from './date-time-picker-modal';
 
@@ -84,9 +85,11 @@ export function WorkspaceBookingCard() {
         </div>
         
         {/* Primary Action CTA */}
-        <Button className="w-full h-11 py-3 px-4 rounded-xl shadow-md transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 mb-4 group cursor-pointer text-sm font-semibold">
-          <span>Select Desk &amp; Reserve Space</span>
-          <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+        <Button asChild className="w-full h-11 py-3 px-4 rounded-xl shadow-md transition-all duration-300 active:scale-[0.98] flex items-center justify-center gap-2 mb-4 group cursor-pointer text-sm font-semibold">
+          <Link to="/workspaces/seats">
+            <span>Select Desk &amp; Reserve Space</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </Link>
         </Button>
         
         {/* Reassurance Microcopy */}
