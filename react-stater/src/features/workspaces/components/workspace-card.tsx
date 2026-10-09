@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from '@tanstack/react-router';
 import {
   Zap,
   Heart,
@@ -63,7 +64,9 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
   const { formatPrice } = useCurrency();
 
   return (
-    <article
+    <Link
+      to="/workspaces/$workspaceId"
+      params={{ workspaceId: workspace.id }}
       className={cn(
         'group relative overflow-hidden rounded-xl border bg-card transition-all duration-300 shrink-0 flex flex-col sm:flex-row sm:min-h-[170px] hover:-translate-y-1 hover:shadow-lg cursor-pointer',
         isActive
@@ -100,6 +103,10 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
         
         <button
           aria-label="Save to favorites"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
           className="absolute right-3 top-3 flex h-7 w-7 items-center justify-center rounded-full bg-background/70 text-foreground shadow-sm backdrop-blur-md transition-all duration-200 hover:bg-red-50 hover:text-red-500 hover:scale-110 active:scale-90 dark:hover:bg-red-500/20"
         >
           <Heart className="h-3.5 w-3.5 transition-transform duration-200 active:scale-75" />
@@ -160,7 +167,7 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
           </div>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }
 
