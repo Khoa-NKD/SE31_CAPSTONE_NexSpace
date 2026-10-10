@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface DigitalPassCardProps {
   seatCode?: string;
@@ -286,13 +287,24 @@ export function DigitalPassCard({
           <Button
             type='button'
             onClick={handleAddToWallet}
-            variant='outline'
-            className='bg-foreground text-background hover:bg-foreground/90 border-transparent flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl font-medium text-xs sm:text-sm shadow-sm transition-all active:scale-[0.98]'
+            className={cn(
+              'flex h-11 w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl text-xs sm:text-sm font-semibold shadow-sm transition-all active:scale-[0.98]',
+              walletAdded
+                ? 'bg-emerald-600 text-white border border-emerald-500 hover:bg-emerald-500 dark:bg-emerald-600 dark:text-white dark:border-emerald-500'
+                : 'bg-zinc-950 text-white border border-zinc-800 hover:bg-zinc-900 hover:border-zinc-700 dark:bg-zinc-900 dark:text-white dark:border-zinc-700 dark:hover:bg-zinc-800 dark:hover:border-zinc-600'
+            )}
           >
-            <Wallet className='h-4 w-4' />
-            <span>
-              {walletAdded ? '✓ Pass Saved to Wallet' : 'Add to Apple Wallet / Google Wallet'}
-            </span>
+            {walletAdded ? (
+              <>
+                <Check className='h-4 w-4 text-white' />
+                <span>Pass Saved to Apple Wallet</span>
+              </>
+            ) : (
+              <>
+                <Wallet className='h-4 w-4 text-white' />
+                <span>Add to Apple Wallet / Google Wallet</span>
+              </>
+            )}
           </Button>
         </div>
       </div>
