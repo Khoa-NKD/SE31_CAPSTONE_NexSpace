@@ -1,20 +1,21 @@
 import React from 'react';
 
 export interface NexSpaceLogoProps extends React.SVGProps<SVGSVGElement> {
-  variant?: 'full' | 'mark' | 'horizontal';
+  variant?: 'full' | 'mark' | 'horizontal' | 'admin';
   inverted?: boolean;
   className?: string;
 }
 
 export function NexSpaceMark({ className = 'h-8 w-8', ...props }: React.SVGProps<SVGSVGElement>) {
+  const isAriaHidden = props['aria-hidden'] === true || props['aria-hidden'] === 'true';
   return (
     <svg
       xmlns='http://www.w3.org/2000/svg'
       viewBox='0 0 56 56'
       fill='none'
       className={className}
-      aria-label='NexSpace Nexus Mark'
-      role='img'
+      aria-label={isAriaHidden ? undefined : 'NexSpace Nexus Mark'}
+      role={isAriaHidden ? 'presentation' : 'img'}
       {...props}
     >
       <defs>
@@ -85,6 +86,7 @@ export function NexSpaceLogo({
   const viewBox = isHorizontal ? '0 0 220 56' : '0 0 280 64';
   const width = isHorizontal ? 220 : 280;
   const height = isHorizontal ? 56 : 64;
+  const isAriaHidden = props['aria-hidden'] === true || props['aria-hidden'] === 'true';
 
   return (
     <svg
@@ -94,8 +96,8 @@ export function NexSpaceLogo({
       height={height}
       fill='none'
       className={className}
-      aria-label='NexSpace Logo'
-      role='img'
+      aria-label={isAriaHidden ? undefined : 'NexSpace Logo'}
+      role={isAriaHidden ? 'presentation' : 'img'}
       {...props}
     >
       <defs>
@@ -162,7 +164,7 @@ export function NexSpaceLogo({
         className={inverted ? 'fill-white' : 'fill-slate-900 dark:fill-white'}
         letterSpacing='-0.03em'
       >
-        Nex
+        Nex{' '}
       </text>
 
       {/* "Space" in Bold 700 with vibrant indigo tone */}
@@ -175,10 +177,10 @@ export function NexSpaceLogo({
         fill='url(#nexTextIndigo)'
         letterSpacing='-0.02em'
       >
-        Space
+        Space{' '}
       </text>
 
-      {/* Subtitle Tagline: "FLEXIBLE WORKSPACE" (Only in full variant) */}
+      {/* Subtitle Tagline: "ADMIN CONSOLE" or "FLEXIBLE WORKSPACE" */}
       {!isHorizontal && (
         <text
           x='67'
@@ -190,7 +192,7 @@ export function NexSpaceLogo({
           className={inverted ? 'fill-slate-400' : 'fill-slate-500 dark:fill-slate-400'}
           letterSpacing='0.22em'
         >
-          FLEXIBLE WORKSPACE
+          {variant === 'admin' ? 'ADMIN CONSOLE' : 'FLEXIBLE WORKSPACE'}
         </text>
       )}
     </svg>

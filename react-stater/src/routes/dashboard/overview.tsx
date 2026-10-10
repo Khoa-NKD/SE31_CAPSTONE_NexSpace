@@ -1,129 +1,77 @@
+import React, { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
-import { Badge } from '@/components/ui/badge';
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardAction,
-  CardFooter
-} from '@/components/ui/card';
-import { Icons } from '@/components/icons';
-import { BarGraph } from '@/features/overview/components/bar-graph';
-import { RecentSales } from '@/features/overview/components/recent-sales';
-import { AreaGraph } from '@/features/overview/components/area-graph';
-import { PieGraph } from '@/features/overview/components/pie-graph';
+import { MOCK_OVERVIEW_DATA } from '@/features/admin-overview/data/mock-overview';
+import { AdminKpiRow } from '@/features/admin-overview/components/admin-kpi-row';
+import { PriorityTriageGrid } from '@/features/admin-overview/components/priority-triage-grid';
+import { OperationalTrendsChart } from '@/features/admin-overview/components/operational-trends-chart';
+import { LiveSystemAlerts } from '@/features/admin-overview/components/live-system-alerts';
+import { TimeRangeFilter } from '@/features/admin-overview/components/time-range-filter';
 
 export const Route = createFileRoute('/dashboard/overview')({
   head: () => ({
-    meta: [{ title: 'Dashboard: Overview' }]
+    meta: [
+      { title: 'A01 — Administrator Dashboard | NexSpace Console' },
+      { name: 'description', content: 'Real-time platform operations and priority triage.' }
+    ]
   }),
-  component: OverviewPage
+  component: AdministratorDashboardPage
 });
 
-function OverviewPage() {
+function AdministratorDashboardPage() {
+  const [selectedRange, setSelectedRange] = useState<'today' | '7d' | '30d'>('7d');
+  const currentData = MOCK_OVERVIEW_DATA[selectedRange] || MOCK_OVERVIEW_DATA['7d'];
+
   return (
     <PageContainer>
-      <div className='flex flex-1 flex-col space-y-2'>
-        <div className='flex items-center justify-between'>
-          <h2 className='text-2xl font-bold tracking-tight'>Hi, Welcome back 👋</h2>
+      <div className='flex flex-col min-h-screen pb-12 min-w-0 w-full'>
+        {/* Page Header Row */}
+        <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6'>
+          <div>
+            <h1 className='text-2xl font-bold tracking-tight text-foreground font-heading'>
+              Administrator Dashboard
+            </h1>
+            <p className='text-sm text-muted-foreground mt-0.5'>
+              Real-time platform operations and priority triage.
+            </p>
+          </div>
+
+          <TimeRangeFilter
+            selectedRange={selectedRange}
+            onRangeChange={setSelectedRange}
+          />
         </div>
-        <div className='*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card dark:*:data-[slot=card]:bg-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-xs md:grid-cols-2 lg:grid-cols-4'>
-          <Card className='@container/card'>
-            <CardHeader>
-              <CardDescription>Total Revenue</CardDescription>
-              <CardTitle className='text-2xl font-semibold tabular-nums @[250px]/card:text-3xl'>
-                $1,250.00
-              </CardTitle>
-              <CardAction>
-                <Badge variant='outline'>
-                  <Icons.trendingUp />
-                  +12.5%
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardFooter className='flex-col items-start gap-1.5 text-sm'>
-              <div className='line-clamp-1 flex gap-2 font-medium'>
-                Trending up this month <Icons.trendingUp className='size-4' />
-              </div>
-              <div className='text-muted-foreground'>Visitors for the last 6 months</div>
-            </CardFooter>
-          </Card>
-          <Card className='@container/card'>
-            <CardHeader>
-              <CardDescription>New Customers</CardDescription>
-              <CardTitle className='text-2xl font-semibold tabular-nums @[250px]/card:text-3xl'>
-                1,234
-              </CardTitle>
-              <CardAction>
-                <Badge variant='outline'>
-                  <Icons.trendingDown />
-                  -20%
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardFooter className='flex-col items-start gap-1.5 text-sm'>
-              <div className='line-clamp-1 flex gap-2 font-medium'>
-                Down 20% this period <Icons.trendingDown className='size-4' />
-              </div>
-              <div className='text-muted-foreground'>Acquisition needs attention</div>
-            </CardFooter>
-          </Card>
-          <Card className='@container/card'>
-            <CardHeader>
-              <CardDescription>Active Accounts</CardDescription>
-              <CardTitle className='text-2xl font-semibold tabular-nums @[250px]/card:text-3xl'>
-                45,678
-              </CardTitle>
-              <CardAction>
-                <Badge variant='outline'>
-                  <Icons.trendingUp />
-                  +12.5%
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardFooter className='flex-col items-start gap-1.5 text-sm'>
-              <div className='line-clamp-1 flex gap-2 font-medium'>
-                Strong user retention <Icons.trendingUp className='size-4' />
-              </div>
-              <div className='text-muted-foreground'>Engagement exceed targets</div>
-            </CardFooter>
-          </Card>
-          <Card className='@container/card'>
-            <CardHeader>
-              <CardDescription>Growth Rate</CardDescription>
-              <CardTitle className='text-2xl font-semibold tabular-nums @[250px]/card:text-3xl'>
-                4.5%
-              </CardTitle>
-              <CardAction>
-                <Badge variant='outline'>
-                  <Icons.trendingUp />
-                  +4.5%
-                </Badge>
-              </CardAction>
-            </CardHeader>
-            <CardFooter className='flex-col items-start gap-1.5 text-sm'>
-              <div className='line-clamp-1 flex gap-2 font-medium'>
-                Steady performance increase <Icons.trendingUp className='size-4' />
-              </div>
-              <div className='text-muted-foreground'>Meets growth projections</div>
-            </CardFooter>
-          </Card>
-        </div>
-        <div className='grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-7'>
-          <div className='col-span-4'>
-            <BarGraph />
+
+        {/* 3. Core KPI Bento Row (5 Cards) */}
+        <AdminKpiRow kpis={currentData.kpis} />
+
+        {/* 4. Priority Triage Section (3 Cards) */}
+        <PriorityTriageGrid items={currentData.triageItems} />
+
+        {/* 5. Operational Trends & System Alerts (60/40 Grid) */}
+        <section className='grid grid-cols-1 lg:grid-cols-12 gap-6'>
+          <div className='lg:col-span-7'>
+            <OperationalTrendsChart
+              trendPoints={currentData.trendPoints}
+              summary={currentData.volumeSummary}
+            />
           </div>
-          <div className='col-span-4 md:col-span-3'>
-            <RecentSales />
+
+          <div className='lg:col-span-5'>
+            <LiveSystemAlerts initialAlerts={currentData.alerts} />
           </div>
-          <div className='col-span-4'>
-            <AreaGraph />
+        </section>
+
+        {/* Supplementary Footnote */}
+        <div className='mt-8 pt-4 border-t border-border/70 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2'>
+          <div className='flex items-center gap-2'>
+            <span>NexSpace Platform Operations v4.19.2-rc4</span>
+            <span>•</span>
+            <span>Hardware Enclave HSM Active</span>
+            <span>•</span>
+            <span className='font-mono'>Zone: ap-southeast-1a</span>
           </div>
-          <div className='col-span-4 min-h-0 md:col-span-3'>
-            <PieGraph />
-          </div>
+          <div>All operational metrics cryptographically verified</div>
         </div>
       </div>
     </PageContainer>

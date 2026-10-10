@@ -6,9 +6,29 @@ type BreadcrumbItem = {
   link: string;
 };
 
-// This allows to add custom title as well
+// Route mappings for accurate navigation hierarchies
 const routeMapping: Record<string, BreadcrumbItem[]> = {
   '/dashboard': [{ title: 'Dashboard', link: '/dashboard' }],
+  '/dashboard/overview': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Overview', link: '/dashboard/overview' },
+    { title: 'Administrator Dashboard', link: '' }
+  ],
+  '/dashboard/admin/roles': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Access & Identity', link: '' },
+    { title: 'Users & Role Permissions', link: '' }
+  ],
+  '/dashboard/admin/users': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Access & Identity', link: '' },
+    { title: 'Users List & Details', link: '' }
+  ],
+  '/dashboard/users': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Access & Identity', link: '' },
+    { title: 'Users List & Details', link: '' }
+  ],
   '/dashboard/employee': [
     { title: 'Dashboard', link: '/dashboard' },
     { title: 'Employee', link: '/dashboard/employee' }
@@ -17,7 +37,6 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Dashboard', link: '/dashboard' },
     { title: 'Product', link: '/dashboard/product' }
   ]
-  // Add more custom mappings as needed
 };
 
 export function useBreadcrumbs() {
