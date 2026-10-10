@@ -134,10 +134,14 @@ export function SeatBookingDialog({
               </div>
 
               <Button
+                asChild
                 onClick={() => onOpenChange(false)}
-                className='w-full cursor-pointer h-10 font-semibold'
+                className='w-full cursor-pointer h-10 font-semibold flex items-center justify-center gap-2'
               >
-                Close &amp; View Pass
+                <Link to='/workspaces/confirmation'>
+                  <span>View Digital Pass &amp; Confirmation</span>
+                  <ArrowRight className='h-4 w-4' />
+                </Link>
               </Button>
             </div>
           ) : (

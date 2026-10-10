@@ -63,7 +63,7 @@ export function ConfirmationActions({ orderRef = '#NX-8821' }: ConfirmationActio
       {/* Return / Book Another Workspace Link */}
       <div className='text-center pt-1'>
         <Link
-          to='/workspaces/seats'
+          to='/workspaces'
           className='text-primary hover:text-primary/80 inline-flex cursor-pointer items-center gap-1.5 text-xs font-semibold transition-colors'
         >
           <ArrowLeft className='h-3.5 w-3.5' />
