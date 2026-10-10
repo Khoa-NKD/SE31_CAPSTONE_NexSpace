@@ -69,12 +69,14 @@ export function SeatCard({ seat, onSelect }: SeatCardProps) {
     >
       {/* Thumbnail Left */}
       <div className='bg-muted relative h-44 w-full shrink-0 overflow-hidden rounded-lg md:h-auto md:w-56'>
-        <img
-          src={seat.imageUrl}
-          alt={seat.imageAlt}
-          className='h-full w-full object-cover transition-transform duration-500 hover:scale-105'
-          loading='lazy'
-        />
+        <Link to='/workspaces/seat-detail' className='block h-full w-full cursor-pointer'>
+          <img
+            src={seat.imageUrl}
+            alt={seat.imageAlt}
+            className='h-full w-full object-cover transition-transform duration-500 hover:scale-105'
+            loading='lazy'
+          />
+        </Link>
         <div className='absolute top-2.5 left-2.5 flex flex-col items-start gap-1'>
           <span
             className={`px-2 py-0.5 text-[11px] font-semibold rounded shadow-xs ${
