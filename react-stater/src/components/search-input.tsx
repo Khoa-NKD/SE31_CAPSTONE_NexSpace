@@ -1,20 +1,27 @@
 import { useCommandMenu } from '@/components/command-menu';
 import { Icons } from '@/components/icons';
 import { Button } from './ui/button';
+import { cn } from '@/lib/utils';
 
-export default function SearchInput() {
+interface SearchInputProps {
+  className?: string;
+}
+
+export default function SearchInput({ className }: SearchInputProps) {
   const { toggle } = useCommandMenu();
   return (
-    <div className='w-full space-y-2'>
+    <div className={cn('w-full', className)}>
       <Button
         variant='outline'
-        className='bg-background text-muted-foreground relative h-9 w-full justify-start rounded-[0.5rem] text-sm font-normal shadow-none sm:pr-12 md:w-40 lg:w-64'
+        type='button'
+        className='bg-muted/40 hover:bg-muted/70 text-muted-foreground hover:text-foreground border-border/80 relative h-9 w-full justify-start rounded-lg text-xs font-normal shadow-none transition-colors px-3 sm:pr-12'
         onClick={toggle}
       >
-        <Icons.search className='mr-2 h-4 w-4' />
-        Search...
-        <kbd className='bg-muted pointer-events-none absolute top-[0.3rem] right-[0.3rem] hidden h-6 items-center gap-1 rounded border px-1.5 font-mono text-[10px] font-medium opacity-100 select-none sm:flex'>
-          <span className='text-xs'>⌘</span>K
+        <Icons.search className='mr-2 size-3.5 shrink-0 text-muted-foreground' />
+        <span className='truncate hidden sm:inline'>Search console, users, roles...</span>
+        <span className='truncate sm:hidden'>Search...</span>
+        <kbd className='bg-muted/80 pointer-events-none absolute top-[0.35rem] right-[0.35rem] hidden h-5 items-center gap-0.5 rounded border border-border px-1.5 font-mono text-[10px] font-medium opacity-90 select-none sm:flex'>
+          <span className='text-[10px]'>⌘</span>K
         </kbd>
       </Button>
     </div>

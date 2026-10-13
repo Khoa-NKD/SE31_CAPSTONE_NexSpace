@@ -205,7 +205,7 @@ function InfobarProvider({
               ...style
             } as React.CSSProperties
           }
-          className={cn('group/infobar-wrapper flex flex-1 w-full', className)}
+          className={cn('group/infobar-wrapper flex flex-1 w-full min-w-0', className)}
           {...props}
         >
           {children}
@@ -647,10 +647,8 @@ function InfobarMenuSkeleton({
 }: React.ComponentProps<'div'> & {
   showIcon?: boolean;
 }) {
-  // Random width between 50 to 90%.
-  const width = React.useMemo(() => {
-    return `${Math.floor(Math.random() * 40) + 50}%`;
-  }, []);
+  // Deterministic skeleton width
+  const width = '70%';
 
   return (
     <div
