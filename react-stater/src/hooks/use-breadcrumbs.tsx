@@ -24,6 +24,21 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Access & Identity', link: '' },
     { title: 'Users List & Details', link: '' }
   ],
+  '/dashboard/admin/organizers': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Access & Identity', link: '' },
+    { title: 'Organizer Verification', link: '' }
+  ],
+  '/dashboard/admin/organizers/queue': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Access & Identity', link: '/dashboard/admin/organizers' },
+    { title: 'Verification Requests', link: '' }
+  ],
+  '/dashboard/admin/workspaces': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Inventory', link: '' },
+    { title: 'Workspace Administration', link: '' }
+  ],
   '/dashboard/users': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Access & Identity', link: '' },
