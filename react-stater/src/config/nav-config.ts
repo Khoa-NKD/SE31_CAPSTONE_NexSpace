@@ -17,12 +17,29 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
-        title: 'Triage & Audits',
-        url: '#triage',
-        icon: 'warning',
-        label: '20',
-        disabled: true,
-        description: 'Scheduled for Batch 2'
+        title: 'Organizer Verification',
+        url: '/dashboard/admin/organizers',
+        icon: 'badgeCheck',
+        label: '17',
+        isActive: false,
+        items: [
+          {
+            title: 'Overview',
+            url: '/dashboard/admin/organizers',
+            icon: 'badgeCheck'
+          },
+          {
+            title: 'Verification Queue',
+            url: '/dashboard/admin/organizers/queue',
+            icon: 'clock'
+          }
+        ]
+      },
+      {
+        title: 'Workspaces',
+        url: '/dashboard/admin/workspaces',
+        icon: 'workspace',
+        isActive: false
       },
       {
         title: 'Users List',
@@ -37,13 +54,6 @@ export const navGroups: NavGroup[] = [
         icon: 'lock',
         shortcut: ['r', 'r'],
         isActive: false
-      },
-      {
-        title: 'Workspaces',
-        url: '#workspaces',
-        icon: 'workspace',
-        disabled: true,
-        label: 'Planned'
       },
       {
         title: 'Bookings Ledger',

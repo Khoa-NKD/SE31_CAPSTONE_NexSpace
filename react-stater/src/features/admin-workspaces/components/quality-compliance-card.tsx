@@ -1,0 +1,88 @@
+import React from 'react';
+import { Shield, Star, CheckCircle2, Sparkles, Settings } from 'lucide-react';
+import { QualityHealthMetrics } from '../data/mock-workspaces';
+
+interface QualityComplianceCardProps {
+  metrics: QualityHealthMetrics;
+}
+
+export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
+  return (
+    <div className='bg-card p-6 rounded-xl border border-border shadow-2xs flex flex-col justify-between'>
+      <div>
+        {/* Header */}
+        <div className='flex items-center justify-between mb-4'>
+          <div className='flex items-center gap-2'>
+            <div className='p-2 rounded-lg bg-primary/10 text-primary'>
+              <Shield className='size-5' aria-hidden='true' />
+            </div>
+            <h2 className='text-base font-bold font-heading text-foreground'>
+              Quality &amp; Safety Compliance Index
+            </h2>
+          </div>
+          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'>
+            {metrics.gradeBadge}
+          </span>
+        </div>
+
+        <p className='text-xs text-muted-foreground mb-5'>
+          Aggregated platform standards measured via nomad audits, facility inspections, and noise telemetry.
+        </p>
+
+        {/* Metrics Triple Tiles */}
+        <div className='grid grid-cols-3 gap-3 mb-5'>
+          {/* Score 1 */}
+          <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
+            <span className='text-xs text-muted-foreground block mb-1'>Nomad Rating</span>
+            <div className='flex items-center gap-1'>
+              <span className='text-xl font-bold font-heading text-foreground'>{metrics.nomadRating}</span>
+              <Star className='size-4 fill-amber-400 text-amber-400' aria-hidden='true' />
+            </div>
+            <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.totalRatingsCount}</span>
+          </div>
+
+          {/* Score 2 */}
+          <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
+            <span className='text-xs text-muted-foreground block mb-1'>Hygiene Flags</span>
+            <div className='flex items-center gap-1'>
+              <span className='text-xl font-bold font-heading text-emerald-600 dark:text-emerald-400'>{metrics.hygieneFlags}</span>
+              <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
+            </div>
+            <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.hygieneCleanPeriod}</span>
+          </div>
+
+          {/* Score 3 */}
+          <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
+            <span className='text-xs text-muted-foreground block mb-1'>Mystery Audits</span>
+            <div className='flex items-center gap-1'>
+              <span className='text-xl font-bold font-heading text-foreground'>{metrics.mysteryAuditsPercentage}%</span>
+            </div>
+            <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.verifiedHubsCount} verified hubs</span>
+          </div>
+        </div>
+
+        {/* Insight Callout */}
+        <div className='p-3 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-3'>
+          <Sparkles className='size-5 text-primary shrink-0' aria-hidden='true' />
+          <p className='text-xs text-foreground leading-relaxed'>
+            Automated photo resolution and metadata scanner validated 100% of newly submitted workspace gallery media.
+          </p>
+        </div>
+      </div>
+
+      {/* Footer Telemetry Link */}
+      <div className='pt-4 border-t border-border flex items-center justify-between'>
+        <span className='font-mono text-xs text-muted-foreground'>
+          Standards Engine: <strong className='text-foreground font-semibold'>{metrics.standardsEngineNote}</strong>
+        </span>
+        <button
+          type='button'
+          className='inline-flex items-center gap-1 text-xs text-primary hover:text-indigo-700 font-semibold transition-colors'
+        >
+          <span>Audit Rules Engine</span>
+          <Settings className='size-3.5' aria-hidden='true' />
+        </button>
+      </div>
+    </div>
+  );
+}
