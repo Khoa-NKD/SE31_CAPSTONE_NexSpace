@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
@@ -24,7 +24,7 @@ const workspacesSearchSchema = z.object({
   zone: z.string().optional()
 });
 
-export const Route = createFileRoute('/dashboard/admin/workspaces')({
+export const Route = createFileRoute('/dashboard/admin/workspaces/')({
   head: () => ({
     meta: [
       { title: 'A06 — Workspace Administration Overview | NexSpace Console' },
@@ -41,12 +41,6 @@ export const Route = createFileRoute('/dashboard/admin/workspaces')({
 function handleExportAuditLog() {
   toast.success('Workspace Audit Log Exported (Simulated)', {
     description: 'Compiled cryptographic lifecycle and moderation logs across 618 published spaces.'
-  });
-}
-
-function handleManageDirectory() {
-  toast.info('Workspace Directory (Simulated)', {
-    description: 'Navigating to full workspace directory inventory catalogue.'
   });
 }
 
@@ -80,11 +74,13 @@ function WorkspaceAdminOverviewPage() {
 
             <Button
               size='sm'
-              onClick={handleManageDirectory}
+              asChild
               className='gap-2 bg-primary hover:bg-primary/90 text-white shadow-2xs'
             >
-              <span>Manage Workspace Directory</span>
-              <ArrowRight className='size-4' aria-hidden='true' />
+              <Link to='/dashboard/admin/workspaces/directory'>
+                <span>Manage Workspace Directory</span>
+                <ArrowRight className='size-4' aria-hidden='true' />
+              </Link>
             </Button>
           </div>
         </div>

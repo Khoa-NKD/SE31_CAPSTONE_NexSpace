@@ -39,6 +39,21 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Inventory', link: '' },
     { title: 'Workspace Administration', link: '' }
   ],
+  '/dashboard/admin/workspaces/directory': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Inventory', link: '/dashboard/admin/workspaces' },
+    { title: 'Workspace Directory', link: '' }
+  ],
+  '/dashboard/admin/bookings': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Commercial & Ledger', link: '' },
+    { title: 'Bookings Management', link: '' }
+  ],
+  '/dashboard/admin/reconciliation': [
+    { title: 'Platform Ops', link: '/dashboard/overview' },
+    { title: 'Commercial & Ledger', link: '' },
+    { title: 'Transactions & Payouts', link: '' }
+  ],
   '/dashboard/users': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Access & Identity', link: '' },

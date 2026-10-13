@@ -39,7 +39,19 @@ export const navGroups: NavGroup[] = [
         title: 'Workspaces',
         url: '/dashboard/admin/workspaces',
         icon: 'workspace',
-        isActive: false
+        isActive: false,
+        items: [
+          {
+            title: 'Overview',
+            url: '/dashboard/admin/workspaces',
+            icon: 'workspace'
+          },
+          {
+            title: 'Directory & Moderation',
+            url: '/dashboard/admin/workspaces/directory',
+            icon: 'workspace'
+          }
+        ]
       },
       {
         title: 'Users List',
@@ -57,17 +69,17 @@ export const navGroups: NavGroup[] = [
       },
       {
         title: 'Bookings Ledger',
-        url: '#bookings',
+        url: '/dashboard/admin/bookings',
         icon: 'calendar',
-        disabled: true,
-        label: 'Planned'
+        isActive: false,
+        label: '12 Active'
       },
       {
         title: 'Reconciliation',
-        url: '#reconciliation',
+        url: '/dashboard/admin/reconciliation',
         icon: 'billing',
-        disabled: true,
-        label: 'Planned'
+        isActive: false,
+        label: 'Reconciled'
       }
     ]
   },
