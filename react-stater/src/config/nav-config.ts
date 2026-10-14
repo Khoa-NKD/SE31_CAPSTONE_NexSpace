@@ -80,12 +80,33 @@ export const navGroups: NavGroup[] = [
         icon: 'billing',
         isActive: false,
         label: 'Reconciled'
+      },
+      {
+        title: 'Refunds & Claims',
+        url: '/dashboard/admin/refunds',
+        icon: 'creditCard',
+        isActive: false,
+        label: '3'
       }
     ]
   },
   {
-    label: 'Governance & System',
+    label: 'Governance & Moderation',
     items: [
+      {
+        title: 'Reports Overview',
+        url: '/dashboard/admin/reports',
+        icon: 'warning',
+        isActive: false,
+        label: '5 Open'
+      },
+      {
+        title: 'Dispute Cases',
+        url: '/dashboard/admin/disputes',
+        icon: 'badgeCheck',
+        isActive: false,
+        label: '5'
+      },
       {
         title: 'Audit Logs',
         url: '#audit-logs',
