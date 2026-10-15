@@ -17,6 +17,13 @@ export const navGroups: NavGroup[] = [
         items: []
       },
       {
+        title: 'Platform Analytics',
+        url: '/dashboard/admin/analytics',
+        icon: 'trendingUp',
+        isActive: false,
+        label: 'Live'
+      },
+      {
         title: 'Organizer Verification',
         url: '/dashboard/admin/organizers',
         icon: 'badgeCheck',
@@ -87,6 +94,24 @@ export const navGroups: NavGroup[] = [
         icon: 'creditCard',
         isActive: false,
         label: '3'
+      },
+      {
+        title: 'Commission & Fees',
+        url: '/dashboard/admin/commissions',
+        icon: 'adjustments',
+        isActive: false,
+        items: [
+          {
+            title: 'Fee Structure Overview',
+            url: '/dashboard/admin/commissions',
+            icon: 'billing'
+          },
+          {
+            title: 'Rules Configuration',
+            url: '/dashboard/admin/commissions/rules',
+            icon: 'adjustments'
+          }
+        ]
       }
     ]
   },
