@@ -116,7 +116,8 @@ function RefundManagementPage() {
     setIsDrawerOpen(true);
     navigate({
       search: (prev) => ({ ...prev, refundId: refund.id.replace('#', '') }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 
@@ -125,7 +126,8 @@ function RefundManagementPage() {
     setSelectedRefund(null);
     navigate({
       search: (prev) => ({ ...prev, refundId: undefined }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 

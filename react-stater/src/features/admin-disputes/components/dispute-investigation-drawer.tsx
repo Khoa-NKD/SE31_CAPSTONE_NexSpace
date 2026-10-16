@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ExternalLink,
@@ -62,6 +62,25 @@ function DisputeInvestigationDrawerContent({
   );
   const [resolutionConfirmOpen, setResolutionConfirmOpen] = useState(false);
   const [zoomEvidence, setZoomEvidence] = useState<DisputeEvidenceItem | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement | null;
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !resolutionConfirmOpen && !zoomEvidence) {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [resolutionConfirmOpen, zoomEvidence, onClose]);
 
   const handleEscalateLegal = () => {
     toast.error('Escalated to SecOps Legal (Simulated)', {

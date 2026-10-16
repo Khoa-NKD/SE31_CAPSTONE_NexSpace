@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Copy,
@@ -36,6 +36,29 @@ export function TransactionDetailsDrawer({
   onReconcile
 }: TransactionDetailsDrawerProps) {
   const [showRawJson, setShowRawJson] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen && transaction) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [isOpen, transaction]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    if (isOpen && transaction) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, transaction, onClose]);
 
   if (!isOpen || !transaction) return null;
 

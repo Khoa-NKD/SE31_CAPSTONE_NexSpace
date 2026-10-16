@@ -73,7 +73,8 @@ function FinancialReconciliationPage() {
         if (!next.txId) delete next.txId;
         return next as typeof prev;
       },
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 

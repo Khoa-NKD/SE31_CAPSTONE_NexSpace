@@ -110,7 +110,9 @@ function BookingsManagementPage() {
     setSelectedBooking(booking);
     setIsDrawerOpen(true);
     navigate({
-      search: (prev) => ({ ...prev, bookingId: booking.id })
+      search: (prev) => ({ ...prev, bookingId: booking.id }),
+      replace: true,
+      resetScroll: false
     });
   };
 
@@ -121,7 +123,9 @@ function BookingsManagementPage() {
         const next = { ...prev };
         delete next.bookingId;
         return next;
-      }
+      },
+      replace: true,
+      resetScroll: false
     });
   };
 
@@ -220,6 +224,7 @@ function BookingsManagementPage() {
         <BookingDetailsDrawer
           booking={selectedBooking}
           isOpen={isDrawerOpen}
+          isNestedDialogOpen={isCancelDialogOpen}
           onClose={handleCloseDrawer}
           onForceCancel={handleOpenCancelDialog}
         />

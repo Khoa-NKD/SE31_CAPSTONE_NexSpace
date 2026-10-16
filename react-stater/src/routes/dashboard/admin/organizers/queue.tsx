@@ -86,14 +86,16 @@ function VerificationQueuePage() {
   const handleSelectApplication = (app: VerificationApplication) => {
     navigate({
       search: (prev) => ({ ...prev, appId: app.id }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 
   const handleCloseDrawer = () => {
     navigate({
       search: (prev) => ({ ...prev, appId: undefined }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 

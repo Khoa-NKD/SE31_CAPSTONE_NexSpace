@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -34,19 +34,28 @@ interface UserDetailsDrawerProps {
 export function UserDetailsDrawer({ user, onClose, onToggleStatus }: UserDetailsDrawerProps) {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [user]);
 
   // Handle ESC key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !resetModalOpen && !deactivateModalOpen) {
         onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
       }
     };
     if (user) {
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [user, onClose]);
+  }, [user, resetModalOpen, deactivateModalOpen, onClose]);
 
   if (!user) return null;
 

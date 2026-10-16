@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   ExternalLink,
@@ -37,6 +37,29 @@ export function RefundDetailsDrawer({
   );
   const [actionModalType, setActionModalType] = useState<'approve' | 'reject' | null>(null);
   const [photoZoomOpen, setPhotoZoomOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen && refund) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [isOpen, refund]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !actionModalType && !photoZoomOpen) {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    if (isOpen && refund) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, refund, actionModalType, photoZoomOpen, onClose]);
 
   if (!isOpen || !refund) return null;
 
