@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { useRouter } from '@tanstack/react-router';
 import { useHotkey, useHotkeySequence, type HotkeySequence } from '@tanstack/react-hotkeys';
-import { useTheme } from 'next-themes';
+import { useTheme } from '@/components/themes/theme-provider';
 import {
   CommandDialog,
   CommandEmpty,
