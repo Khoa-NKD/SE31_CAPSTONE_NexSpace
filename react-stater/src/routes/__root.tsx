@@ -19,15 +19,28 @@ const META_THEME_COLORS = {
   dark: '#09090b'
 };
 
-const getActiveTheme = createServerFn({ method: 'GET' }).handler(async () => {
-  const { getCookie } = await import('@tanstack/react-start/server');
-  const cookieValue = getCookie('active_theme');
-  if (cookieValue) {
-    const isValid = THEMES.some((t) => t.value === cookieValue);
-    if (isValid) return cookieValue;
-  }
-  return DEFAULT_THEME;
-});
+const getActiveTheme = createServerFn({ method: 'GET' })
+  .validator((d: { pathname?: string } | undefined) => d)
+  .handler(async ({ data }) => {
+    const { getCookie, getRequestUrl } = await import('@tanstack/react-start/server');
+    let pathname = data?.pathname;
+    if (!pathname && typeof getRequestUrl === 'function') {
+      try {
+        const reqUrl = getRequestUrl();
+        if (reqUrl) {
+          pathname = new URL(reqUrl).pathname;
+        }
+      } catch {}
+    }
+    const isAdmin = pathname ? pathname.startsWith('/dashboard') : false;
+    const cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
+    const cookieValue = getCookie(cookieName);
+    if (cookieValue) {
+      const isValid = THEMES.some((t) => t.value === cookieValue);
+      if (isValid) return cookieValue;
+    }
+    return DEFAULT_THEME;
+  });
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -51,8 +64,8 @@ export const Route = createRootRouteWithContext<{
       { rel: 'apple-touch-icon', href: '/favicon.svg' }
     ]
   }),
-  loader: async () => {
-    const activeTheme = await getActiveTheme();
+  loader: async ({ location }) => {
+    const activeTheme = await getActiveTheme({ data: { pathname: location.pathname } });
     return { activeTheme };
   },
   component: RootDocument
@@ -68,11 +81,39 @@ function RootDocument() {
         <script
           dangerouslySetInnerHTML={{
             __html: `
-              try {
-                if (localStorage.theme === 'dark' || ((!('theme' in localStorage) || localStorage.theme === 'system') && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
-                  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.dark}')
-                }
-              } catch (_) {}
+              (function() {
+                try {
+                  var pathname = window.location.pathname;
+                  var isAdmin = pathname.startsWith('/dashboard');
+                  
+                  // 1. Resolve Mode (Dark / Light)
+                  var modeKey = isAdmin ? 'admin_theme' : 'theme';
+                  var storedMode = localStorage.getItem(modeKey);
+                  var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+                  var isDark = storedMode === 'dark' || (storedMode === 'system' && prefersDark) || (!storedMode && prefersDark && !isAdmin);
+                  
+                  var root = document.documentElement;
+                  if (isDark) {
+                    root.classList.add('dark');
+                    root.style.colorScheme = 'dark';
+                    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.dark}');
+                  } else {
+                    root.classList.remove('dark');
+                    root.style.colorScheme = 'light';
+                    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.light}');
+                  }
+                  
+                  // 2. Resolve Palette
+                  var cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
+                  var match = document.cookie.match(new RegExp('(^|;\\\\s*)' + cookieName + '=([^;]*)'));
+                  var cookieVal = match ? decodeURIComponent(match[2]) : null;
+                  var storageVal = localStorage.getItem(cookieName);
+                  var palette = storageVal || cookieVal || '${DEFAULT_THEME}';
+                  if (palette) {
+                    root.setAttribute('data-theme', palette);
+                  }
+                } catch (_) {}
+              })();
             `
           }}
         />
