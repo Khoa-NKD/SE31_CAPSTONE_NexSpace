@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   X,
   MapPin,
@@ -17,7 +17,40 @@ interface HubBiDrawerProps {
 }
 
 export function HubBiDrawer({ hub, open, onClose }: HubBiDrawerProps) {
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (open) {
+      if (document.activeElement instanceof HTMLElement) {
+        triggerRef.current = document.activeElement;
+      }
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        onClose();
+        if (triggerRef.current) {
+          triggerRef.current.focus({ preventScroll: true });
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, onClose]);
+
   if (!open || !hub) return null;
+
+  const handleClose = () => {
+    onClose();
+    if (triggerRef.current) {
+      triggerRef.current.focus({ preventScroll: true });
+    }
+  };
 
   function handleExportHubReport() {
     toast.success('Hub Performance Dossier Exported', {
@@ -30,7 +63,7 @@ export function HubBiDrawer({ hub, open, onClose }: HubBiDrawerProps) {
       {/* Backdrop */}
       <div
         className='fixed inset-0 bg-background/80 backdrop-blur-xs z-40 transition-opacity'
-        onClick={onClose}
+        onClick={handleClose}
         aria-hidden='true'
       />
 
@@ -64,7 +97,7 @@ export function HubBiDrawer({ hub, open, onClose }: HubBiDrawerProps) {
 
           <button
             type='button'
-            onClick={onClose}
+            onClick={handleClose}
             aria-label='Close Panel (Esc)'
             className='p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors'
           >
@@ -184,7 +217,7 @@ export function HubBiDrawer({ hub, open, onClose }: HubBiDrawerProps) {
 
         {/* Footer */}
         <div className='border-t border-border p-5 bg-muted/40 flex items-center justify-between shrink-0'>
-          <Button variant='outline' onClick={onClose} className='text-xs'>
+          <Button variant='outline' onClick={handleClose} className='text-xs'>
             Close
           </Button>
           <Button onClick={handleExportHubReport} className='text-xs font-bold gap-1.5'>

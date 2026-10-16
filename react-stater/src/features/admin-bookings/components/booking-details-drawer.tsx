@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   X,
   ExternalLink,
@@ -21,6 +21,7 @@ import { BookingItem } from '../data/mock-bookings';
 interface BookingDetailsDrawerProps {
   booking: BookingItem | null;
   isOpen: boolean;
+  isNestedDialogOpen?: boolean;
   onClose: () => void;
   onForceCancel: (booking: BookingItem) => void;
 }
@@ -28,9 +29,34 @@ interface BookingDetailsDrawerProps {
 export function BookingDetailsDrawer({
   booking,
   isOpen,
+  isNestedDialogOpen = false,
   onClose,
   onForceCancel
 }: BookingDetailsDrawerProps) {
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen && booking) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [isOpen, booking]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !isNestedDialogOpen) {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    if (isOpen && booking) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, booking, isNestedDialogOpen, onClose]);
+
   if (!isOpen || !booking) return null;
 
   const handleResendNfc = () => {
@@ -112,6 +138,7 @@ export function BookingDetailsDrawer({
                 size='icon'
                 onClick={onClose}
                 className='size-8 text-muted-foreground hover:text-foreground'
+                title='Close drawer'
                 aria-label='Close drawer'
               >
                 <X className='size-4' aria-hidden='true' />

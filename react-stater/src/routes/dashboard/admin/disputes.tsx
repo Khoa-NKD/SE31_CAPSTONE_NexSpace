@@ -114,7 +114,8 @@ function DisputeManagementPage() {
     setIsDrawerOpen(true);
     navigate({
       search: (prev) => ({ ...prev, caseId: c.id }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 
@@ -123,7 +124,8 @@ function DisputeManagementPage() {
     setSelectedCase(null);
     navigate({
       search: (prev) => ({ ...prev, caseId: undefined }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   X,
   ExternalLink,
@@ -36,12 +36,21 @@ export function ProviderDetailsDrawer({
   const [selectedScanDoc, setSelectedScanDoc] = useState<VerificationDocument | null>(null);
   const [showApprovalDialog, setShowApprovalDialog] = useState<boolean>(false);
   const [showRejectionDialog, setShowRejectionDialog] = useState<boolean>(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (application) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [application]);
 
   // Handle ESC key press
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
       if (e.key === 'Escape' && !selectedScanDoc && !showApprovalDialog && !showRejectionDialog) {
         onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
       }
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'o') {
         e.preventDefault();

@@ -116,7 +116,9 @@ function WorkspaceDirectoryPage() {
     setSelectedWorkspace(workspace);
     setIsDrawerOpen(true);
     navigate({
-      search: (prev) => ({ ...prev, hubId: workspace.id })
+      search: (prev) => ({ ...prev, hubId: workspace.id }),
+      replace: true,
+      resetScroll: false
     });
   };
 
@@ -127,7 +129,9 @@ function WorkspaceDirectoryPage() {
         const next = { ...prev };
         delete next.hubId;
         return next;
-      }
+      },
+      replace: true,
+      resetScroll: false
     });
   };
 

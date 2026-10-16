@@ -63,14 +63,16 @@ function AdminUsersListPage() {
   const handleSelectUser = (u: AdminUserRecord) => {
     navigate({
       search: (prev) => ({ ...prev, userId: u.id }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 
   const handleCloseDrawer = () => {
     navigate({
       search: (prev) => ({ ...prev, userId: undefined }),
-      replace: true
+      replace: true,
+      resetScroll: false
     });
   };
 

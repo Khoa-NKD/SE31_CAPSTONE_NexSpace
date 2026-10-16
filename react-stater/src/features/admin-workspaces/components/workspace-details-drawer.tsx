@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   MapPin,
@@ -35,6 +35,29 @@ export function WorkspaceDetailsDrawer({
 }: WorkspaceDetailsDrawerProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'media' | 'floor' | 'audit'>('general');
   const [rejectionNotes, setRejectionNotes] = useState('');
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (isOpen && workspace) {
+      triggerRef.current = document.activeElement as HTMLElement | null;
+    }
+  }, [isOpen, workspace]);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape') {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    if (isOpen && workspace) {
+      window.addEventListener('keydown', handleKeyDown);
+    }
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, workspace, onClose]);
 
   if (!isOpen || !workspace) return null;
 

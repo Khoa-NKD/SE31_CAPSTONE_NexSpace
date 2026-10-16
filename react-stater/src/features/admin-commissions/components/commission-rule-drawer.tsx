@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
   Copy,
@@ -43,6 +43,23 @@ function CommissionRuleForm({
   const [isActive, setIsActive] = useState(rule.status === 'ACTIVE');
   const [copiedCode, setCopiedCode] = useState(false);
   const [isHsmDialogOpen, setIsHsmDialogOpen] = useState(false);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    triggerRef.current = document.activeElement as HTMLElement | null;
+  }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (e.key === 'Escape' && !isHsmDialogOpen) {
+        onClose();
+        triggerRef.current?.focus?.({ preventScroll: true });
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isHsmDialogOpen, onClose]);
 
   function handleCopyRuleCode() {
     navigator.clipboard.writeText(rule.ruleCode);
