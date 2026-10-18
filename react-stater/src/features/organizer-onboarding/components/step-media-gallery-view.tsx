@@ -581,9 +581,9 @@ export function StepMediaGalleryView() {
             </div>
 
             <div className='p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs leading-relaxed'>
-              <p className='font-semibold mb-1'>Next Stage: Batch 3 (O10 — Resource Setup)</p>
+              <p className='font-semibold mb-1'>Next Stage: Floor Plan &amp; Zones Setup (O10)</p>
               <p className='opacity-90'>
-                All draft configuration is securely stored in local persistence. The subsequent Resource Management &amp; Floor Plan phase will be initiated in Batch 3.
+                All draft configuration is securely stored in local persistence. Proceed to define your workspace architectural floor layout and functional zones.
               </p>
             </div>
           </div>
@@ -601,11 +601,12 @@ export function StepMediaGalleryView() {
               type='button'
               onClick={() => {
                 setIsCompletionModalOpen(false);
-                router.navigate({ to: '/dashboard/organizer/workspaces' });
+                router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan' });
               }}
-              className='h-10 px-5 text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs'
+              className='h-10 px-5 text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs flex items-center gap-1.5'
             >
-              Return to Workspaces Dashboard
+              <span>Continue to Floor Plan &amp; Zones (O10)</span>
+              <ArrowRight className='size-4' />
             </Button>
           </DialogFooter>
         </DialogContent>

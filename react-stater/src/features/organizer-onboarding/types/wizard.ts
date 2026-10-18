@@ -80,6 +80,40 @@ export interface MediaGalleryValues {
   coverPhotoId: string;
 }
 
+export interface ZoneItem {
+  id: string;
+  name: string;
+  code: string;
+  floorId: string;
+  type: 'quiet_focus' | 'team_hub' | 'meeting_suite' | 'open_desk' | 'custom';
+  color: string;
+  baseHourlyRate: number;
+  areaSqm: number;
+  capacity: number;
+  occupiedCount?: number;
+  amenities: string[];
+  polygonPoints?: string;
+}
+
+export interface FloorItem {
+  id: string;
+  number: number;
+  name: string;
+  subtitle?: string;
+  usableAreaSqm: number;
+  capacity: number;
+  status: 'active' | 'draft' | 'maintenance';
+}
+
+export interface FloorPlanValues {
+  selectedFloorId: string;
+  floors: FloorItem[];
+  zones: ZoneItem[];
+  gridSnap: boolean;
+  showDimensions: boolean;
+  zoomLevel: number;
+}
+
 export interface OnboardingDraftState {
   version: number;
   lastSavedAt: string | null;
@@ -89,5 +123,7 @@ export interface OnboardingDraftState {
   operatingHours: OperatingHoursValues;
   amenities: string[];
   media: MediaGalleryValues;
+  floorPlan: FloorPlanValues;
   floorPlanHandoff?: FloorPlanHandoffContract;
+  submissionStatus?: 'draft' | 'under_review' | 'published';
 }

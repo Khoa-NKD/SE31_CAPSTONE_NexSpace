@@ -107,3 +107,41 @@ export const mediaGallerySchema = z
 export type OperatingHoursSchemaValues = z.infer<typeof operatingHoursSchema>;
 export type AmenitiesSchemaValues = z.infer<typeof amenitiesSchema>;
 export type MediaGallerySchemaValues = z.infer<typeof mediaGallerySchema>;
+
+export const floorItemSchema = z.object({
+  id: z.string().min(1, 'Floor ID is required'),
+  number: z.number().int(),
+  name: z.string().min(2, 'Floor name is required').max(60),
+  subtitle: z.string().optional(),
+  usableAreaSqm: z.number().positive('Usable area must be greater than 0'),
+  capacity: z.number().int().min(1, 'Floor capacity must be at least 1 person'),
+  status: z.enum(['active', 'draft', 'maintenance']).default('active')
+});
+
+export const zoneItemSchema = z.object({
+  id: z.string().min(1, 'Zone ID is required'),
+  name: z.string().min(2, 'Zone name is required').max(60),
+  code: z.string().min(2, 'Zone code is required').max(20),
+  floorId: z.string().min(1, 'Associated floor is required'),
+  type: z.enum(['quiet_focus', 'team_hub', 'meeting_suite', 'open_desk', 'custom']),
+  color: z.string().min(4, 'Zone color identifier is required'),
+  baseHourlyRate: z.number().min(0, 'Base rate must be non-negative'),
+  areaSqm: z.number().positive('Floor area must be greater than 0'),
+  capacity: z.number().int().min(1, 'Zone capacity must be at least 1'),
+  occupiedCount: z.number().optional().default(0),
+  amenities: z.array(z.string()).default([]),
+  polygonPoints: z.string().optional()
+});
+
+export const floorPlanSchema = z.object({
+  selectedFloorId: z.string().min(1, 'Please select an active floor'),
+  floors: z.array(floorItemSchema).min(1, 'At least 1 floor must be configured'),
+  zones: z.array(zoneItemSchema).min(1, 'At least 1 functional zone must be configured on the floor'),
+  gridSnap: z.boolean().default(true),
+  showDimensions: z.boolean().default(false),
+  zoomLevel: z.number().min(25).max(300).default(100)
+});
+
+export type FloorItemSchemaValues = z.infer<typeof floorItemSchema>;
+export type ZoneItemSchemaValues = z.infer<typeof zoneItemSchema>;
+export type FloorPlanSchemaValues = z.infer<typeof floorPlanSchema>;

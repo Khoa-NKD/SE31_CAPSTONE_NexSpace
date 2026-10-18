@@ -38,6 +38,21 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
     { title: 'Create Workspace', link: '' }
   ],
+  '/dashboard/organizer/workspaces/create/floor-plan': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Floor Plan & Zones', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/create/review': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Pre-submission Review', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/lifecycle': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Lifecycle & Status Control', link: '' }
+  ],
   '/dashboard/overview': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Overview', link: '/dashboard/overview' },

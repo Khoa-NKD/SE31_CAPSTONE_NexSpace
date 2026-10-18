@@ -1,4 +1,10 @@
-export type WorkspaceStatus = 'ACTIVE' | 'DRAFT';
+export type WorkspaceStatus =
+  | 'ACTIVE'
+  | 'DRAFT'
+  | 'PAUSED'
+  | 'MAINTENANCE'
+  | 'ARCHIVED'
+  | 'UNDER_REVIEW';
 
 export interface OrganizerWorkspace {
   id: string;
@@ -15,6 +21,20 @@ export interface OrganizerWorkspace {
   rating: number;
   reviewsCount?: number;
   occupancyRate?: number;
+  tier?: string;
+  publicUrl?: string;
+  isLive?: boolean;
+  turnstileOnline?: boolean;
+  bookingMode?: 'instant' | 'manual';
+  lastStatusChange?: string;
+  grossRevenueMtd?: number;
+  totalBookingsMtd?: number;
 }
 
-export type WorkspaceFilter = 'all' | 'active' | 'draft';
+export type WorkspaceFilter =
+  | 'all'
+  | 'active'
+  | 'draft'
+  | 'paused'
+  | 'maintenance'
+  | 'archived';
