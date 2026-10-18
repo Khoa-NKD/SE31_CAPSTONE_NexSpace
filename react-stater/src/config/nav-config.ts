@@ -204,3 +204,63 @@ export const navGroups: NavGroup[] = [
     ]
   }
 ];
+
+/**
+ * Navigation configuration for NexSpace Organizer Console
+ * Aligned with Stitch Project 15215263515213658245.
+ */
+export const organizerNavGroups: NavGroup[] = [
+  {
+    label: 'Organizer Console',
+    items: [
+      {
+        title: 'My Workspaces',
+        url: '/dashboard/organizer/workspaces',
+        icon: 'workspace',
+        isActive: false
+      },
+      {
+        title: 'Floor Plan & Zones',
+        url: '#floorplan',
+        icon: 'forms',
+        disabled: true,
+        label: 'Planned'
+      },
+      {
+        title: 'Resource Table',
+        url: '#resources',
+        icon: 'galleryVerticalEnd',
+        disabled: true,
+        label: 'Planned'
+      },
+      {
+        title: 'Pricing Matrix',
+        url: '#pricing',
+        icon: 'billing',
+        disabled: true,
+        label: 'Planned'
+      },
+      {
+        title: 'Blockout Hours',
+        url: '#blockout',
+        icon: 'calendar',
+        disabled: true,
+        label: 'Planned'
+      },
+      {
+        title: 'Bookings',
+        url: '#bookings',
+        icon: 'calendar',
+        disabled: true,
+        label: 'Planned'
+      },
+      {
+        title: 'Analytics',
+        url: '#analytics',
+        icon: 'trendingUp',
+        disabled: true,
+        label: 'Planned'
+      }
+    ]
+  }
+];
