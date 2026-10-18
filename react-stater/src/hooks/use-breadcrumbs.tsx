@@ -23,6 +23,21 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
     { title: 'Create Workspace', link: '' }
   ],
+  '/dashboard/organizer/workspaces/create/hours': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Create Workspace', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/create/amenities': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Create Workspace', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/create/media': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Create Workspace', link: '' }
+  ],
   '/dashboard/overview': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Overview', link: '/dashboard/overview' },

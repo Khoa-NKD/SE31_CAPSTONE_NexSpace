@@ -32,18 +32,62 @@ export interface FloorPlanHandoffContract {
   zones: ZoneHandoffItem[];
 }
 
+export type DayOfWeek =
+  | 'monday'
+  | 'tuesday'
+  | 'wednesday'
+  | 'thursday'
+  | 'friday'
+  | 'saturday'
+  | 'sunday';
+
+export interface DaySchedule {
+  day: DayOfWeek;
+  label: string;
+  isOpen: boolean;
+  openTime: string;
+  closeTime: string;
+}
+
+export interface OperatingHoursValues {
+  is247: boolean;
+  schedule: DaySchedule[];
+  blockHolidays: boolean;
+  allowGracePeriod: boolean;
+}
+
+export interface AmenityItem {
+  id: string;
+  name: string;
+  description: string;
+  category: 'technology' | 'facilities' | 'hospitality' | 'security';
+  icon: string;
+  isCommon?: boolean;
+}
+
+export interface MediaItem {
+  id: string;
+  url: string;
+  name: string;
+  dimension?: string;
+  caption?: string;
+  size?: number;
+  isCover: boolean;
+}
+
+export interface MediaGalleryValues {
+  items: MediaItem[];
+  coverPhotoId: string;
+}
+
 export interface OnboardingDraftState {
   version: number;
   lastSavedAt: string | null;
   isDraftSynced: boolean;
   basicInfo: BasicInfoValues;
   location: LocationValues;
-  // Extensible integration points for future steps (O07-O10, O15)
-  operatingHours?: Record<string, unknown>;
-  amenities?: string[];
-  media?: {
-    coverImageUrl?: string;
-    galleryUrls?: string[];
-  };
+  operatingHours: OperatingHoursValues;
+  amenities: string[];
+  media: MediaGalleryValues;
   floorPlanHandoff?: FloorPlanHandoffContract;
 }
