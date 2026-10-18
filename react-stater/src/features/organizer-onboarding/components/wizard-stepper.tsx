@@ -9,14 +9,23 @@ export interface WizardStepperProps {
 const STEPS = [
   { number: 1, title: 'Basic Info', route: '/dashboard/organizer/workspaces/create' },
   { number: 2, title: 'Location', route: '/dashboard/organizer/workspaces/create/location' },
-  { number: 3, title: 'Operating Hours', route: '#operating-hours' },
-  { number: 4, title: 'Amenities', route: '#amenities' },
-  { number: 5, title: 'Photos & Media', route: '#media' }
+  { number: 3, title: 'Operating Hours', route: '/dashboard/organizer/workspaces/create/hours' },
+  { number: 4, title: 'Amenities', route: '/dashboard/organizer/workspaces/create/amenities' },
+  { number: 5, title: 'Photos & Media', route: '/dashboard/organizer/workspaces/create/media' }
 ] as const;
 
 export function WizardStepper({ currentStep }: WizardStepperProps) {
   // Compute progress line width
-  const progressPercent = currentStep === 1 ? 12 : currentStep === 2 ? 32 : (currentStep / 5) * 100;
+  const progressPercent =
+    currentStep === 1
+      ? 10
+      : currentStep === 2
+        ? 32
+        : currentStep === 3
+          ? 55
+          : currentStep === 4
+            ? 78
+            : 100;
 
   return (
     <div className='max-w-4xl mx-auto mb-6 sm:mb-8 px-2'>
@@ -64,11 +73,11 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
 
             return (
               <li key={step.number} className='relative'>
-                {step.number === 1 && currentStep > 1 ? (
+                {isCompleted ? (
                   <Link
-                    to='/dashboard/organizer/workspaces/create'
+                    to={step.route}
                     className='cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full'
-                    aria-label={`Go to Step 1: Basic Info`}
+                    aria-label={`Go to Step ${step.number}: ${step.title}`}
                   >
                     {StepNode}
                   </Link>

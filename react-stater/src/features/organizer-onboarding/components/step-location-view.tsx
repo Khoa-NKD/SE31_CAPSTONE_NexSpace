@@ -182,10 +182,11 @@ export function StepLocationView() {
     setLocation(values);
     saveDraft();
 
-    toast.success('Batch 1 Verified & Saved', {
-      description:
-        'Basic Info (O05) and Location (O06) draft saved. Operating Hours (O07) will be available in Batch 2.'
+    toast.success('Location Saved', {
+      description: 'Proceeding to Operating Hours configuration.'
     });
+
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours' });
   };
 
   return (
