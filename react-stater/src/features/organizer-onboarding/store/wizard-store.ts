@@ -8,7 +8,10 @@ import type {
   MediaItem,
   OnboardingDraftState,
   DaySchedule,
-  DayOfWeek
+  DayOfWeek,
+  FloorItem,
+  ZoneItem,
+  FloorPlanValues
 } from '../types/wizard';
 
 const STORAGE_KEY = 'nexspace_organizer_onboarding_draft_v1';
@@ -104,6 +107,90 @@ export const INITIAL_MEDIA_GALLERY: MediaGalleryValues = {
   ]
 };
 
+export const INITIAL_FLOORS: FloorItem[] = [
+  {
+    id: 'floor-12',
+    number: 12,
+    name: 'Floor 12 — Main Coworking Floor',
+    subtitle: '540 m² Usable • 74 Capacity',
+    usableAreaSqm: 540,
+    capacity: 74,
+    status: 'active'
+  },
+  {
+    id: 'floor-11',
+    number: 11,
+    name: 'Floor 11 — Office Suites',
+    subtitle: '480 m² Usable • 52 Capacity',
+    usableAreaSqm: 480,
+    capacity: 52,
+    status: 'active'
+  },
+  {
+    id: 'floor-14',
+    number: 14,
+    name: 'Floor 14 — Executive Terrace & Lounge',
+    subtitle: '320 m² Usable • 40 Capacity',
+    usableAreaSqm: 320,
+    capacity: 40,
+    status: 'draft'
+  }
+];
+
+export const INITIAL_ZONES: ZoneItem[] = [
+  {
+    id: 'zone-a',
+    name: 'Zone A — Quiet Focus',
+    code: 'ZA-12',
+    floorId: 'floor-12',
+    type: 'quiet_focus',
+    color: '#3B82F6',
+    baseHourlyRate: 2.5,
+    areaSqm: 240,
+    capacity: 28,
+    occupiedCount: 18,
+    amenities: ['Acoustic Baffles', 'Ergonomic Chairs', 'Silent Policy'],
+    polygonPoints: '20,30 220,30 220,490 20,490'
+  },
+  {
+    id: 'zone-b',
+    name: 'Zone B — Team Hub',
+    code: 'ZB-12',
+    floorId: 'floor-12',
+    type: 'team_hub',
+    color: '#F59E0B',
+    baseHourlyRate: 3.0,
+    areaSqm: 180,
+    capacity: 16,
+    occupiedCount: 14,
+    amenities: ['Whiteboards', 'Monitor Arms', 'Collaboration Lounge'],
+    polygonPoints: '240,30 520,30 520,490 240,490'
+  },
+  {
+    id: 'zone-c',
+    name: 'Zone C — Executive Meeting Suites',
+    code: 'ZC-12',
+    floorId: 'floor-12',
+    type: 'meeting_suite',
+    color: '#8B5CF6',
+    baseHourlyRate: 15.0,
+    areaSqm: 120,
+    capacity: 30,
+    occupiedCount: 30,
+    amenities: ['4K Video Conferencing', 'Acoustic Glass', 'Executive Credenza'],
+    polygonPoints: '540,30 830,30 830,490 540,490'
+  }
+];
+
+export const INITIAL_FLOOR_PLAN: FloorPlanValues = {
+  selectedFloorId: 'floor-12',
+  floors: INITIAL_FLOORS,
+  zones: INITIAL_ZONES,
+  gridSnap: true,
+  showDimensions: false,
+  zoomLevel: 100
+};
+
 export interface WizardStore extends OnboardingDraftState {
   setBasicInfo: (data: Partial<BasicInfoValues>) => void;
   setLocation: (data: Partial<LocationValues>) => void;
@@ -120,6 +207,15 @@ export interface WizardStore extends OnboardingDraftState {
   removeMediaItem: (id: string) => void;
   setCoverPhoto: (id: string) => void;
   reorderMediaItems: (fromIndex: number, toIndex: number) => void;
+  setSelectedFloor: (floorId: string) => void;
+  addFloor: (floor: FloorItem) => void;
+  updateFloor: (id: string, updates: Partial<FloorItem>) => void;
+  removeFloor: (id: string) => void;
+  addZone: (zone: ZoneItem) => void;
+  updateZone: (id: string, updates: Partial<ZoneItem>) => void;
+  removeZone: (id: string) => void;
+  setFloorPlanSettings: (settings: Partial<Pick<FloorPlanValues, 'gridSnap' | 'showDimensions' | 'zoomLevel'>>) => void;
+  setSubmissionStatus: (status: 'draft' | 'under_review' | 'published') => void;
   saveDraft: () => void;
   resetDraft: () => void;
 }
@@ -135,6 +231,8 @@ export const useWizardStore = create<WizardStore>()(
       operatingHours: INITIAL_OPERATING_HOURS,
       amenities: INITIAL_AMENITIES,
       media: INITIAL_MEDIA_GALLERY,
+      floorPlan: INITIAL_FLOOR_PLAN,
+      submissionStatus: 'draft',
 
       setBasicInfo: (data) =>
         set((state) => ({
@@ -310,6 +408,94 @@ export const useWizardStore = create<WizardStore>()(
           };
         }),
 
+      setSelectedFloor: (floorId) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            selectedFloorId: floorId
+          }
+        })),
+
+      addFloor: (floor) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            floors: [...state.floorPlan.floors, floor],
+            selectedFloorId: floor.id
+          }
+        })),
+
+      updateFloor: (id, updates) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            floors: state.floorPlan.floors.map((f) => (f.id === id ? { ...f, ...updates } : f))
+          }
+        })),
+
+      removeFloor: (id) =>
+        set((state) => {
+          const remainingFloors = state.floorPlan.floors.filter((f) => f.id !== id);
+          const remainingZones = state.floorPlan.zones.filter((z) => z.floorId !== id);
+          const newSelectedId =
+            state.floorPlan.selectedFloorId === id
+              ? remainingFloors[0]?.id || ''
+              : state.floorPlan.selectedFloorId;
+          return {
+            isDraftSynced: false,
+            floorPlan: {
+              ...state.floorPlan,
+              floors: remainingFloors,
+              zones: remainingZones,
+              selectedFloorId: newSelectedId
+            }
+          };
+        }),
+
+      addZone: (zone) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            zones: [...state.floorPlan.zones, zone]
+          }
+        })),
+
+      updateZone: (id, updates) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            zones: state.floorPlan.zones.map((z) => (z.id === id ? { ...z, ...updates } : z))
+          }
+        })),
+
+      removeZone: (id) =>
+        set((state) => ({
+          isDraftSynced: false,
+          floorPlan: {
+            ...state.floorPlan,
+            zones: state.floorPlan.zones.filter((z) => z.id !== id)
+          }
+        })),
+
+      setFloorPlanSettings: (settings) =>
+        set((state) => ({
+          floorPlan: {
+            ...state.floorPlan,
+            ...settings
+          }
+        })),
+
+      setSubmissionStatus: (status) =>
+        set(() => ({
+          isDraftSynced: false,
+          submissionStatus: status
+        })),
+
       saveDraft: () =>
         set(() => ({
           lastSavedAt: new Date().toISOString(),
@@ -325,7 +511,9 @@ export const useWizardStore = create<WizardStore>()(
           location: INITIAL_LOCATION,
           operatingHours: INITIAL_OPERATING_HOURS,
           amenities: INITIAL_AMENITIES,
-          media: INITIAL_MEDIA_GALLERY
+          media: INITIAL_MEDIA_GALLERY,
+          floorPlan: INITIAL_FLOOR_PLAN,
+          submissionStatus: 'draft'
         }))
     }),
     {
@@ -352,7 +540,14 @@ export const useWizardStore = create<WizardStore>()(
             ...currentState.media,
             ...p.media,
             items: p.media?.items?.length ? p.media.items : currentState.media.items
-          }
+          },
+          floorPlan: {
+            ...currentState.floorPlan,
+            ...p.floorPlan,
+            floors: p.floorPlan?.floors?.length ? p.floorPlan.floors : currentState.floorPlan.floors,
+            zones: p.floorPlan?.zones?.length ? p.floorPlan.zones : currentState.floorPlan.zones
+          },
+          submissionStatus: p.submissionStatus || currentState.submissionStatus
         };
       }
     }

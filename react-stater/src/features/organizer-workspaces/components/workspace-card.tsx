@@ -2,7 +2,6 @@ import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { toast } from 'sonner';
 import type { OrganizerWorkspace } from '../types';
 
 interface WorkspaceCardProps {
@@ -11,12 +10,6 @@ interface WorkspaceCardProps {
 
 export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
   const isDraft = workspace.status === 'DRAFT';
-
-  const handleManageClick = () => {
-    toast.info(`Workspace Management: ${workspace.name}`, {
-      description: 'Detail and resource allocation will be enabled in subsequent workspace lifecycle batches.'
-    });
-  };
 
   return (
     <article className='flex flex-col rounded-xl bg-card border border-border shadow-2xs overflow-hidden hover:shadow-md transition-shadow duration-200'>
@@ -55,10 +48,36 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               loading='lazy'
             />
             {/* Status Overlay Badge */}
-            <div className='absolute top-3 right-3 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
-              <span className='size-1.5 rounded-full bg-emerald-500' />
-              <span>ACTIVE</span>
-            </div>
+            {workspace.status === 'ACTIVE' && (
+              <div className='absolute top-3 right-3 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-emerald-500' />
+                <span>ACTIVE</span>
+              </div>
+            )}
+            {workspace.status === 'PAUSED' && (
+              <div className='absolute top-3 right-3 bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-amber-500' />
+                <span>PAUSED</span>
+              </div>
+            )}
+            {workspace.status === 'MAINTENANCE' && (
+              <div className='absolute top-3 right-3 bg-purple-500/15 text-purple-600 dark:text-purple-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-purple-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-purple-500' />
+                <span>MAINTENANCE</span>
+              </div>
+            )}
+            {workspace.status === 'ARCHIVED' && (
+              <div className='absolute top-3 right-3 bg-slate-500/20 text-slate-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-slate-400' />
+                <span>ARCHIVED</span>
+              </div>
+            )}
+            {workspace.status === 'UNDER_REVIEW' && (
+              <div className='absolute top-3 right-3 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-indigo-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-indigo-500 animate-pulse' />
+                <span>UNDER REVIEW</span>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -159,12 +178,13 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             {/* Action Button: Manage Workspace */}
             <Button
               variant='outline'
-              type='button'
-              onClick={handleManageClick}
+              asChild
               className='w-full border-border hover:bg-muted text-foreground font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm'
             >
-              <span>Manage Workspace</span>
-              <ArrowRight className='size-3.5' />
+              <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
+                <span>Manage Workspace</span>
+                <ArrowRight className='size-3.5' />
+              </Link>
             </Button>
           </>
         )}

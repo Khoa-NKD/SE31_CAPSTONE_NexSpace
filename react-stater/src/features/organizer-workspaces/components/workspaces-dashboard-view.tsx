@@ -5,13 +5,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { WorkspaceCard } from './workspace-card';
 import { WorkspaceFilterPills } from './workspace-filter-pills';
-import { INITIAL_MOCK_WORKSPACES } from '../data/mock-workspaces';
+import { useWorkspacesStore } from '../store/workspaces-store';
 import type { WorkspaceFilter } from '../types';
 
 export function WorkspacesDashboardView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filter, setFilter] = useState<WorkspaceFilter>('all');
-  const [workspaces] = useState(INITIAL_MOCK_WORKSPACES);
+  const workspaces = useWorkspacesStore((state) => state.workspaces);
 
   // Compute counts
   const counts = useMemo(

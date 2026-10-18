@@ -14,7 +14,14 @@ export const INITIAL_MOCK_WORKSPACES: OrganizerWorkspace[] = [
     meetingRoomsCount: 4,
     rating: 4.9,
     reviewsCount: 128,
-    occupancyRate: 82
+    occupancyRate: 82,
+    tier: 'Tier 1 Flagship',
+    publicUrl: 'https://nexspace.vn/spaces/saigon-prime-hub',
+    isLive: true,
+    turnstileOnline: true,
+    bookingMode: 'instant',
+    grossRevenueMtd: 8420.0,
+    totalBookingsMtd: 348
   },
   {
     id: 'ws-landmark-bt-02',

@@ -217,6 +217,7 @@ export const organizerNavGroups: NavGroup[] = [
         title: 'My Workspaces',
         url: '/dashboard/organizer/workspaces',
         icon: 'workspace',
+        shortcut: ['w', 'w'],
         isActive: false
       },
       {
@@ -254,6 +255,7 @@ export const organizerNavGroups: NavGroup[] = [
         title: 'Bookings',
         url: '/dashboard/organizer/bookings',
         icon: 'calendar',
+        shortcut: ['b', 'b'],
         isActive: false,
         label: '8 Active'
       },
@@ -261,6 +263,7 @@ export const organizerNavGroups: NavGroup[] = [
         title: 'Schedule (Gantt)',
         url: '/dashboard/organizer/schedule',
         icon: 'clock',
+        shortcut: ['s', 's'],
         isActive: false,
         label: 'Live'
       },
