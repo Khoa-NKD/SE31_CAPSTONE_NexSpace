@@ -17,5 +17,10 @@ export default defineConfig({
     // e.g. SERVER_PRESET=node-server / cloudflare-module / bun.
     nitro({ preset: process.env.SERVER_PRESET }),
     viteReact()
-  ]
+  ],
+  build: {
+    rollupOptions: {
+      external: [/^maplibre-gl/]
+    }
+  }
 });

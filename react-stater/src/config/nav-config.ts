@@ -221,38 +221,48 @@ export const organizerNavGroups: NavGroup[] = [
       },
       {
         title: 'Floor Plan & Zones',
-        url: '#floorplan',
+        url: '/dashboard/organizer/floorplan',
         icon: 'forms',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
       },
       {
         title: 'Resource Table',
-        url: '#resources',
+        url: '/dashboard/organizer/resources',
         icon: 'galleryVerticalEnd',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
+      },
+      {
+        title: 'Create Resource',
+        url: '/dashboard/organizer/resources/create',
+        icon: 'plusCircle',
+        isActive: false,
+        label: 'New'
       },
       {
         title: 'Pricing Matrix',
-        url: '#pricing',
+        url: '/dashboard/organizer/pricing',
         icon: 'billing',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
       },
       {
         title: 'Blockout Hours',
-        url: '#blockout',
+        url: '/dashboard/organizer/blockout',
         icon: 'calendar',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
       },
       {
         title: 'Bookings',
-        url: '#bookings',
+        url: '/dashboard/organizer/bookings',
         icon: 'calendar',
-        disabled: true,
-        label: 'Planned'
+        isActive: false,
+        label: '8 Active'
+      },
+      {
+        title: 'Schedule (Gantt)',
+        url: '/dashboard/organizer/schedule',
+        icon: 'clock',
+        isActive: false,
+        label: 'Live'
       },
       {
         title: 'Analytics',

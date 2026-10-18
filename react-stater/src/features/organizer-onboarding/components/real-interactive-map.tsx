@@ -203,12 +203,12 @@ export function RealInteractiveMap({
       if (mapInstanceRef.current) return;
 
       try {
-        const maplibregl = await import('maplibre-gl');
-        await import('maplibre-gl/dist/maplibre-gl.css');
+        const maplibregl = await import(/* @vite-ignore */ 'maplibre-gl');
+        await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl.css');
         mapLibreModuleRef.current = maplibregl;
 
         try {
-          const workerUrl = (await import('maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')).default;
+          const workerUrl = (await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')).default;
           if (workerUrl) {
             maplibregl.setWorkerUrl(workerUrl);
           }
@@ -238,7 +238,7 @@ export function RealInteractiveMap({
         });
 
         // Click map to reposition marker
-        map.on('click', (e) => {
+        map.on('click', (e: { lngLat: { lng: number; lat: number } }) => {
           const { lng, lat } = e.lngLat;
           const roundedLat = Number(lat.toFixed(4));
           const roundedLng = Number(lng.toFixed(4));
