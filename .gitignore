@@ -33,7 +33,7 @@ logs
 
 # Agent Skills
 .agent/
-
+.agents/
 
 # Custom rules
 SCREEN_ARCHITECTURE_STANDARDS.md
