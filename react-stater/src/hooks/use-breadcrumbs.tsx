@@ -9,6 +9,20 @@ type BreadcrumbItem = {
 // Route mappings for accurate navigation hierarchies
 const routeMapping: Record<string, BreadcrumbItem[]> = {
   '/dashboard': [{ title: 'Dashboard', link: '/dashboard' }],
+  '/dashboard/organizer/workspaces': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/create': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Create Workspace', link: '' }
+  ],
+  '/dashboard/organizer/workspaces/create/location': [
+    { title: 'Home', link: '/dashboard/organizer/workspaces' },
+    { title: 'Workspaces', link: '/dashboard/organizer/workspaces' },
+    { title: 'Create Workspace', link: '' }
+  ],
   '/dashboard/overview': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Overview', link: '/dashboard/overview' },

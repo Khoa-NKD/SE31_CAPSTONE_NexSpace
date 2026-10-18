@@ -16,7 +16,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { navGroups } from '@/config/nav-config';
+import { navGroups, organizerNavGroups } from '@/config/nav-config';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import { Link } from '@tanstack/react-router';
 import { useLocation, useRouter } from '@tanstack/react-router';
@@ -43,7 +43,9 @@ import { toast } from 'sonner';
 export default function AppSidebar() {
   const { pathname } = useLocation();
   const router = useRouter();
-  const filteredGroups = useFilteredNavGroups(navGroups);
+  const isOrganizer = pathname.startsWith('/dashboard/organizer');
+  const activeNavGroups = isOrganizer ? organizerNavGroups : navGroups;
+  const filteredGroups = useFilteredNavGroups(activeNavGroups);
   const [incidentModalOpen, setIncidentModalOpen] = React.useState(false);
 
   const handleIncidentSubmit = () => {
@@ -60,28 +62,42 @@ export default function AppSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton size='lg' asChild className='hover:bg-[#1E293B]'>
-                <Link to='/dashboard/overview' aria-label='Nex Space Admin Console — Dashboard'>
+                <Link
+                  to={isOrganizer ? '/dashboard/organizer/workspaces' : '/dashboard/overview'}
+                  aria-label={isOrganizer ? 'NexSpace Organizer Hub' : 'Nex Space Admin Console — Dashboard'}
+                >
                   <div className='flex items-center gap-2'>
-                    <NexSpaceLogo variant='admin' inverted aria-hidden='true' className='h-8 w-auto group-data-[collapsible=icon]:hidden' />
-                    <NexSpaceLogo variant='mark' aria-hidden='true' className='size-7 hidden group-data-[collapsible=icon]:block mx-auto' />
+                    <NexSpaceLogo
+                      variant={isOrganizer ? 'organizer' : 'admin'}
+                      inverted
+                      aria-hidden='true'
+                      className='h-8 w-auto group-data-[collapsible=icon]:hidden'
+                    />
+                    <NexSpaceLogo
+                      variant='mark'
+                      aria-hidden='true'
+                      className='size-7 hidden group-data-[collapsible=icon]:block mx-auto'
+                    />
                   </div>
                 </Link>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
 
-          {/* Quick Incident CTA Button (Stitch line 154) */}
-          <div className='px-2 pt-2'>
-            <button
-              type='button'
-              onClick={() => setIncidentModalOpen(true)}
-              className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#1E293B]/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto'
-              title='System Incident Report'
-            >
-              <Icons.warning className='size-3.5 text-amber-400 shrink-0' />
-              <span className='truncate group-data-[collapsible=icon]:hidden'>System Incident Report</span>
-            </button>
-          </div>
+          {/* Quick Incident CTA Button (Admin Only) */}
+          {!isOrganizer && (
+            <div className='px-2 pt-2'>
+              <button
+                type='button'
+                onClick={() => setIncidentModalOpen(true)}
+                className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#1E293B]/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto'
+                title='System Incident Report'
+              >
+                <Icons.warning className='size-3.5 text-amber-400 shrink-0' />
+                <span className='truncate group-data-[collapsible=icon]:hidden'>System Incident Report</span>
+              </button>
+            </div>
+          )}
         </SidebarHeader>
 
         <SidebarContent className='overflow-x-hidden bg-[#090D16]'>
@@ -176,59 +192,74 @@ export default function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className='bg-[#090D16] border-t border-[#1E293B]/60 p-2'>
-          <SidebarMenu>
-            <SidebarMenuItem>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <SidebarMenuButton
-                    size='lg'
-                    className='hover:bg-[#1E293B] text-slate-300 data-[state=open]:bg-[#1E293B]'
+          {isOrganizer ? (
+            <div className='flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-[#1E293B]/60 border border-slate-700/60'>
+              <div className='relative size-8 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0'>
+                <span className='font-bold text-[11px] text-indigo-300'>PS</span>
+                <span className='absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-[#090D16] flex items-center justify-center text-white text-[8px] leading-none'>
+                  ✓
+                </span>
+              </div>
+              <div className='flex flex-col min-w-0 group-data-[collapsible=icon]:hidden'>
+                <span className='font-medium text-xs text-white truncate'>Prime Spaces JSC</span>
+                <span className='text-[10px] text-emerald-400 font-medium'>Verified Partner</span>
+              </div>
+            </div>
+          ) : (
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <SidebarMenuButton
+                      size='lg'
+                      className='hover:bg-[#1E293B] text-slate-300 data-[state=open]:bg-[#1E293B]'
+                    >
+                      <div className='relative size-8 rounded-full overflow-hidden bg-indigo-950 border border-indigo-500/40 shrink-0'>
+                        <img
+                          src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
+                          alt='Marcus Vance'
+                          className='w-full h-full object-cover'
+                        />
+                      </div>
+                      <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
+                        <span className='truncate font-semibold text-white'>Marcus Vance</span>
+                        <span className='text-slate-400 truncate text-[10px]'>CPTO • Super Admin</span>
+                      </div>
+                      <Icons.chevronsDown className='ml-auto size-3.5 text-slate-400 group-data-[collapsible=icon]:hidden' />
+                    </SidebarMenuButton>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-[#090D16] text-slate-300 border-[#1E293B]'
+                    side='bottom'
+                    align='end'
+                    sideOffset={4}
                   >
-                    <div className='relative size-8 rounded-full overflow-hidden bg-indigo-950 border border-indigo-500/40 shrink-0'>
-                      <img
-                        src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                        alt='Marcus Vance'
-                        className='w-full h-full object-cover'
-                      />
-                    </div>
-                    <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
-                      <span className='truncate font-semibold text-white'>Marcus Vance</span>
-                      <span className='text-slate-400 truncate text-[10px]'>CPTO • Super Admin</span>
-                    </div>
-                    <Icons.chevronsDown className='ml-auto size-3.5 text-slate-400 group-data-[collapsible=icon]:hidden' />
-                  </SidebarMenuButton>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent
-                  className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-[#090D16] text-slate-300 border-[#1E293B]'
-                  side='bottom'
-                  align='end'
-                  sideOffset={4}
-                >
-                  <DropdownMenuGroup>
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem
+                        className='hover:bg-[#1E293B] focus:bg-[#1E293B] text-slate-300 focus:text-white cursor-pointer'
+                        onClick={() => router.navigate({ to: '/dashboard/notifications' })}
+                      >
+                        <Icons.notification className='mr-2 h-4 w-4' />
+                        Notifications
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
+                    <DropdownMenuSeparator className='bg-[#1E293B]' />
                     <DropdownMenuItem
                       className='hover:bg-[#1E293B] focus:bg-[#1E293B] text-slate-300 focus:text-white cursor-pointer'
-                      onClick={() => router.navigate({ to: '/dashboard/notifications' })}
+                      onClick={() => {
+                        toast.info('Sign Out Simulated', {
+                          description: 'Session invalidated in local state.'
+                        });
+                      }}
                     >
-                      <Icons.notification className='mr-2 h-4 w-4' />
-                      Notifications
+                      <Icons.logout className='mr-2 h-4 w-4' />
+                      Sign out
                     </DropdownMenuItem>
-                  </DropdownMenuGroup>
-                  <DropdownMenuSeparator className='bg-[#1E293B]' />
-                  <DropdownMenuItem
-                    className='hover:bg-[#1E293B] focus:bg-[#1E293B] text-slate-300 focus:text-white cursor-pointer'
-                    onClick={() => {
-                      toast.info('Sign Out Simulated', {
-                        description: 'Session invalidated in local state.'
-                      });
-                    }}
-                  >
-                    <Icons.logout className='mr-2 h-4 w-4' />
-                    Sign out
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </SidebarMenuItem>
-          </SidebarMenu>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          )}
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface NexSpaceLogoProps extends React.SVGProps<SVGSVGElement> {
-  variant?: 'full' | 'mark' | 'horizontal' | 'admin';
+  variant?: 'full' | 'mark' | 'horizontal' | 'admin' | 'organizer';
   inverted?: boolean;
   className?: string;
 }
@@ -192,7 +192,7 @@ export function NexSpaceLogo({
           className={inverted ? 'fill-slate-400' : 'fill-slate-500 dark:fill-slate-400'}
           letterSpacing='0.22em'
         >
-          {variant === 'admin' ? 'ADMIN CONSOLE' : 'FLEXIBLE WORKSPACE'}
+          {variant === 'admin' ? 'ADMIN CONSOLE' : variant === 'organizer' ? 'ORGANIZER HUB' : 'FLEXIBLE WORKSPACE'}
         </text>
       )}
     </svg>

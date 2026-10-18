@@ -1,4 +1,5 @@
 import React from 'react';
+import { useLocation } from '@tanstack/react-router';
 import { SidebarTrigger } from '../ui/sidebar';
 import SearchInput from '../search-input';
 import { ThemeSelector } from '../themes/theme-selector';
@@ -8,6 +9,9 @@ import { Badge } from '../ui/badge';
 import { ShieldCheck, Activity } from 'lucide-react';
 
 export default function Header() {
+  const { pathname } = useLocation();
+  const isOrganizer = pathname.startsWith('/dashboard/organizer');
+
   return (
     <header className='bg-background/80 sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2.5 sm:gap-4 border-b border-border/70 backdrop-blur-md px-3 sm:px-4'>
       {/* Left: Sidebar trigger + Prominent Global Search */}
@@ -18,7 +22,7 @@ export default function Header() {
         </div>
       </div>
 
-      {/* Right: Cluster Telemetry + Admin Role + Theme Controls + Notifications */}
+      {/* Right: Cluster Telemetry + Role Badge + Theme Controls + Notifications */}
       <div className='flex items-center gap-1.5 sm:gap-2.5 shrink-0'>
         {/* Cluster Telemetry Status (AP-Southeast-1 Node & SLA) */}
         <div className='hidden lg:flex items-center gap-2 px-2.5 py-1 rounded-full bg-muted/40 border border-border/60 text-xs text-muted-foreground shrink-0'>
@@ -41,13 +45,13 @@ export default function Header() {
           </span>
         </div>
 
-        {/* Administrator Role Indicator */}
+        {/* Role Indicator */}
         <div className='hidden sm:flex items-center shrink-0'>
           <Badge
             variant='outline'
             className='font-mono text-[10px] tracking-wider font-semibold border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 whitespace-nowrap'
           >
-            SUPER ADMIN
+            {isOrganizer ? 'ORGANIZER HUB' : 'SUPER ADMIN'}
           </Badge>
         </div>
 
