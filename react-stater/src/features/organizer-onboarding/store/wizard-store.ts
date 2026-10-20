@@ -13,6 +13,8 @@ import type {
   ZoneItem,
   FloorPlanValues
 } from '../types/wizard';
+import type { CanonicalWorkspace } from '@/features/workspaces/api/types';
+import { mapCanonicalToWizardState } from '../utils/wizard-api-mapper';
 
 const STORAGE_KEY = 'nexspace_organizer_onboarding_draft_v1';
 
@@ -204,6 +206,7 @@ export interface WizardStore extends OnboardingDraftState {
   clearAmenities: () => void;
   setMediaGallery: (data: Partial<MediaGalleryValues>) => void;
   addMediaItem: (item: MediaItem) => void;
+  updateMediaItem: (id: string, updates: Partial<MediaItem>) => void;
   removeMediaItem: (id: string) => void;
   setCoverPhoto: (id: string) => void;
   reorderMediaItems: (fromIndex: number, toIndex: number) => void;
@@ -216,6 +219,13 @@ export interface WizardStore extends OnboardingDraftState {
   removeZone: (id: string) => void;
   setFloorPlanSettings: (settings: Partial<Pick<FloorPlanValues, 'gridSnap' | 'showDimensions' | 'zoomLevel'>>) => void;
   setSubmissionStatus: (status: 'draft' | 'under_review' | 'published') => void;
+  setCanonicalWorkspace: (id: string, version: number) => void;
+  setClientDraftKey: (key: string) => void;
+  setServerVersion: (version: number) => void;
+  setIsSavingToServer: (saving: boolean) => void;
+  setSyncError: (error: string | null) => void;
+  markDraftSynced: (isSynced: boolean) => void;
+  hydrateFromServer: (workspace: CanonicalWorkspace) => void;
   saveDraft: () => void;
   resetDraft: () => void;
 }
@@ -226,6 +236,9 @@ export const useWizardStore = create<WizardStore>()(
       version: 1,
       lastSavedAt: new Date().toISOString(),
       isDraftSynced: true,
+      canonicalWorkspaceId: undefined,
+      clientDraftKey: undefined,
+      serverVersion: undefined,
       basicInfo: INITIAL_BASIC_INFO,
       location: INITIAL_LOCATION,
       operatingHours: INITIAL_OPERATING_HOURS,
@@ -350,6 +363,17 @@ export const useWizardStore = create<WizardStore>()(
             }
           };
         }),
+
+      updateMediaItem: (id, updates) =>
+        set((state) => ({
+          isDraftSynced: false,
+          media: {
+            ...state.media,
+            items: state.media.items.map((item) =>
+              item.id === id ? { ...item, ...updates } : item
+            )
+          }
+        })),
 
       removeMediaItem: (id) =>
         set((state) => {
@@ -496,6 +520,53 @@ export const useWizardStore = create<WizardStore>()(
           submissionStatus: status
         })),
 
+      setCanonicalWorkspace: (id, version) =>
+        set(() => ({
+          canonicalWorkspaceId: id,
+          serverVersion: version,
+          isDraftSynced: true,
+          syncError: null
+        })),
+
+      setClientDraftKey: (key) =>
+        set(() => ({
+          clientDraftKey: key
+        })),
+
+      setServerVersion: (version) =>
+        set(() => ({
+          serverVersion: version,
+          isDraftSynced: true
+        })),
+
+      setIsSavingToServer: (saving) =>
+        set(() => ({
+          isSavingToServer: saving
+        })),
+
+      setSyncError: (error) =>
+        set(() => ({
+          syncError: error
+        })),
+
+      markDraftSynced: (isSynced) =>
+        set(() => ({
+          isDraftSynced: isSynced
+        })),
+
+      hydrateFromServer: (workspace) =>
+        set((state) => {
+          const hydrated = mapCanonicalToWizardState(workspace, state);
+          return {
+            ...state,
+            ...hydrated,
+            canonicalWorkspaceId: workspace.id,
+            serverVersion: workspace.version,
+            isDraftSynced: true,
+            syncError: null
+          };
+        }),
+
       saveDraft: () =>
         set(() => ({
           lastSavedAt: new Date().toISOString(),
@@ -507,6 +578,10 @@ export const useWizardStore = create<WizardStore>()(
           version: 1,
           lastSavedAt: new Date().toISOString(),
           isDraftSynced: true,
+          canonicalWorkspaceId: undefined,
+          clientDraftKey: undefined,
+          serverVersion: undefined,
+          syncError: null,
           basicInfo: INITIAL_BASIC_INFO,
           location: INITIAL_LOCATION,
           operatingHours: INITIAL_OPERATING_HOURS,
@@ -526,6 +601,10 @@ export const useWizardStore = create<WizardStore>()(
         return {
           ...currentState,
           ...p,
+          canonicalWorkspaceId: p.canonicalWorkspaceId ?? currentState.canonicalWorkspaceId,
+          clientDraftKey: p.clientDraftKey ?? currentState.clientDraftKey,
+          serverVersion: p.serverVersion ?? currentState.serverVersion,
+          isDraftSynced: p.isDraftSynced ?? currentState.isDraftSynced,
           basicInfo: { ...currentState.basicInfo, ...p.basicInfo },
           location: { ...currentState.location, ...p.location },
           operatingHours: {

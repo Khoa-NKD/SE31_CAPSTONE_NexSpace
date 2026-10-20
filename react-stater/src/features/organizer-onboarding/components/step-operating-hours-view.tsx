@@ -8,7 +8,8 @@ import {
   ArrowRight,
   Save,
   ShieldCheck,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -25,6 +26,7 @@ import { toast } from 'sonner';
 import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { useWizardStore } from '../store/wizard-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { operatingHoursSchema } from '../schemas/wizard-schemas';
 import type { DayOfWeek, DaySchedule } from '../types/wizard';
 
@@ -94,6 +96,7 @@ export function StepOperatingHoursView() {
     applyMondayToWeekdays,
     saveDraft
   } = useWizardStore();
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
 
   const [validationError, setValidationError] = useState<string | null>(null);
 
@@ -147,11 +150,9 @@ export function StepOperatingHoursView() {
     });
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     saveDraft();
-    toast.success('Draft Saved', {
-      description: 'Your operating schedule draft has been safely saved.'
-    });
+    await saveDraftToServer();
   };
 
   const handleBack = () => {
@@ -159,7 +160,7 @@ export function StepOperatingHoursView() {
     router.navigate({ to: '/dashboard/organizer/workspaces/create/location' });
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const result = operatingHoursSchema.safeParse(operatingHours);
@@ -176,6 +177,7 @@ export function StepOperatingHoursView() {
 
     setValidationError(null);
     saveDraft();
+    await saveDraftToServer({ silent: true });
 
     toast.success('Operating Hours Saved', {
       description: 'Proceeding to Amenities configuration.'
@@ -488,20 +490,22 @@ export function StepOperatingHoursView() {
           <Button
             type='button'
             variant='outline'
+            disabled={isSaving}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            <Save className='size-4' />
-            <span>Save Draft</span>
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
           <Button
             type='button'
+            disabled={isSaving}
             onClick={handleContinue}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
             <span>Continue to Amenities</span>
-            <ArrowRight className='size-4' />
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>

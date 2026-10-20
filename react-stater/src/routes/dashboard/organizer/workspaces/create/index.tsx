@@ -1,5 +1,5 @@
 import React from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, useLocation } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { StepBasicInfoView } from '@/features/organizer-onboarding/components/step-basic-info-view';
 
@@ -17,9 +17,12 @@ export const Route = createFileRoute('/dashboard/organizer/workspaces/create/')(
 });
 
 function CreateWorkspaceBasicInfoPage() {
+  const location = useLocation();
+  const search = location.search as Record<string, unknown>;
+  const id = typeof search.id === 'string' ? search.id : undefined;
   return (
     <PageContainer>
-      <StepBasicInfoView />
+      <StepBasicInfoView routeWorkspaceId={id} />
     </PageContainer>
   );
 }

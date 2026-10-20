@@ -26,9 +26,14 @@ import {
   handleCreateWorkspace,
   handleUpdateWorkspace,
   handleWorkspaceLifecycle,
+  handleWorkspaceSubmit,
   handleAdminReviewWorkspace,
   handleAdminModerationWorkspace
 } from './routes/workspaces.ts';
+import {
+  handleMediaUpload,
+  handleGetMedia
+} from './routes/media.ts';
 
 export async function parseJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -85,6 +90,19 @@ export async function handleRequest(
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, X-Organizer-Id, X-Mock-User-Id, X-Mock-Role');
+
+  // Development Media Upload (Multipart Stream): POST /api/v1/media/upload
+  if (pathname === '/api/v1/media/upload' && method === 'POST') {
+    await handleMediaUpload(req, res);
+    return;
+  }
+
+  // Development Media Retrieval (Binary Image Stream): GET /api/v1/media/:mediaId
+  const mediaGetMatch = pathname.match(/^\/api\/v1\/media\/([a-zA-Z0-9_.-]+)$/);
+  if (mediaGetMatch && (method === 'GET' || method === 'HEAD')) {
+    await handleGetMedia(res, mediaGetMatch[1]);
+    return;
+  }
 
   // Parse Body for mutations
   let body: unknown = null;
@@ -281,7 +299,7 @@ export async function handleRequest(
       return;
     }
     if (method === 'POST') {
-      await handleCreateWorkspace(res, body);
+      await handleCreateWorkspace(req, res, body);
       return;
     }
   }
@@ -294,7 +312,15 @@ export async function handleRequest(
     return;
   }
 
-  // 17. Workspace Detail & Update: GET /api/v1/workspaces/:id & PATCH/PUT /api/v1/workspaces/:id
+  // 17. Organizer Workspace Submission: POST /api/v1/workspaces/:id/submit
+  const workspaceSubmitMatch = pathname.match(/^\/api\/v1\/workspaces\/([a-zA-Z0-9_.-]+)\/submit$/);
+  if (workspaceSubmitMatch && method === 'POST') {
+    const workspaceId = workspaceSubmitMatch[1];
+    await handleWorkspaceSubmit(req, res, workspaceId, body);
+    return;
+  }
+
+  // 18. Workspace Detail & Update: GET /api/v1/workspaces/:id & PATCH/PUT /api/v1/workspaces/:id
   const workspaceDetailMatch = pathname.match(/^\/api\/v1\/workspaces\/([a-zA-Z0-9_.-]+)$/);
   if (workspaceDetailMatch) {
     const workspaceId = workspaceDetailMatch[1];

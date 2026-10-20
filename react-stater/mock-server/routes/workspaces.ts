@@ -5,7 +5,8 @@ import {
   validateUpdateWorkspace,
   validateWorkspaceLifecycle,
   validateAdminReviewWorkspace,
-  validateAdminModerationWorkspace
+  validateAdminModerationWorkspace,
+  validateWorkspaceSubmission
 } from '../validators/workspaces.ts';
 
 export type WorkspaceCategory =
@@ -104,6 +105,7 @@ export interface CanonicalWorkspace {
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   reviewFeedback?: string | null;
+  submissionNotes?: string | null;
   moderationStatus: WorkspaceModerationStatus;
   suspendedBy?: string | null;
   suspendedAt?: string | null;
@@ -128,6 +130,7 @@ export interface CanonicalWorkspace {
   totalBookingsMtd?: number;
   tier?: string;
   publicUrl?: string;
+  clientDraftKey?: string;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -677,6 +680,7 @@ export async function handleGetWorkspaceById(
  * Creates a new workspace in Draft state. Validates organizerId against users.json.
  */
 export async function handleCreateWorkspace(
+  req: IncomingMessage,
   res: ServerResponse,
   body: unknown
 ): Promise<void> {
@@ -704,118 +708,143 @@ export async function handleCreateWorkspace(
     }
 
     const payload = validation.normalizedData as Partial<CanonicalWorkspace>;
-    const allWorkspaces = await getAllNormalizedWorkspaces();
+    const callerOrganizerId = (req.headers?.['x-organizer-id'] as string)?.trim();
+    const effectiveOrganizerId = callerOrganizerId || payload.organizerId || 'USR-9432';
 
-    // Generate unique canonical identifier
-    const existingIds = new Set(allWorkspaces.map((w) => w.id));
-    let nextNum = allWorkspaces.length + 101;
-    while (existingIds.has(`WS-${nextNum}`)) {
-      nextNum++;
-    }
-    const newId = `WS-${nextNum}`;
-    const workspaceCode = `HUB-NEW-${nextNum}`;
+    // Atomic Mutex Lock: guarantees check-and-create serialization across concurrent requests
+    await storage.withLock('workspaces-create', async () => {
+      const allWorkspaces = await getAllNormalizedWorkspaces();
 
-    const now = new Date().toISOString();
-    const newWorkspace: CanonicalWorkspace = {
-      id: newId,
-      workspaceCode,
-      organizerId: payload.organizerId!,
-      organizerLegalName: payload.organizerLegalName || 'LoftSpaces Hospitality Group',
-      organizerTaxId: payload.organizerTaxId || '0314889211',
-      organizerVerified: payload.organizerVerified !== false,
-      legacyAliases: [],
-      name: payload.name!,
-      category: payload.category!,
-      description: payload.description || '',
-      shortDescription: payload.shortDescription || '',
-      usableAreaSqm: payload.usableAreaSqm || 0,
-      supportPhone: payload.supportPhone,
-      supportEmail: payload.supportEmail,
-      operatorContactName: payload.operatorContactName,
-      operatorContactPhone: payload.operatorContactPhone,
-      streetAddress: payload.streetAddress!,
-      buildingName: payload.buildingName,
-      facilitySubtitle: payload.facilitySubtitle,
-      district: payload.district!,
-      city: payload.city!,
-      postalCode: payload.postalCode,
-      latitude: payload.latitude || 10.7719,
-      longitude: payload.longitude || 106.7044,
-      timezone: payload.timezone || 'Asia/Ho_Chi_Minh',
-      entryInstructions: payload.entryInstructions,
-      operatingHours: payload.operatingHours || [
-        { dayOfWeek: 1, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 2, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 3, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 4, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 5, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 6, openTime: '09:00', closeTime: '18:00', isClosed: false, is24Hours: false },
-        { dayOfWeek: 7, openTime: '00:00', closeTime: '00:00', isClosed: true, is24Hours: false }
-      ],
-      receptionHours: payload.receptionHours || '08:00 – 20:00 Weekdays',
-      autoBlockPublicHolidays: payload.autoBlockPublicHolidays ?? false,
-      checkInLeadMinutes: payload.checkInLeadMinutes ?? 15,
-      checkInLateMinutes: payload.checkInLateMinutes ?? 30,
-      amenities: payload.amenities || [],
-      tags: payload.tags || [],
-      coverImageUrl: payload.coverImageUrl || '',
-      images: payload.images || [],
-      capacityDesks: payload.capacityDesks || 0,
-      meetingRooms: payload.meetingRooms || 0,
-      focusPods: payload.focusPods || 0,
-      capacityLabel: `${payload.capacityDesks || 0} Desks, ${payload.meetingRooms || 0} Mtgs`,
-      totalFloors: payload.totalFloors || 1,
-      floors: payload.floors || [],
-      onboardingStep: 1,
-      onboardingCompleted: false,
-      draftProgress: 20,
-      draftWarningMessage: 'Initial workspace draft created. Complete onboarding setup.',
-      reviewStatus: 'Draft',
-      submittedAt: null,
-      reviewedBy: null,
-      reviewedAt: null,
-      reviewFeedback: null,
-      moderationStatus: 'Normal',
-      suspendedBy: null,
-      suspendedAt: null,
-      suspendReason: null,
-      operatingStatus: 'Inactive',
-      status: 'draft',
-      isLive: false,
-      turnstileOnline: false,
-      accessMethod: 'Setup in progress',
-      isListingVisible: false,
-      featuredPosition: null,
-      featuredFrom: null,
-      featuredTo: null,
-      bookingConfirmationMode: payload.bookingConfirmationMode || 'Instant',
-      pricePerHour: payload.pricePerHour || 0,
-      pricePerDay: payload.pricePerDay || 0,
-      pricePerMonth: payload.pricePerMonth || null,
-      rating: 0,
-      reviewsCount: 0,
-      occupancyRate: 0,
-      grossRevenueMtd: 0,
-      totalBookingsMtd: 0,
-      tier: 'Standard',
-      publicUrl: `https://nexspace.vn/spaces/${newId.toLowerCase()}`,
-      createdAt: now,
-      updatedAt: now,
-      version: 1
-    };
+      // Idempotent draft creation: return existing canonical workspace if same organizer & clientDraftKey
+      if (payload.clientDraftKey) {
+        const existing = allWorkspaces.find(
+          (w) => w.organizerId === effectiveOrganizerId && w.clientDraftKey === payload.clientDraftKey
+        );
+        if (existing) {
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              success: true,
+              data: existing,
+              timestamp: new Date().toISOString()
+            })
+          );
+          return;
+        }
+      }
 
-    const runtimeRecords = await storage.getAll<any>('workspaces');
-    runtimeRecords.push(newWorkspace);
-    await storage.writeAll('workspaces', runtimeRecords);
+      // Generate unique canonical identifier
+      const existingIds = new Set(allWorkspaces.map((w) => w.id));
+      let nextNum = allWorkspaces.length + 101;
+      while (existingIds.has(`WS-${nextNum}`)) {
+        nextNum++;
+      }
+      const newId = `WS-${nextNum}`;
+      const workspaceCode = `HUB-NEW-${nextNum}`;
 
-    res.writeHead(201, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        success: true,
-        data: newWorkspace,
-        timestamp: new Date().toISOString()
-      })
-    );
+      const now = new Date().toISOString();
+      const newWorkspace: CanonicalWorkspace = {
+        id: newId,
+        workspaceCode,
+        organizerId: effectiveOrganizerId,
+        organizerLegalName: payload.organizerLegalName || 'LoftSpaces Hospitality Group',
+        organizerTaxId: payload.organizerTaxId || '0314889211',
+        organizerVerified: payload.organizerVerified !== false,
+        legacyAliases: [],
+        name: payload.name!,
+        category: payload.category!,
+        description: payload.description || '',
+        shortDescription: payload.shortDescription || '',
+        usableAreaSqm: payload.usableAreaSqm || 0,
+        supportPhone: payload.supportPhone,
+        supportEmail: payload.supportEmail,
+        operatorContactName: payload.operatorContactName,
+        operatorContactPhone: payload.operatorContactPhone,
+        streetAddress: payload.streetAddress!,
+        buildingName: payload.buildingName,
+        facilitySubtitle: payload.facilitySubtitle,
+        district: payload.district!,
+        city: payload.city!,
+        postalCode: payload.postalCode,
+        latitude: payload.latitude || 10.7719,
+        longitude: payload.longitude || 106.7044,
+        timezone: payload.timezone || 'Asia/Ho_Chi_Minh',
+        entryInstructions: payload.entryInstructions,
+        operatingHours: payload.operatingHours || [
+          { dayOfWeek: 1, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 2, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 3, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 4, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 5, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 6, openTime: '09:00', closeTime: '18:00', isClosed: false, is24Hours: false },
+          { dayOfWeek: 7, openTime: '00:00', closeTime: '00:00', isClosed: true, is24Hours: false }
+        ],
+        receptionHours: payload.receptionHours || '08:00 – 20:00 Weekdays',
+        autoBlockPublicHolidays: payload.autoBlockPublicHolidays ?? false,
+        checkInLeadMinutes: payload.checkInLeadMinutes ?? 15,
+        checkInLateMinutes: payload.checkInLateMinutes ?? 30,
+        amenities: payload.amenities || [],
+        tags: payload.tags || [],
+        coverImageUrl: payload.coverImageUrl || '',
+        images: payload.images || [],
+        capacityDesks: payload.capacityDesks || 0,
+        meetingRooms: payload.meetingRooms || 0,
+        focusPods: payload.focusPods || 0,
+        capacityLabel: `${payload.capacityDesks || 0} Desks, ${payload.meetingRooms || 0} Mtgs`,
+        totalFloors: payload.totalFloors || 1,
+        floors: payload.floors || [],
+        onboardingStep: 1,
+        onboardingCompleted: false,
+        draftProgress: 20,
+        draftWarningMessage: 'Initial workspace draft created. Complete onboarding setup.',
+        reviewStatus: 'Draft',
+        submittedAt: null,
+        reviewedBy: null,
+        reviewedAt: null,
+        reviewFeedback: null,
+        moderationStatus: 'Normal',
+        suspendedBy: null,
+        suspendedAt: null,
+        suspendReason: null,
+        operatingStatus: 'Inactive',
+        status: 'draft',
+        isLive: false,
+        turnstileOnline: false,
+        accessMethod: 'Setup in progress',
+        isListingVisible: false,
+        featuredPosition: null,
+        featuredFrom: null,
+        featuredTo: null,
+        bookingConfirmationMode: payload.bookingConfirmationMode || 'Instant',
+        pricePerHour: payload.pricePerHour || 0,
+        pricePerDay: payload.pricePerDay || 0,
+        pricePerMonth: payload.pricePerMonth || null,
+        rating: 0,
+        reviewsCount: 0,
+        occupancyRate: 0,
+        grossRevenueMtd: 0,
+        totalBookingsMtd: 0,
+        tier: 'Standard',
+        publicUrl: `https://nexspace.vn/spaces/${newId.toLowerCase()}`,
+        clientDraftKey: payload.clientDraftKey,
+        createdAt: now,
+        updatedAt: now,
+        version: 1
+      };
+
+      const runtimeRecords = await storage.getAll<any>('workspaces');
+      runtimeRecords.push(newWorkspace);
+      await storage.writeAll('workspaces', runtimeRecords);
+
+      res.writeHead(201, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: true,
+          data: newWorkspace,
+          timestamp: new Date().toISOString()
+        })
+      );
+    });
   } catch (err: unknown) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(
@@ -1256,6 +1285,136 @@ export async function handleWorkspaceLifecycle(
         status: 500,
         error: 'InternalServerError',
         message: err instanceof Error ? err.message : 'Failed to update workspace lifecycle',
+        timestamp: new Date().toISOString()
+      })
+    );
+  }
+}
+
+/**
+ * POST /api/v1/workspaces/:id/submit
+ * Dedicated Organizer command endpoint for submitting a complete Draft workspace for Administrator review.
+ * Enforces mandatory field validation, ownership check, optimistic concurrency, and transitions state to Pending.
+ */
+export async function handleWorkspaceSubmit(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  body: unknown
+): Promise<void> {
+  try {
+    const allWorkspaces = await getAllNormalizedWorkspaces();
+    const existingIndex = allWorkspaces.findIndex((w) => {
+      if (w.id.toLowerCase() === id.toLowerCase()) return true;
+      if (w.workspaceCode && w.workspaceCode.toLowerCase() === id.toLowerCase()) return true;
+      if (Array.isArray(w.legacyAliases)) {
+        return w.legacyAliases.some((alias) => alias.toLowerCase() === id.toLowerCase());
+      }
+      return false;
+    });
+
+    if (existingIndex === -1) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 404,
+          error: 'NotFound',
+          message: `Workspace with identifier '${id}' was not found.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const existing = allWorkspaces[existingIndex];
+
+    // Caller Ownership / Authorization
+    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id']) as string | undefined)?.trim();
+    const callerRole = (req.headers['x-mock-role'] as string | undefined)?.trim();
+    if (callerOrganizerId && callerRole !== 'Administrator') {
+      if (existing.organizerId && existing.organizerId !== callerOrganizerId) {
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 403,
+            error: 'ForbiddenOperation',
+            message: `Mock Organizer '${callerOrganizerId}' is not authorized to submit workspace '${existing.id}' owned by '${existing.organizerId}'.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+    }
+
+    // Validation of prerequisites and mandatory fields
+    const validation = validateWorkspaceSubmission(existing, body, { uploadsDir: storage.getUploadsDir() });
+    if (!validation.valid || !validation.normalizedData) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 400,
+          error: 'BadRequest',
+          message: 'Workspace submission rejected. Required onboarding information is incomplete or invalid.',
+          validationErrors: validation.errors,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const { expectedVersion } = validation.normalizedData;
+
+    // Optimistic Concurrency Control
+    if (expectedVersion !== undefined && expectedVersion !== existing.version) {
+      res.writeHead(409, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 409,
+          error: 'Conflict',
+          message: `Optimistic concurrency conflict: supplied expected version ${expectedVersion} does not match current record version ${existing.version}.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const submissionNotes = (body as any)?.notes || (body as any)?.submissionNotes || null;
+    const updatedWorkspace: CanonicalWorkspace = {
+      ...existing,
+      reviewStatus: 'Pending',
+      status: 'pending',
+      submittedAt: now,
+      draftProgress: 100,
+      onboardingCompleted: true,
+      draftWarningMessage: null,
+      submissionNotes: submissionNotes || existing.submissionNotes || null,
+      updatedAt: now,
+      version: existing.version + 1
+    };
+
+    await persistWorkspaceMutation(updatedWorkspace);
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: updatedWorkspace,
+        timestamp: new Date().toISOString()
+      })
+    );
+  } catch (err: unknown) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        status: 500,
+        error: 'InternalServerError',
+        message: err instanceof Error ? err.message : 'Failed to submit workspace',
         timestamp: new Date().toISOString()
       })
     );

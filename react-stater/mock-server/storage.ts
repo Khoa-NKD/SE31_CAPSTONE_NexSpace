@@ -51,9 +51,9 @@ export class JsonStorageEngine {
   }
 
   /**
-   * Serializes an asynchronous operation on a specific domain file.
+   * Serializes an asynchronous operation on a specific domain file or workflow.
    */
-  private async withFileLock<T>(domain: string, operation: () => Promise<T>): Promise<T> {
+  public async withLock<T>(domain: string, operation: () => Promise<T>): Promise<T> {
     const lock = this.getLock(domain);
     await lock.acquire();
     try {
@@ -61,6 +61,18 @@ export class JsonStorageEngine {
     } finally {
       lock.release();
     }
+  }
+
+  private async withFileLock<T>(domain: string, operation: () => Promise<T>): Promise<T> {
+    return this.withLock(domain, operation);
+  }
+
+  public getUploadsDir(): string {
+    const dir = path.join(this.runtimeDir, 'uploads');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    return dir;
   }
 
   public getRuntimeFilePath(domain: string): string {

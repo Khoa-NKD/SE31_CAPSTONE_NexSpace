@@ -28,7 +28,8 @@ import {
   ArrowLeft,
   ArrowRight,
   Save,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -37,6 +38,7 @@ import { toast } from 'sonner';
 import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { useWizardStore } from '../store/wizard-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { amenitiesSchema } from '../schemas/wizard-schemas';
 import type { AmenityItem } from '../types/wizard';
 
@@ -286,6 +288,7 @@ export function StepAmenitiesView() {
     clearAmenities,
     saveDraft
   } = useWizardStore();
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -330,11 +333,9 @@ export function StepAmenitiesView() {
     });
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     saveDraft();
-    toast.success('Draft Saved', {
-      description: 'Your selected amenities draft has been safely saved.'
-    });
+    await saveDraftToServer();
   };
 
   const handleBack = () => {
@@ -342,7 +343,7 @@ export function StepAmenitiesView() {
     router.navigate({ to: '/dashboard/organizer/workspaces/create/hours' });
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const result = amenitiesSchema.safeParse(amenities);
@@ -359,6 +360,7 @@ export function StepAmenitiesView() {
 
     setValidationError(null);
     saveDraft();
+    await saveDraftToServer({ silent: true });
 
     toast.success('Amenities Saved', {
       description: 'Proceeding to Media Gallery & Cover Photo.'
@@ -601,20 +603,22 @@ export function StepAmenitiesView() {
           <Button
             type='button'
             variant='outline'
+            disabled={isSaving}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            <Save className='size-4' />
-            <span>Save Draft</span>
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
           <Button
             type='button'
+            disabled={isSaving}
             onClick={handleContinue}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
             <span>Continue to Media Gallery</span>
-            <ArrowRight className='size-4' />
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>

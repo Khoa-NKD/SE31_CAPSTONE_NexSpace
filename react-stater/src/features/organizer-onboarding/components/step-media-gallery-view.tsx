@@ -14,7 +14,8 @@ import {
   Save,
   CheckCircle2,
   AlertCircle,
-  Check
+  Check,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -30,12 +31,17 @@ import { toast } from 'sonner';
 import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { useWizardStore } from '../store/wizard-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { mediaGallerySchema } from '../schemas/wizard-schemas';
 import type { MediaItem } from '../types/wizard';
+import { useUploadMediaMutation } from '@/features/workspaces/api';
+import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
 
 export function StepMediaGalleryView() {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadMediaMutation = useUploadMediaMutation();
+  const fileRefMap = useRef<Map<string, File>>(new Map());
 
   const {
     basicInfo,
@@ -44,11 +50,13 @@ export function StepMediaGalleryView() {
     amenities,
     media,
     addMediaItem,
+    updateMediaItem,
     removeMediaItem,
     setCoverPhoto,
     reorderMediaItems,
     saveDraft
   } = useWizardStore();
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
 
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -59,6 +67,46 @@ export function StepMediaGalleryView() {
   const recommendedMin = 5;
   const maxPhotos = 20;
   const progressPercent = Math.min(100, Math.round((uploadedCount / recommendedMin) * 100));
+
+  const uploadFileItem = async (id: string, file: File) => {
+    try {
+      updateMediaItem(id, { uploadStatus: 'uploading', uploadError: undefined });
+      const res = await uploadMediaMutation.mutateAsync({
+        file,
+        filename: file.name
+      });
+      updateMediaItem(id, {
+        url: res.url,
+        uploadStatus: 'uploaded',
+        uploadError: undefined
+      });
+      toast.success('Photo Uploaded', {
+        description: `${file.name} saved to local development storage.`
+      });
+      // Synchronize newly durable media to server canonical draft
+      await saveDraftToServer({ silent: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Media upload failed';
+      updateMediaItem(id, {
+        uploadStatus: 'error',
+        uploadError: msg
+      });
+      toast.error('Upload Failed', {
+        description: `Could not upload ${file.name}: ${msg}`
+      });
+    }
+  };
+
+  const handleRetryUpload = (id: string) => {
+    const file = fileRefMap.current.get(id);
+    if (!file) {
+      toast.error('Cannot Retry', {
+        description: 'File reference is not in memory. Please select the file again.'
+      });
+      return;
+    }
+    void uploadFileItem(id, file);
+  };
 
   const handleFileSelect = (files: FileList | null) => {
     if (!files || files.length === 0) return;
@@ -73,6 +121,7 @@ export function StepMediaGalleryView() {
     const acceptedTypes = ['image/png', 'image/jpeg', 'image/webp'];
     const maxSizeBytes = 10 * 1024 * 1024; // 10MB
 
+    const filesToUpload: { id: string; file: File }[] = [];
     let addedCount = 0;
     Array.from(files).forEach((file) => {
       if (!acceptedTypes.includes(file.type)) {
@@ -91,26 +140,31 @@ export function StepMediaGalleryView() {
 
       const objectUrl = URL.createObjectURL(file);
       const isFirst = media.items.length === 0 && addedCount === 0;
+      const itemId = `media-local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+
+      fileRefMap.current.set(itemId, file);
 
       const newItem: MediaItem = {
-        id: `media-local-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+        id: itemId,
         url: objectUrl,
         name: file.name,
         dimension: 'High-Res Image',
         caption: file.name.replace(/\.[^/.]+$/, ''),
         size: file.size,
-        isCover: isFirst
+        isCover: isFirst,
+        uploadStatus: 'uploading'
       };
 
       addMediaItem(newItem);
+      filesToUpload.push({ id: itemId, file });
       addedCount++;
     });
 
     if (addedCount > 0) {
       setValidationError(null);
-      toast.success('Photos Added', {
-        description: `${addedCount} image(s) successfully added to your workspace gallery.`
-      });
+      for (const item of filesToUpload) {
+        void uploadFileItem(item.id, item.file);
+      }
     }
 
     if (fileInputRef.current) {
@@ -134,6 +188,7 @@ export function StepMediaGalleryView() {
   };
 
   const handleDeletePhoto = (id: string, name: string) => {
+    fileRefMap.current.delete(id);
     removeMediaItem(id);
     toast.info('Photo Removed', {
       description: `${name} has been removed from the gallery.`
@@ -152,11 +207,9 @@ export function StepMediaGalleryView() {
     reorderMediaItems(index, toIndex);
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     saveDraft();
-    toast.success('Draft Saved', {
-      description: 'Your workspace media gallery draft has been safely saved.'
-    });
+    await saveDraftToServer();
   };
 
   const handleBack = () => {
@@ -164,8 +217,30 @@ export function StepMediaGalleryView() {
     router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities' });
   };
 
-  const handleCompleteReview = (e: React.FormEvent) => {
+  const handleCompleteReview = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (media.items.some((i) => i.uploadStatus === 'uploading')) {
+      toast.error('Upload in Progress', {
+        description: 'Please wait for all photo uploads to finish before completing.'
+      });
+      return;
+    }
+
+    if (media.items.some((i) => i.uploadStatus === 'error')) {
+      toast.error('Upload Incomplete', {
+        description: 'One or more photos failed to upload. Please retry or remove them.'
+      });
+      return;
+    }
+
+    const hasDurable = media.items.some((i) => isDurableMediaUrl(i.url));
+    if (!hasDurable && media.items.length > 0) {
+      const err = 'Uploaded photos are still in local preview mode. Please wait for upload to complete.';
+      setValidationError(err);
+      toast.error('Media Validation Required', { description: err });
+      return;
+    }
 
     const result = mediaGallerySchema.safeParse(media);
     if (!result.success) {
@@ -181,6 +256,7 @@ export function StepMediaGalleryView() {
 
     setValidationError(null);
     saveDraft();
+    await saveDraftToServer({ silent: true });
     setIsCompletionModalOpen(true);
   };
 
@@ -217,6 +293,19 @@ export function StepMediaGalleryView() {
           <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
             <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
             <span>Draft automatically synced</span>
+          </div>
+        </div>
+
+        {/* Local Development Media Upload Status Banner */}
+        <div className='mb-6 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-900 dark:text-indigo-200 flex items-start gap-3 text-xs sm:text-sm'>
+          <CheckCircle2 className='size-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5' />
+          <div>
+            <p className='font-semibold text-indigo-900 dark:text-indigo-200'>
+              Development Media Service Active (Local Storage)
+            </p>
+            <p className='mt-1 text-xs text-indigo-800/90 dark:text-indigo-300/90 leading-relaxed'>
+              Local JPEG, PNG, and WebP photo uploads are securely persisted to the Mock REST Server runtime (/uploads/). Uploaded media receives a durable development URL (/api/v1/media/:mediaId), persists across browser reloads and server restarts, and fully satisfies the workspace submission requirement.
+            </p>
           </div>
         </div>
 
@@ -358,14 +447,41 @@ export function StepMediaGalleryView() {
 
                     {/* Top Badges */}
                     <div className='relative z-10 p-3 flex items-start justify-between'>
-                      {isCover ? (
-                        <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
-                          <Star className='size-3 fill-white' />
-                          <span>COVER PHOTO</span>
-                        </span>
-                      ) : (
-                        <span />
-                      )}
+                      <div className='flex flex-col gap-1 items-start'>
+                        {isCover && (
+                          <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
+                            <Star className='size-3 fill-white' />
+                            <span>COVER PHOTO</span>
+                          </span>
+                        )}
+                        {item.uploadStatus === 'uploading' && (
+                          <span className='inline-flex items-center gap-1 bg-sky-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                            <Loader2 className='size-3 animate-spin' />
+                            <span>Uploading...</span>
+                          </span>
+                        )}
+                        {item.uploadStatus === 'error' && (
+                          <span
+                            className='inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'
+                            title={item.uploadError}
+                          >
+                            <AlertCircle className='size-3' />
+                            <span>Upload Failed</span>
+                          </span>
+                        )}
+                        {item.url.startsWith('/api/v1/media/') && (
+                          <span className='inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                            <Check className='size-3' />
+                            <span>Local Media Persisted</span>
+                          </span>
+                        )}
+                        {item.url.startsWith('blob:') && item.uploadStatus !== 'uploading' && item.uploadStatus !== 'error' && (
+                          <span className='inline-flex items-center gap-1 bg-amber-500/95 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                            <AlertCircle className='size-3' />
+                            <span>Local Preview (Unsynced)</span>
+                          </span>
+                        )}
+                      </div>
 
                       <span className='size-6 rounded-full bg-slate-900/75 backdrop-blur-md text-white flex items-center justify-center text-xs font-bold border border-white/20'>
                         {index + 1}
@@ -374,6 +490,23 @@ export function StepMediaGalleryView() {
 
                     {/* Action Overlay */}
                     <div className='absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2'>
+                      {/* Retry Upload Button */}
+                      {item.uploadStatus === 'error' && (
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='secondary'
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRetryUpload(item.id);
+                          }}
+                          className='h-8 px-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow'
+                          title='Retry uploading this image'
+                        >
+                          <span>Retry</span>
+                        </Button>
+                      )}
+
                       {/* Set Cover Button */}
                       {!isCover ? (
                         <Button
@@ -521,20 +654,22 @@ export function StepMediaGalleryView() {
           <Button
             type='button'
             variant='outline'
+            disabled={isSaving}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            <Save className='size-4' />
-            <span>Save Draft</span>
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
           <Button
             type='button'
+            disabled={isSaving}
             onClick={handleCompleteReview}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
             <span>Complete &amp; Review Workspace</span>
-            <ArrowRight className='size-4' />
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>

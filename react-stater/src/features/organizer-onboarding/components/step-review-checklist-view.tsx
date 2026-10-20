@@ -29,7 +29,15 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
-import { useWorkspacesStore } from '@/features/organizer-workspaces/store/workspaces-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
+import { useSubmitWorkspaceMutation } from '@/features/workspaces/api';
+import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
+
+function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolean {
+  if (!item.url) return false;
+  if (item.uploadStatus === 'error' || item.uploadStatus === 'uploading') return false;
+  return isDurableMediaUrl(item.url);
+}
 
 export function StepReviewChecklistView() {
   const router = useRouter();
@@ -44,7 +52,13 @@ export function StepReviewChecklistView() {
     setSubmissionStatus
   } = useWizardStore();
 
-  const updateWorkspaceStatus = useWorkspacesStore((state) => state.updateWorkspaceStatus);
+  const {
+    canonicalWorkspaceId,
+    serverVersion,
+    saveDraftToServer
+  } = useWizardDraftSync();
+
+  const submitMutation = useSubmitWorkspaceMutation();
 
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -59,7 +73,17 @@ export function StepReviewChecklistView() {
   const isOperatingHoursValid =
     operatingHours.is247 || operatingHours.schedule.some((s) => s.isOpen);
   const isAmenitiesValid = amenities.length >= 1;
-  const isMediaValid = media.items.length >= 1 && Boolean(media.coverPhotoId);
+
+  const durableMediaCount = media.items.filter(isItemValidMedia).length;
+  const hasDurableCover = Boolean(
+    media.coverPhotoId &&
+    media.items.some(
+      (item) => item.id === media.coverPhotoId && isItemValidMedia(item)
+    )
+  );
+  const hasOnlyLocalPreviews = media.items.length > 0 && durableMediaCount === 0;
+  const isMediaValid = durableMediaCount >= 1 && (hasDurableCover || durableMediaCount > 0);
+
   const isFloorPlanValid =
     floorPlan.floors.length >= 1 &&
     floorPlan.zones.length >= 1 &&
@@ -80,22 +104,63 @@ export function StepReviewChecklistView() {
   const totalCapacity = floorPlan.zones.reduce((acc, z) => acc + z.capacity, 0);
   const coverPhoto = media.items.find((item) => item.id === media.coverPhotoId) || media.items[0];
 
-  const handleConfirmSubmit = () => {
+  const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      if (!isMediaValid) {
+        toast.error('Submission Blocked: Missing Durable Media', {
+          description: hasOnlyLocalPreviews
+            ? 'Only temporary local previews are present. Local photos cannot be persisted to the server without an active cloud upload service.'
+            : 'At least 1 durable workspace photograph is required before submitting for review.'
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      let targetId = canonicalWorkspaceId;
+      let targetVersion = serverVersion;
+
+      // If canonical record not yet created on server, create it first
+      if (!targetId) {
+        const saved = await saveDraftToServer({ silent: true });
+        if (saved) {
+          targetId = saved.id;
+          targetVersion = saved.version;
+        }
+      }
+
+      if (!targetId) {
+        toast.error('Submission Blocked', {
+          description: 'Could not create workspace record on server. Please verify required fields.'
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      await submitMutation.mutateAsync({
+        id: targetId,
+        dto: {
+          expectedVersion: targetVersion,
+          agreementConfirmed: true
+        },
+        workspaceName: basicInfo.name
+      });
+
       setSubmissionStatus('under_review');
-      // Update mock workspace to reflect submitted state
-      updateWorkspaceStatus('ws-tech-d7-03', 'UNDER_REVIEW');
       saveDraft();
-      setIsSubmitting(false);
       setIsSubmitModalOpen(false);
 
       toast.success('Workspace Submitted for Review!', {
-        description: 'Listing entered partner verification queue #NX-VER-2026. Platform review takes 12-24 hours.'
+        description: `Listing ${targetId} entered verification queue #NX-VER-2026. Platform review takes 12-24 hours.`
       });
 
       router.navigate({ to: '/dashboard/organizer/workspaces' });
-    }, 1000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Submission failed';
+      toast.error('Submission Error', { description: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -370,6 +435,19 @@ export function StepReviewChecklistView() {
               )}
             </div>
           </div>
+
+          {/* Local Previews Warning Banner if no durable media */}
+          {hasOnlyLocalPreviews && (
+            <div className='p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 text-xs'>
+              <AlertTriangle className='size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
+              <div>
+                <p className='font-semibold'>Local Previews Only (Upload Service Offline)</p>
+                <p className='mt-0.5 text-amber-800/90 dark:text-amber-300/90'>
+                  Your gallery contains only temporary local file previews. Because cloud storage is not connected, these photos cannot be saved to the server or submitted for review. At least 1 durable photograph is required.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Media Previews Grid */}
           <div>

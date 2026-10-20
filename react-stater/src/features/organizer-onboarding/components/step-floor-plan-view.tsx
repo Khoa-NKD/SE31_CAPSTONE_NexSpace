@@ -16,12 +16,15 @@ import {
   ArrowRight,
   AlertTriangle,
   Check,
-  ChevronDown
+  ChevronDown,
+  Save,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import {
   Dialog,
   DialogContent,
@@ -64,6 +67,7 @@ export function StepFloorPlanView() {
     setFloorPlanSettings,
     saveDraft
   } = useWizardStore();
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
 
   const { selectedFloorId, floors, zones, gridSnap, showDimensions, zoomLevel } = floorPlan;
 
@@ -191,8 +195,14 @@ export function StepFloorPlanView() {
     });
   };
 
-  const handleProceedToReview = () => {
+  const handleSaveDraft = async () => {
     saveDraft();
+    await saveDraftToServer();
+  };
+
+  const handleProceedToReview = async () => {
+    saveDraft();
+    await saveDraftToServer({ silent: true });
     toast.success('Floor Plan draft saved successfully', {
       description: 'Proceeding to Pre-submission Review Checklist (O15).'
     });
@@ -810,11 +820,23 @@ export function StepFloorPlanView() {
 
           <Button
             type='button'
+            variant='outline'
+            disabled={isSaving}
+            onClick={handleSaveDraft}
+            className='h-11 px-4 rounded-lg border-border hover:bg-muted font-medium text-xs sm:text-sm flex items-center gap-1.5'
+          >
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
+          </Button>
+
+          <Button
+            type='button'
+            disabled={isSaving}
             onClick={handleProceedToReview}
             className='h-11 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all'
           >
             <span>Next Step: Pre-submission Review</span>
-            <ArrowRight className='size-4' />
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>
