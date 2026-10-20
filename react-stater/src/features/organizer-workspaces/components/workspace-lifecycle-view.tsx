@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
   ShieldAlert,
@@ -25,7 +25,10 @@ import {
   Check,
   Sliders,
   History,
-  QrCode
+  QrCode,
+  Loader2,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +50,17 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { useWorkspacesStore } from '../store/workspaces-store';
+import {
+  resolveWorkspaceId,
+  useWorkspaceDetailQuery,
+  useWorkspacesQuery,
+  useWorkspaceLifecycleMutation,
+  useUpdateWorkspaceMutation
+} from '@/features/workspaces/api';
+import { mapCanonicalToOrganizerWorkspace } from '../utils/workspace-mapper';
+
+// Mock organizer identity: Sarah Jenkins / LoftSpaces Hospitality Group
+const CURRENT_ORGANIZER_ID = 'USR-9432';
 
 interface WorkspaceLifecycleViewProps {
   workspaceId?: string;
@@ -60,11 +74,55 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
     updateWorkspaceSettings
   } = useWorkspacesStore();
 
-  // Find active workspace or fallback to first
-  const activeWorkspace =
-    workspaces.find((w) => w.id === workspaceId) ||
-    workspaces.find((w) => w.id === 'ws-sg-prime-01') ||
-    workspaces[0];
+  // Resolve target identifier to authoritative canonical ID (e.g. ws-sg-prime-01 -> WS-104)
+  const targetId = workspaceId ? resolveWorkspaceId(workspaceId) : 'WS-104';
+
+  // Centralized Mock REST API Query for active workspace detail
+  const {
+    data: canonicalWorkspace,
+    isLoading: isDetailLoading,
+    isError: isDetailError,
+    error: detailError,
+    refetch: refetchDetail,
+    isFetching: isDetailFetching
+  } = useWorkspaceDetailQuery(targetId);
+
+  // Centralized Mock REST API Query for available organizer workspaces
+  const { data: workspacesListResponse } = useWorkspacesQuery({
+    organizerId: CURRENT_ORGANIZER_ID,
+    limit: 50
+  });
+
+  const availableWorkspaces = useMemo(() => {
+    if (workspacesListResponse?.content && workspacesListResponse.content.length > 0) {
+      return workspacesListResponse.content.map(mapCanonicalToOrganizerWorkspace);
+    }
+    return workspaces;
+  }, [workspacesListResponse, workspaces]);
+
+  // Compute active workspace presentation model
+  const activeWorkspace = useMemo(() => {
+    if (canonicalWorkspace) {
+      return mapCanonicalToOrganizerWorkspace(canonicalWorkspace);
+    }
+    return (
+      workspaces.find((w) => w.id === targetId) ||
+      workspaces.find((w) => w.id === 'WS-104') ||
+      workspaces.find((w) => w.id === 'ws-sg-prime-01') ||
+      workspaces[0]
+    );
+  }, [canonicalWorkspace, workspaces, targetId]);
+
+  // Centralized API Mutations
+  const lifecycleMutation = useWorkspaceLifecycleMutation();
+  const updateMutation = useUpdateWorkspaceMutation();
+
+  const isSuspended = canonicalWorkspace?.moderationStatus === 'Suspended';
+  const isDraftOrPending =
+    canonicalWorkspace?.reviewStatus === 'Draft' ||
+    canonicalWorkspace?.reviewStatus === 'Pending';
+  const isArchived = activeWorkspace?.status === 'ARCHIVED';
+  const canToggleVisibility = !isDetailError && !isDraftOrPending && !isSuspended && activeWorkspace?.status === 'ACTIVE' && Boolean(canonicalWorkspace);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'settings' | 'audit'>('overview');
 
@@ -76,29 +134,63 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
   const [archiveConfirmText, setArchiveConfirmText] = useState('');
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Status transitions
+  // Operational Lifecycle Commands via Real HTTP Mutations
   const handlePauseWorkspace = () => {
-    updateWorkspaceStatus(activeWorkspace.id, 'PAUSED');
-    setIsPauseModalOpen(false);
-    toast.warning(`Workspace Paused: ${activeWorkspace.name}`, {
-      description: 'New bookings suspended. Existing reservations will be honored through automated access.'
-    });
+    lifecycleMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          action: 'pause',
+          expectedVersion: canonicalWorkspace?.version,
+          reason: 'Organizer requested workspace pause'
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          setIsPauseModalOpen(false);
+          updateWorkspaceStatus(activeWorkspace.id, 'PAUSED');
+        }
+      }
+    );
   };
 
   const handleResumeWorkspace = () => {
-    updateWorkspaceStatus(activeWorkspace.id, 'ACTIVE');
-    setIsResumeModalOpen(false);
-    toast.success(`Workspace Resumed: ${activeWorkspace.name}`, {
-      description: 'Listing is now active and bookable on the NexSpace marketplace.'
-    });
+    lifecycleMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          action: 'resume',
+          expectedVersion: canonicalWorkspace?.version
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          setIsResumeModalOpen(false);
+          updateWorkspaceStatus(activeWorkspace.id, 'ACTIVE');
+        }
+      }
+    );
   };
 
   const handleMaintenanceWorkspace = () => {
-    updateWorkspaceStatus(activeWorkspace.id, 'MAINTENANCE');
-    setIsMaintenanceModalOpen(false);
-    toast.info(`Maintenance Scheduled: ${activeWorkspace.name}`, {
-      description: 'Workspace flagged for operational maintenance.'
-    });
+    lifecycleMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          action: 'maintenance',
+          expectedVersion: canonicalWorkspace?.version
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          setIsMaintenanceModalOpen(false);
+          updateWorkspaceStatus(activeWorkspace.id, 'MAINTENANCE');
+        }
+      }
+    );
   };
 
   const handleArchiveWorkspace = () => {
@@ -106,36 +198,89 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
       toast.error('Confirmation name mismatch');
       return;
     }
-    updateWorkspaceStatus(activeWorkspace.id, 'ARCHIVED');
-    setIsArchiveModalOpen(false);
-    setArchiveConfirmText('');
-    toast.error(`Workspace Archived: ${activeWorkspace.name}`, {
-      description: 'Workspace moved to historical read-only status.'
-    });
+    lifecycleMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          action: 'archive',
+          expectedVersion: canonicalWorkspace?.version,
+          reason: 'Organizer decommissioned workspace'
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          setIsArchiveModalOpen(false);
+          setArchiveConfirmText('');
+          updateWorkspaceStatus(activeWorkspace.id, 'ARCHIVED');
+        }
+      }
+    );
   };
 
   const handleToggleVisibility = (checked: boolean) => {
-    updateWorkspaceSettings(activeWorkspace.id, { isLive: checked });
-    toast.info(`Listing Visibility: ${checked ? 'LIVE' : 'UNLISTED'}`, {
-      description: checked
-        ? 'Workspace is indexed and discoverable on consumer apps.'
-        : 'Workspace hidden from marketplace search.'
-    });
+    updateMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          isListingVisible: checked,
+          expectedVersion: canonicalWorkspace?.version
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          updateWorkspaceSettings(activeWorkspace.id, { isLive: checked });
+        }
+      }
+    );
   };
 
   const handleToggleTurnstile = (checked: boolean) => {
-    updateWorkspaceSettings(activeWorkspace.id, { turnstileOnline: checked });
-    toast.info(`Automated Access Gateway: ${checked ? 'ONLINE' : 'OFFLINE'}`, {
-      description: checked
-        ? 'Physical turnstiles validated and syncing encrypted QR passes.'
-        : 'Access points set to manual security gate verification.'
-    });
+    updateMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          turnstileOnline: checked,
+          expectedVersion: canonicalWorkspace?.version
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          updateWorkspaceSettings(activeWorkspace.id, { turnstileOnline: checked });
+        }
+      }
+    );
   };
 
   const handleBookingModeChange = (mode: 'instant' | 'manual') => {
-    updateWorkspaceSettings(activeWorkspace.id, { bookingMode: mode });
-    toast.success(`Booking Mode: ${mode === 'instant' ? 'Instant Booking' : 'Manual Approval'}`);
+    updateMutation.mutate(
+      {
+        id: canonicalWorkspace?.id || activeWorkspace.id,
+        dto: {
+          bookingConfirmationMode: mode === 'instant' ? 'Instant' : 'Manual_Approval',
+          expectedVersion: canonicalWorkspace?.version
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          updateWorkspaceSettings(activeWorkspace.id, { bookingMode: mode });
+        }
+      }
+    );
   };
+
+  if (isDetailLoading && !activeWorkspace) {
+    return (
+      <div className='flex flex-col items-center justify-center min-h-[50vh] p-8 text-center'>
+        <Loader2 className='size-8 animate-spin text-indigo-600 mb-4' />
+        <h2 className='text-base font-bold text-foreground'>Loading Workspace Controls...</h2>
+        <p className='text-xs text-muted-foreground mt-1'>Fetching canonical workspace record from server.</p>
+      </div>
+    );
+  }
 
   return (
     <div className='flex flex-col min-h-[calc(100vh-4rem)] bg-background text-foreground pb-20 select-none'>
@@ -168,7 +313,7 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='w-64'>
-                {workspaces.map((ws) => (
+                {availableWorkspaces.map((ws) => (
                   <DropdownMenuItem
                     key={ws.id}
                     onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/lifecycle', search: { id: ws.id } })}
@@ -189,6 +334,41 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
 
       {/* Main Operational Container */}
       <main className='flex-1 p-4 sm:p-8 max-w-[1440px] w-full mx-auto space-y-6'>
+        {/* Connection Error Banner */}
+        {isDetailError && (
+          <div className='flex items-center justify-between p-4 rounded-xl border border-destructive/20 bg-destructive/10 text-destructive text-sm'>
+            <div className='flex items-center gap-2'>
+              <AlertCircle className='size-5 shrink-0' />
+              <span>
+                Failed to fetch real-time workspace details from mock server:{' '}
+                {detailError instanceof Error ? detailError.message : 'Connection failed'}.
+              </span>
+            </div>
+            <Button
+              size='sm'
+              variant='outline'
+              onClick={() => refetchDetail()}
+              className='gap-1.5 border-destructive/30 hover:bg-destructive/20'
+            >
+              <RefreshCw className='size-3.5' />
+              <span>Retry</span>
+            </Button>
+          </div>
+        )}
+
+        {/* Administrative Suspension Banner */}
+        {isSuspended && (
+          <div className='flex items-start gap-3 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400'>
+            <AlertCircle className='size-5 shrink-0 mt-0.5' />
+            <div>
+              <h4 className='font-bold text-sm'>Workspace Suspended by Platform Administration</h4>
+              <p className='text-xs mt-1 text-rose-600/90 dark:text-rose-300'>
+                This workspace has been suspended due to an administrative policy or compliance hold. Operational lifecycle commands are locked and cannot be reactivated through the Organizer console. Contact platform support for assistance.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ==================== TOP HERO STATUS BANNER ==================== */}
         <section className='bg-card rounded-xl border border-border p-6 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-6'>
           {/* Left: Workspace Identity & Live State */}
@@ -197,6 +377,9 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
               <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
                 {activeWorkspace.name}
               </h1>
+              {isDetailFetching && !isDetailLoading && (
+                <Loader2 className='size-4 text-indigo-500 animate-spin' aria-label='Refreshing workspace status' />
+              )}
 
               {/* Status Badge */}
               {activeWorkspace.status === 'ACTIVE' && (
@@ -208,7 +391,7 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
               {activeWorkspace.status === 'PAUSED' && (
                 <div className='bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
                   <span className='size-2 rounded-full bg-amber-500' />
-                  <span>PAUSED (Bookings Suspended)</span>
+                  <span>PAUSED (Listing Inactive)</span>
                 </div>
               )}
               {activeWorkspace.status === 'MAINTENANCE' && (
@@ -271,17 +454,45 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
               <Button
                 variant='outline'
                 onClick={() => setIsPauseModalOpen(true)}
+                disabled={lifecycleMutation.isPending || isDetailError || !canonicalWorkspace}
                 className='h-10 text-xs sm:text-sm font-semibold border-red-300 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 gap-1.5 shadow-2xs'
               >
-                <ShieldAlert className='size-4 text-red-500' />
-                <span>Pause All Bookings</span>
+                {lifecycleMutation.isPending ? (
+                  <Loader2 className='size-4 animate-spin' />
+                ) : (
+                  <ShieldAlert className='size-4 text-red-500' />
+                )}
+                <span>Pause Workspace Listing</span>
+              </Button>
+            ) : isArchived ? (
+              <Button
+                variant='outline'
+                disabled
+                className='h-10 text-xs sm:text-sm font-semibold border-slate-300 dark:border-slate-800 text-slate-500 opacity-60 gap-1.5'
+              >
+                <Archive className='size-4' />
+                <span>Archived</span>
+              </Button>
+            ) : isSuspended ? (
+              <Button
+                variant='outline'
+                disabled
+                className='h-10 text-xs sm:text-sm font-semibold border-red-300 dark:border-red-900 text-red-600 opacity-60 gap-1.5'
+              >
+                <ShieldAlert className='size-4' />
+                <span>Admin Suspended</span>
               </Button>
             ) : (
               <Button
                 onClick={() => setIsResumeModalOpen(true)}
+                disabled={lifecycleMutation.isPending || isDraftOrPending || isDetailError || !canonicalWorkspace}
                 className='h-10 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs'
               >
-                <Play className='size-4' />
+                {lifecycleMutation.isPending ? (
+                  <Loader2 className='size-4 animate-spin' />
+                ) : (
+                  <Play className='size-4' />
+                )}
                 <span>Resume Operations</span>
               </Button>
             )}
@@ -294,12 +505,17 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='end' className='w-48'>
-                <DropdownMenuItem onClick={() => setIsMaintenanceModalOpen(true)} className='text-xs'>
+                <DropdownMenuItem
+                  onClick={() => setIsMaintenanceModalOpen(true)}
+                  disabled={isArchived || isSuspended || isDetailError || !canonicalWorkspace}
+                  className='text-xs'
+                >
                   <Wrench className='size-3.5 mr-2 text-purple-500' />
                   <span>Schedule Maintenance</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsArchiveModalOpen(true)}
+                  disabled={isArchived || isDetailError || !canonicalWorkspace}
                   className='text-xs text-red-600 dark:text-red-400'
                 >
                   <Archive className='size-3.5 mr-2' />
@@ -564,16 +780,26 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                           <div className='flex items-center gap-2'>
                             <span className='text-xs sm:text-sm font-bold text-foreground'>Listing Marketplace Visibility</span>
                             <Badge variant='outline' className='text-[10px] font-bold'>
-                              {activeWorkspace.isLive !== false ? 'LIVE' : 'UNLISTED'}
+                              {activeWorkspace.isLive !== false && canToggleVisibility ? 'LIVE' : 'UNLISTED'}
                             </Badge>
                           </div>
                           <p className='text-xs text-muted-foreground mt-0.5'>
                             Workspace appears in NexSpace search, consumer app, and partner aggregator network.
                           </p>
+                          {!canToggleVisibility && (
+                            <p className='text-[10px] text-amber-600 dark:text-amber-400 mt-1 font-medium'>
+                              {isSuspended
+                                ? 'Locked: Workspace is under administrative suspension.'
+                                : isDraftOrPending
+                                  ? 'Locked: Requires administrator approval before listing.'
+                                  : 'Locked: Workspace must be ACTIVE to be visible on the marketplace.'}
+                            </p>
+                          )}
                         </div>
                       </div>
                       <Switch
-                        checked={activeWorkspace.isLive !== false}
+                        checked={activeWorkspace.isLive !== false && canToggleVisibility}
+                        disabled={updateMutation.isPending || !canToggleVisibility}
                         onCheckedChange={handleToggleVisibility}
                       />
                     </div>
@@ -598,6 +824,7 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                       </div>
                       <Switch
                         checked={activeWorkspace.turnstileOnline !== false}
+                        disabled={updateMutation.isPending}
                         onCheckedChange={handleToggleTurnstile}
                       />
                     </div>
@@ -611,12 +838,13 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                       <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                         <button
                           type='button'
+                          disabled={updateMutation.isPending}
                           onClick={() => handleBookingModeChange('instant')}
                           className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
                             activeWorkspace.bookingMode !== 'manual'
                               ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30'
                               : 'border-border bg-card'
-                          }`}
+                          } ${updateMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <div className='flex items-center justify-between mb-1'>
                             <span className='text-xs font-bold text-foreground'>Instant Booking</span>
@@ -629,12 +857,13 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
 
                         <button
                           type='button'
+                          disabled={updateMutation.isPending}
                           onClick={() => handleBookingModeChange('manual')}
                           className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
                             activeWorkspace.bookingMode === 'manual'
                               ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30'
                               : 'border-border bg-card'
-                          }`}
+                          } ${updateMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <div className='flex items-center justify-between mb-1'>
                             <span className='text-xs font-bold text-foreground'>Manual Approval</span>
@@ -842,10 +1071,10 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
           <DialogHeader>
             <DialogTitle className='text-amber-600 flex items-center gap-2'>
               <Pause className='size-5' />
-              <span>Pause Workspace Bookings</span>
+              <span>Pause Workspace Listing</span>
             </DialogTitle>
             <DialogDescription>
-              Temporarily suspend public bookings for <strong className='text-foreground'>{activeWorkspace.name}</strong>.
+              Temporarily pause marketplace listing for <strong className='text-foreground'>{activeWorkspace.name}</strong>.
             </DialogDescription>
           </DialogHeader>
           <div className='py-3 text-xs text-muted-foreground space-y-2'>
@@ -858,8 +1087,19 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setIsPauseModalOpen(false)}>Cancel</Button>
-            <Button onClick={handlePauseWorkspace} className='bg-amber-600 hover:bg-amber-700 text-white'>
-              Confirm Pause
+            <Button
+              onClick={handlePauseWorkspace}
+              disabled={lifecycleMutation.isPending}
+              className='bg-amber-600 hover:bg-amber-700 text-white'
+            >
+              {lifecycleMutation.isPending ? (
+                <>
+                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  Pausing...
+                </>
+              ) : (
+                'Confirm Pause'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -882,8 +1122,19 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
           </p>
           <DialogFooter>
             <Button variant='outline' onClick={() => setIsResumeModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleResumeWorkspace} className='bg-emerald-600 hover:bg-emerald-700 text-white'>
-              Resume Marketplace Listing
+            <Button
+              onClick={handleResumeWorkspace}
+              disabled={lifecycleMutation.isPending || isSuspended || isDraftOrPending}
+              className='bg-emerald-600 hover:bg-emerald-700 text-white'
+            >
+              {lifecycleMutation.isPending ? (
+                <>
+                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  Resuming...
+                </>
+              ) : (
+                'Resume Marketplace Listing'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -912,8 +1163,19 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
           </div>
           <DialogFooter>
             <Button variant='outline' onClick={() => setIsMaintenanceModalOpen(false)}>Cancel</Button>
-            <Button onClick={handleMaintenanceWorkspace} className='bg-purple-600 hover:bg-purple-700 text-white'>
-              Confirm Maintenance
+            <Button
+              onClick={handleMaintenanceWorkspace}
+              disabled={lifecycleMutation.isPending || isSuspended}
+              className='bg-purple-600 hover:bg-purple-700 text-white'
+            >
+              {lifecycleMutation.isPending ? (
+                <>
+                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  Scheduling...
+                </>
+              ) : (
+                'Confirm Maintenance'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -949,10 +1211,17 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
             <Button variant='outline' onClick={() => setIsArchiveModalOpen(false)}>Cancel</Button>
             <Button
               variant='destructive'
-              disabled={archiveConfirmText !== activeWorkspace.name}
+              disabled={archiveConfirmText !== activeWorkspace.name || lifecycleMutation.isPending}
               onClick={handleArchiveWorkspace}
             >
-              Archive Workspace
+              {lifecycleMutation.isPending ? (
+                <>
+                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  Archiving...
+                </>
+              ) : (
+                'Archive Workspace'
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
