@@ -101,11 +101,196 @@ export class JsonStorageEngine {
         await fs.promises.copyFile(seedPath, runtimePath);
         initialized.push(file);
       } else {
+        if (file === 'workspaces.json') {
+          await this.diagnoseWorkspacesSchema(runtimePath);
+        }
         preserved.push(file);
       }
     }
 
     return { initialized, preserved };
+  }
+
+  /**
+   * Diagnostic inspection of workspaces.json schema without writing or modifying files.
+   * Reports presence of legacy schema records requiring explicit migration.
+   */
+  public async diagnoseWorkspacesSchema(runtimePath?: string): Promise<{
+    needsMigration: boolean;
+    totalRecords: number;
+    legacyRecordsCount: number;
+    diagnostics: string[];
+  }> {
+    const targetPath = runtimePath || this.getRuntimeFilePath('workspaces');
+    const diagnostics: string[] = [];
+
+    if (!fs.existsSync(targetPath)) {
+      return { needsMigration: false, totalRecords: 0, legacyRecordsCount: 0, diagnostics: ['Runtime workspaces file does not exist.'] };
+    }
+
+    try {
+      const raw = await fs.promises.readFile(targetPath, 'utf8');
+      const records = JSON.parse(raw);
+      if (!Array.isArray(records)) {
+        diagnostics.push('Runtime workspaces.json is not an array.');
+        return { needsMigration: false, totalRecords: 0, legacyRecordsCount: 0, diagnostics };
+      }
+
+      let legacyCount = 0;
+      for (const r of records) {
+        if (!r.reviewStatus || !r.operatingStatus || !r.moderationStatus || !r.organizerId) {
+          legacyCount++;
+        }
+      }
+
+      if (legacyCount > 0) {
+        diagnostics.push(
+          `Detected ${legacyCount} of ${records.length} Workspace record(s) with legacy schema. Automatic migration disabled to protect working data.`
+        );
+        console.warn(
+          `[MockStorage] Diagnostic: Detected ${legacyCount} Workspace record(s) with legacy schema in ${path.basename(targetPath)}. Automatic migration is disabled. Run "npm run mock:migrate:workspaces -- --dry-run" to preview or "npm run mock:migrate:workspaces" to execute explicit migration.`
+        );
+      }
+
+      return {
+        needsMigration: legacyCount > 0,
+        totalRecords: records.length,
+        legacyRecordsCount: legacyCount,
+        diagnostics
+      };
+    } catch (err: unknown) {
+      diagnostics.push(`Failed to parse runtime workspaces: ${err instanceof Error ? err.message : String(err)}`);
+      return { needsMigration: false, totalRecords: 0, legacyRecordsCount: 0, diagnostics };
+    }
+  }
+
+  /**
+   * Explicit, developer-authorized migration for workspaces runtime data.
+   * Supports dry-run preview and creates timestamped non-overwriting backup.
+   */
+  public async migrateWorkspacesExplicitly(options?: {
+    dryRun?: boolean;
+    customRuntimePath?: string;
+    customSeedPath?: string;
+  }): Promise<{
+    migrated: boolean;
+    dryRun: boolean;
+    totalRecords: number;
+    migratedCount: number;
+    backupPath?: string;
+    diagnostics: string[];
+  }> {
+    const dryRun = options?.dryRun ?? false;
+    const runtimePath = options?.customRuntimePath || this.getRuntimeFilePath('workspaces');
+    const seedPath = options?.customSeedPath || this.getSeedFilePath('workspaces');
+    const diagnostics: string[] = [];
+
+    if (!fs.existsSync(runtimePath)) {
+      throw new Error(`Migration aborted: runtime file does not exist at ${runtimePath}`);
+    }
+
+    const rawRuntime = await fs.promises.readFile(runtimePath, 'utf8');
+    const runtimeRecords = JSON.parse(rawRuntime);
+    if (!Array.isArray(runtimeRecords)) {
+      throw new Error(`Migration aborted: runtime data in ${runtimePath} is not an array`);
+    }
+
+    const legacyRecords = runtimeRecords.filter(
+      (r) => !r.reviewStatus || !r.operatingStatus || !r.moderationStatus || !r.organizerId
+    );
+
+    if (legacyRecords.length === 0) {
+      diagnostics.push('All records already adhere to canonical schema. No migration required (idempotent).');
+      return {
+        migrated: false,
+        dryRun,
+        totalRecords: runtimeRecords.length,
+        migratedCount: 0,
+        diagnostics
+      };
+    }
+
+    // Build seed lookup map
+    let seedMap = new Map<string, any>();
+    if (fs.existsSync(seedPath)) {
+      try {
+        const rawSeed = await fs.promises.readFile(seedPath, 'utf8');
+        const seedRecords: any[] = JSON.parse(rawSeed);
+        for (const s of seedRecords) {
+          if (s.id) seedMap.set(s.id.toLowerCase(), s);
+          if (s.workspaceCode) seedMap.set(s.workspaceCode.toLowerCase(), s);
+          if (Array.isArray(s.legacyAliases)) {
+            for (const a of s.legacyAliases) seedMap.set(a.toLowerCase(), s);
+          }
+        }
+      } catch {
+        diagnostics.push('Seed file could not be parsed; proceeding with fallback defaults.');
+      }
+    }
+
+    const migratedRecords = runtimeRecords.map((r: any) => {
+      const seed = seedMap.get(r.id?.toLowerCase()) || {};
+      const reviewStatus = r.reviewStatus || (r.status === 'pending' ? 'Pending' : r.status === 'active' ? 'Approved' : 'Draft');
+      const moderationStatus = r.moderationStatus || (r.status === 'suspended' ? 'Suspended' : 'Normal');
+      const operatingStatus = r.operatingStatus || (r.status === 'suspended' ? 'Active' : r.status === 'active' ? 'Active' : 'Inactive');
+
+      return {
+        ...seed,
+        ...r,
+        organizerId: r.organizerId || seed.organizerId || 'USR-9432',
+        reviewStatus,
+        operatingStatus,
+        moderationStatus,
+        isListingVisible: r.isListingVisible ?? (reviewStatus === 'Approved' && operatingStatus === 'Active' && moderationStatus === 'Normal'),
+        legacyAliases: r.legacyAliases || seed.legacyAliases || [],
+        version: r.version || 1
+      };
+    });
+
+    // Validate post-migration records
+    for (const rec of migratedRecords) {
+      if (!rec.id || typeof rec.id !== 'string') {
+        throw new Error('Migration failed post-validation: record missing valid id');
+      }
+      if (!rec.organizerId) {
+        throw new Error(`Migration failed post-validation: record ${rec.id} missing organizerId`);
+      }
+    }
+
+    if (dryRun) {
+      diagnostics.push(`[DryRun] Would migrate ${legacyRecords.length} of ${runtimeRecords.length} records in ${path.basename(runtimePath)}.`);
+      return {
+        migrated: false,
+        dryRun: true,
+        totalRecords: runtimeRecords.length,
+        migratedCount: legacyRecords.length,
+        diagnostics
+      };
+    }
+
+    // Explicit migration: create timestamped non-overwriting backup
+    const timestamp = Date.now();
+    const backupPath = `${runtimePath}.bak.${timestamp}`;
+    await fs.promises.copyFile(runtimePath, backupPath);
+    diagnostics.push(`Created timestamped backup at ${path.basename(backupPath)}`);
+
+    // Write migrated file atomically
+    const domain = 'workspaces';
+    await this.withFileLock(domain, async () => {
+      const tmpPath = `${runtimePath}.tmp.${Date.now()}`;
+      await fs.promises.writeFile(tmpPath, JSON.stringify(migratedRecords, null, 2) + '\n', 'utf8');
+      await fs.promises.rename(tmpPath, runtimePath);
+    });
+
+    diagnostics.push(`Successfully migrated ${legacyRecords.length} record(s) to canonical schema.`);
+    return {
+      migrated: true,
+      dryRun: false,
+      totalRecords: runtimeRecords.length,
+      migratedCount: legacyRecords.length,
+      backupPath,
+      diagnostics
+    };
   }
 
   /**
@@ -209,6 +394,23 @@ export class JsonStorageEngine {
    */
   public async getAll<T>(domain: string): Promise<T[]> {
     return this.read<T>(domain);
+  }
+
+  /**
+   * Retrieves original canonical seed records directly without modifying runtime state.
+   */
+  public async getSeeds<T>(domain: string): Promise<T[]> {
+    const seedPath = this.getSeedFilePath(domain);
+    if (!fs.existsSync(seedPath)) {
+      return [];
+    }
+    const content = await fs.promises.readFile(seedPath, 'utf8');
+    try {
+      const parsed = JSON.parse(content);
+      return Array.isArray(parsed) ? (parsed as T[]) : [];
+    } catch {
+      return [];
+    }
   }
 
   /**

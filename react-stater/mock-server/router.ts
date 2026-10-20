@@ -18,6 +18,17 @@ import {
   handleUpdateRolePermissions,
   handlePatchRolePermissionByKey
 } from './routes/admin-roles.ts';
+import {
+  handleGetWorkspaces,
+  handleGetWorkspaceById,
+  handleGetPublicWorkspaces,
+  handleGetPublicWorkspaceById,
+  handleCreateWorkspace,
+  handleUpdateWorkspace,
+  handleWorkspaceLifecycle,
+  handleAdminReviewWorkspace,
+  handleAdminModerationWorkspace
+} from './routes/workspaces.ts';
 
 export async function parseJsonBody(req: IncomingMessage): Promise<unknown> {
   return new Promise((resolve, reject) => {
@@ -63,7 +74,7 @@ export async function handleRequest(
     res.writeHead(204, {
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, PATCH, DELETE, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, Accept, X-Requested-With, X-Organizer-Id, X-Mock-User-Id, X-Mock-Role',
       'Access-Control-Max-Age': '86400'
     });
     res.end();
@@ -73,7 +84,7 @@ export async function handleRequest(
   // Set Default CORS Headers on all responses
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, Accept, X-Requested-With, X-Organizer-Id, X-Mock-User-Id, X-Mock-Role');
 
   // Parse Body for mutations
   let body: unknown = null;
@@ -229,6 +240,70 @@ export async function handleRequest(
   if (pathname === '/api/v1/admin/roles/kpis') {
     if (method === 'GET') {
       await handleGetRoleKpis(res);
+      return;
+    }
+  }
+
+  // 11. Public Workspaces List: GET /api/v1/public/workspaces
+  if (pathname === '/api/v1/public/workspaces' && method === 'GET') {
+    await handleGetPublicWorkspaces(res, searchParams);
+    return;
+  }
+
+  // 12. Public Workspace Detail: GET /api/v1/public/workspaces/:id
+  const publicWorkspaceDetailMatch = pathname.match(/^\/api\/v1\/public\/workspaces\/([a-zA-Z0-9_.-]+)$/);
+  if (publicWorkspaceDetailMatch && method === 'GET') {
+    const workspaceId = publicWorkspaceDetailMatch[1];
+    await handleGetPublicWorkspaceById(res, workspaceId);
+    return;
+  }
+
+  // 13. Admin Workspace Review Governance: PATCH /api/v1/admin/workspaces/:id/review
+  const adminReviewMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/review$/);
+  if (adminReviewMatch && method === 'PATCH') {
+    const workspaceId = adminReviewMatch[1];
+    await handleAdminReviewWorkspace(res, workspaceId, body);
+    return;
+  }
+
+  // 14. Admin Workspace Moderation: PATCH /api/v1/admin/workspaces/:id/moderation
+  const adminModerationMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/moderation$/);
+  if (adminModerationMatch && method === 'PATCH') {
+    const workspaceId = adminModerationMatch[1];
+    await handleAdminModerationWorkspace(res, workspaceId, body);
+    return;
+  }
+
+  // 15. Workspaces List & Create: GET /api/v1/workspaces & POST /api/v1/workspaces
+  if (pathname === '/api/v1/workspaces') {
+    if (method === 'GET') {
+      await handleGetWorkspaces(req, res, searchParams);
+      return;
+    }
+    if (method === 'POST') {
+      await handleCreateWorkspace(res, body);
+      return;
+    }
+  }
+
+  // 16. Organizer Workspace Lifecycle Commands: PATCH /api/v1/workspaces/:id/lifecycle
+  const workspaceLifecycleMatch = pathname.match(/^\/api\/v1\/workspaces\/([a-zA-Z0-9_.-]+)\/lifecycle$/);
+  if (workspaceLifecycleMatch && method === 'PATCH') {
+    const workspaceId = workspaceLifecycleMatch[1];
+    await handleWorkspaceLifecycle(req, res, workspaceId, body);
+    return;
+  }
+
+  // 17. Workspace Detail & Update: GET /api/v1/workspaces/:id & PATCH/PUT /api/v1/workspaces/:id
+  const workspaceDetailMatch = pathname.match(/^\/api\/v1\/workspaces\/([a-zA-Z0-9_.-]+)$/);
+  if (workspaceDetailMatch) {
+    const workspaceId = workspaceDetailMatch[1];
+    if (method === 'GET') {
+      await handleGetWorkspaceById(res, workspaceId);
+      return;
+    }
+    if (method === 'PATCH' || method === 'PUT') {
+      await handleUpdateWorkspace(req, res, workspaceId, body);
       return;
     }
   }

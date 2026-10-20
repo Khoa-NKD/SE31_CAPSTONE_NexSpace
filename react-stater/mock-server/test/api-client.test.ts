@@ -170,8 +170,117 @@ async function runClientTests() {
       'Validation message includes tenant role segregation rationale'
     );
 
-    // 14. Cleanup reset
-    console.log('\n--- Client Test 14: Reset via apiClient ---');
+    // 14. Workspaces via apiClient (List & Pagination)
+    console.log('\n--- Client Test 14: GET /workspaces via apiClient ---');
+    const wsListResponse = await apiClient.get<any>('/workspaces', {
+      params: { page: 1, limit: 4 }
+    });
+    assert(Array.isArray(wsListResponse?.content), 'apiClient unwraps envelope and returns content array');
+    assert(wsListResponse?.content?.length === 4, 'apiClient respects pagination limit of 4');
+    assert(wsListResponse?.pagination?.totalElements >= 8, 'apiClient receives totalElements >= 8');
+
+    // 15. Workspace Detail by Reconciled Legacy Aliases via apiClient
+    console.log('\n--- Client Test 15: GET /workspaces/:id Reconciled Legacy Aliases ---');
+    const ws101 = await apiClient.get<any>('/workspaces/1');
+    assert(ws101?.id === 'WS-101', 'apiClient resolves ID 1 to 72 Le Thanh Ton (WS-101)');
+    assert(ws101?.name.includes('Central Tower'), 'Name matches Central Tower');
+
+    const ws104 = await apiClient.get<any>('/workspaces/2');
+    assert(ws104?.id === 'WS-104', 'apiClient resolves ID 2 to Bitexco (WS-104)');
+
+    const wsSgPrime = await apiClient.get<any>('/workspaces/ws-sg-prime-01');
+    assert(wsSgPrime?.id === 'WS-104', 'apiClient resolves ws-sg-prime-01 to Bitexco (WS-104)');
+    assert(wsSgPrime?.name === 'NexSpace Saigon Prime Hub', 'Saigon Prime Hub name verified');
+
+    const ws108 = await apiClient.get<any>('/workspaces/westlake-loft-hanoi');
+    assert(ws108?.id === 'WS-108', 'apiClient resolves westlake-loft-hanoi to WS-108');
+
+    const ws120 = await apiClient.get<any>('/workspaces/ba-dinh-boardroom-hanoi');
+    assert(ws120?.id === 'WS-120', 'apiClient resolves ba-dinh-boardroom-hanoi to WS-120');
+
+    // 16. Workspace Creation via apiClient
+    console.log('\n--- Client Test 16: POST /workspaces via apiClient ---');
+    const createdClientWs = await apiClient.post<any>('/workspaces', {
+      name: 'Client Integration Test Space',
+      category: 'coworking_hub',
+      streetAddress: '100 Nguyen Thi Minh Khai',
+      city: 'Ho Chi Minh City',
+      district: 'District 3',
+      organizerId: 'USR-9432',
+      pricePerHour: 2.5
+    });
+    assert(Boolean(createdClientWs?.id), 'apiClient created workspace with ID: ' + createdClientWs?.id);
+    assert(createdClientWs?.reviewStatus === 'Draft', 'New workspace starts in Draft status');
+    assert(createdClientWs?.operatingStatus === 'Inactive', 'New workspace starts Inactive');
+
+    // 17. Workspace Partial Update via apiClient
+    console.log('\n--- Client Test 17: PATCH /workspaces/:id via apiClient ---');
+    const updatedClientWs = await apiClient.patch<any>(`/workspaces/${createdClientWs.id}`, {
+      shortDescription: 'Updated via apiClient test',
+      pricePerHour: 3.5
+    });
+    assert(updatedClientWs?.shortDescription === 'Updated via apiClient test', 'Patched shortDescription via apiClient');
+    assert(updatedClientWs?.pricePerHour === 3.5, 'Patched pricePerHour via apiClient');
+    assert(updatedClientWs?.name === 'Client Integration Test Space', 'Unmodified name retained');
+
+    // 17b. Workspace Lifecycle Command via apiClient
+    console.log('\n--- Client Test 17b: PATCH /workspaces/:id/lifecycle via apiClient ---');
+    const lifecyclePaused = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
+      action: 'pause',
+      reason: 'apiClient testing pause'
+    });
+    assert(lifecyclePaused?.operatingStatus === 'Inactive', 'Paused via apiClient');
+    assert(lifecyclePaused?.isLive === false, 'isLive false via apiClient');
+
+    const lifecycleResumed = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
+      action: 'resume'
+    });
+    assert(lifecycleResumed?.operatingStatus === 'Active', 'Resumed via apiClient');
+    assert(lifecycleResumed?.isLive === true, 'isLive true via apiClient');
+
+    // 18. Workspace Validation Error Handling via apiClient
+    console.log('\n--- Client Test 18: ApiError Handling on invalid POST /workspaces ---');
+    let wsValidationError: IApiError | null = null;
+    try {
+      await apiClient.post('/workspaces', { name: 'X', category: 'invalid_category' });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        wsValidationError = err;
+      }
+    }
+    assert(wsValidationError !== null, 'apiClient throws ApiError on invalid workspace creation');
+    assert(wsValidationError?.status === 400, 'ApiError status is 400 Bad Request');
+    assert(Boolean(wsValidationError?.validationErrors?.name), 'ApiError contains validationErrors.name');
+    assert(Boolean(wsValidationError?.validationErrors?.category), 'ApiError contains validationErrors.category');
+
+    // 19. Public Workspace Endpoints via apiClient
+    console.log('\n--- Client Test 19: Public Workspace API via apiClient ---');
+    const publicList = await apiClient.get<any>('/public/workspaces');
+    assert(publicList?.content?.length > 0, 'apiClient.get /public/workspaces returns content');
+    const publicWs101 = await apiClient.get<any>('/public/workspaces/1');
+    assert(publicWs101?.id === 'WS-101', 'apiClient resolves alias 1 on public detail to WS-101');
+    assert(publicWs101?.organizerTaxId === undefined, 'Public detail excludes organizerTaxId');
+
+    // 20. Admin Review & Moderation via apiClient
+    console.log('\n--- Client Test 20: Admin Governance via apiClient ---');
+    const reviewedWs = await apiClient.patch<any>('/admin/workspaces/WS-108/review', {
+      reviewStatus: 'Approved',
+      reviewedBy: 'USR-1882'
+    });
+    assert(reviewedWs?.reviewStatus === 'Approved', 'apiClient admin review succeeded');
+
+    const moderatedWs = await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', {
+      moderationStatus: 'Suspended',
+      suspendedBy: 'USR-1882',
+      suspendReason: 'Client test suspension'
+    });
+    assert(moderatedWs?.moderationStatus === 'Suspended', 'apiClient admin moderation succeeded');
+
+    // Restore WS-104
+    await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', { moderationStatus: 'Normal' });
+
+    // 21. Cleanup reset
+    console.log('\n--- Client Test 21: Reset via apiClient ---');
     const resetResult = await apiClient.post<any>('/dev/reset');
     assert(resetResult?.restoredFiles?.length > 0, 'Reset succeeded via apiClient');
 

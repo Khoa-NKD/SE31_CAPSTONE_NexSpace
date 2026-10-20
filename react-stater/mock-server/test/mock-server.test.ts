@@ -444,6 +444,450 @@ async function runTestSuite() {
       process.env.NODE_ENV = previousNodeEnv;
     }
 
+    // 27. Workspaces List & Pagination
+    console.log('\n--- Test 27: GET /workspaces (List & Pagination) ---');
+    const wsListRes = await httpFetch(`${BASE_URL}/workspaces?page=1&limit=5`);
+    assert(wsListRes.status === 200, 'GET /workspaces returns 200 OK');
+    assert(Array.isArray(wsListRes.data?.data?.content), 'Returns content array');
+    assert(wsListRes.data?.data?.content.length === 5, 'Page limit of 5 respected');
+    assert(wsListRes.data?.data?.pagination?.totalElements >= 8, 'Total elements matches seed count (at least 8)');
+    assert(wsListRes.data?.data?.pagination?.totalPages >= 2, 'Total pages calculated correctly');
+
+    // 28. Public Marketplace Visibility Rules (isPublic=true)
+    console.log('\n--- Test 28: GET /workspaces?isPublic=true (Public Visibility Gate) ---');
+    const publicWsRes = await httpFetch(`${BASE_URL}/workspaces?isPublic=true`);
+    assert(publicWsRes.status === 200, 'GET /workspaces?isPublic=true returns 200 OK');
+    const publicWorkspaces = publicWsRes.data?.data?.content || [];
+    assert(publicWorkspaces.length > 0, 'Returns public workspaces');
+    for (const ws of publicWorkspaces) {
+      assert(ws.organizerTaxId === undefined, `Workspace ${ws.id} organizerTaxId must be stripped for public`);
+      assert(ws.reviewedBy === undefined, `Workspace ${ws.id} reviewedBy must be stripped for public`);
+      assert(ws.grossRevenueMtd === undefined, `Workspace ${ws.id} grossRevenueMtd must be stripped for public`);
+    }
+    const hasSuspended = publicWorkspaces.some((w: any) => w.id === 'WS-120');
+    assert(!hasSuspended, 'Suspended workspace WS-120 is excluded from public discovery');
+    const hasDraft = publicWorkspaces.some((w: any) => w.id === 'WS-135');
+    assert(!hasDraft, 'Draft workspace WS-135 is excluded from public discovery');
+    const hasPending = publicWorkspaces.some((w: any) => w.id === 'WS-108');
+    assert(!hasPending, 'Pending workspace WS-108 is excluded from public discovery');
+
+    // 29. Workspace Filtering & Search (city, search query)
+    console.log('\n--- Test 29: GET /workspaces Filtering & Search ---');
+    const hanoiWsRes = await httpFetch(`${BASE_URL}/workspaces?city=Hanoi`);
+    assert(hanoiWsRes.status === 200, 'Filter by city=Hanoi returns 200 OK');
+    const hanoiWorkspaces = hanoiWsRes.data?.data?.content || [];
+    assert(hanoiWorkspaces.length >= 2, 'Returns at least 2 Hanoi workspaces');
+    assert(hanoiWorkspaces.every((w: any) => w.city === 'Hanoi'), 'All returned workspaces have city=Hanoi');
+
+    const wsSearchRes = await httpFetch(`${BASE_URL}/workspaces?search=Saigon`);
+    assert(wsSearchRes.status === 200, 'Search by keyword Saigon returns 200 OK');
+    const searchWorkspaces = wsSearchRes.data?.data?.content || [];
+    assert(searchWorkspaces.some((w: any) => w.id === 'WS-104'), 'Search results include WS-104 (NexSpace Saigon Prime Hub)');
+
+    // 30. GET /workspaces/:id by Canonical ID
+    console.log('\n--- Test 30: GET /workspaces/:id (Canonical ID) ---');
+    const ws104Res = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    assert(ws104Res.status === 200, 'GET /workspaces/WS-104 returns 200 OK');
+    assert(ws104Res.data?.data?.name === 'NexSpace Saigon Prime Hub', 'Name matches canonical seed');
+    assert(ws104Res.data?.data?.organizerId === 'USR-9432', 'Organizer ID matches seeded Sarah Jenkins');
+    assert(ws104Res.data?.data?.usableAreaSqm === 540, 'Usable area matches 540 sqm');
+
+    // 31. Legacy ID & Alias Compatibility Resolution
+    console.log('\n--- Test 31: Legacy ID & Alias Compatibility Resolution ---');
+    const alias1Res = await httpFetch(`${BASE_URL}/workspaces/1`);
+    assert(alias1Res.status === 200, 'GET /workspaces/1 resolves customer sample ID to 200 OK');
+    assert(alias1Res.data?.data?.id === 'WS-101', 'Resolves ID 1 to 72 Le Thanh Ton (WS-101)');
+
+    const alias2Res = await httpFetch(`${BASE_URL}/workspaces/2`);
+    assert(alias2Res.status === 200, 'GET /workspaces/2 resolves customer sample ID to 200 OK');
+    assert(alias2Res.data?.data?.id === 'WS-104', 'Resolves ID 2 to Bitexco Saigon Prime (WS-104)');
+
+    const aliasSgPrimeRes = await httpFetch(`${BASE_URL}/workspaces/ws-sg-prime-01`);
+    assert(aliasSgPrimeRes.status === 200, 'GET /workspaces/ws-sg-prime-01 resolves to 200 OK');
+    assert(aliasSgPrimeRes.data?.data?.id === 'WS-104', 'Resolves ws-sg-prime-01 to Bitexco Saigon Prime (WS-104)');
+    assert(aliasSgPrimeRes.data?.data?.name === 'NexSpace Saigon Prime Hub', 'Saigon Prime Hub name verified');
+
+    const alias3Res = await httpFetch(`${BASE_URL}/workspaces/hive-central-hcm`);
+    assert(alias3Res.status === 200, 'GET /workspaces/hive-central-hcm resolves landing ID to 200 OK');
+    assert(alias3Res.data?.data?.id === 'WS-104', 'Resolves hive-central-hcm to canonical ID WS-104');
+
+    const alias4Res = await httpFetch(`${BASE_URL}/workspaces/westlake-loft-hanoi`);
+    assert(alias4Res.status === 200, 'GET /workspaces/westlake-loft-hanoi resolves landing ID to 200 OK');
+    assert(alias4Res.data?.data?.id === 'WS-108', 'Resolves westlake-loft-hanoi to Tay Ho lab (WS-108)');
+
+    const alias5Res = await httpFetch(`${BASE_URL}/workspaces/ba-dinh-boardroom-hanoi`);
+    assert(alias5Res.status === 200, 'GET /workspaces/ba-dinh-boardroom-hanoi resolves landing ID to 200 OK');
+    assert(alias5Res.data?.data?.id === 'WS-120', 'Resolves ba-dinh-boardroom-hanoi to Ba Dinh suites (WS-120)');
+
+    // 32. Unknown Identifier Rejection
+    console.log('\n--- Test 32: Unknown Workspace Identifier Rejection ---');
+    const unknownWsRes = await httpFetch(`${BASE_URL}/workspaces/NON-EXISTENT-WS-9999`);
+    assert(unknownWsRes.status === 404, 'Unknown ID returns 404 Not Found');
+    assert(unknownWsRes.data?.error === 'NotFound', 'Error type is NotFound');
+
+    // 33. POST /workspaces Validation & Foreign Key Rejection
+    console.log('\n--- Test 33: POST /workspaces Validation & Foreign Key Integrity ---');
+    const invalidFkRes = await httpFetch(`${BASE_URL}/workspaces`, {
+      method: 'POST',
+      body: {
+        name: 'Workspace With Invalid Organizer',
+        category: 'coworking_hub',
+        streetAddress: '123 Fake St',
+        city: 'Ho Chi Minh City',
+        district: 'District 1',
+        organizerId: 'USR-9999' // Non-existent user
+      }
+    });
+    assert(invalidFkRes.status === 400, 'Rejects non-existent organizerId with 400 Bad Request');
+    assert(Boolean(invalidFkRes.data?.validationErrors?.organizerId), 'Reports organizerId validation error');
+
+    const nonOrgFkRes = await httpFetch(`${BASE_URL}/workspaces`, {
+      method: 'POST',
+      body: {
+        name: 'Workspace With Customer Owner',
+        category: 'coworking_hub',
+        streetAddress: '123 Fake St',
+        city: 'Ho Chi Minh City',
+        district: 'District 1',
+        organizerId: 'USR-8821' // Customer role, not Organizer
+      }
+    });
+    assert(nonOrgFkRes.status === 400, 'Rejects customer role organizerId with 400 Bad Request');
+
+    // 34. POST /workspaces Valid Creation & Runtime JSON Persistence
+    console.log('\n--- Test 34: POST /workspaces Valid Creation ---');
+    const validCreateRes = await httpFetch(`${BASE_URL}/workspaces`, {
+      method: 'POST',
+      body: {
+        name: 'Alpha Creative Lab Saigon',
+        category: 'creative_studio',
+        streetAddress: '15 Le Thanh Ton, District 1',
+        city: 'Ho Chi Minh City',
+        district: 'District 1',
+        organizerId: 'USR-9432',
+        usableAreaSqm: 280,
+        pricePerHour: 3.5,
+        pricePerDay: 25.0
+      }
+    });
+    assert(validCreateRes.status === 201, 'POST /workspaces returns 201 Created');
+    const createdWs = validCreateRes.data?.data;
+    assert(Boolean(createdWs?.id), 'Generated stable ID exists');
+    assert(createdWs.reviewStatus === 'Draft', 'Default reviewStatus is Draft');
+    assert(createdWs.operatingStatus === 'Inactive', 'Default operatingStatus is Inactive');
+    assert(createdWs.isListingVisible === false, 'Default isListingVisible is false');
+    assert(createdWs.version === 1, 'Initial version is 1');
+
+    // Verify record in disk runtime JSON
+    const runtimeWsData = await storage.getAll<any>('workspaces');
+    const foundOnDisk = runtimeWsData.find((w: any) => w.id === createdWs.id);
+    assert(Boolean(foundOnDisk), 'New workspace verified in disk runtime JSON store');
+    assert(foundOnDisk.name === 'Alpha Creative Lab Saigon', 'Persisted name matches created name');
+
+    // 35. PATCH /workspaces/:id Partial Update & Omitted Fields Preservation
+    console.log('\n--- Test 35: PATCH /workspaces/:id Partial Update ---');
+    const wsPatchRes = await httpFetch(`${BASE_URL}/workspaces/${createdWs.id}`, {
+      method: 'PATCH',
+      body: {
+        shortDescription: 'Updated short description for Alpha Lab',
+        usableAreaSqm: 320,
+        pricePerHour: 4.0
+      }
+    });
+    assert(wsPatchRes.status === 200, 'PATCH /workspaces/:id returns 200 OK');
+    const patchedWs = wsPatchRes.data?.data;
+    assert(patchedWs.shortDescription === 'Updated short description for Alpha Lab', 'Updated field applied');
+    assert(patchedWs.usableAreaSqm === 320, 'Updated usableAreaSqm applied');
+    assert(patchedWs.name === 'Alpha Creative Lab Saigon', 'Unspecified name remained unchanged');
+    assert(patchedWs.streetAddress === '15 Le Thanh Ton, District 1', 'Unspecified streetAddress preserved');
+    assert(patchedWs.version === 2, 'Version incremented to 2');
+
+    // 36. Generic PATCH Allowlist Rejection of Privileged Fields
+    console.log('\n--- Test 36: Generic PATCH Field Allowlist Rejection ---');
+    const privPatchRes = await httpFetch(`${BASE_URL}/workspaces/${createdWs.id}`, {
+      method: 'PATCH',
+      body: {
+        reviewStatus: 'Approved',
+        organizerId: 'USR-2194',
+        grossRevenueMtd: 50000,
+        operatingStatus: 'Active',
+        isLive: true,
+        featuredPosition: 1,
+        occupancyRate: 95
+      }
+    });
+    assert(privPatchRes.status === 400, 'Rejects privileged fields in generic PATCH with 400 Bad Request');
+    assert(Boolean(privPatchRes.data?.validationErrors?.reviewStatus), 'Rejects reviewStatus modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.organizerId), 'Rejects organizerId modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.grossRevenueMtd), 'Rejects grossRevenueMtd modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.operatingStatus), 'Rejects operatingStatus modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.isLive), 'Rejects isLive modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.featuredPosition), 'Rejects featuredPosition modification');
+    assert(Boolean(privPatchRes.data?.validationErrors?.occupancyRate), 'Rejects occupancyRate modification');
+
+    // 37. Status Invariants Enforcement on Generic PATCH
+    console.log('\n--- Test 37: Status Invariants Enforcement ---');
+    const visibleDraftRes = await httpFetch(`${BASE_URL}/workspaces/${createdWs.id}`, {
+      method: 'PATCH',
+      body: {
+        isListingVisible: true
+      }
+    });
+    assert(visibleDraftRes.status === 400, 'Rejects making unapproved Draft workspace visible with 400 Bad Request');
+    assert(visibleDraftRes.data?.error === 'IllegalStateTransition', 'Error type is IllegalStateTransition');
+
+    const visibleSuspendedRes = await httpFetch(`${BASE_URL}/workspaces/WS-120`, {
+      method: 'PATCH',
+      body: {
+        isListingVisible: true
+      }
+    });
+    assert(visibleSuspendedRes.status === 400, 'Rejects making suspended workspace visible with 400 Bad Request');
+
+    // 37b. Dedicated Organizer Lifecycle Commands
+    console.log('\n--- Test 37b: Dedicated Organizer Lifecycle Commands ---');
+    // Test resume on Draft workspace WS-135 rejected
+    const resumeDraftRes = await httpFetch(`${BASE_URL}/workspaces/WS-135/lifecycle`, {
+      method: 'PATCH',
+      body: { action: 'resume' }
+    });
+    assert(resumeDraftRes.status === 400, 'Rejects resuming Draft workspace with 400 Bad Request');
+    assert(resumeDraftRes.data?.error === 'IllegalStateTransition', 'Error is IllegalStateTransition');
+
+    // Test lifecycle on Suspended workspace WS-120 rejected with 403 Forbidden
+    const suspendedLifecycleRes = await httpFetch(`${BASE_URL}/workspaces/WS-120/lifecycle`, {
+      method: 'PATCH',
+      body: { action: 'resume' }
+    });
+    assert(suspendedLifecycleRes.status === 403, 'Rejects resuming Suspended workspace with 403 Forbidden');
+    assert(suspendedLifecycleRes.data?.error === 'ForbiddenOperation', 'Error is ForbiddenOperation');
+
+    // Test pausing active workspace WS-104
+    const getWs104Before = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const initialVersion = getWs104Before.data?.data?.version;
+    const pauseWsRes = await httpFetch(`${BASE_URL}/workspaces/WS-104/lifecycle`, {
+      method: 'PATCH',
+      body: {
+        action: 'pause',
+        expectedVersion: initialVersion,
+        reason: 'Scheduled holiday recess'
+      }
+    });
+    assert(pauseWsRes.status === 200, 'PATCH /workspaces/WS-104/lifecycle (pause) returns 200 OK');
+    assert(pauseWsRes.data?.data?.operatingStatus === 'Inactive', 'operatingStatus is Inactive');
+    assert(pauseWsRes.data?.data?.isLive === false, 'isLive is false');
+    assert(pauseWsRes.data?.data?.isListingVisible === false, 'isListingVisible is false');
+    assert(pauseWsRes.data?.data?.version === initialVersion + 1, 'Version incremented sequentially');
+
+    // Test stale version concurrency conflict on lifecycle endpoint
+    const staleLifecycleRes = await httpFetch(`${BASE_URL}/workspaces/WS-104/lifecycle`, {
+      method: 'PATCH',
+      body: {
+        action: 'resume',
+        expectedVersion: initialVersion // Stale
+      }
+    });
+    assert(staleLifecycleRes.status === 409, 'Outdated expectedVersion returns 409 Conflict');
+
+    // Test resuming WS-104 with correct expectedVersion
+    const resumeWsRes = await httpFetch(`${BASE_URL}/workspaces/WS-104/lifecycle`, {
+      method: 'PATCH',
+      body: {
+        action: 'resume',
+        expectedVersion: initialVersion + 1
+      }
+    });
+    assert(resumeWsRes.status === 200, 'PATCH /workspaces/WS-104/lifecycle (resume) returns 200 OK');
+    assert(resumeWsRes.data?.data?.operatingStatus === 'Active', 'operatingStatus is Active');
+    assert(resumeWsRes.data?.data?.isLive === true, 'isLive is true');
+    assert(resumeWsRes.data?.data?.isListingVisible === true, 'isListingVisible is true');
+    assert(resumeWsRes.data?.data?.version === initialVersion + 2, 'Version incremented again');
+
+    // 38. Dedicated Administrator Review Endpoint
+    console.log('\n--- Test 38: PATCH /admin/workspaces/:id/review Endpoint ---');
+    const invalidReviewerRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-108/review`, {
+      method: 'PATCH',
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-8821' // Customer, not Administrator
+      }
+    });
+    assert(invalidReviewerRes.status === 400, 'Rejects non-admin reviewer with 400 Bad Request');
+
+    const validReviewRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-108/review`, {
+      method: 'PATCH',
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        reviewFeedback: 'Complies with all safety and facility standards.'
+      }
+    });
+    assert(validReviewRes.status === 200, 'Approves workspace via admin review endpoint');
+    assert(validReviewRes.data?.data?.reviewStatus === 'Approved', 'reviewStatus updated to Approved');
+    assert(validReviewRes.data?.data?.reviewedBy === 'USR-1882', 'reviewedBy assigned to Rachel Adams');
+    assert(Boolean(validReviewRes.data?.data?.reviewedAt), 'reviewedAt timestamp generated');
+
+    // 39. Dedicated Administrator Moderation Endpoint
+    console.log('\n--- Test 39: PATCH /admin/workspaces/:id/moderation Endpoint ---');
+    const missingReasonRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
+      method: 'PATCH',
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882'
+        // Missing suspendReason
+      }
+    });
+    assert(missingReasonRes.status === 400, 'Rejects suspension without suspendReason with 400 Bad Request');
+
+    const validSuspendRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
+      method: 'PATCH',
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882',
+        suspendReason: 'Temporary security audit and inspection in progress.'
+      }
+    });
+    assert(validSuspendRes.status === 200, 'Suspends workspace via dedicated admin endpoint');
+    assert(validSuspendRes.data?.data?.moderationStatus === 'Suspended', 'moderationStatus updated to Suspended');
+    assert(validSuspendRes.data?.data?.operatingStatus === 'Inactive', 'operatingStatus forced to Inactive');
+    assert(validSuspendRes.data?.data?.isListingVisible === false, 'isListingVisible forced to false');
+    assert(validSuspendRes.data?.data?.status === 'suspended', 'Display status updated to suspended');
+
+    // Restore WS-104 to Normal moderation
+    await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
+      method: 'PATCH',
+      body: { moderationStatus: 'Normal' }
+    });
+
+    // 40. Public Marketplace Endpoints & Data Sanitization
+    console.log('\n--- Test 40: Public Marketplace Endpoints & Sanitization ---');
+    const publicListRes = await httpFetch(`${BASE_URL}/public/workspaces`);
+    assert(publicListRes.status === 200, 'GET /public/workspaces returns 200 OK');
+    const publicItems = publicListRes.data?.data?.content || [];
+    assert(publicItems.length > 0, 'Public listing returns approved workspaces');
+
+    for (const item of publicItems) {
+      assert(item.organizerTaxId === undefined, 'Public workspace summary does NOT leak organizerTaxId');
+      assert(item.reviewedBy === undefined, 'Public workspace summary does NOT leak reviewedBy');
+      assert(item.suspendedBy === undefined, 'Public workspace summary does NOT leak suspendedBy');
+      assert(item.grossRevenueMtd === undefined, 'Public workspace summary does NOT leak grossRevenueMtd');
+      assert(item.totalBookingsMtd === undefined, 'Public workspace summary does NOT leak totalBookingsMtd');
+    }
+
+    const publicDetailRes = await httpFetch(`${BASE_URL}/public/workspaces/WS-101`);
+    assert(publicDetailRes.status === 200, 'GET /public/workspaces/WS-101 returns 200 OK');
+    assert(publicDetailRes.data?.data?.name === 'NexSpace Central Tower — District 1', 'Detail returns name');
+    assert(publicDetailRes.data?.data?.organizerTaxId === undefined, 'Detail DTO does NOT leak organizerTaxId');
+    assert(publicDetailRes.data?.data?.reviewedBy === undefined, 'Detail DTO does NOT leak reviewedBy');
+
+    // Direct detail request to Suspended workspace returns 404
+    const publicSuspendedDetail = await httpFetch(`${BASE_URL}/public/workspaces/WS-120`);
+    assert(publicSuspendedDetail.status === 404, 'GET /public/workspaces/WS-120 (Suspended) returns 404 Not Found');
+
+    // Direct detail request to Draft workspace returns 404
+    const publicDraftDetail = await httpFetch(`${BASE_URL}/public/workspaces/WS-135`);
+    assert(publicDraftDetail.status === 404, 'GET /public/workspaces/WS-135 (Draft) returns 404 Not Found');
+
+    // 41. Optimistic Concurrency Conflict
+    console.log('\n--- Test 41: Optimistic Concurrency Conflict ---');
+    const conflictRes = await httpFetch(`${BASE_URL}/workspaces/${createdWs.id}`, {
+      method: 'PATCH',
+      body: {
+        shortDescription: 'Conflict test update',
+        version: 1 // Current version is 2
+      }
+    });
+    assert(conflictRes.status === 409, 'Supplying outdated version returns 409 Conflict');
+    assert(conflictRes.data?.error === 'Conflict', 'Error type is Conflict');
+
+    // 42. Server Restart Persistence
+    console.log('\n--- Test 42: Concurrency & Server Restart Persistence ---');
+    await Promise.all([
+      httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+        method: 'PATCH',
+        body: { receptionHours: '06:30 – 22:30 Daily' }
+      }),
+      httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+        method: 'PATCH',
+        body: { shortDescription: 'Updated concurrently via test suite' }
+      })
+    ]);
+
+    // Restart server
+    await new Promise<void>((resolve) => server!.close(() => resolve()));
+    server = await startServer(TEST_PORT, '127.0.0.1');
+
+    const ws104AfterRestart = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    assert(ws104AfterRestart.status === 200, 'Workspace retrieved after server restart');
+    assert(
+      ws104AfterRestart.data?.data?.receptionHours === '06:30 – 22:30 Daily' ||
+      ws104AfterRestart.data?.data?.shortDescription === 'Updated concurrently via test suite',
+      'Concurrent update persisted across server restart'
+    );
+
+    // 43. Migration Mechanics in Isolated Directory
+    console.log('\n--- Test 43: Non-Destructive Startup & Migration Mechanics ---');
+    const isolatedMigrateDir = path.join(os.tmpdir(), `nexspace-migration-test-${Date.now()}`);
+    await fs.promises.mkdir(isolatedMigrateDir, { recursive: true });
+    const legacyWsFile = path.join(isolatedMigrateDir, 'workspaces.json');
+
+    // Write a mock legacy record lacking canonical schema fields
+    const legacyRecords = [
+      {
+        id: 'WS-TEST-LEGACY',
+        name: 'Legacy Workspace Test',
+        category: 'coworking_hub',
+        streetAddress: '99 Legacy Way',
+        city: 'Ho Chi Minh City',
+        district: 'District 1',
+        status: 'active'
+        // Missing organizerId, reviewStatus, operatingStatus, moderationStatus
+      }
+    ];
+    await fs.promises.writeFile(legacyWsFile, JSON.stringify(legacyRecords, null, 2), 'utf8');
+
+    // Test diagnoseWorkspacesSchema
+    const diag = await storage.diagnoseWorkspacesSchema(legacyWsFile);
+    assert(diag.needsMigration === true, 'Diagnostics detect legacy records needing migration');
+    assert(diag.legacyRecordsCount === 1, 'Accurately counts 1 legacy record');
+
+    // Test Dry-Run: file must NOT be modified
+    const dryRunRes = await storage.migrateWorkspacesExplicitly({
+      dryRun: true,
+      customRuntimePath: legacyWsFile
+    });
+    assert(dryRunRes.dryRun === true, 'Migration reports dryRun mode');
+    assert(dryRunRes.migratedCount === 1, 'Dry-run reports 1 record eligible for migration');
+    const contentAfterDryRun = await fs.promises.readFile(legacyWsFile, 'utf8');
+    assert(contentAfterDryRun === JSON.stringify(legacyRecords, null, 2), 'Dry-run does NOT modify the file on disk');
+
+    // Test Explicit Run: creates backup and modifies file
+    const explicitRes = await storage.migrateWorkspacesExplicitly({
+      dryRun: false,
+      customRuntimePath: legacyWsFile
+    });
+    assert(explicitRes.migrated === true, 'Explicit migration succeeds');
+    assert(Boolean(explicitRes.backupPath), 'Timestamped backup was created');
+    assert(fs.existsSync(explicitRes.backupPath!), 'Backup file physically exists on disk');
+
+    const migratedRaw = await fs.promises.readFile(legacyWsFile, 'utf8');
+    const migratedData = JSON.parse(migratedRaw);
+    assert(migratedData[0].organizerId === 'USR-9432', 'Decorates missing organizerId with default');
+    assert(migratedData[0].reviewStatus === 'Approved', 'Decorates reviewStatus from legacy status');
+    assert(migratedData[0].moderationStatus === 'Normal', 'Decorates moderationStatus as Normal');
+    assert(migratedData[0].version === 1, 'Sets version to 1');
+
+    // Test Idempotence: running again on migrated file does nothing
+    const secondRun = await storage.migrateWorkspacesExplicitly({
+      dryRun: false,
+      customRuntimePath: legacyWsFile
+    });
+    assert(secondRun.migrated === false, 'Second migration run is idempotent (0 records migrated)');
+    assert(secondRun.migratedCount === 0, 'No records modified on second run');
+
+    // Cleanup isolated migration dir
+    await fs.promises.rm(isolatedMigrateDir, { recursive: true, force: true });
+
     // Reset back to clean seed state
     await httpFetch(`${BASE_URL}/dev/reset`, { method: 'POST' });
 
