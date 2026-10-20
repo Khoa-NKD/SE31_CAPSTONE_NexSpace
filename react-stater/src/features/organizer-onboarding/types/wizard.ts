@@ -14,8 +14,8 @@ export interface LocationValues {
   district: string;
   city: string;
   floorSuite: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   entryNotes: string;
 }
 

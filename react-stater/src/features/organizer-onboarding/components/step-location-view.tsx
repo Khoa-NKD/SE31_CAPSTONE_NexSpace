@@ -48,8 +48,8 @@ export function StepLocationView() {
   const [district, setDistrict] = useState(location.district);
   const [city, setCity] = useState(location.city);
   const [floorSuite, setFloorSuite] = useState(location.floorSuite);
-  const [latitude, setLatitudeState] = useState(location.latitude);
-  const [longitude, setLongitudeState] = useState(location.longitude);
+  const [latitude, setLatitudeState] = useState<number | null>(location.latitude);
+  const [longitude, setLongitudeState] = useState<number | null>(location.longitude);
   const [entryNotes, setEntryNotes] = useState(location.entryNotes);
   const [isManualCoords, setIsManualCoords] = useState(false);
 
@@ -58,7 +58,9 @@ export function StepLocationView() {
 
   // Dynamic Ward list for current city
   const availableWards = getWardsForCity(city);
-  const verification = verifyCoordinatesMatchCity(city, latitude, longitude);
+  const verification = typeof latitude === 'number' && typeof longitude === 'number'
+    ? verifyCoordinatesMatchCity(city, latitude, longitude)
+    : { isMatch: false, message: 'Coordinates not calibrated' };
 
   const handleCoordinatesChange = (lat: number, lng: number) => {
     setLatitudeState(lat);
@@ -349,8 +351,8 @@ export function StepLocationView() {
                         id='manual-lat'
                         type='number'
                         step='0.0001'
-                        value={latitude}
-                        onChange={(e) => handleCoordinatesChange(parseFloat(e.target.value) || 0, longitude)}
+                        value={typeof latitude === 'number' ? latitude : ''}
+                        onChange={(e) => handleCoordinatesChange(parseFloat(e.target.value) || 0, longitude ?? 106.7009)}
                         className='h-8 text-xs font-mono'
                       />
                     </div>
@@ -362,8 +364,8 @@ export function StepLocationView() {
                         id='manual-lng'
                         type='number'
                         step='0.0001'
-                        value={longitude}
-                        onChange={(e) => handleCoordinatesChange(latitude, parseFloat(e.target.value) || 0)}
+                        value={typeof longitude === 'number' ? longitude : ''}
+                        onChange={(e) => handleCoordinatesChange(latitude ?? 10.7769, parseFloat(e.target.value) || 0)}
                         className='h-8 text-xs font-mono'
                       />
                     </div>
@@ -371,9 +373,9 @@ export function StepLocationView() {
                 ) : (
                   <div className='flex items-baseline justify-between pt-0.5'>
                     <div className='font-mono text-xs font-medium text-foreground bg-card px-2.5 py-1 rounded border border-border'>
-                      Lat: <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{latitude.toFixed(4)}° N</span>{' '}
+                      Lat: <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{typeof latitude === 'number' ? `${latitude.toFixed(4)}° N` : '—'}</span>{' '}
                       | Long:{' '}
-                      <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{longitude.toFixed(4)}° E</span>
+                      <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{typeof longitude === 'number' ? `${longitude.toFixed(4)}° E` : '—'}</span>
                     </div>
                   </div>
                 )}

@@ -157,6 +157,8 @@ async function runAcceptanceGateSuite() {
         streetAddress: '55 Dong Du St',
         city: 'Ho Chi Minh City',
         district: 'District 1',
+        latitude: 10.7769,
+        longitude: 106.7009,
         usableAreaSqm: 400,
         capacityDesks: 30,
         amenities: ['fast-wifi', 'cctv-security'],
@@ -327,6 +329,211 @@ async function runAcceptanceGateSuite() {
       headers: { 'x-organizer-id': testOrganizerId }
     });
     assert(verifyWs.data.data.name === 'Legacy Recovered Hub', 'Original workspace name preserved intact after 409 conflict');
+
+    // ===============================================================
+    // Gate 5: Location Coordinates Integrity & Incomplete Drafts
+    // ===============================================================
+    console.log('\n--- Gate 5: Location Coordinates Integrity & Incomplete Drafts ---');
+
+    // 5.1 Incomplete draft creation with omitted coordinates
+    const noCoordsDraftPayload = {
+      name: 'Uncalibrated Bare Draft',
+      category: 'coworking_hub',
+      clientDraftKey: `no-coords-${Date.now()}`
+    };
+    const noCoordsCreateRes = await httpFetch(`${BASE_URL}/workspaces`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: noCoordsDraftPayload
+    });
+    assert(noCoordsCreateRes.status === 201, 'Incomplete draft created without coordinates returns 201 Created');
+    const noCoordsWs = noCoordsCreateRes.data.data;
+    assert(noCoordsWs.latitude === null && noCoordsWs.longitude === null, 'Missing coordinates stored as null without fake coordinate substitutions');
+
+    // 5.2 Mapper preserves null coordinates for uncalibrated draft state
+    const emptyCoordState: any = {
+      basicInfo: { name: 'Empty Coords Space', category: 'coworking_hub', description: '', totalArea: 100 },
+      location: { streetAddress: '', district: '', city: '', floorSuite: '', latitude: null, longitude: null, entryNotes: '' },
+      operatingHours: { is247: false, schedule: [], blockHolidays: true, allowGracePeriod: false },
+      amenities: [],
+      media: { items: [], coverPhotoId: '' },
+      floorPlan: { floors: [], zones: [] }
+    };
+    const mappedEmptyCoords = mapWizardStateToCreateDto(emptyCoordState, testOrganizerId);
+    assert(mappedEmptyCoords.latitude === null && mappedEmptyCoords.longitude === null, 'mapWizardStateToCreateDto sets latitude and longitude to null when omitted');
+    assert(mappedEmptyCoords.city === '' && mappedEmptyCoords.district === '', 'mapWizardStateToCreateDto does not fabricate Ho Chi Minh City or District 1');
+
+    // 5.3 Legitimate user coordinates preserved
+    const validCoordState: any = {
+      ...emptyCoordState,
+      location: { ...emptyCoordState.location, latitude: 10.8231, longitude: 106.6297, city: 'Ho Chi Minh City', district: 'Go Vap District' }
+    };
+    const mappedValidCoords = mapWizardStateToCreateDto(validCoordState, testOrganizerId);
+    assert(mappedValidCoords.latitude === 10.8231 && mappedValidCoords.longitude === 106.6297, 'mapWizardStateToCreateDto preserves legitimate user coordinates');
+
+    // 5.4 Submission strictly rejected if coordinates are missing/null
+    const submitNoCoordsRes = await httpFetch(`${BASE_URL}/workspaces/${noCoordsWs.id}/submit`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: { expectedVersion: noCoordsWs.version }
+    });
+    assert(submitNoCoordsRes.status === 400, 'Submitting workspace with missing coordinates rejected with 400 Bad Request');
+    assert(
+      submitNoCoordsRes.data.validationErrors?.location?.includes('Valid geolocation coordinates'),
+      'Detailed validation error specifies missing coordinates prerequisite'
+    );
+
+    // 5.5 Existing coordinates remain unchanged when updating other unrelated fields
+    const setCoordsRes = await httpFetch(`${BASE_URL}/workspaces/${noCoordsWs.id}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: {
+        expectedVersion: noCoordsWs.version,
+        latitude: 10.7769,
+        longitude: 106.7009
+      }
+    });
+    assert(setCoordsRes.status === 200, 'PATCH sets coordinates to 10.7769, 106.7009');
+    const coordsVersion = setCoordsRes.data.data.version;
+
+    const patchDescRes = await httpFetch(`${BASE_URL}/workspaces/${noCoordsWs.id}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: {
+        expectedVersion: coordsVersion,
+        description: 'Updated description without sending coordinates'
+      }
+    });
+    assert(patchDescRes.status === 200, 'PATCH description without coordinates returns 200 OK');
+    assert(
+      patchDescRes.data.data.latitude === 10.7769 && patchDescRes.data.data.longitude === 106.7009,
+      'Existing coordinates remain unchanged after editing other fields'
+    );
+
+    // ===============================================================
+    // Gate 6: O15 Save-then-Submit Consistency & Concurrency Invariants
+    // ===============================================================
+    console.log('\n--- Gate 6: O15 Save-then-Submit Consistency & Concurrency Invariants ---');
+
+    // 6.1 Existing Workspace with unsaved changes:
+    // Create fully complete workspace
+    const completeDraftKey = `complete-o15-${Date.now()}`;
+    const completeCreatePayload = {
+      name: 'O15 Submission Flow Hub',
+      category: 'coworking_hub',
+      streetAddress: '88 Ham Nghi Boulevard',
+      city: 'Ho Chi Minh City',
+      district: 'District 1',
+      latitude: 10.7700,
+      longitude: 106.7030,
+      usableAreaSqm: 600,
+      capacityDesks: 45,
+      amenities: ['fast-wifi', 'ergonomic-chairs'],
+      operatingHours: [{ dayOfWeek: 1, openTime: '08:00', closeTime: '20:00', isClosed: false, is24Hours: false }],
+      coverImageUrl: 'https://images.unsplash.com/photo-1497366216548-37526070297c',
+      images: [{ id: 'm1', url: 'https://images.unsplash.com/photo-1497366216548-37526070297c', isCover: true, displayOrder: 0, mediaType: 'image' }],
+      floors: [{ id: 'f1', name: 'Floor 1', floorNumber: 1, totalDesks: 45 }],
+      clientDraftKey: completeDraftKey
+    };
+    const completeCreateRes = await httpFetch(`${BASE_URL}/workspaces`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: completeCreatePayload
+    });
+    assert(completeCreateRes.status === 201, 'Complete draft workspace created at version 1');
+    const completeWs = completeCreateRes.data.data;
+    const completeWsId = completeWs.id;
+    assert(completeWs.version === 1, 'Initial version is 1');
+
+    // 6.2 O15 Save Draft with unsaved local changes (e.g. updated name and capacity)
+    const unsavedChangesUpdate = {
+      expectedVersion: 1,
+      name: 'O15 Submission Flow Hub (Persisted)',
+      capacityDesks: 55
+    };
+    const persistSaveRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: unsavedChangesUpdate
+    });
+    assert(persistSaveRes.status === 200, 'O15 Save Draft persists current changes to server');
+    const persistedWs = persistSaveRes.data.data;
+    assert(persistedWs.version === 2, 'Version incremented to 2 after server save');
+    assert(persistedWs.name === 'O15 Submission Flow Hub (Persisted)', 'Workspace name persisted to server');
+    assert(persistedWs.capacityDesks === 55, 'Capacity persisted to server');
+
+    // 6.3 O15 Save Draft followed by browser reload / hydration
+    const reloadFetchRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      headers: { 'x-organizer-id': testOrganizerId }
+    });
+    assert(reloadFetchRes.status === 200, 'Workspace fetched upon browser reload');
+    const reloadedHydrated = mapCanonicalToWizardState(reloadFetchRes.data.data);
+    assert(reloadedHydrated.basicInfo?.name === 'O15 Submission Flow Hub (Persisted)', 'Hydrated state matches persisted changes after reload');
+    assert(reloadedHydrated.serverVersion === 2, 'Hydrated state has exact serverVersion 2');
+
+    // 6.4 HTTP 409 Conflict before submission (concurrent modification in another tab)
+    // tab B modifies the record to version 3
+    const tabBPatchRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: { expectedVersion: 2, description: 'Concurrent tab edit' }
+    });
+    assert(tabBPatchRes.status === 200, 'Tab B advanced record to version 3');
+
+    // Now tab A attempts to save/submit with stale version 2
+    const stalePreSubmitSaveRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: { expectedVersion: 2, name: 'Tab A Stale Changes' }
+    });
+    assert(stalePreSubmitSaveRes.status === 409, 'Pre-submission save with stale version returns 409 Conflict');
+    assert(stalePreSubmitSaveRes.data.error === 'Conflict', 'Conflict detected before submission');
+
+    // Ensure tab A aborted and did NOT submit or overwrite server version
+    const verifyUnchangedWs = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      headers: { 'x-organizer-id': testOrganizerId }
+    });
+    assert(verifyUnchangedWs.data.data.version === 3, 'Record remains at version 3 (Tab A changes did not overwrite)');
+    assert(verifyUnchangedWs.data.data.reviewStatus === 'Draft', 'Workspace remains in Draft status after 409 pre-submit abort');
+
+    // 6.5 Save failure before submission prevents calling /submit
+    // If save fails, submission must NOT proceed with stale version
+    const failedSubmitAttemptRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}/submit`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: { expectedVersion: 2 } // Stale version 2
+    });
+    assert(failedSubmitAttemptRes.status === 409, 'Direct submission with stale version 2 rejected with 409 Conflict');
+
+    // 6.6 Successful persist-then-submit with sequential versions (V=3 -> Save: V=4 -> Submit: V=5)
+    // Synchronize to current version 3
+    const freshSaveRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}`, {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: {
+        expectedVersion: 3,
+        name: 'O15 Submission Flow Hub (Final Pre-submission Save)'
+      }
+    });
+    assert(freshSaveRes.status === 200, 'Pre-submission save succeeded (version incremented from 3 to 4)');
+    const savedBeforeSubmit = freshSaveRes.data.data;
+    assert(savedBeforeSubmit.version === 4, 'Saved version is 4');
+
+    // Execute submission using the returned version 4 as precondition
+    const finalSubmitRes = await httpFetch(`${BASE_URL}/workspaces/${completeWsId}/submit`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': testOrganizerId },
+      body: {
+        expectedVersion: savedBeforeSubmit.version,
+        agreementConfirmed: true
+      }
+    });
+    assert(finalSubmitRes.status === 200, 'POST /workspaces/:id/submit with sequential version 4 succeeded with 200 OK');
+    const finalWs = finalSubmitRes.data.data;
+    assert(finalWs.version === 5, 'Final submitted workspace version is 5');
+    assert(finalWs.reviewStatus === 'Pending', 'reviewStatus is Pending (under review)');
+    assert(finalWs.moderationStatus === 'Normal', 'moderationStatus is Normal');
+    assert(finalWs.name === 'O15 Submission Flow Hub (Final Pre-submission Save)', 'O04 shows exact submitted workspace state');
 
   } catch (err) {
     console.error('Unhandled test suite error:', err);

@@ -80,19 +80,21 @@ export function validateCreateWorkspace(
     errors.category = `Invalid category '${payload.category}'. Must be one of: ${VALID_WORKSPACE_CATEGORIES.join(', ')}`;
   }
 
-  // Street Address
-  if (!payload.streetAddress || typeof payload.streetAddress !== 'string' || payload.streetAddress.trim().length === 0) {
-    errors.streetAddress = 'Street address is required.';
+  // Location (Optional for Draft creation; mandatory for submission)
+  if (payload.streetAddress !== undefined && typeof payload.streetAddress !== 'string') {
+    errors.streetAddress = 'Street address must be a string.';
   }
-
-  // City
-  if (!payload.city || typeof payload.city !== 'string' || payload.city.trim().length === 0) {
-    errors.city = 'City is required.';
+  if (payload.city !== undefined && typeof payload.city !== 'string') {
+    errors.city = 'City must be a string.';
   }
-
-  // District
-  if (!payload.district || typeof payload.district !== 'string' || payload.district.trim().length === 0) {
-    errors.district = 'District is required.';
+  if (payload.district !== undefined && typeof payload.district !== 'string') {
+    errors.district = 'District must be a string.';
+  }
+  if (payload.latitude !== undefined && payload.latitude !== null && (typeof payload.latitude !== 'number' || Number.isNaN(payload.latitude))) {
+    errors.latitude = 'Latitude must be a valid number or null.';
+  }
+  if (payload.longitude !== undefined && payload.longitude !== null && (typeof payload.longitude !== 'number' || Number.isNaN(payload.longitude))) {
+    errors.longitude = 'Longitude must be a valid number or null.';
   }
 
   // Organizer ID Referential Integrity
@@ -123,9 +125,9 @@ export function validateCreateWorkspace(
     normalizedData: {
       name: (payload.name as string).trim(),
       category: payload.category,
-      streetAddress: (payload.streetAddress as string).trim(),
-      city: (payload.city as string).trim(),
-      district: (payload.district as string).trim(),
+      streetAddress: typeof payload.streetAddress === 'string' ? payload.streetAddress.trim() : '',
+      city: typeof payload.city === 'string' ? payload.city.trim() : '',
+      district: typeof payload.district === 'string' ? payload.district.trim() : '',
       buildingName: typeof payload.buildingName === 'string' ? payload.buildingName.trim() : undefined,
       facilitySubtitle: typeof payload.facilitySubtitle === 'string' ? payload.facilitySubtitle.trim() : undefined,
       description: typeof payload.description === 'string' ? payload.description.trim() : '',
@@ -137,8 +139,8 @@ export function validateCreateWorkspace(
       organizerLegalName: typeof payload.organizerLegalName === 'string' ? payload.organizerLegalName.trim() : 'LoftSpaces Hospitality Group',
       organizerTaxId: typeof payload.organizerTaxId === 'string' ? payload.organizerTaxId.trim() : '0314889211',
       organizerVerified: payload.organizerVerified !== false,
-      latitude: typeof payload.latitude === 'number' ? payload.latitude : 10.7719,
-      longitude: typeof payload.longitude === 'number' ? payload.longitude : 106.7044,
+      latitude: typeof payload.latitude === 'number' && !Number.isNaN(payload.latitude) ? payload.latitude : null,
+      longitude: typeof payload.longitude === 'number' && !Number.isNaN(payload.longitude) ? payload.longitude : null,
       timezone: typeof payload.timezone === 'string' ? payload.timezone : 'Asia/Ho_Chi_Minh',
       pricePerHour: typeof payload.pricePerHour === 'number' ? payload.pricePerHour : 0,
       pricePerDay: typeof payload.pricePerDay === 'number' ? payload.pricePerDay : 0,
@@ -151,6 +153,10 @@ export function validateCreateWorkspace(
         : 'Instant',
       amenities: Array.isArray(payload.amenities) ? payload.amenities : [],
       tags: Array.isArray(payload.tags) ? payload.tags : [],
+      coverImageUrl: typeof payload.coverImageUrl === 'string' ? payload.coverImageUrl.trim() : '',
+      images: Array.isArray(payload.images) ? payload.images : [],
+      operatingHours: Array.isArray(payload.operatingHours) ? payload.operatingHours : undefined,
+      floors: Array.isArray(payload.floors) ? payload.floors : undefined,
       clientDraftKey: typeof payload.clientDraftKey === 'string' ? payload.clientDraftKey.trim() : undefined
     }
   };
@@ -396,6 +402,16 @@ export function validateWorkspaceSubmission(
   }
   if (!workspace.district || typeof workspace.district !== 'string' || workspace.district.trim().length === 0) {
     errors.district = 'District is required.';
+  }
+  if (
+    typeof workspace.latitude !== 'number' ||
+    Number.isNaN(workspace.latitude) ||
+    workspace.latitude === 0 ||
+    typeof workspace.longitude !== 'number' ||
+    Number.isNaN(workspace.longitude) ||
+    workspace.longitude === 0
+  ) {
+    errors.location = 'Valid geolocation coordinates (latitude and longitude) are required for workspace submission.';
   }
 
   // Operating Hours

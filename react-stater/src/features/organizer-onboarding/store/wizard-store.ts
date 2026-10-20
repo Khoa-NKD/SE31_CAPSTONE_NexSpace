@@ -196,7 +196,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlanValues = {
 export interface WizardStore extends OnboardingDraftState {
   setBasicInfo: (data: Partial<BasicInfoValues>) => void;
   setLocation: (data: Partial<LocationValues>) => void;
-  setCoordinates: (latitude: number, longitude: number) => void;
+  setCoordinates: (latitude: number | null, longitude: number | null) => void;
   setOperatingHours: (data: Partial<OperatingHoursValues>) => void;
   updateDaySchedule: (day: DayOfWeek, updates: Partial<DaySchedule>) => void;
   applyMondayToWeekdays: () => void;
@@ -569,8 +569,7 @@ export const useWizardStore = create<WizardStore>()(
 
       saveDraft: () =>
         set(() => ({
-          lastSavedAt: new Date().toISOString(),
-          isDraftSynced: true
+          lastSavedAt: new Date().toISOString()
         })),
 
       resetDraft: () =>

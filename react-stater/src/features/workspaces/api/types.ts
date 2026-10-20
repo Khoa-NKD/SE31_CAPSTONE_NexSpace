@@ -77,8 +77,8 @@ export interface CanonicalWorkspace {
   district: string;
   city: string;
   postalCode?: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   entryInstructions?: string;
 
@@ -264,8 +264,8 @@ export interface CreateWorkspaceDto {
   organizerLegalName?: string;
   organizerTaxId?: string;
   organizerVerified?: boolean;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   timezone?: string;
   pricePerHour?: number;
   pricePerDay?: number;
@@ -301,8 +301,8 @@ export interface UpdateWorkspaceDto {
   supportEmail?: string;
   operatorContactName?: string;
   operatorContactPhone?: string;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   timezone?: string;
   entryInstructions?: string;
   operatingHours?: WorkspaceOperatingHour[];

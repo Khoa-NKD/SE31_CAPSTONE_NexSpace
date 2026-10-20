@@ -77,8 +77,8 @@ export interface CanonicalWorkspace {
   district: string;
   city: string;
   postalCode?: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   entryInstructions?: string;
   operatingHours: WorkspaceOperatingHour[];
@@ -760,14 +760,14 @@ export async function handleCreateWorkspace(
         supportEmail: payload.supportEmail,
         operatorContactName: payload.operatorContactName,
         operatorContactPhone: payload.operatorContactPhone,
-        streetAddress: payload.streetAddress!,
+        streetAddress: payload.streetAddress || '',
         buildingName: payload.buildingName,
         facilitySubtitle: payload.facilitySubtitle,
-        district: payload.district!,
-        city: payload.city!,
+        district: payload.district || '',
+        city: payload.city || '',
         postalCode: payload.postalCode,
-        latitude: payload.latitude || 10.7719,
-        longitude: payload.longitude || 106.7044,
+        latitude: typeof payload.latitude === 'number' && !Number.isNaN(payload.latitude) ? payload.latitude : null,
+        longitude: typeof payload.longitude === 'number' && !Number.isNaN(payload.longitude) ? payload.longitude : null,
         timezone: payload.timezone || 'Asia/Ho_Chi_Minh',
         entryInstructions: payload.entryInstructions,
         operatingHours: payload.operatingHours || [
@@ -993,9 +993,17 @@ export async function handleUpdateWorkspace(
       }
     }
 
+    // Clean out undefined values so existing workspace fields are not overridden by undefined
+    const cleanedUpdates: Record<string, any> = {};
+    for (const [key, val] of Object.entries(updates)) {
+      if (val !== undefined) {
+        cleanedUpdates[key] = val;
+      }
+    }
+
     const updatedWorkspace: CanonicalWorkspace = {
       ...existing,
-      ...updates,
+      ...cleanedUpdates,
       id: existing.id,
       workspaceCode: existing.workspaceCode,
       organizerId: existing.organizerId,
@@ -1348,6 +1356,23 @@ export async function handleWorkspaceSubmit(
       }
     }
 
+    // Optimistic Concurrency Control Precondition
+    const bodyObj = (body && typeof body === 'object') ? (body as Record<string, any>) : {};
+    const expectedVer = bodyObj.expectedVersion !== undefined ? bodyObj.expectedVersion : bodyObj.version;
+    if (expectedVer !== undefined && expectedVer !== existing.version) {
+      res.writeHead(409, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 409,
+          error: 'Conflict',
+          message: `Optimistic concurrency conflict: supplied expected version ${expectedVer} does not match current record version ${existing.version}.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
     // Validation of prerequisites and mandatory fields
     const validation = validateWorkspaceSubmission(existing, body, { uploadsDir: storage.getUploadsDir() });
     if (!validation.valid || !validation.normalizedData) {
@@ -1366,21 +1391,6 @@ export async function handleWorkspaceSubmit(
     }
 
     const { expectedVersion } = validation.normalizedData;
-
-    // Optimistic Concurrency Control
-    if (expectedVersion !== undefined && expectedVersion !== existing.version) {
-      res.writeHead(409, { 'Content-Type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          success: false,
-          status: 409,
-          error: 'Conflict',
-          message: `Optimistic concurrency conflict: supplied expected version ${expectedVersion} does not match current record version ${existing.version}.`,
-          timestamp: new Date().toISOString()
-        })
-      );
-      return;
-    }
 
     const now = new Date().toISOString();
     const submissionNotes = (body as any)?.notes || (body as any)?.submissionNotes || null;
