@@ -11,7 +11,8 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { History, ArrowRight } from 'lucide-react';
-import { MOCK_ROLE_KPIS } from '@/features/admin-roles/data/mock-roles';
+import { useQuery } from '@tanstack/react-query';
+import { roleKpisQueryOptions } from '@/features/admin-roles/api';
 import { RoleKpiSummary } from '@/features/admin-roles/components/role-kpi-summary';
 import { FixedRoleNotice } from '@/features/admin-roles/components/fixed-role-notice';
 import { RolePermissionMatrix } from '@/features/admin-roles/components/role-permission-matrix';
@@ -28,6 +29,13 @@ export const Route = createFileRoute('/dashboard/admin/roles')({
 
 function RolesPermissionsPage() {
   const [showAuditModal, setShowAuditModal] = useState(false);
+  const {
+    data: roleKpis,
+    isLoading: isKpisLoading,
+    isError: isKpisError,
+    error: kpisError,
+    refetch: refetchKpis
+  } = useQuery(roleKpisQueryOptions());
 
   return (
     <PageContainer>
@@ -70,7 +78,15 @@ function RolesPermissionsPage() {
         </div>
 
         {/* 3. Summary KPI Cards Row (4 Cards) */}
-        <RoleKpiSummary kpis={MOCK_ROLE_KPIS} />
+        <RoleKpiSummary
+          kpis={roleKpis}
+          isLoading={isKpisLoading}
+          isError={isKpisError}
+          errorMessage={kpisError?.message}
+          onRetry={() => {
+            void refetchKpis();
+          }}
+        />
 
         {/* 4. Fixed Role Architecture Notice */}
         <FixedRoleNotice />

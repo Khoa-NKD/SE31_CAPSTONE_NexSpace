@@ -26,10 +26,17 @@ import {
   CheckCircle,
   Flag,
   UserX,
-  ShieldAlert
+  ShieldAlert,
+  Loader2,
+  RefreshCw
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { MOCK_PERMISSIONS, PermissionDefinition } from '../data/mock-roles';
+import { useQuery } from '@tanstack/react-query';
+import {
+  rolePermissionsQueryOptions,
+  useUpdateRolePermissionsMutation,
+  type PermissionDefinition
+} from '../api';
 import { DockedSaveBar } from './docked-save-bar';
 
 function getPermissionIcon(iconName: string) {
@@ -61,54 +68,196 @@ function getPermissionIcon(iconName: string) {
   }
 }
 
+/**
+ * Fixed permission governance constraints.
+ * Permanently immutable permission states according to NexSpace tenant boundaries.
+ */
+const FIXED_PERMISSION_CONSTRAINTS: Record<
+  string,
+  {
+    customer?: { disabled: boolean; reason: string };
+    organizer?: { disabled: boolean; reason: string };
+  }
+> = {
+  'workspace:create_draft': {
+    customer: {
+      disabled: true,
+      reason: 'Customer role cannot receive workspace authoring rights (tenant role segregation).'
+    }
+  },
+  'workspace:publish': {
+    customer: {
+      disabled: true,
+      reason: 'Only verified space organizers can publish workspace listings.'
+    }
+  },
+  'booking:create': {
+    organizer: {
+      disabled: true,
+      reason: 'Organizer role operates venues and does not initiate client bookings in this matrix.'
+    }
+  },
+  'financial:export_ledger': {
+    customer: {
+      disabled: true,
+      reason: 'Financial ledger export is restricted to space organizers and finance administrators.'
+    }
+  },
+  'financial:payout_request': {
+    customer: {
+      disabled: true,
+      reason: 'Bank payout requests are restricted to verified space organizers.'
+    }
+  },
+  'refund:approve': {
+    customer: {
+      disabled: true,
+      reason: 'Customers cannot approve their own refund disbursements.'
+    }
+  },
+  'moderation:ban_user': {
+    customer: {
+      disabled: true,
+      reason: 'Emergency user suspension is restricted to root SecOps administrators.'
+    },
+    organizer: {
+      disabled: true,
+      reason: 'Emergency user suspension is restricted to root SecOps administrators.'
+    }
+  },
+  'audit_log:export': {
+    customer: {
+      disabled: true,
+      reason: 'Immutable SOC2 audit log export is restricted to platform governance.'
+    },
+    organizer: {
+      disabled: true,
+      reason: 'Immutable SOC2 audit log export is restricted to platform governance.'
+    }
+  }
+};
+
 export function RolePermissionMatrix() {
-  const [permissions, setPermissions] = useState<PermissionDefinition[]>(MOCK_PERMISSIONS);
-  const [initialPermissions, setInitialPermissions] = useState<PermissionDefinition[]>(MOCK_PERMISSIONS);
+  const {
+    data: serverPermissions,
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useQuery(rolePermissionsQueryOptions());
+
+  const updateMutation = useUpdateRolePermissionsMutation();
+
+  const [localOverrides, setLocalOverrides] = useState<
+    Record<string, { customer?: boolean; organizer?: boolean }>
+  >({});
   const [selectedModule, setSelectedModule] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showModifiedOnly, setShowModifiedOnly] = useState<boolean>(false);
   const [showGuideModal, setShowGuideModal] = useState<boolean>(false);
 
+  // Effective permissions merged with local session overrides
+  const permissions = useMemo<PermissionDefinition[]>(() => {
+    if (!serverPermissions) return [];
+    return serverPermissions.map((perm) => {
+      const ov = localOverrides[perm.key];
+      if (!ov) return perm;
+      return {
+        ...perm,
+        customer: ov.customer !== undefined ? ov.customer : perm.customer,
+        organizer: ov.organizer !== undefined ? ov.organizer : perm.organizer
+      };
+    });
+  }, [serverPermissions, localOverrides]);
+
   // Compute modified permission keys
   const modifiedKeys = useMemo(() => {
-    return permissions
-      .filter((perm) => {
-        const initial = initialPermissions.find((p) => p.key === perm.key);
-        if (!initial) return false;
-        return initial.customer !== perm.customer || initial.organizer !== perm.organizer;
-      })
-      .map((p) => p.key);
-  }, [permissions, initialPermissions]);
+    if (!serverPermissions) return [];
+    return Object.keys(localOverrides).filter((key) => {
+      const original = serverPermissions.find((p) => p.key === key);
+      if (!original) return false;
+      const ov = localOverrides[key];
+      const customerDiff = ov.customer !== undefined && ov.customer !== original.customer;
+      const organizerDiff = ov.organizer !== undefined && ov.organizer !== original.organizer;
+      return customerDiff || organizerDiff;
+    });
+  }, [serverPermissions, localOverrides]);
 
   // Handle toggling customer / organizer permission
   const handleToggle = (key: string, role: 'customer' | 'organizer') => {
-    setPermissions((prev) =>
-      prev.map((perm) => {
-        if (perm.key === key) {
-          return {
-            ...perm,
-            [role]: !perm[role]
-          };
-        }
-        return perm;
-      })
-    );
+    if (!serverPermissions) return;
+
+    // Check fixed governance constraints
+    const constraint = FIXED_PERMISSION_CONSTRAINTS[key]?.[role];
+    if (constraint?.disabled) {
+      toast.error('Permission Fixed by Governance', {
+        description: constraint.reason
+      });
+      return;
+    }
+
+    const original = serverPermissions.find((p) => p.key === key);
+    if (!original) return;
+
+    setLocalOverrides((prev) => {
+      const currentVal =
+        prev[key]?.[role] !== undefined ? prev[key][role] : original[role];
+      const nextVal = !currentVal;
+
+      const nextOverrides = {
+        ...prev[key],
+        [role]: nextVal
+      };
+
+      // Check if both roles match original server values
+      const nextCustomer =
+        role === 'customer' ? nextVal : (nextOverrides.customer ?? original.customer);
+      const nextOrganizer =
+        role === 'organizer' ? nextVal : (nextOverrides.organizer ?? original.organizer);
+
+      if (nextCustomer === original.customer && nextOrganizer === original.organizer) {
+        const copy = { ...prev };
+        delete copy[key];
+        return copy;
+      }
+
+      return {
+        ...prev,
+        [key]: nextOverrides
+      };
+    });
   };
 
   // Discard changes
   const handleDiscard = () => {
-    setPermissions(initialPermissions);
+    setLocalOverrides({});
     toast.info('Changes Discarded', {
       description: 'Reverted all modified role permissions back to previous state.'
     });
   };
 
-  // Save changes
+  // Save changes via real HTTP mutation
   const handleSave = () => {
-    setInitialPermissions(permissions);
-    toast.success('Permissions Applied (Simulated)', {
-      description: `Cryptographically signed and applied ${modifiedKeys.length} modified permission rules.`
+    if (!serverPermissions || modifiedKeys.length === 0) return;
+
+    const payload = modifiedKeys.map((key) => {
+      const original = serverPermissions.find((p) => p.key === key);
+      const ov = localOverrides[key];
+      return {
+        key,
+        customer: ov?.customer !== undefined ? ov.customer : original?.customer,
+        organizer: ov?.organizer !== undefined ? ov.organizer : original?.organizer
+      };
     });
+
+    updateMutation.mutate(
+      { permissions: payload, modifiedCount: modifiedKeys.length },
+      {
+        onSuccess: () => {
+          setLocalOverrides({});
+        }
+      }
+    );
   };
 
   // Filtered permission rows
@@ -242,7 +391,40 @@ export function RolePermissionMatrix() {
           </thead>
 
           <tbody className='divide-y divide-border/60 text-xs'>
-            {filteredPermissions.map((perm) => {
+            {isLoading && (
+              <tr>
+                <td colSpan={5} className='py-12 text-center text-muted-foreground'>
+                  <div className='inline-flex items-center gap-2'>
+                    <Loader2 className='size-4 animate-spin text-primary' />
+                    <span>Loading role permissions matrix from API...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {isError && (
+              <tr>
+                <td colSpan={5} className='py-12 text-center'>
+                  <div className='flex flex-col items-center justify-center gap-2'>
+                    <p className='text-xs text-destructive font-medium'>
+                      Failed to load role permissions: {error instanceof Error ? error.message : 'Mock server error'}.
+                    </p>
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      aria-label='Retry loading role permissions'
+                      onClick={() => refetch()}
+                      className='inline-flex items-center gap-1.5 h-8 text-xs'
+                    >
+                      <RefreshCw className='size-3.5' />
+                      <span>Retry Connection</span>
+                    </Button>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {!isLoading && !isError && filteredPermissions.map((perm) => {
               const isModified = modifiedKeys.includes(perm.key);
 
               return (
@@ -277,6 +459,8 @@ export function RolePermissionMatrix() {
                     <div className='flex justify-center'>
                       <Checkbox
                         checked={perm.customer}
+                        disabled={FIXED_PERMISSION_CONSTRAINTS[perm.key]?.customer?.disabled}
+                        title={FIXED_PERMISSION_CONSTRAINTS[perm.key]?.customer?.reason}
                         onCheckedChange={() => handleToggle(perm.key, 'customer')}
                         aria-label={`Customer permission for ${perm.key}`}
                       />
@@ -287,6 +471,8 @@ export function RolePermissionMatrix() {
                     <div className='flex items-center justify-center gap-1.5'>
                       <Checkbox
                         checked={perm.organizer}
+                        disabled={FIXED_PERMISSION_CONSTRAINTS[perm.key]?.organizer?.disabled}
+                        title={FIXED_PERMISSION_CONSTRAINTS[perm.key]?.organizer?.reason}
                         onCheckedChange={() => handleToggle(perm.key, 'organizer')}
                         aria-label={`Organizer permission for ${perm.key}`}
                       />
@@ -311,7 +497,7 @@ export function RolePermissionMatrix() {
               );
             })}
 
-            {filteredPermissions.length === 0 && (
+            {!isLoading && !isError && filteredPermissions.length === 0 && (
               <tr>
                 <td colSpan={5} className='py-8 text-center text-muted-foreground'>
                   No permissions matching the selected filter criteria.
@@ -325,6 +511,7 @@ export function RolePermissionMatrix() {
       {/* Docked / Sticky Action Footer */}
       <DockedSaveBar
         modifiedKeys={modifiedKeys}
+        isSaving={updateMutation.isPending}
         onDiscard={handleDiscard}
         onSave={handleSave}
       />

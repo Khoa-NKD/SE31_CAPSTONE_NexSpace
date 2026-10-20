@@ -1,11 +1,16 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, UserCheck, Building2, ShieldCheck } from 'lucide-react';
-import { RoleSummaryKpi } from '../data/mock-roles';
+import { Button } from '@/components/ui/button';
+import { Users, UserCheck, Building2, ShieldCheck, AlertCircle, RefreshCw } from 'lucide-react';
+import type { RoleSummaryKpi } from '../api';
 
 interface RoleKpiSummaryProps {
-  kpis: RoleSummaryKpi[];
+  kpis?: RoleSummaryKpi[];
+  isLoading?: boolean;
+  isError?: boolean;
+  errorMessage?: string;
+  onRetry?: () => void;
 }
 
 function getRoleSummaryIcon(iconName: string) {
@@ -23,7 +28,76 @@ function getRoleSummaryIcon(iconName: string) {
   }
 }
 
-export function RoleKpiSummary({ kpis }: RoleKpiSummaryProps) {
+export function RoleKpiSummary({
+  kpis,
+  isLoading = false,
+  isError = false,
+  errorMessage,
+  onRetry
+}: RoleKpiSummaryProps) {
+  // Loading skeleton state: 4 matching placeholder cards
+  if (isLoading) {
+    return (
+      <section className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6' aria-label='Role Accounts Summary Loading'>
+        {[1, 2, 3, 4].map((idx) => (
+          <Card
+            key={idx}
+            className='bg-card p-4 rounded-xl border border-border/80 shadow-xs flex flex-col justify-between h-[106px] animate-pulse'
+          >
+            <div className='flex items-center justify-between mb-2'>
+              <div className='h-3 w-24 bg-muted rounded'></div>
+              <div className='w-7 h-7 rounded-lg bg-muted'></div>
+            </div>
+            <div className='flex items-baseline justify-between'>
+              <div className='h-7 w-20 bg-muted rounded'></div>
+              <div className='h-4 w-16 bg-muted rounded-full'></div>
+            </div>
+          </Card>
+        ))}
+      </section>
+    );
+  }
+
+  // Error state: actionable message with retry button, no stale hardcoded values
+  if (isError) {
+    return (
+      <section className='mb-6' aria-label='Role Accounts Summary Error'>
+        <Card className='bg-destructive/5 border-destructive/20 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between gap-3 text-xs'>
+          <div className='flex items-center gap-2.5 text-destructive'>
+            <AlertCircle className='size-4 shrink-0' />
+            <span>
+              <strong>Failed to load role account statistics:</strong>{' '}
+              {errorMessage || 'Mock REST API is unreachable.'}
+            </span>
+          </div>
+          {onRetry && (
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={onRetry}
+              className='h-7 px-3 text-xs shrink-0 inline-flex items-center gap-1.5'
+            >
+              <RefreshCw className='size-3' />
+              <span>Retry Statistics</span>
+            </Button>
+          )}
+        </Card>
+      </section>
+    );
+  }
+
+  // Empty state: no metrics returned
+  if (!kpis || kpis.length === 0) {
+    return (
+      <section className='mb-6' aria-label='Role Accounts Summary Empty'>
+        <Card className='p-4 rounded-xl text-center text-xs text-muted-foreground border-dashed'>
+          No role account statistics available.
+        </Card>
+      </section>
+    );
+  }
+
+  // Loaded state: render live API metrics
   return (
     <section className='grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6' aria-label='Role Accounts Summary'>
       {kpis.map((kpi) => (

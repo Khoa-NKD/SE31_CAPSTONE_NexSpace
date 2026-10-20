@@ -1,14 +1,15 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2 } from 'lucide-react';
+import { CheckCircle2, Loader2 } from 'lucide-react';
 
 interface DockedSaveBarProps {
   modifiedKeys: string[];
+  isSaving?: boolean;
   onDiscard: () => void;
   onSave: () => void;
 }
 
-export function DockedSaveBar({ modifiedKeys, onDiscard, onSave }: DockedSaveBarProps) {
+export function DockedSaveBar({ modifiedKeys, isSaving = false, onDiscard, onSave }: DockedSaveBarProps) {
   if (modifiedKeys.length === 0) return null;
 
   return (
@@ -45,6 +46,7 @@ export function DockedSaveBar({ modifiedKeys, onDiscard, onSave }: DockedSaveBar
         <Button
           variant='outline'
           size='sm'
+          disabled={isSaving}
           onClick={onDiscard}
           className='text-xs font-semibold'
         >
@@ -52,11 +54,21 @@ export function DockedSaveBar({ modifiedKeys, onDiscard, onSave }: DockedSaveBar
         </Button>
         <Button
           size='sm'
+          disabled={isSaving}
           onClick={onSave}
           className='bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs flex items-center gap-1.5'
         >
-          <CheckCircle2 className='size-3.5' />
-          <span>Save &amp; Apply Permissions</span>
+          {isSaving ? (
+            <>
+              <Loader2 className='size-3.5 animate-spin' />
+              <span>Applying...</span>
+            </>
+          ) : (
+            <>
+              <CheckCircle2 className='size-3.5' />
+              <span>Save &amp; Apply Permissions</span>
+            </>
+          )}
         </Button>
       </div>
     </div>
