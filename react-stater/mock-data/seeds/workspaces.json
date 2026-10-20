@@ -1,0 +1,299 @@
+[
+  {
+    "id": "WS-104",
+    "name": "NexSpace Saigon Prime Hub",
+    "facilitySubtitle": "Floor 14, Bitexco Financial Tower",
+    "streetAddress": "2 Hai Trieu, Ben Nghe Ward, District 1, Ho Chi Minh City",
+    "metroZone": "District 1, Ho Chi Minh City",
+    "city": "Ho Chi Minh City",
+    "organizerLegalName": "Acme Coworking VN Co., Ltd",
+    "organizerTaxId": "0314889211",
+    "organizerVerified": true,
+    "capacityDesks": 54,
+    "meetingRooms": 4,
+    "focusPods": 2,
+    "capacityLabel": "54 Desks, 4 Mtgs, 2 Pods",
+    "rating": 4.92,
+    "reviewsCount": 342,
+    "status": "pending",
+    "submittedAt": "Jan 24, 2026",
+    "submittedTime": "08:30 UTC",
+    "receptionHours": "07:00 – 22:00 Weekdays",
+    "accessMethod": "RFID & Mobile NFC Active",
+    "operatorContactName": "Nguyen Van A (Managing Director)",
+    "operatorContactPhone": "+84 28 3822 9901",
+    "geofenceCluster": "Bitexco Tower Cluster Pin • Geofence Validated",
+    "coordinates": "10.7719° N, 106.7044° E",
+    "tags": [
+      "1 Gbps Fiber WiFi 6",
+      "Soundproof Booths (x6)",
+      "Ergonomic Herman Miller",
+      "Specialty Coffee Bar"
+    ],
+    "gallery": [
+      {
+        "id": "img-1",
+        "label": "Main Nomad Floor",
+        "category": "Nomad Open Space",
+        "verified": true
+      },
+      {
+        "id": "img-2",
+        "label": "Suite A - Executive",
+        "category": "Meeting Rooms",
+        "verified": true
+      },
+      {
+        "id": "img-3",
+        "label": "Booth 06 Acoustic",
+        "category": "Focus Pods",
+        "verified": true
+      },
+      {
+        "id": "img-4",
+        "label": "Cafe Lounge & Pantry",
+        "category": "Amenities",
+        "verified": true
+      },
+      {
+        "id": "img-5",
+        "label": "Deep Focus Pod C",
+        "category": "Quiet Area",
+        "verified": true
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X104"
+  },
+  {
+    "id": "WS-108",
+    "name": "Hanoi Capital Innovation Lab",
+    "facilitySubtitle": "Keangnam Landmark 72, Fl. 21",
+    "streetAddress": "Pham Hung, Me Tri, Nam Tu Liem, Hanoi",
+    "metroZone": "Nam Tu Liem, Hanoi",
+    "city": "Hanoi",
+    "organizerLegalName": "V-Ventures Workspace JSC",
+    "organizerTaxId": "0108849201",
+    "organizerVerified": true,
+    "capacityDesks": 80,
+    "meetingRooms": 6,
+    "focusPods": 4,
+    "capacityLabel": "80 Desks, 6 Mtgs, 4 Pods",
+    "rating": 4.88,
+    "reviewsCount": 198,
+    "status": "pending",
+    "submittedAt": "Jan 24, 2026",
+    "submittedTime": "04:15 UTC",
+    "receptionHours": "08:00 – 21:00 Daily",
+    "accessMethod": "Dynamic QR & Facial ID",
+    "operatorContactName": "Tran Thu Ha (Operations Lead)",
+    "operatorContactPhone": "+84 24 3942 8820",
+    "geofenceCluster": "Keangnam Complex • Geofence Validated",
+    "coordinates": "21.0169° N, 105.7839° E",
+    "tags": [
+      "High-speed Fiber",
+      "4K Video Conference",
+      "Podcast Studio"
+    ],
+    "gallery": [
+      {
+        "id": "img-21",
+        "label": "Open Workspace Loft",
+        "category": "Nomad Space",
+        "verified": true
+      },
+      {
+        "id": "img-22",
+        "label": "Conference Hall Keangnam",
+        "category": "Events",
+        "verified": true
+      },
+      {
+        "id": "img-23",
+        "label": "Silent Pod Room",
+        "category": "Quiet Area",
+        "verified": true
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X108"
+  },
+  {
+    "id": "WS-092",
+    "name": "Da Nang Marina Tech Collective",
+    "facilitySubtitle": "Riverside Tower, Fl. 4",
+    "streetAddress": "36 Bach Dang, Hai Chau 1, Hai Chau, Da Nang",
+    "metroZone": "Hai Chau, Da Nang",
+    "city": "Da Nang",
+    "organizerLegalName": "Danang Coastal Hubs Ltd.",
+    "organizerTaxId": "0401994822",
+    "organizerVerified": true,
+    "capacityDesks": 35,
+    "meetingRooms": 2,
+    "focusPods": 2,
+    "capacityLabel": "35 Desks, 2 Mtgs, 2 Pods",
+    "rating": 4.95,
+    "reviewsCount": 142,
+    "status": "active",
+    "submittedAt": "Jan 18, 2026",
+    "submittedTime": "11:20 UTC",
+    "receptionHours": "08:00 – 20:00 Weekdays",
+    "accessMethod": "Mobile NFC Pass",
+    "operatorContactName": "David Kim (Community Manager)",
+    "operatorContactPhone": "+84 236 388 9200",
+    "geofenceCluster": "Bach Dang Riverfront • Geofence Validated",
+    "coordinates": "16.0678° N, 108.2208° E",
+    "tags": [
+      "Ocean View Lounge",
+      "1 Gbps Dedicated Line",
+      "Rooftop Terrace"
+    ],
+    "gallery": [
+      {
+        "id": "img-31",
+        "label": "Han River View Desks",
+        "category": "Open Space",
+        "verified": true
+      },
+      {
+        "id": "img-32",
+        "label": "Workshop Room 1",
+        "category": "Meeting Rooms",
+        "verified": true
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X092"
+  },
+  {
+    "id": "WS-115",
+    "name": "Thao Dien Creative Haven",
+    "facilitySubtitle": "Villa 18, Nguyen Van Huong",
+    "streetAddress": "18 Nguyen Van Huong, Thao Dien, Thu Duc City, HCMC",
+    "metroZone": "Thu Duc City, Ho Chi Minh City",
+    "city": "Ho Chi Minh City",
+    "organizerLegalName": "Saigon Creative Spaces Ltd.",
+    "organizerTaxId": "0315582991",
+    "organizerVerified": true,
+    "capacityDesks": 42,
+    "meetingRooms": 3,
+    "focusPods": 1,
+    "capacityLabel": "42 Desks, 3 Mtgs, 1 Pod",
+    "rating": 4.82,
+    "reviewsCount": 220,
+    "status": "active",
+    "submittedAt": "Jan 12, 2026",
+    "submittedTime": "09:00 UTC",
+    "receptionHours": "24/7 Unmanned Smart Access",
+    "accessMethod": "Smart Lock Bluetooth & RFID",
+    "operatorContactName": "Elena Rostova (Hub Host)",
+    "operatorContactPhone": "+84 28 3744 1920",
+    "geofenceCluster": "Thao Dien Villa Compound • Geofence Validated",
+    "coordinates": "10.8032° N, 106.7329° E",
+    "tags": [
+      "Garden Patio",
+      "Pet Friendly",
+      "24/7 Access",
+      "Artisanal Coffee"
+    ],
+    "gallery": [
+      {
+        "id": "img-41",
+        "label": "Garden Courtyard Desks",
+        "category": "Outdoor",
+        "verified": true
+      },
+      {
+        "id": "img-42",
+        "label": "Private Studio 04",
+        "category": "Suites",
+        "verified": true
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X115"
+  },
+  {
+    "id": "WS-120",
+    "name": "Westlake Executive Suites",
+    "facilitySubtitle": "FL 8, Westlake Point",
+    "streetAddress": "68 Xuan Dieu, Quang An, Tay Ho, Hanoi",
+    "metroZone": "Tay Ho, Hanoi",
+    "city": "Hanoi",
+    "organizerLegalName": "Capital Real Estate VN LLC",
+    "organizerTaxId": "0106482910",
+    "organizerVerified": false,
+    "capacityDesks": 65,
+    "meetingRooms": 5,
+    "focusPods": 3,
+    "capacityLabel": "65 Desks, 5 Mtgs, 3 Pods",
+    "rating": 4.76,
+    "reviewsCount": 88,
+    "status": "suspended",
+    "submittedAt": "Jan 05, 2026",
+    "submittedTime": "15:40 UTC",
+    "receptionHours": "08:00 – 19:00 Weekdays",
+    "accessMethod": "Keycard Reception",
+    "operatorContactName": "Le Quang Huy (Property Director)",
+    "operatorContactPhone": "+84 24 3719 5500",
+    "geofenceCluster": "Tay Ho Water Edge • Geofence Validated",
+    "coordinates": "21.0642° N, 105.8277° E",
+    "tags": [
+      "Lake View",
+      "Boardroom",
+      "Concierge Service"
+    ],
+    "gallery": [
+      {
+        "id": "img-51",
+        "label": "Boardroom Westlake",
+        "category": "Meeting Rooms",
+        "verified": false
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X120",
+    "moderatorNotes": "Suspended pending safety compliance certificate re-inspection."
+  },
+  {
+    "id": "WS-128",
+    "name": "District 1 TechSpace — Creative Pod B",
+    "facilitySubtitle": "Floor 5, 42 Nguyen Hue",
+    "streetAddress": "42 Nguyen Hue Walking Street, Ben Nghe, District 1, HCMC",
+    "metroZone": "District 1, Ho Chi Minh City",
+    "city": "Ho Chi Minh City",
+    "organizerLegalName": "District 1 Creative Spaces Ltd",
+    "organizerTaxId": "0319204821",
+    "organizerVerified": true,
+    "capacityDesks": 48,
+    "meetingRooms": 3,
+    "focusPods": 3,
+    "capacityLabel": "48 Desks, 3 Mtgs, 3 Pods",
+    "rating": 4.9,
+    "reviewsCount": 310,
+    "status": "active",
+    "submittedAt": "Dec 28, 2025",
+    "submittedTime": "14:20 UTC",
+    "receptionHours": "08:00 – 22:00 Daily",
+    "accessMethod": "Apple Wallet NFC & QR",
+    "operatorContactName": "Marcus Vance (CPTO Supervisor)",
+    "operatorContactPhone": "+84 28 3821 0042",
+    "geofenceCluster": "Nguyen Hue Walking Mall • Geofence Validated",
+    "coordinates": "10.7745° N, 106.7032° E",
+    "tags": [
+      "Walking Street View",
+      "Dedicated Leased Line",
+      "Gaming Lounge"
+    ],
+    "gallery": [
+      {
+        "id": "img-61",
+        "label": "Walking Street View Desks",
+        "category": "Nomad Open Space",
+        "verified": true
+      },
+      {
+        "id": "img-62",
+        "label": "Soundproof Pod B",
+        "category": "Focus Pods",
+        "verified": true
+      }
+    ],
+    "hsmSessionId": "#WS-MRB-2026-X128"
+  }
+]

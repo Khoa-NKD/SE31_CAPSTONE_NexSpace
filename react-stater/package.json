@@ -5,6 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:all": "node --experimental-strip-types mock-server/scripts/dev-all.ts",
+    "mock:server": "node --experimental-strip-types mock-server/server.ts",
+    "mock:reset": "node --experimental-strip-types mock-server/scripts/reset.ts",
+    "test:mock": "node --experimental-strip-types mock-server/test/mock-server.test.ts",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "lint": "oxlint",

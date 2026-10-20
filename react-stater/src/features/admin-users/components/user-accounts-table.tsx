@@ -5,18 +5,21 @@ import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
 import { toast } from 'sonner';
-import { AdminUserRecord, PLATFORM_TOTAL_ACCOUNTS } from '../data/mock-users';
+import type { AdminUserRecord } from '../api/types';
+import { PLATFORM_TOTAL_ACCOUNTS } from '../data/mock-users';
 
 interface UserAccountsTableProps {
   users: AdminUserRecord[];
   selectedUserId?: string;
   onSelectUser: (user: AdminUserRecord) => void;
+  isLoading?: boolean;
 }
 
 export function UserAccountsTable({
   users,
   selectedUserId,
-  onSelectUser
+  onSelectUser,
+  isLoading = false
 }: UserAccountsTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -254,7 +257,18 @@ export function UserAccountsTable({
               );
             })}
 
-            {users.length === 0 && (
+            {isLoading && (
+              <tr>
+                <td colSpan={8} aria-label='Loading users from Mock API' className='py-12 text-center text-muted-foreground'>
+                  <div className='flex items-center justify-center gap-2'>
+                    <div className='size-4 border-2 border-primary border-t-transparent animate-spin rounded-full' />
+                    <span>Loading users from Mock API...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
+
+            {!isLoading && users.length === 0 && (
               <tr>
                 <td colSpan={8} className='py-8 text-center text-muted-foreground'>
                   No accounts matching the search criteria.

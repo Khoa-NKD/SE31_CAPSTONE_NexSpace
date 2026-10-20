@@ -23,15 +23,21 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
-import { AdminUserRecord } from '../data/mock-users';
+import type { AdminUserRecord } from '../api/types';
 
 interface UserDetailsDrawerProps {
   user: AdminUserRecord | null;
   onClose: () => void;
   onToggleStatus: (userId: string) => void;
+  isUpdatingStatus?: boolean;
 }
 
-export function UserDetailsDrawer({ user, onClose, onToggleStatus }: UserDetailsDrawerProps) {
+export function UserDetailsDrawer({
+  user,
+  onClose,
+  onToggleStatus,
+  isUpdatingStatus = false
+}: UserDetailsDrawerProps) {
   const [resetModalOpen, setResetModalOpen] = useState(false);
   const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
@@ -367,6 +373,7 @@ export function UserDetailsDrawer({ user, onClose, onToggleStatus }: UserDetails
               <Button
                 variant={isLocked ? 'default' : 'outline'}
                 size='sm'
+                disabled={isUpdatingStatus}
                 onClick={() => onToggleStatus(user.id)}
                 className={`text-xs font-semibold h-9 gap-1.5 ${
                   isLocked
@@ -375,7 +382,7 @@ export function UserDetailsDrawer({ user, onClose, onToggleStatus }: UserDetails
                 }`}
               >
                 {isLocked ? <Unlock className='size-3.5' /> : <Lock className='size-3.5' />}
-                <span>{isLocked ? 'Unlock Account' : 'Lock Account'}</span>
+                <span>{isUpdatingStatus ? 'Updating...' : isLocked ? 'Unlock Account' : 'Lock Account'}</span>
               </Button>
 
               {/* Force Password Reset */}

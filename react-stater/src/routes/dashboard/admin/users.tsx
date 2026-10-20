@@ -1,5 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useDeferredValue } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
@@ -12,12 +13,14 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { FileDown, UserPlus } from 'lucide-react';
+import { FileDown, UserPlus, AlertCircle, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  INITIAL_MOCK_USERS,
-  AdminUserRecord
-} from '@/features/admin-users/data/mock-users';
+  adminUsersQueryOptions,
+  adminUserDetailQueryOptions,
+  useUpdateUserStatusMutation,
+  type AdminUserRecord
+} from '@/features/admin-users/api';
 import { UserFiltersBar } from '@/features/admin-users/components/user-filters-bar';
 import { UserAccountsTable } from '@/features/admin-users/components/user-accounts-table';
 import { UserDetailsDrawer } from '@/features/admin-users/components/user-details-drawer';
@@ -44,21 +47,53 @@ export const Route = createFileRoute('/dashboard/admin/users')({
 function AdminUsersListPage() {
   const searchParams = Route.useSearch();
   const navigate = Route.useNavigate();
-  const [users, setUsers] = useState<AdminUserRecord[]>(INITIAL_MOCK_USERS);
+
+  // Filter UI state
   const [searchQuery, setSearchQuery] = useState<string>(searchParams.search || '');
   const [selectedRole, setSelectedRole] = useState<string>(searchParams.role || 'all');
   const [selectedStatus, setSelectedStatus] = useState<string>(searchParams.status || 'all');
   const [selectedKyc, setSelectedKyc] = useState<string>(searchParams.kyc || 'all');
 
-  // Drawer is closed by default unless explicitly opened by a deep-link search param
+  // Defer search input to throttle live API queries
+  const deferredSearch = useDeferredValue(searchQuery);
+
+  // Active query filters passed to Mock REST API
+  const queryFilters = useMemo(
+    () => ({
+      search: deferredSearch.trim() || undefined,
+      role: selectedRole !== 'all' ? selectedRole : undefined,
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      kyc: selectedKyc !== 'all' ? selectedKyc : undefined
+    }),
+    [deferredSearch, selectedRole, selectedStatus, selectedKyc]
+  );
+
+  // Query live user accounts from Mock REST API
+  const {
+    data: usersPage,
+    isLoading,
+    isError,
+    error,
+    refetch
+  } = useQuery(adminUsersQueryOptions(queryFilters));
+
+  const users = useMemo(() => usersPage?.content ?? [], [usersPage?.content]);
+
+  // Selected User ID for Drawer
   const selectedUserId = searchParams.userId || null;
   const [showNewUserModal, setShowNewUserModal] = useState<boolean>(false);
 
-  // Active user for the drawer
+  // Fetch single user detail when drawer is open
+  const detailQuery = useQuery(adminUserDetailQueryOptions(selectedUserId));
+
+  // Resolved drawer user (detail query preferred, falling back to list record)
   const activeDrawerUser = useMemo(() => {
     if (!selectedUserId) return null;
-    return users.find((u) => u.id === selectedUserId) || null;
-  }, [users, selectedUserId]);
+    return detailQuery.data || users.find((u) => u.id === selectedUserId) || null;
+  }, [selectedUserId, detailQuery.data, users]);
+
+  // Mutation hook for updating user moderation status
+  const updateStatusMutation = useUpdateUserStatusMutation();
 
   const handleSelectUser = (u: AdminUserRecord) => {
     navigate({
@@ -76,52 +111,19 @@ function AdminUsersListPage() {
     });
   };
 
-  // Toggle user status between Active and Locked
+  // Toggle user status between Active and Locked via real PATCH API
   const handleToggleStatus = (userId: string) => {
-    setUsers((prev) =>
-      prev.map((user) => {
-        if (user.id === userId) {
-          const nextStatus = user.status === 'Locked' ? 'Active' : 'Locked';
-          toast.success(
-            nextStatus === 'Locked'
-              ? `Account ${user.name} Locked (Simulated)`
-              : `Account ${user.name} Unlocked (Simulated)`,
-            {
-              description: `User moderation status changed to ${nextStatus}.`
-            }
-          );
-          return {
-            ...user,
-            status: nextStatus
-          };
-        }
-        return user;
-      })
-    );
-  };
+    const targetUser = activeDrawerUser || users.find((u) => u.id === userId);
+    if (!targetUser) return;
 
-  // Filtered accounts
-  const filteredUsers = useMemo(() => {
-    return users.filter((user) => {
-      if (selectedRole !== 'all' && user.role !== selectedRole) {
-        return false;
-      }
-      if (selectedStatus !== 'all' && user.status !== selectedStatus) {
-        return false;
-      }
-      if (selectedKyc !== 'all' && user.kycStatus !== selectedKyc) {
-        return false;
-      }
-      if (searchQuery.trim() !== '') {
-        const query = searchQuery.toLowerCase();
-        const matchesName = user.name.toLowerCase().includes(query);
-        const matchesEmail = user.email.toLowerCase().includes(query);
-        const matchesId = user.id.toLowerCase().includes(query);
-        if (!matchesName && !matchesEmail && !matchesId) return false;
-      }
-      return true;
+    const nextStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
+
+    updateStatusMutation.mutate({
+      userId,
+      nextStatus,
+      userName: targetUser.name
     });
-  }, [users, selectedRole, selectedStatus, selectedKyc, searchQuery]);
+  };
 
   // Reset all filters
   const handleResetFilters = () => {
@@ -129,11 +131,22 @@ function AdminUsersListPage() {
     setSelectedRole('all');
     setSelectedStatus('all');
     setSelectedKyc('all');
+    navigate({
+      search: (prev) => ({
+        ...prev,
+        search: undefined,
+        role: undefined,
+        status: undefined,
+        kyc: undefined
+      }),
+      replace: true,
+      resetScroll: false
+    });
   };
 
   const handleExportCsv = () => {
     toast.success('Accounts CSV Export Dispatched (Simulated)', {
-      description: `Downloaded report for ${filteredUsers.length} accounts.`
+      description: `Downloaded report for ${users.length} accounts.`
     });
   };
 
@@ -186,11 +199,34 @@ function AdminUsersListPage() {
           onResetAll={handleResetFilters}
         />
 
+        {/* API Error Notification if server is unavailable */}
+        {isError && (
+          <div className='mb-4 p-4 rounded-xl border border-red-200 dark:border-red-900/60 bg-red-50/60 dark:bg-red-950/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs text-red-800 dark:text-red-200'>
+            <div className='flex items-center gap-2'>
+              <AlertCircle className='size-4 text-red-600 shrink-0' />
+              <span>
+                <strong>Unable to connect to Mock REST API:</strong>{' '}
+                {error instanceof Error ? error.message : 'HTTP request failed'}. Please ensure the mock server is running on port 4000.
+              </span>
+            </div>
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => refetch()}
+              className='h-7 text-xs gap-1 border-red-300 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/50'
+            >
+              <RefreshCw className='size-3' />
+              <span>Retry Request</span>
+            </Button>
+          </div>
+        )}
+
         {/* 4. High-Density Users Data Table */}
         <UserAccountsTable
-          users={filteredUsers}
+          users={users}
           selectedUserId={selectedUserId || undefined}
           onSelectUser={handleSelectUser}
+          isLoading={isLoading}
         />
 
         {/* 5. Slide-Over Detail Drawer (560px Wide) */}
@@ -198,6 +234,7 @@ function AdminUsersListPage() {
           user={activeDrawerUser}
           onClose={handleCloseDrawer}
           onToggleStatus={handleToggleStatus}
+          isUpdatingStatus={updateStatusMutation.isPending}
         />
 
         {/* New User Modal (Simulated) */}
