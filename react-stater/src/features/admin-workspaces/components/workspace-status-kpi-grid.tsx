@@ -31,7 +31,9 @@ export function WorkspaceStatusKpiGrid({ kpis }: WorkspaceStatusKpiGridProps) {
           )}
         </div>
         <p className='text-xs text-muted-foreground'>
-          {kpis.metroHubsCount > 0
+          {kpis.totalWorkspaces != null && kpis.totalWorkspaces > 0
+            ? `${kpis.totalWorkspaces} total registered · ${kpis.metroHubsCount} active metro hub${kpis.metroHubsCount === 1 ? '' : 's'}`
+            : kpis.metroHubsCount > 0
             ? `Distributed across ${kpis.metroHubsCount} active metro hub${kpis.metroHubsCount === 1 ? '' : 's'}`
             : 'No active metro hubs'}
         </p>

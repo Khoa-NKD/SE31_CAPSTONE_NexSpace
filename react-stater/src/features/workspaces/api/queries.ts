@@ -11,7 +11,8 @@ export const workspaceQueryKeys = {
   details: () => [...workspaceQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
-  publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const
+  publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
+  adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
 
 /**
@@ -52,7 +53,12 @@ export const publicWorkspaceDetailQueryOptions = (id: string | null) =>
   queryOptions({
     queryKey: id ? workspaceQueryKeys.publicDetail(id) : [...workspaceQueryKeys.publicDetails(), 'empty'],
     queryFn: () => (id ? workspaceService.getPublicWorkspaceById(id) : null),
-    enabled: Boolean(id)
+    enabled: Boolean(id),
+    retry: (failureCount, error: unknown) => {
+      const err = error as { status?: number; statusCode?: number } | null | undefined;
+      if (err?.status === 404 || err?.statusCode === 404) return false;
+      return failureCount < 2;
+    }
   });
 
 /**
@@ -84,4 +90,20 @@ export function useWorkspaceDetailQuery(
  */
 export function usePublicWorkspaceDetailQuery(id: string | null) {
   return useQuery(publicWorkspaceDetailQueryOptions(id));
+}
+
+/**
+ * TanStack Query options for fetching platform-wide administrator workspace KPIs.
+ */
+export const adminWorkspaceKpisQueryOptions = (options?: { adminId?: string }) =>
+  queryOptions({
+    queryKey: workspaceQueryKeys.adminKpis(),
+    queryFn: () => workspaceService.getAdminWorkspaceKpis(options)
+  });
+
+/**
+ * Hook for querying platform-wide administrator workspace KPIs.
+ */
+export function useAdminWorkspaceKpisQuery(options?: { adminId?: string }) {
+  return useQuery(adminWorkspaceKpisQueryOptions(options));
 }

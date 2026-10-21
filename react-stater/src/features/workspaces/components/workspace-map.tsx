@@ -1,7 +1,24 @@
 import React from 'react';
 import { RefreshCw, LocateFixed, Plus, Minus, Zap } from 'lucide-react';
+import type { PublicWorkspaceSummary } from '../api/types';
 
-export function WorkspaceMap() {
+interface WorkspaceMapProps {
+  workspaces?: PublicWorkspaceSummary[];
+}
+
+export function WorkspaceMap({ workspaces }: WorkspaceMapProps) {
+  const primary = workspaces && workspaces.length > 0 ? workspaces[0] : null;
+  const secondary = workspaces && workspaces.length > 1 ? workspaces[1] : null;
+
+  const primaryName = primary ? primary.name : 'NexSpace Central Tower';
+  const primaryPrice = primary && typeof primary.pricePerHour === 'number' ? `$${primary.pricePerHour.toFixed(2)}/hr` : '$2.50/hr';
+  const primaryDesks = primary?.capacityDesks ?? 8;
+  const primaryImage =
+    primary?.coverImageUrl ||
+    'https://lh3.googleusercontent.com/aida-public/AB6AXuD3G4bLH1lBqCv4pVxV3wYmajef3jn_QFTnFAq0p1pOZgih4qi8Nhbew9JySzBL015kb-xCq3Wyk4QdmA09XGNutc_-jsPZxDTMLvpaWJbZo8GuvqeY3CKVC2d_OHvxiI0j9KdFzGmZFeNN86NsNZP76jJJMQVjacWZCr2apx2w0dhZrXRaYNDNWd929cjU7fM_l6LRWo8OutEJqHvu3iigZPQi8McDuUmHVFT7oPJnihtNWMsnYyUIKQ';
+
+  const secondaryPrice = secondary && typeof secondary.pricePerHour === 'number' ? `$${secondary.pricePerHour.toFixed(2)}/hr` : '$3.20/hr';
+
   return (
     <section 
       className="hidden h-full w-1/2 relative overflow-hidden border-l border-border bg-[#E2E8F0] lg:block"
@@ -109,16 +126,20 @@ export function WorkspaceMap() {
       </div>
 
       {/* Bottom Left: Map Legend & Telemetry Status */}
-      <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3 rounded-lg border border-border bg-card/95 px-3.5 py-2 shadow-md backdrop-blur-md">
+      <div className="absolute bottom-6 left-6 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 rounded-lg border border-border bg-card/95 px-3.5 py-2 shadow-md backdrop-blur-md">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground">
           <span className="h-2 w-2 rounded-full bg-emerald-500" />
           <span>Available Now</span>
         </div>
-        <span className="text-[11px] text-muted-foreground/70">•</span>
+        <span className="hidden sm:inline text-[11px] text-muted-foreground/70">•</span>
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground">
           <span className="h-2 w-2 rounded-full bg-[#4b41e1]" />
           <span>Instant Book</span>
         </div>
+        <span className="hidden sm:inline text-[11px] text-muted-foreground/70">•</span>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          Schematic Map · Illustrative node placement
+        </span>
       </div>
 
       {/* INTERACTIVE MAP PINS / NODES */}
@@ -131,13 +152,13 @@ export function WorkspaceMap() {
           style={{ animationDuration: '2.5s', animationIterationCount: 'infinite' }}
         >
           <img
-            alt="Thumbnail NexSpace Central"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3G4bLH1lBqCv4pVxV3wYmajef3jn_QFTnFAq0p1pOZgih4qi8Nhbew9JySzBL015kb-xCq3Wyk4QdmA09XGNutc_-jsPZxDTMLvpaWJbZo8GuvqeY3CKVC2d_OHvxiI0j9KdFzGmZFeNN86NsNZP76jJJMQVjacWZCr2apx2w0dhZrXRaYNDNWd929cjU7fM_l6LRWo8OutEJqHvu3iigZPQi8McDuUmHVFT7oPJnihtNWMsnYyUIKQ"
+            alt={primaryName}
+            src={primaryImage}
             className="h-12 w-12 shrink-0 rounded object-cover"
           />
           <div className="overflow-hidden">
-            <p className="truncate text-sm font-bold text-foreground">NexSpace Central Tower</p>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4b41e1]">$2.50/hr • 8 desks left</p>
+            <p className="truncate text-sm font-bold text-foreground">{primaryName}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4b41e1]">{primaryPrice} • {primaryDesks} desks left</p>
           </div>
         </div>
 
@@ -146,7 +167,7 @@ export function WorkspaceMap() {
           <div className="absolute -inset-1.5 animate-ping rounded-full bg-[#4b41e1] opacity-30" />
           <div className="relative flex items-center gap-1 rounded-full bg-[#4b41e1] px-3 py-1.5 text-sm font-bold text-white shadow-lg ring-2 ring-card">
             <Zap className="h-[14px] w-[14px]" />
-            <span>$2.50/hr</span>
+            <span>{primaryPrice}</span>
           </div>
         </div>
       </div>
@@ -154,7 +175,7 @@ export function WorkspaceMap() {
       {/* PIN 2 */}
       <div className="group absolute left-[72%] top-[58%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
         <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-bold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$3.20/hr</span>
+          <span>{secondaryPrice}</span>
         </div>
       </div>
 

@@ -551,3 +551,102 @@ To maintain factual integrity and avoid misleading dashboard claims:
   - Caller identity is extracted exclusively from cryptographic JWT / OAuth2 access tokens via Spring Security `SecurityContextHolder`.
   - Endpoints are protected by method-level authorization: `@PreAuthorize("hasRole('ADMINISTRATOR')")`.
   - OCC maps directly to JPA `@Version` on the canonical `Workspace` entity, throwing `OptimisticLockException` mapped to HTTP 409 Conflict.
+
+---
+
+## 14. Phase C5 — Cross-Module Integration & Final Workspace API Regression
+
+Phase C5 finalizes the client-side Workspace API migration roadmap, connecting Customer Workspace Discovery and Details to the canonical public REST API, introducing server-aggregated platform KPIs for Administrator console A06, and validating complete cross-role lifecycle parity across Organizer, Administrator, and Customer workflows.
+
+### 14.1 Canonical Workspace Source of Truth & DTO Projections
+All roles access the same canonical Workspace data store, but each receives a role-tailored DTO projection:
+
+1. **Public Safe Projection (`PublicWorkspaceSummary` & `PublicWorkspaceDetail`)**:
+   - Exposed via `GET /api/v1/public/workspaces` and `GET /api/v1/public/workspaces/:id`.
+   - **Strict Privacy Guarantees**: Strips organizer tax identifiers (`organizerTaxId`), reviewer identities (`reviewedBy`), moderation notes/reasons (`suspendedBy`, `suspendReason`), internal revenue metrics (`grossRevenueMtd`, `totalBookingsMtd`), and legal verification records.
+   - **Eligibility Gate**: Anonymous callers can only view records satisfying `isWorkspacePubliclyEligible(w)` (`Approved` + `Active` + `Normal` + `isListingVisible: true`). All un-approved, draft, inactive, or suspended workspaces return `404 Not Found` without leaking record existence.
+   - **Legacy Alias Support**: Supports both canonical IDs (`WS-101`, `WS-104`) and legacy aliases (`1`, `2`, `ws-sg-prime-01`, `westlake-loft-hanoi`), resolving deterministically to canonical IDs with zero duplicate listings.
+
+2. **Organizer Private Projection (`Workspace` / `CanonicalWorkspace`)**:
+   - Exposed via `GET /api/v1/workspaces` and `GET /api/v1/workspaces/:id`.
+   - Strictly scoped to the authenticated Organizer tenant (`caller.userId === existing.organizerId`).
+   - Includes review feedback, submission notes, draft versioning, and floor/capacity specifications.
+   - Disallows reading other organizers' un-published listings (`403 Forbidden`).
+
+3. **Administrator Governance Projection (`CanonicalWorkspace`)**:
+   - Exposed via `GET /api/v1/workspaces` (platform-wide) and `GET /api/v1/workspaces/:id`.
+   - Requires explicit `Administrator` role and valid administrator identity (`USR-1882`).
+   - Exposes compliance verification fields, reviewer timestamps, and moderation logs.
+
+### 14.2 Dedicated A06 Server-Side Aggregation (`GET /api/v1/admin/workspaces/kpis`)
+To resolve the 100-record pagination limitation where platform KPI metrics were previously computed on truncated pages:
+- **Endpoint**: `GET /api/v1/admin/workspaces/kpis`
+- **Full-Platform Computation**: Evaluates 100% of persisted canonical records independently of list pagination.
+- **Computed Metrics**:
+  - `totalWorkspaces`: Total registered canonical workspaces (excluding legacy alias duplicates).
+  - `totalPublishedSpaces`: Workspaces meeting the authoritative public eligibility contract.
+  - `publishedMonthlyGrowth`: Set to `null` to prevent misleading unverified claims in the absence of longitudinal audit history.
+  - `metroHubsCount`: Count of distinct active cities hosting published workspaces.
+  - `pendingModerationCount`: Workspaces in `Pending` review status.
+  - `pendingOldestHours`: Dynamic wait time calculated from oldest `submittedAt` timestamp.
+  - `suspendedCount`: Workspaces under administrative suspension.
+  - `partnerDraftsCount`: Workspaces currently in draft setup (`reviewStatus === 'Draft'`).
+- **Authorization**: Protected by fail-closed Administrator authorization (`x-mock-role: Administrator`, `x-mock-user-id`). Rejects anonymous, Customer, or Organizer callers with `403 Forbidden`.
+
+### 14.3 Unified Cross-Role Lifecycle Parity
+The end-to-end workspace lifecycle operates synchronously across all roles:
+```text
+[ Organizer ]
+    │  POST /workspaces (Draft)
+    ▼
+[ Saved Draft ] (Private to Organizer; Customer receives 404)
+    │  POST /workspaces/:id/submit
+    ▼
+[ Pending Review ] (A06/A07 Queue; Customer receives 404)
+    │
+    ├─────────────────────────────────┐
+    │ PATCH /admin/.../review (Reject)│ PATCH /admin/.../review (Approve)
+    ▼                                 ▼
+[ Rejected ]                    [ Approved ] (Operating: Inactive; Customer receives 404)
+    │                                 │
+    │ PATCH /workspaces (Edit)        │ PATCH /workspaces/:id/lifecycle (resume)
+    ▼                                 ▼
+[ Corrected Draft ]             [ Published & Active ]
+    │                                 │
+    │ POST /submit (Resubmit)         ├─────────────────────────────────────────┐
+    ▼                                 │                                         │
+[ Pending Review ]                    ▼                                         ▼
+                               [ Customer Discovery ]                 [ Customer Details ]
+                                      │
+                                      │ PATCH /admin/.../moderation (Suspend)
+                                      ▼
+                               [ Suspended ]
+                                (Customer immediately excluded; Organizer cannot resume)
+                                      │
+                                      │ PATCH /admin/.../moderation (Restore)
+                                      ▼
+                               [ Restored & Active ]
+```
+
+### 14.4 TanStack Query Cache Invalidation Contract
+- **Query Keys**:
+  - Customer public lists: `['workspaces', 'public', 'list', params]`
+  - Customer public details: `['workspaces', 'public', 'detail', id]`
+  - Admin KPIs: `['workspaces', 'admin', 'kpis', options]`
+  - Admin/Organizer lists: `['workspaces', 'list', params]`
+  - Private detail: `['workspaces', 'detail', id, options]`
+- **Invalidation Triggers**:
+  - Organizer creation / updates: Invalidates `['workspaces', 'list']` and `['workspaces', 'detail', id]`.
+  - Admin review / moderation: Invalidates both private governance queries (`['workspaces']`) and public customer queries (`['workspaces', 'public']`), ensuring immediate customer reflection on next query cycle.
+- **Fail-Fast 404 Handling**: `publicWorkspaceDetailQueryOptions` disables automated retries on HTTP 404, preventing delayed rendering of unavailable/suspended states.
+
+### 14.5 Frontend-to-Backend Spring Boot Handoff Checklist
+
+| Capability | Mock API (`/api/v1`) | Production Target (Spring Boot 3.5.0) | Handoff Action Required |
+|---|---|---|---|
+| **Public List** | `GET /public/workspaces` | `@GetMapping("/api/v1/public/workspaces")` | Map to `PublicWorkspaceSummaryDto`. Apply JPA Specifications for `Approved` + `Active` + `Normal` + `isListingVisible`. |
+| **Public Detail** | `GET /public/workspaces/{id}` | `@GetMapping("/api/v1/public/workspaces/{id}")` | Map to `PublicWorkspaceDetailDto`. Support legacy alias resolution via lookup table. |
+| **Admin KPIs** | `GET /admin/workspaces/kpis` | `@GetMapping("/api/v1/admin/workspaces/kpis")` | Implement aggregated database query via JPQL or Projection interface. Secure with `@PreAuthorize("hasRole('ADMIN')")`. |
+| **OCC Versioning** | Mandatory positive integer `expectedVersion` | JPA `@Version private Long version;` | Throw `OptimisticLockException` mapped to HTTP 409 Conflict via `@ExceptionHandler`. |
+| **Caller Identity** | Development headers (`x-mock-role`, `x-mock-user-id`) | Spring Security JWT Authentication (`SecurityContextHolder`) | Extract caller ID and roles from Bearer JWT claims; deprecate mock headers in production profiles. |
+| **Media Assets** | Local filesystem `/api/v1/media/{filename}` | Cloud Object Storage (AWS S3 / GCP GCS signed URLs) | Replace local uploads directory with direct presigned S3 upload endpoints. |

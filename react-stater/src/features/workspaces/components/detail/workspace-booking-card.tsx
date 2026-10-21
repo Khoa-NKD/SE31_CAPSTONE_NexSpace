@@ -2,23 +2,33 @@ import { ArrowRight, Calendar, CheckCircle2, ChevronDown, Clock, Lock, Monitor, 
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { DateTimePickerModal } from './date-time-picker-modal';
+import type { PublicWorkspaceDetail } from '../../api/types';
 
-export function WorkspaceBookingCard() {
+interface WorkspaceBookingCardProps {
+  workspace?: PublicWorkspaceDetail;
+}
+
+export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
+  const pricePerHour = workspace?.pricePerHour ?? 2.50;
+  const pricePerDay = workspace?.pricePerDay ?? 18.00;
+  const fourHoursSubtotal = pricePerHour * 4;
+  const deskLabel = workspace?.capacityDesks ? `Hot Desk • Flex Node (${workspace.capacityDesks} total)` : 'Hot Desk • Flex Node #14A';
+
   return (
     <div className="lg:col-span-4 relative">
       <div className="sticky top-24 bg-card border rounded-2xl p-6 shadow-xl transition-all">
         {/* Price Display Header */}
         <div className="flex items-baseline justify-between mb-2">
           <div>
-            <span className="text-2xl font-bold text-foreground">$2.50</span>
+            <span className="text-2xl font-bold text-foreground">${pricePerHour.toFixed(2)}</span>
             <span className="text-[13px] text-muted-foreground font-medium"> / hour</span>
           </div>
           <div className="bg-primary/10 text-primary px-2.5 py-0.5 rounded-full text-[11px] font-semibold">
-            or $18.00 / full day (save 25%)
+            or ${pricePerDay.toFixed(2)} / full day
           </div>
         </div>
         <p className="text-[12px] font-medium text-muted-foreground mb-4">
-          Instant booking confirmation with instant smart-pass access code.
+          Estimated price based on the selected duration. Final availability, applicable fees, and confirmation depend on the booking process.
         </p>
         
         {/* Reservation Configuration Container */}
@@ -57,7 +67,7 @@ export function WorkspaceBookingCard() {
               <Monitor className="text-primary w-5 h-5" />
               <div>
                 <div className="text-[11px] font-semibold uppercase text-muted-foreground">Desk Selection</div>
-                <div className="text-[13px] font-semibold text-foreground">Hot Desk • Flex Node #14A</div>
+                <div className="text-[13px] font-semibold text-foreground">{deskLabel}</div>
               </div>
             </div>
             <CheckCircle2 className="text-emerald-600 fill-emerald-100 dark:fill-emerald-950 w-5 h-5" />
@@ -67,20 +77,15 @@ export function WorkspaceBookingCard() {
         {/* Price Breakdown Table */}
         <div className="space-y-2 text-[13px] border-b pb-4 mb-4">
           <div className="flex justify-between text-muted-foreground">
-            <span>4 hours × $2.50 / hr</span>
-            <span className="font-medium text-foreground">$10.00</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Platform Service &amp; Gigabit WiFi</span>
-            <span className="font-medium text-emerald-600 dark:text-emerald-500">Included ($0.00)</span>
-          </div>
-          <div className="flex justify-between text-muted-foreground">
-            <span>Value Added Tax (VAT 8%)</span>
-            <span className="font-medium text-foreground">$0.80</span>
+            <span>Base Rate (4 hours × ${pricePerHour.toFixed(2)} / hr)</span>
+            <span className="font-medium text-foreground">${fourHoursSubtotal.toFixed(2)}</span>
           </div>
           <div className="flex justify-between items-center text-sm font-bold text-foreground pt-2">
-            <span>Total Amount</span>
-            <span className="text-lg text-primary">$10.80 USD</span>
+            <span>Estimated Subtotal</span>
+            <span className="text-lg text-primary">${fourHoursSubtotal.toFixed(2)} USD</span>
+          </div>
+          <div className="text-[11px] text-muted-foreground">
+            Taxes, applicable service fees, and discounts calculated during checkout.
           </div>
         </div>
         
@@ -100,7 +105,7 @@ export function WorkspaceBookingCard() {
           </div>
           <div className="flex items-center gap-2 text-[12px]">
             <Timer className="w-4 h-4 text-amber-600" />
-            <span>10-minute hold reservation guaranteed while checking out.</span>
+            <span>Selection reserved during the booking flow.</span>
           </div>
           <div className="flex items-center gap-2 text-[12px]">
             <ShieldCheck className="w-4 h-4 text-emerald-600" />
@@ -112,7 +117,7 @@ export function WorkspaceBookingCard() {
         <div className="bg-muted border rounded-xl p-3 flex items-start gap-2.5">
           <ShieldCheck className="text-primary w-5 h-5 flex-shrink-0 mt-0.5" />
           <div className="text-[11px] font-semibold text-foreground leading-relaxed">
-            <span className="font-bold">PayOS Protected Payment</span> • Instant VAT E-invoice issued to company tax code.
+            <span className="font-bold">NexSpace Platform</span> • Secure reservation and booking support.
           </div>
         </div>
       </div>

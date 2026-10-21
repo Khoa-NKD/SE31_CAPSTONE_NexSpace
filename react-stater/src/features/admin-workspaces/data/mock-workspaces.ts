@@ -6,6 +6,7 @@ import type { CanonicalWorkspace } from '../../workspaces/api/types.ts';
 import { isWorkspacePubliclyEligible } from '../../workspaces/api/types.ts';
 
 export interface WorkspaceKpis {
+  totalWorkspaces?: number;
   totalPublishedSpaces: number;
   publishedMonthlyGrowth?: number | null;
   metroHubsCount: number;
@@ -17,6 +18,7 @@ export interface WorkspaceKpis {
 }
 
 export const ZERO_WORKSPACE_KPIS: WorkspaceKpis = {
+  totalWorkspaces: 0,
   totalPublishedSpaces: 0,
   publishedMonthlyGrowth: null,
   metroHubsCount: 0,

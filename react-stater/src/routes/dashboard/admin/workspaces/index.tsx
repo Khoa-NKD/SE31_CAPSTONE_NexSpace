@@ -18,7 +18,7 @@ import { WorkspaceStatusKpiGrid } from '@/features/admin-workspaces/components/w
 import { ModerationWorkloadCard } from '@/features/admin-workspaces/components/moderation-workload-card';
 import { QualityComplianceCard } from '@/features/admin-workspaces/components/quality-compliance-card';
 import { ModeratedWorkspacesTable } from '@/features/admin-workspaces/components/moderated-workspaces-table';
-import { useWorkspacesQuery } from '@/features/workspaces/api/queries';
+import { useWorkspacesQuery, useAdminWorkspaceKpisQuery } from '@/features/workspaces/api/queries';
 
 const workspacesSearchSchema = z.object({
   search: z.string().optional(),
@@ -42,15 +42,47 @@ export const Route = createFileRoute('/dashboard/admin/workspaces/')({
 
 function WorkspaceAdminOverviewPage() {
   const [now] = useState(() => Date.now());
-  const { data, isLoading, isError, error, refetch, isFetching } = useWorkspacesQuery({
+  const {
+    data: kpisData,
+    isLoading: isKpisLoading,
+    isError: isKpisError,
+    error: kpisError,
+    refetch: refetchKpis,
+    isFetching: isKpisFetching
+  } = useAdminWorkspaceKpisQuery();
+
+  const {
+    data,
+    isLoading: isListLoading,
+    isError: isListError,
+    error: listError,
+    refetch: refetchList,
+    isFetching: isListFetching
+  } = useWorkspacesQuery({
     role: 'Administrator',
     limit: 100
   });
 
+  const isFetching = isKpisFetching || isListFetching;
+  const isLoading = isKpisLoading && isListLoading;
+  const isError = isKpisError && isListError;
+  const error = kpisError || listError;
+
+  const handleRefresh = () => {
+    refetchKpis();
+    refetchList();
+  };
+
   const workspaces = data?.content;
 
-  // Compute dynamic platform KPIs based strictly on live canonical workspaces
-  const kpis: WorkspaceKpis = useMemo(() => computeWorkspaceKpis(workspaces, now), [workspaces, now]);
+  // Primary platform KPIs from authoritative dedicated server aggregation endpoint (/admin/workspaces/kpis)
+  // Computes aggregates from 100% of canonical records independently of the 100-record list limit.
+  const kpis: WorkspaceKpis = useMemo(() => {
+    if (kpisData) {
+      return kpisData;
+    }
+    return computeWorkspaceKpis(workspaces, now);
+  }, [kpisData, workspaces, now]);
 
   // Derive operational moderation workload items strictly from canonical workspaces
   const workloadItems: ModerationWorkloadItem[] = useMemo(() => deriveModerationWorkloadItems(workspaces), [workspaces]);
@@ -76,7 +108,7 @@ function WorkspaceAdminOverviewPage() {
             <Button
               variant='outline'
               size='sm'
-              onClick={() => refetch()}
+              onClick={handleRefresh}
               disabled={isFetching}
               className='gap-2 shadow-2xs'
               aria-label='Refresh overview data'
@@ -120,7 +152,7 @@ function WorkspaceAdminOverviewPage() {
                 <p className='text-muted-foreground'>{error instanceof Error ? error.message : 'Workspace API error'}</p>
               </div>
             </div>
-            <Button size='sm' variant='outline' onClick={() => refetch()} className='text-xs'>
+            <Button size='sm' variant='outline' onClick={handleRefresh} className='text-xs'>
               Retry
             </Button>
           </div>

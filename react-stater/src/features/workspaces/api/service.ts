@@ -11,7 +11,8 @@ import type {
   WorkspaceLifecycleDto,
   SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
-  AdminModerationWorkspaceDto
+  AdminModerationWorkspaceDto,
+  AdminWorkspaceKpisDto
 } from './types';
 
 /**
@@ -296,6 +297,18 @@ export const workspaceService = {
       dto,
       { headers }
     );
+  },
+
+  /**
+   * Dedicated Administrator KPI aggregation: fetches platform-wide workspace metrics
+   * computed across 100% of canonical records independently of list pagination.
+   */
+  async getAdminWorkspaceKpis(options?: { adminId?: string }): Promise<AdminWorkspaceKpisDto> {
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || 'USR-1882'
+    };
+    return apiClient.get<AdminWorkspaceKpisDto>('/admin/workspaces/kpis', { headers });
   },
 
   /**
