@@ -61,7 +61,7 @@ export function WorkspaceFilterBar({
                   Date & Time
                 </span>
                 <span className="block truncate text-sm font-semibold text-foreground">
-                  Today, Flex Hours
+                  Any date / time
                 </span>
               </div>
               <ChevronDown className="h-4 w-4 text-muted-foreground/70" />

@@ -15,7 +15,8 @@ import {
   Calendar,
   Shield,
   Printer,
-  Car
+  Car,
+  Building
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
@@ -76,12 +77,12 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
 
   const neighborhood =
     'district' in workspace && workspace.district
-      ? `${workspace.district}, ${workspace.city || 'HCMC'}`
+      ? `${workspace.district}${workspace.city ? `, ${workspace.city}` : ''}`
       : 'neighborhood' in workspace && workspace.neighborhood
       ? workspace.neighborhood
       : 'city' in workspace && workspace.city
       ? workspace.city
-      : 'District 1 Center';
+      : 'Location upon request';
 
   const address =
     'streetAddress' in workspace && workspace.streetAddress
@@ -93,7 +94,7 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
   const distance =
     'distance' in workspace && workspace.distance
       ? workspace.distance
-      : 'Prime Location';
+      : '';
 
   const imageUrl =
     'coverImageUrl' in workspace && workspace.coverImageUrl
@@ -152,9 +153,9 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
               Fast Filling
             </Badge>
           ) : (
-            <Badge variant="secondary" className="flex items-center gap-1 border-emerald-500/20 bg-emerald-500/90 text-white hover:bg-emerald-500 px-2 py-0.5 h-5 text-[10px] rounded font-semibold shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 cursor-default">
-              <Zap className="h-3 w-3" />
-              Available Now
+            <Badge variant="secondary" className="flex items-center gap-1 border-primary/20 bg-primary/90 text-white hover:bg-primary px-2 py-0.5 h-5 text-[10px] rounded font-semibold shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 cursor-default">
+              <Building className="h-3 w-3" />
+              Listed Workspace
             </Badge>
           )}
           {tags.includes('Verified Host') && (
@@ -198,7 +199,11 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
         {/* Location / Distance */}
         <div className="mt-1.5 flex items-center text-xs text-muted-foreground gap-1.5">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-          <span className="truncate">{address} <span className="hidden sm:inline-block mx-1 text-muted-foreground/40">•</span> <span className="hidden sm:inline-block text-muted-foreground/80">{distance}</span></span>
+          <span className="truncate">
+            {address}
+            {address && distance ? <span className="hidden sm:inline-block mx-1 text-muted-foreground/40">•</span> : null}
+            {distance ? <span className="hidden sm:inline-block text-muted-foreground/80">{distance}</span> : null}
+          </span>
         </div>
 
         {/* Amenities */}
@@ -218,7 +223,13 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
         <div className="mt-auto pt-3 flex items-end justify-between">
           <div className="flex flex-col">
             <span className="text-xs font-medium text-muted-foreground">
-              <span className="text-emerald-500 font-semibold">{availableDesks} desks</span> available
+              {availableDesks > 0 ? (
+                <>
+                  <span className="text-foreground font-semibold">{availableDesks} desks</span> capacity
+                </>
+              ) : (
+                <span>Capacity upon request</span>
+              )}
             </span>
           </div>
           <div className="flex flex-col items-end">

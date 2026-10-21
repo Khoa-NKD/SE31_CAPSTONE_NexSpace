@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { Grid, Heart, Share } from 'lucide-react';
+import { Building, Grid, Heart, Image as ImageIcon, Share } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
@@ -8,35 +8,16 @@ interface WorkspaceGalleryProps {
 }
 
 export function WorkspaceGallery({ workspace }: WorkspaceGalleryProps) {
-  const name = workspace?.name || 'NexSpace Central Tower';
+  const name = workspace?.name || 'Workspace';
   const locationBreadcrumb = workspace
-    ? `${workspace.district ? `${workspace.district}, ` : ''}${workspace.city || 'HCMC'}`
-    : 'District 1, HCMC';
-  const campusBadge = workspace?.facilitySubtitle || 'PRIMARY CAMPUS';
+    ? [workspace.district, workspace.city].filter(Boolean).join(', ') || 'All Locations'
+    : 'Workspaces';
+  const campusBadge = workspace?.facilitySubtitle || (workspace?.category ? workspace.category.replace('_', ' ').toUpperCase() : 'WORKSPACE');
 
-  const coverImage =
-    workspace?.coverImageUrl ||
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuBZOt3vlUYUAW4M7KbfNDYDafeGXE-C4vU033RuETi1cUEE-xdgJxGi0oAc-c6EWsJSO8cIrLSkWpZJw_NJDQcpOdk-m-2wk-07P1ZPD2yrbWB-AX5BXH1vyIXPpkBVT4ukQbIv06-b5eVEN8uNAd8XcNMUolZ9nfMu89odUQ4nuwUlQUk6ecrmsFMGl0SlJ1yAnJ8AaBiv01HKDTEfmopa3l0iMLVS3MUqZVHDDqfD5RcdarhvBddCrw';
-
-  // Fallback gallery images
-  const defaultImages = [
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuAmDV7vMmLSZeY9KR6ZESQdE12V-9S0PHj4_IOXhxHupvHCJOB0rz-Mcm8vjrPyz2igIfhHe5bmhzn1ym3y5MVCf66J6FpLZbWElKFTVGLh4SmxvH5FuXFSKeBAcaF4aWLHxWciO-6e14TbNHO9T36UrmlwdnMVSxrR_4yUsMp5nEmpqZBdSZjIn0ZaywFG4aY2SmCi5O7QcbGUXPpGl--KrscnzTRlylk0b084rd6rgKnrwmhxEeHuPw',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuB4HAAjRE5k7g4SJrIlVV9QQPbzo10uLDTBVRkN695EB4v--SxxdgML_pRIU1zLNZTwCymHVwnQ9P6dEEjf0jNLzDRa6aeqapmou-pDT063emmyRYqmUeGUztGDIY0qrSfr8630AwwgmEyVlZAn2OXRChHHzo-Vb5Hq1ZvlqyBliYvxy1gkVeJ2dBAy0WuVphHffO2hLNPVw_Z-NO9Sot0Qp8RxcRDMsl-pgoQQfLuVB9HJdxP_zyHdjg',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuAE6N1beyz2DWjMY1YIsX2EgnEoxYKtraX7YQWh_5aKEHRPOc_FI8dMYBP1J2kfaSwqFHthLOOzNiFjHp-xWd7SNZY1lysPUMjqM0fPKIOJT7v2TElhLZR_qsJ7E5oOM4DWJr6fSNp16YSMrauuF_MQQHE-rKtiXMa8smx_fNDOgNwTByLxRQwsXZgFPLcIMa-ECO5-1OU4EnxEGOcoTO_4iFJ70fDm4OnPyyOeSaqIz0WbuJsYW2VcMw',
-    'https://lh3.googleusercontent.com/aida-public/AB6AXuBMXht3LT9R5GMJoVm5-ZCuhGIYRJi4snH6Zp7YC40jRsMG37W_FjG67LF_q3QSs6sMxs62t1G3sfcWS9Gon5IZ9rTcR14ybAn-41AXlKOZHQ2wj2NTwNEryTPvHMt-r_01Cpgk8yjLow9alQYBZ_4Rhh54wUTkXESQrkjDXFvUw1TFOe1hbtvt1va8ouHEH6KAaFHe7fBqyeeQc-7NZcuVd1f-_haGLjcRloN0b0zUySTU2NAV-XPkBA'
-  ];
-
-  const galleryImages =
-    workspace?.images && workspace.images.length > 0
-      ? workspace.images.slice(0, 4).map((img, i) => img.url || defaultImages[i % defaultImages.length])
-      : defaultImages;
-
-  // Pad to 4 if needed
-  while (galleryImages.length < 4) {
-    galleryImages.push(defaultImages[galleryImages.length % defaultImages.length]);
-  }
-
-  const totalPhotoCount = (workspace?.images?.length || 0) + 1;
+  const hasCover = Boolean(workspace?.coverImageUrl);
+  const coverImage = workspace?.coverImageUrl;
+  const uploadedImages = (workspace?.images || []).filter((img) => Boolean(img?.url));
+  const totalPhotoCount = (hasCover ? 1 : 0) + uploadedImages.length;
 
   return (
     <div className="space-y-5 mb-8">
@@ -68,30 +49,48 @@ export function WorkspaceGallery({ workspace }: WorkspaceGalleryProps) {
       <section className="relative rounded-2xl overflow-hidden shadow-sm border bg-muted">
         <div className="grid grid-cols-1 md:grid-cols-10 gap-2 h-auto md:h-[440px]">
           {/* 1 Large Main Hero photo (60% width = 6 cols) */}
-          <div className="md:col-span-6 relative h-[260px] md:h-full overflow-hidden group cursor-pointer">
-            <img
-              alt={name}
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-              src={coverImage}
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-60"></div>
+          <div className="md:col-span-6 relative h-[260px] md:h-full overflow-hidden group cursor-pointer bg-muted">
+            {hasCover ? (
+              <img
+                alt={name}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                src={coverImage}
+              />
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground p-6 bg-muted/70">
+                <Building className="w-12 h-12 mb-2 text-muted-foreground/40" />
+                <span className="text-sm font-semibold text-foreground">Workspace photo pending</span>
+                <span className="text-xs text-muted-foreground mt-1">Illustrative preview placeholder</span>
+              </div>
+            )}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/30 via-transparent to-transparent opacity-60 pointer-events-none" />
             <div className="absolute top-4 left-4 bg-background/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-semibold tracking-wider text-foreground border shadow-sm flex items-center gap-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
               {campusBadge.toUpperCase()}
             </div>
           </div>
           
           {/* 4 Smaller Grid photos (40% width = 4 cols, 2x2 grid) */}
           <div className="md:col-span-4 grid grid-cols-2 gap-2 h-[220px] md:h-full">
-            {galleryImages.map((src, idx) => (
-              <div key={idx} className="relative overflow-hidden group cursor-pointer">
-                <img
-                  alt={`${name} gallery view ${idx + 1}`}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
-                  src={src}
-                />
-              </div>
-            ))}
+            {[0, 1, 2, 3].map((slotIndex) => {
+              const imgItem = uploadedImages[slotIndex];
+              return (
+                <div key={slotIndex} className="relative overflow-hidden group cursor-pointer bg-muted/60 border border-border/40 flex items-center justify-center">
+                  {imgItem ? (
+                    <img
+                      alt={`${name} gallery view ${slotIndex + 1}`}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 ease-out"
+                      src={imgItem.url}
+                    />
+                  ) : (
+                    <div className="w-full h-full flex flex-col items-center justify-center text-muted-foreground/60 p-3 text-center bg-muted/40">
+                      <ImageIcon className="w-6 h-6 mb-1 text-muted-foreground/40" />
+                      <span className="text-[11px] font-medium text-muted-foreground">Preview placeholder</span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
         
@@ -101,10 +100,11 @@ export function WorkspaceGallery({ workspace }: WorkspaceGalleryProps) {
           className="absolute bottom-4 right-4 bg-background/90 hover:bg-background text-foreground shadow-sm gap-2 active:scale-[0.98] transition-all duration-300 hover:-translate-y-0.5"
         >
           <Grid className="w-4 h-4" />
-          <span className="font-semibold">View all {totalPhotoCount} photos</span>
+          <span className="font-semibold">
+            {totalPhotoCount > 0 ? `View all ${totalPhotoCount} photos` : 'Illustrative gallery preview'}
+          </span>
         </Button>
       </section>
     </div>
   );
 }
-

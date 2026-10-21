@@ -166,7 +166,24 @@ async function run() {
     assert(detailText.includes('LoftSpaces Hospitality Group'), 'A.6 Details page renders organizer legal name');
     assert(!detailText.includes('0314889211'), 'A.7 Details page does NOT leak private organizer tax ID');
     assert(!detailText.includes('Rachel Adams') && !detailText.includes('USR-1882'), 'A.8 Details page does NOT leak admin reviewer identity');
-    assert(detailText.includes('Book Workspace') || detailText.includes('/ hour'), 'A.9 Details page renders booking card with real pricing');
+    assert(detailText.includes('Select') || detailText.includes('/ hour'), 'A.9 Details page renders booking card with real pricing');
+    assert(!detailText.includes('Tomorrow, Sat, Jan 25, 2026'), 'A.10 Details page does NOT show stale fixed reservation date');
+    assert(!detailText.includes('Flex Node #14A'), 'A.11 Details page does NOT show fabricated pre-selected desk');
+    assert(!detailText.includes('biometric access'), 'A.12 Details page does NOT claim unverified biometric access');
+    assert(!detailText.includes('Herman Miller Aeron'), 'A.13 Details page does NOT claim unverified branded equipment');
+
+    // A.3 Check Da Nang workspace for city accuracy without HCMC landmarks
+    runCli(`playwright-cli open http://localhost:${TEST_FE_PORT}/workspaces/WS-092`);
+    await waitForPageText('Da Nang Marina Tech Collective');
+    await new Promise((r) => setTimeout(r, 1000));
+    const daNangDetailText = runCli('playwright-cli eval "() => document.body.innerText"');
+    assert(daNangDetailText.includes('Da Nang'), 'A.14 Da Nang workspace renders its own city Da Nang');
+    assert(!daNangDetailText.includes('Vincom Center') && !daNangDetailText.includes('Saigon Opera House'), 'A.15 Da Nang workspace does NOT display District 1 HCMC landmarks');
+
+    // Return to WS-104 for screenshots
+    runCli(`playwright-cli open http://localhost:${TEST_FE_PORT}/workspaces/WS-104`);
+    await waitForPageText('Saigon Prime Hub');
+    await new Promise((r) => setTimeout(r, 1000));
 
     // Capture Details Desktop (1440x900)
     console.log('  Capturing Details Desktop (1440x900)...');

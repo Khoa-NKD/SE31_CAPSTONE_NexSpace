@@ -636,15 +636,105 @@ async function runPhaseC5TestSuite() {
     assert(staleOccPatch.status === 409, '7.2 Stale expectedVersion returns 409 Conflict');
 
     // ===============================================================
-    // SECTION 8: Persistence & Developer Invariants
+    // SECTION 8: Customer Data Integrity & Factual DTO Truthfulness
     // ===============================================================
-    console.log('\n--- SECTION 8: Data Persistence & Working Tree Safety ---');
+    console.log('\n--- SECTION 8: Customer Data Integrity & DTO Truthfulness ---');
+
+    // 8.1 Da Nang workspace WS-092 resolves to factual Da Nang address without HCMC landmarks
+    const daNangWs = await apiRequest('/public/workspaces/WS-092');
+    assert(daNangWs.status === 200, '8.1 Da Nang workspace WS-092 resolves to 200 OK');
+    assert(daNangWs.data?.data?.city === 'Da Nang', '8.2 Da Nang workspace returns city Da Nang');
+    assert(daNangWs.data?.data?.streetAddress.includes('Bach Dang'), '8.3 Da Nang workspace displays its own Bach Dang address');
+    const daNangJson = JSON.stringify(daNangWs.data?.data);
+    assert(!daNangJson.includes('District 1') && !daNangJson.includes('Ho Chi Minh City'), '8.4 Da Nang workspace DTO contains zero District 1 HCMC references');
+
+    // 8.2 Hanoi workspace WS-108: approve & resume in isolated runtime, verify Hanoi factual address
+    const approveHn = await apiRequest('/admin/workspaces/WS-108/review', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' },
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        reviewFeedback: 'Approved after verification.',
+        expectedVersion: 1
+      }
+    });
+    assert(approveHn.status === 200, '8.5 Admin approves WS-108 (200 OK)');
+    const publishHn = await apiRequest('/workspaces/WS-108/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-2194' },
+      body: {
+        action: 'resume',
+        expectedVersion: approveHn.data?.data?.version || 2
+      }
+    });
+    assert(publishHn.status === 200, '8.6 Organizer resumes WS-108 (200 OK)');
+    const hanoiWs = await apiRequest('/public/workspaces/WS-108');
+    assert(hanoiWs.status === 200, '8.7 Hanoi workspace WS-108 resolves to 200 OK once published');
+    assert(hanoiWs.data?.data?.city === 'Hanoi', '8.8 Hanoi workspace displays its own city Hanoi');
+    assert(!JSON.stringify(hanoiWs.data?.data).includes('Ho Chi Minh City'), '8.9 Hanoi workspace contains zero HCMC references');
+
+    // 8.3 Missing amenities, capacity, and price: verify DTO does not fabricate defaults
+    const bareBonesId = 'WS-BARE-999';
+    const runtimeList = JSON.parse(fs.readFileSync(path.join(ISOLATED_TEST_RUNTIME, 'workspaces.json'), 'utf-8'));
+    runtimeList.push({
+      id: bareBonesId,
+      name: 'Bare Bones Minimalist Studio',
+      category: 'creative_studio',
+      streetAddress: '12 Minimalist St',
+      district: 'Hai Chau',
+      city: 'Da Nang',
+      latitude: 16.0544,
+      longitude: 108.2022,
+      amenities: [],
+      capacityDesks: 0,
+      pricePerHour: 0,
+      pricePerDay: 0,
+      organizerId: 'USR-9432',
+      organizerVerified: false,
+      organizerTaxId: '0109998887',
+      reviewedBy: 'USR-1882',
+      suspendedBy: null,
+      suspendReason: null,
+      grossRevenueMtd: 5000000,
+      totalBookingsMtd: 42,
+      reviewStatus: 'Approved',
+      operatingStatus: 'Active',
+      moderationStatus: 'Normal',
+      isListingVisible: true,
+      rating: 0,
+      reviewsCount: 0,
+      version: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    });
+    fs.writeFileSync(path.join(ISOLATED_TEST_RUNTIME, 'workspaces.json'), JSON.stringify(runtimeList, null, 2), 'utf-8');
+
+    const bareBonesDetail = await apiRequest(`/public/workspaces/${bareBonesId}`);
+    assert(bareBonesDetail.status === 200, '8.10 Bare bones workspace resolves to 200 OK');
+    assert(Array.isArray(bareBonesDetail.data?.data?.amenities) && bareBonesDetail.data.data.amenities.length === 0, '8.11 Missing amenities does not generate fabricated amenities');
+    assert(bareBonesDetail.data?.data?.capacityDesks === 0, '8.12 Missing/zero capacity does not generate 54 desks');
+    assert(bareBonesDetail.data?.data?.pricePerHour === 0, '8.13 Missing/zero price does not fall back to $2.50');
+    assert(bareBonesDetail.data?.data?.organizerVerified === false, '8.14 Unverified organizer does not default to verified=true');
+
+    // 8.4 Public DTO strict data isolation (no internal metadata leakage)
+    assert(bareBonesDetail.data?.data?.organizerTaxId === undefined, '8.15 Public DTO strips organizerTaxId');
+    assert(bareBonesDetail.data?.data?.reviewedBy === undefined, '8.16 Public DTO strips reviewedBy');
+    assert(bareBonesDetail.data?.data?.suspendedBy === undefined, '8.17 Public DTO strips suspendedBy');
+    assert(bareBonesDetail.data?.data?.suspendReason === undefined, '8.18 Public DTO strips suspendReason');
+    assert(bareBonesDetail.data?.data?.grossRevenueMtd === undefined, '8.19 Public DTO strips grossRevenueMtd');
+    assert(bareBonesDetail.data?.data?.totalBookingsMtd === undefined, '8.20 Public DTO strips totalBookingsMtd');
+
+    // ===============================================================
+    // SECTION 9: Persistence & Developer Invariants
+    // ===============================================================
+    console.log('\n--- SECTION 9: Data Persistence & Working Tree Safety ---');
 
     // Check developer runtime hash
     const finalDevRuntimeSha = crypto.createHash('sha256').update(fs.readFileSync(DEV_RUNTIME_PATH)).digest('hex');
     assert(
       finalDevRuntimeSha === initialDevRuntimeSha,
-      `8.1 Developer runtime workspaces.json UNTOUCHED (SHA: ${finalDevRuntimeSha})`
+      `9.1 Developer runtime workspaces.json UNTOUCHED (SHA: ${finalDevRuntimeSha})`
     );
 
   } finally {
