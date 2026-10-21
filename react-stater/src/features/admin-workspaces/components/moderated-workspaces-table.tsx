@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search } from 'lucide-react';
+import { Search, History } from 'lucide-react';
 import { ModerationDecisionRecord } from '../data/mock-workspaces';
 import { AuditLogDialog } from './audit-log-dialog';
 
@@ -8,7 +8,7 @@ interface ModeratedWorkspacesTableProps {
 }
 
 export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTableProps) {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'suspended' | 'resolved'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'suspended' | 'rejected' | 'resolved'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedRecord, setSelectedRecord] = useState<ModerationDecisionRecord | null>(null);
 
@@ -16,6 +16,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
     // Tab filter
     if (activeFilter === 'approved' && rec.actionStatus !== 'approved' && rec.actionStatus !== 'reactivated') return false;
     if (activeFilter === 'suspended' && rec.actionStatus !== 'suspended') return false;
+    if (activeFilter === 'rejected' && rec.actionStatus !== 'rejected') return false;
     if (activeFilter === 'resolved' && rec.actionStatus !== 'resolved') return false;
 
     // Search query
@@ -30,6 +31,11 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
     return true;
   });
 
+  const approvedCount = records.filter((r) => r.actionStatus === 'approved' || r.actionStatus === 'reactivated').length;
+  const suspendedCount = records.filter((r) => r.actionStatus === 'suspended').length;
+  const rejectedCount = records.filter((r) => r.actionStatus === 'rejected').length;
+  const resolvedCount = records.filter((r) => r.actionStatus === 'resolved').length;
+
   return (
     <>
       <section aria-label='Recently Moderated Workspaces' className='bg-card rounded-xl border border-border shadow-2xs p-6'>
@@ -40,7 +46,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
               Recent Moderation Decisions &amp; Lifecycle Events
             </h2>
             <p className='text-xs text-muted-foreground mt-0.5'>
-              Last 24 hours of administrative state transitions, approvals, and compliance notices.
+              Latest administrative decisions and review records across registered workspaces.
             </p>
           </div>
 
@@ -71,7 +77,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                All (28)
+                All ({records.length})
               </button>
               <button
                 type='button'
@@ -84,7 +90,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Approved (24)
+                Approved ({approvedCount})
               </button>
               <button
                 type='button'
@@ -97,21 +103,38 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Suspended (3)
+                Suspended ({suspendedCount})
               </button>
-              <button
-                type='button'
-                role='tab'
-                aria-selected={activeFilter === 'resolved'}
-                onClick={() => setActiveFilter('resolved')}
-                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
-                  activeFilter === 'resolved'
-                    ? 'bg-card text-foreground shadow-2xs border border-border'
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                Flags Resolved (1)
-              </button>
+              {rejectedCount > 0 && (
+                <button
+                  type='button'
+                  role='tab'
+                  aria-selected={activeFilter === 'rejected'}
+                  onClick={() => setActiveFilter('rejected')}
+                  className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                    activeFilter === 'rejected'
+                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-2xs border border-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Rejected ({rejectedCount})
+                </button>
+              )}
+              {resolvedCount > 0 && (
+                <button
+                  type='button'
+                  role='tab'
+                  aria-selected={activeFilter === 'resolved'}
+                  onClick={() => setActiveFilter('resolved')}
+                  className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                    activeFilter === 'resolved'
+                      ? 'bg-card text-foreground shadow-2xs border border-border'
+                      : 'text-muted-foreground hover:text-foreground'
+                  }`}
+                >
+                  Flags Resolved ({resolvedCount})
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -130,7 +153,19 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
               </tr>
             </thead>
             <tbody className='divide-y divide-border text-xs'>
-              {filteredRecords.length === 0 ? (
+              {records.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className='py-12 text-center text-muted-foreground'>
+                    <div className='flex flex-col items-center justify-center gap-2'>
+                      <History className='size-8 text-muted-foreground/40' aria-hidden='true' />
+                      <p className='font-semibold text-foreground text-sm'>No Moderation Decisions Recorded</p>
+                      <p className='text-xs text-muted-foreground max-w-sm'>
+                        No administrative reviews or suspension actions have been recorded yet. New decisions will appear here automatically.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              ) : filteredRecords.length === 0 ? (
                 <tr>
                   <td colSpan={6} className='py-8 text-center text-muted-foreground'>
                     No moderation records match your search or filter.
@@ -177,6 +212,8 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                             ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                             : rec.actionStatus === 'suspended'
                             ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
+                            : rec.actionStatus === 'rejected'
+                            ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                             : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
                         }`}
                       >
@@ -186,6 +223,8 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                               ? 'bg-emerald-500'
                               : rec.actionStatus === 'suspended'
                               ? 'bg-rose-500'
+                              : rec.actionStatus === 'rejected'
+                              ? 'bg-amber-500'
                               : 'bg-indigo-500'
                           }`}
                           aria-hidden='true'
@@ -222,9 +261,9 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
 
         {/* Table Footer */}
         <div className='pt-4 mt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground'>
-          <span>Showing <strong>{filteredRecords.length}</strong> of <strong>28</strong> recent administrative actions</span>
+          <span>Showing <strong>{filteredRecords.length}</strong> of <strong>{records.length}</strong> recent administrative actions</span>
           <span className='text-muted-foreground italic flex items-center gap-1'>
-            <span>Compliance history audit trails logged to SecOps partition</span>
+            <span>Displays latest recorded review decisions. Full event history stored in system audit log.</span>
           </span>
         </div>
       </section>

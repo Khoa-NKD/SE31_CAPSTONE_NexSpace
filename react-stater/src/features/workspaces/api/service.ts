@@ -130,8 +130,21 @@ export const workspaceService = {
     }
 
     const headers: Record<string, string> = {};
+    if (params?.role) {
+      headers['x-mock-role'] = params.role;
+      if (params.role.toLowerCase() === 'administrator' || params.role.toLowerCase() === 'admin') {
+        headers['x-mock-user-id'] = 'USR-1882';
+      }
+    }
     if (params?.organizerId) {
       headers['x-organizer-id'] = params.organizerId;
+      if (!headers['x-mock-role']) {
+        headers['x-mock-role'] = 'organizer';
+      }
+    }
+    if (!headers['x-mock-role'] && !headers['x-organizer-id'] && !params?.isPublic) {
+      headers['x-mock-role'] = 'organizer';
+      headers['x-organizer-id'] = 'USR-9432';
     }
 
     return apiClient.get<WorkspaceListResponse>('/workspaces', {
@@ -143,16 +156,45 @@ export const workspaceService = {
   /**
    * Fetches a single workspace by canonical ID, workspace code, or legacy alias for owner/admin.
    */
-  async getWorkspaceById(id: string): Promise<CanonicalWorkspace> {
+  async getWorkspaceById(
+    id: string,
+    options?: { role?: string; organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.get<CanonicalWorkspace>(`/workspaces/${encodeURIComponent(resolvedId)}`);
+    const headers: Record<string, string> = {};
+    const role = options?.role?.toLowerCase();
+    if (role === 'administrator' || role === 'admin') {
+      headers['x-mock-role'] = 'Administrator';
+      headers['x-mock-user-id'] = 'USR-1882';
+    } else if (options?.organizerId) {
+      headers['x-mock-role'] = options?.role || 'organizer';
+      headers['x-organizer-id'] = options.organizerId;
+    } else if (options?.role) {
+      headers['x-mock-role'] = options.role;
+      if (options.role.toLowerCase() === 'customer') {
+        headers['x-mock-user-id'] = 'USR-8821';
+      }
+    } else {
+      headers['x-mock-role'] = 'organizer';
+      headers['x-organizer-id'] = 'USR-9432';
+    }
+    return apiClient.get<CanonicalWorkspace>(`/workspaces/${encodeURIComponent(resolvedId)}`, {
+      headers
+    });
   },
 
   /**
    * Creates a new workspace in Draft state.
    */
-  async createWorkspace(dto: CreateWorkspaceDto): Promise<CanonicalWorkspace> {
-    return apiClient.post<CanonicalWorkspace>('/workspaces', dto);
+  async createWorkspace(
+    dto: CreateWorkspaceDto,
+    options?: { organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
+      'x-organizer-id': options?.organizerId || dto.organizerId || 'USR-9432'
+    };
+    return apiClient.post<CanonicalWorkspace>('/workspaces', dto, { headers });
   },
 
   /**
@@ -165,6 +207,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.patch<CanonicalWorkspace>(
@@ -185,6 +228,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.patch<CanonicalWorkspace>(
@@ -204,6 +248,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.post<CanonicalWorkspace>(
@@ -216,17 +261,41 @@ export const workspaceService = {
   /**
    * Dedicated Admin endpoint for reviewing workspace submission (Approve / Reject).
    */
-  async adminReviewWorkspace(id: string, dto: AdminReviewWorkspaceDto): Promise<CanonicalWorkspace> {
+  async adminReviewWorkspace(
+    id: string,
+    dto: AdminReviewWorkspaceDto,
+    options?: { adminId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.patch<CanonicalWorkspace>(`/admin/workspaces/${encodeURIComponent(resolvedId)}/review`, dto);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || dto.reviewedBy || 'USR-1882'
+    };
+    return apiClient.patch<CanonicalWorkspace>(
+      `/admin/workspaces/${encodeURIComponent(resolvedId)}/review`,
+      dto,
+      { headers }
+    );
   },
 
   /**
    * Dedicated Admin endpoint for moderating workspace (Suspend / Restore).
    */
-  async adminModerateWorkspace(id: string, dto: AdminModerationWorkspaceDto): Promise<CanonicalWorkspace> {
+  async adminModerateWorkspace(
+    id: string,
+    dto: AdminModerationWorkspaceDto,
+    options?: { adminId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.patch<CanonicalWorkspace>(`/admin/workspaces/${encodeURIComponent(resolvedId)}/moderation`, dto);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || dto.suspendedBy || 'USR-1882'
+    };
+    return apiClient.patch<CanonicalWorkspace>(
+      `/admin/workspaces/${encodeURIComponent(resolvedId)}/moderation`,
+      dto,
+      { headers }
+    );
   },
 
   /**

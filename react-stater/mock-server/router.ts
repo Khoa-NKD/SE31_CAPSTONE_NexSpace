@@ -276,24 +276,24 @@ export async function handleRequest(
     return;
   }
 
-  // 13. Admin Workspace Review Governance: PATCH /api/v1/admin/workspaces/:id/review
+  // 13. Admin Workspace Review Governance: PATCH/PUT /api/v1/admin/workspaces/:id/review
   const adminReviewMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/review$/);
-  if (adminReviewMatch && method === 'PATCH') {
+  if (adminReviewMatch && (method === 'PATCH' || method === 'PUT')) {
     const workspaceId = adminReviewMatch[1];
-    await handleAdminReviewWorkspace(res, workspaceId, body);
+    await handleAdminReviewWorkspace(req, res, workspaceId, body);
     return;
   }
 
-  // 14. Admin Workspace Moderation: PATCH /api/v1/admin/workspaces/:id/moderation
+  // 14. Admin Workspace Moderation: PATCH/PUT /api/v1/admin/workspaces/:id/moderation
   const adminModerationMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/moderation$/);
-  if (adminModerationMatch && method === 'PATCH') {
+  if (adminModerationMatch && (method === 'PATCH' || method === 'PUT')) {
     const workspaceId = adminModerationMatch[1];
-    await handleAdminModerationWorkspace(res, workspaceId, body);
+    await handleAdminModerationWorkspace(req, res, workspaceId, body);
     return;
   }
 
-  // 15. Workspaces List & Create: GET /api/v1/workspaces & POST /api/v1/workspaces
-  if (pathname === '/api/v1/workspaces') {
+  // 15. Workspaces List & Create: GET /api/v1/workspaces, GET /api/v1/organizer/workspaces & POST /api/v1/workspaces
+  if (pathname === '/api/v1/workspaces' || pathname === '/api/v1/organizer/workspaces') {
     if (method === 'GET') {
       await handleGetWorkspaces(req, res, searchParams);
       return;
@@ -325,7 +325,7 @@ export async function handleRequest(
   if (workspaceDetailMatch) {
     const workspaceId = workspaceDetailMatch[1];
     if (method === 'GET') {
-      await handleGetWorkspaceById(res, workspaceId);
+      await handleGetWorkspaceById(req, res, workspaceId);
       return;
     }
     if (method === 'PATCH' || method === 'PUT') {

@@ -17,16 +17,16 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
               <Shield className='size-5' aria-hidden='true' />
             </div>
             <h2 className='text-base font-bold font-heading text-foreground'>
-              Quality &amp; Safety Compliance Index
+              Quality &amp; Operational Health
             </h2>
           </div>
-          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'>
+          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'>
             {metrics.gradeBadge}
           </span>
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Aggregated platform standards measured via nomad audits, facility inspections, and noise telemetry.
+          Platform quality and operational health telemetry indicators. Live metrics activate upon guest review and field audit telemetry integration.
         </p>
 
         {/* Metrics Triple Tiles */}
@@ -34,9 +34,13 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
           {/* Score 1 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
             <span className='text-xs text-muted-foreground block mb-1'>Nomad Rating</span>
-            <div className='flex items-center gap-1'>
+            <div className='flex items-center gap-1.5'>
               <span className='text-xl font-bold font-heading text-foreground'>{metrics.nomadRating}</span>
-              <Star className='size-4 fill-amber-400 text-amber-400' aria-hidden='true' />
+              {typeof metrics.nomadRating === 'number' ? (
+                <Star className='size-4 fill-amber-400 text-amber-400' aria-hidden='true' />
+              ) : (
+                <Star className='size-4 text-muted-foreground/40' aria-hidden='true' />
+              )}
             </div>
             <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.totalRatingsCount}</span>
           </div>
@@ -44,20 +48,22 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
           {/* Score 2 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
             <span className='text-xs text-muted-foreground block mb-1'>Hygiene Flags</span>
-            <div className='flex items-center gap-1'>
-              <span className='text-xl font-bold font-heading text-emerald-600 dark:text-emerald-400'>{metrics.hygieneFlags}</span>
-              <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
+            <div className='flex items-center gap-1.5'>
+              <span className={`text-xl font-bold font-heading ${typeof metrics.hygieneFlags === 'number' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                {metrics.hygieneFlags}
+              </span>
+              <CheckCircle2 className={`size-4 ${typeof metrics.hygieneFlags === 'number' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40'}`} aria-hidden='true' />
             </div>
             <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.hygieneCleanPeriod}</span>
           </div>
 
           {/* Score 3 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
-            <span className='text-xs text-muted-foreground block mb-1'>Mystery Audits</span>
+            <span className='text-xs text-muted-foreground block mb-1'>Audit Benchmark</span>
             <div className='flex items-center gap-1'>
-              <span className='text-xl font-bold font-heading text-foreground'>{metrics.mysteryAuditsPercentage}%</span>
+              <span className='text-sm font-semibold font-mono text-muted-foreground'>Not Available</span>
             </div>
-            <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.verifiedHubsCount} verified hubs</span>
+            <span className='text-[10px] text-muted-foreground mt-1 block'>Audit telemetry unavailable</span>
           </div>
         </div>
 
@@ -65,7 +71,7 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
         <div className='p-3 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-3'>
           <Sparkles className='size-5 text-primary shrink-0' aria-hidden='true' />
           <p className='text-xs text-foreground leading-relaxed'>
-            Automated photo resolution and metadata scanner validated 100% of newly submitted workspace gallery media.
+            All submitted workspace media and floor plans are reviewed prior to marketplace indexing.
           </p>
         </div>
       </div>
@@ -77,9 +83,11 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
         </span>
         <button
           type='button'
-          className='inline-flex items-center gap-1 text-xs text-primary hover:text-indigo-700 font-semibold transition-colors'
+          disabled
+          className='inline-flex items-center gap-1 text-xs text-muted-foreground/60 cursor-not-allowed font-semibold'
+          title='Guidelines preview not connected'
         >
-          <span>Audit Rules Engine</span>
+          <span>Review Guidelines</span>
           <Settings className='size-3.5' aria-hidden='true' />
         </button>
       </div>

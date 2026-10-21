@@ -112,7 +112,12 @@ export function useAdminReviewWorkspaceMutation() {
     onError: (err: unknown) => {
       let description = 'Could not submit review decision.';
       if (err instanceof ApiError) {
-        if (err.validationErrors) {
+        if (err.status === 409) {
+          queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+          description = 'Concurrency conflict: this workspace was modified by another session. Latest data refreshed; please reconfirm your decision.';
+        } else if (err.status === 403) {
+          description = err.message || 'You are not authorized to perform administrator review actions.';
+        } else if (err.validationErrors) {
           const firstErr = Object.values(err.validationErrors)[0];
           description = firstErr || err.message;
         } else {
@@ -152,7 +157,12 @@ export function useAdminModerateWorkspaceMutation() {
     onError: (err: unknown) => {
       let description = 'Could not submit moderation update.';
       if (err instanceof ApiError) {
-        if (err.validationErrors) {
+        if (err.status === 409) {
+          queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+          description = 'Concurrency conflict: this workspace was modified by another session. Latest data refreshed; please reconfirm your decision.';
+        } else if (err.status === 403) {
+          description = err.message || 'You are not authorized to perform administrator moderation actions.';
+        } else if (err.validationErrors) {
           const firstErr = Object.values(err.validationErrors)[0];
           description = firstErr || err.message;
         } else {

@@ -6,13 +6,13 @@ import { ModerationWorkloadItem } from '../data/mock-workspaces';
 interface ModerationWorkloadCardProps {
   items: ModerationWorkloadItem[];
   awaitingCount: number;
-  averageTurnaroundHours: number;
+  averageTurnaroundHours?: number;
 }
 
 export function ModerationWorkloadCard({
   items,
   awaitingCount,
-  averageTurnaroundHours
+  averageTurnaroundHours: _averageTurnaroundHours
 }: ModerationWorkloadCardProps) {
   return (
     <div className='bg-card p-6 rounded-xl border border-border shadow-2xs flex flex-col justify-between'>
@@ -33,34 +33,42 @@ export function ModerationWorkloadCard({
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Spaces queued for physical or legal verification prior to search engine indexing and checkout activation.
+          Spaces queued for administrative review and approval prior to marketplace activation.
         </p>
 
         {/* Categorized Inspection Items */}
         <div className='space-y-3 mb-5'>
-          {items.map((item) => (
-            <div
-              key={item.id}
-              className='p-3.5 rounded-lg bg-muted/50 border border-border flex items-start justify-between gap-3'
-            >
-              <div className='flex items-start gap-3'>
-                <div className={`w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 shrink-0 ${item.iconBgClass} ${item.iconColorClass}`}>
-                  {item.icon === 'add_business' ? (
-                    <Building2 className='size-4' aria-hidden='true' />
-                  ) : (
-                    <DraftingCompass className='size-4' aria-hidden='true' />
-                  )}
-                </div>
-                <div>
-                  <h3 className='text-xs font-bold text-foreground'>{item.title}</h3>
-                  <p className='text-xs text-muted-foreground mt-0.5'>{item.description}</p>
-                </div>
-              </div>
-              <span className='font-mono text-[11px] font-semibold text-foreground bg-card px-2 py-0.5 rounded border border-border shrink-0'>
-                {item.priorityLabel}
-              </span>
+          {items.length === 0 ? (
+            <div className='p-6 rounded-lg bg-muted/40 border border-border text-center text-xs text-muted-foreground'>
+              <CheckCircle2 className='size-6 text-emerald-600 dark:text-emerald-400 mx-auto mb-2 opacity-80' />
+              <p className='font-semibold text-foreground'>Queue is clear</p>
+              <p className='mt-1 text-[11px] text-muted-foreground'>No pending workspace submissions or moderation items require action.</p>
             </div>
-          ))}
+          ) : (
+            items.map((item) => (
+              <div
+                key={item.id}
+                className='p-3.5 rounded-lg bg-muted/50 border border-border flex items-start justify-between gap-3'
+              >
+                <div className='flex items-start gap-3'>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 shrink-0 ${item.iconBgClass} ${item.iconColorClass}`}>
+                    {item.icon === 'add_business' ? (
+                      <Building2 className='size-4' aria-hidden='true' />
+                    ) : (
+                      <DraftingCompass className='size-4' aria-hidden='true' />
+                    )}
+                  </div>
+                  <div>
+                    <h3 className='text-xs font-bold text-foreground'>{item.title}</h3>
+                    <p className='text-xs text-muted-foreground mt-0.5'>{item.description}</p>
+                  </div>
+                </div>
+                <span className='font-mono text-[11px] font-semibold text-foreground bg-card px-2 py-0.5 rounded border border-border shrink-0'>
+                  {item.priorityLabel}
+                </span>
+              </div>
+            ))
+          )}
         </div>
       </div>
 
@@ -69,7 +77,7 @@ export function ModerationWorkloadCard({
         <div className='flex items-center gap-2'>
           <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
           <span className='font-mono text-xs text-muted-foreground'>
-            Avg Turnaround: <strong className='text-foreground font-semibold'>{averageTurnaroundHours}h</strong> (100% within SLA)
+            Queue Status: <strong className='text-foreground font-semibold'>{awaitingCount > 0 ? `${awaitingCount} pending review` : 'Queue clear'}</strong>
           </span>
         </div>
         <Link

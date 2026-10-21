@@ -5,6 +5,7 @@ export interface WorkspaceGalleryImage {
   label: string;
   category: string;
   verified: boolean;
+  url?: string;
 }
 
 export interface WorkspaceDirectoryItem {
@@ -13,7 +14,7 @@ export interface WorkspaceDirectoryItem {
   facilitySubtitle: string;
   streetAddress: string;
   metroZone: string;
-  city: 'Ho Chi Minh City' | 'Hanoi' | 'Da Nang' | 'Can Tho';
+  city: string;
   organizerLegalName: string;
   organizerTaxId: string;
   organizerVerified: boolean;
@@ -36,6 +37,137 @@ export interface WorkspaceDirectoryItem {
   gallery: WorkspaceGalleryImage[];
   hsmSessionId: string;
   moderatorNotes?: string;
+  // Canonical fields for Admin governance
+  version?: number;
+  reviewStatus?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
+  moderationStatus?: 'Normal' | 'Suspended';
+  operatingStatus?: 'Active' | 'Inactive' | 'Archived';
+  description?: string;
+  coverImageUrl?: string;
+  usableAreaSqm?: number;
+  pricePerHour?: number;
+  pricePerDay?: number;
+  pricePerMonth?: number | null;
+  reviewedBy?: string | null;
+  reviewedAt?: string | null;
+  reviewFeedback?: string | null;
+  suspendedBy?: string | null;
+  suspendedAt?: string | null;
+  suspendReason?: string | null;
+  updatedAt?: string;
+  operatingHoursList?: Array<{
+    dayOfWeek: number;
+    openTime: string;
+    closeTime: string;
+    isClosed: boolean;
+    is24Hours: boolean;
+  }>;
+  floorsList?: Array<{
+    id: string;
+    name: string;
+    floorNumber: number;
+    status?: string;
+    totalDesks?: number;
+    totalRooms?: number;
+  }>;
+  imagesList?: Array<{
+    id: string;
+    url: string;
+    caption?: string;
+    isCover: boolean;
+    displayOrder: number;
+    mediaType: 'image' | '360_degree';
+  }>;
+}
+
+/**
+ * Maps a canonical workspace record from the REST API to a UI-friendly WorkspaceDirectoryItem.
+ */
+export function mapCanonicalToDirectoryItem(cw: any): WorkspaceDirectoryItem {
+  let status: WorkspaceStatus = 'active';
+  if (cw.moderationStatus === 'Suspended') {
+    status = 'suspended';
+  } else if (cw.reviewStatus === 'Pending') {
+    status = 'pending';
+  } else if (cw.reviewStatus === 'Approved') {
+    status = 'active';
+  } else if (cw.reviewStatus === 'Rejected') {
+    status = 'suspended';
+  }
+
+  const galleryImages: WorkspaceGalleryImage[] = (cw.images || []).map((img: any, idx: number) => ({
+    id: img.id || `img-${cw.id}-${idx}`,
+    label: img.caption || (img.isCover ? 'Cover Photo' : `Facility View ${idx + 1}`),
+    category: img.mediaType === '360_degree' ? '360° Tour' : (img.isCover ? 'Cover Photo' : 'Nomad Space'),
+    verified: true,
+    url: img.url
+  }));
+
+  const coordsString =
+    typeof cw.latitude === 'number' && typeof cw.longitude === 'number'
+      ? `${cw.latitude.toFixed(4)}° N, ${cw.longitude.toFixed(4)}° E`
+      : 'Coordinates Pending';
+
+  const metroZone = cw.district && cw.city ? `${cw.district}, ${cw.city}` : (cw.city || 'Metro Area');
+
+  const formattedDate = cw.submittedAt
+    ? new Date(cw.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    : (cw.createdAt ? new Date(cw.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Jan 24, 2026');
+
+  const formattedTime = cw.submittedAt
+    ? new Date(cw.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+    : '08:30 UTC';
+
+  return {
+    id: cw.id,
+    name: cw.name,
+    facilitySubtitle: cw.facilitySubtitle || cw.buildingName || cw.streetAddress,
+    streetAddress: cw.streetAddress || 'Address pending',
+    metroZone,
+    city: cw.city || 'Ho Chi Minh City',
+    organizerLegalName: cw.organizerLegalName || 'Acme Coworking VN Co., Ltd',
+    organizerTaxId: cw.organizerTaxId || '',
+    organizerVerified: cw.organizerVerified ?? true,
+    capacityDesks: cw.capacityDesks || 0,
+    meetingRooms: cw.meetingRooms || 0,
+    focusPods: cw.focusPods || 0,
+    capacityLabel: cw.capacityLabel || `${cw.capacityDesks || 0} Desks, ${cw.meetingRooms || 0} Mtgs, ${cw.focusPods || 0} Pods`,
+    rating: cw.rating || 4.9,
+    reviewsCount: cw.reviewsCount || 48,
+    status,
+    submittedAt: formattedDate,
+    submittedTime: formattedTime,
+    receptionHours: cw.receptionHours || '08:00 – 20:00 Weekdays',
+    accessMethod: cw.accessMethod || 'Smart QR & PIN Terminal',
+    operatorContactName: cw.operatorContactName || 'Operator Reception',
+    operatorContactPhone: cw.operatorContactPhone || cw.supportPhone || '+84 28 3822 5588',
+    geofenceCluster: `${cw.buildingName || cw.name} Pin • Geofence Validated`,
+    coordinates: coordsString,
+    tags: Array.isArray(cw.tags) && cw.tags.length > 0 ? cw.tags : (Array.isArray(cw.amenities) && cw.amenities.length > 0 ? cw.amenities : ['WiFi 6', 'Ergonomic Seating']),
+    gallery: galleryImages,
+    hsmSessionId: `#WS-REG-${cw.id}`,
+    moderatorNotes: cw.reviewFeedback || cw.suspendReason || undefined,
+    version: cw.version || 1,
+    reviewStatus: cw.reviewStatus || 'Draft',
+    moderationStatus: cw.moderationStatus || 'Normal',
+    operatingStatus: cw.operatingStatus || 'Inactive',
+    description: cw.description,
+    coverImageUrl: cw.coverImageUrl,
+    usableAreaSqm: cw.usableAreaSqm,
+    pricePerHour: cw.pricePerHour,
+    pricePerDay: cw.pricePerDay,
+    pricePerMonth: cw.pricePerMonth,
+    reviewedBy: cw.reviewedBy,
+    reviewedAt: cw.reviewedAt,
+    reviewFeedback: cw.reviewFeedback,
+    suspendedBy: cw.suspendedBy,
+    suspendedAt: cw.suspendedAt,
+    suspendReason: cw.suspendReason,
+    updatedAt: cw.updatedAt,
+    operatingHoursList: cw.operatingHours,
+    floorsList: cw.floors,
+    imagesList: cw.images
+  };
 }
 
 export interface WorkspaceDirectorySummaryKpis {
@@ -215,7 +347,7 @@ export const INITIAL_WORKSPACE_DIRECTORY: WorkspaceDirectoryItem[] = [
       { id: 'img-51', label: 'Boardroom Westlake', category: 'Meeting Rooms', verified: false }
     ],
     hsmSessionId: '#WS-MRB-2026-X120',
-    moderatorNotes: 'Suspended pending safety compliance certificate re-inspection.'
+    moderatorNotes: 'Suspended pending operator clarification.'
   },
   {
     id: 'WS-128',

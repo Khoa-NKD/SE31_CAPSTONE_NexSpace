@@ -32,13 +32,16 @@ process.env.INTERNAL_API_URL = BASE_URL;
 
 async function httpFetch(url: string, options: Omit<RequestInit, 'body'> & { body?: any } = {}) {
   const fetchOptions: RequestInit = { ...options };
+  const headers: Record<string, string> = {
+    'x-mock-role': 'Organizer',
+    'x-organizer-id': 'USR-9432',
+    ...(fetchOptions.headers as Record<string, string> | undefined)
+  };
   if (fetchOptions.body && typeof fetchOptions.body === 'object' && !(fetchOptions.body instanceof FormData)) {
-    fetchOptions.headers = {
-      'Content-Type': 'application/json',
-      ...fetchOptions.headers
-    };
+    headers['Content-Type'] = 'application/json';
     fetchOptions.body = JSON.stringify(fetchOptions.body);
   }
+  fetchOptions.headers = headers;
   const res = await fetch(url, fetchOptions);
   let data: any = null;
   const contentType = res.headers.get('content-type') || '';

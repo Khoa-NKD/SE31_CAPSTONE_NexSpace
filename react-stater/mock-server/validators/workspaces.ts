@@ -280,6 +280,7 @@ export function validateAdminReviewWorkspace(
   reviewStatus: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
   reviewedBy: string;
   reviewFeedback?: string;
+  expectedVersion: number;
 }> {
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: { body: 'Request body must be a JSON object' } };
@@ -298,6 +299,19 @@ export function validateAdminReviewWorkspace(
     errors.reviewedBy = `Referenced reviewedBy user ID '${payload.reviewedBy}' does not exist or is not an Administrator.`;
   }
 
+  if (payload.reviewStatus === 'Rejected') {
+    if (!payload.reviewFeedback || typeof payload.reviewFeedback !== 'string' || payload.reviewFeedback.trim().length < 5) {
+      errors.reviewFeedback = 'A rejection reason (reviewFeedback) of at least 5 characters is required when rejecting a workspace.';
+    }
+  }
+
+  const expectedVer = payload.expectedVersion !== undefined ? payload.expectedVersion : payload.version;
+  if (expectedVer === undefined) {
+    errors.expectedVersion = 'expectedVersion is required for optimistic concurrency control.';
+  } else if (typeof expectedVer !== 'number' || !Number.isInteger(expectedVer) || expectedVer < 1) {
+    errors.expectedVersion = 'expectedVersion must be a positive integer.';
+  }
+
   if (Object.keys(errors).length > 0) {
     return { valid: false, errors };
   }
@@ -307,7 +321,8 @@ export function validateAdminReviewWorkspace(
     normalizedData: {
       reviewStatus: payload.reviewStatus as any,
       reviewedBy: (payload.reviewedBy as string).trim(),
-      reviewFeedback: typeof payload.reviewFeedback === 'string' ? payload.reviewFeedback.trim() : undefined
+      reviewFeedback: typeof payload.reviewFeedback === 'string' ? payload.reviewFeedback.trim() : undefined,
+      expectedVersion: expectedVer as number
     }
   };
 }
@@ -322,6 +337,7 @@ export function validateAdminModerationWorkspace(
   moderationStatus: 'Normal' | 'Suspended';
   suspendedBy?: string;
   suspendReason?: string;
+  expectedVersion: number;
 }> {
   if (!data || typeof data !== 'object') {
     return { valid: false, errors: { body: 'Request body must be a JSON object' } };
@@ -346,6 +362,13 @@ export function validateAdminModerationWorkspace(
     }
   }
 
+  const expectedVer = payload.expectedVersion !== undefined ? payload.expectedVersion : payload.version;
+  if (expectedVer === undefined) {
+    errors.expectedVersion = 'expectedVersion is required for optimistic concurrency control.';
+  } else if (typeof expectedVer !== 'number' || !Number.isInteger(expectedVer) || expectedVer < 1) {
+    errors.expectedVersion = 'expectedVersion must be a positive integer.';
+  }
+
   if (Object.keys(errors).length > 0) {
     return { valid: false, errors };
   }
@@ -355,7 +378,8 @@ export function validateAdminModerationWorkspace(
     normalizedData: {
       moderationStatus: payload.moderationStatus as any,
       suspendedBy: typeof payload.suspendedBy === 'string' ? payload.suspendedBy.trim() : undefined,
-      suspendReason: typeof payload.suspendReason === 'string' ? payload.suspendReason.trim() : undefined
+      suspendReason: typeof payload.suspendReason === 'string' ? payload.suspendReason.trim() : undefined,
+      expectedVersion: expectedVer as number
     }
   };
 }
@@ -379,8 +403,8 @@ export function validateWorkspaceSubmission(
   if (workspace.moderationStatus === 'Suspended') {
     errors.moderationStatus = 'Cannot submit a suspended workspace for review.';
   }
-  if (workspace.reviewStatus !== 'Draft') {
-    errors.reviewStatus = `Only Draft workspaces can be submitted for review. Current reviewStatus is '${workspace.reviewStatus}'.`;
+  if (workspace.reviewStatus !== 'Draft' && workspace.reviewStatus !== 'Rejected') {
+    errors.reviewStatus = `Only Draft or Rejected workspaces can be submitted for review. Current reviewStatus is '${workspace.reviewStatus}'.`;
   }
 
   // Name

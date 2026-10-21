@@ -8,12 +8,22 @@ import {
   ShieldCheck,
   CheckCircle2,
   AlertTriangle,
-  Lock,
   Maximize2,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Layers,
+  FileText
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog';
+import { toast } from 'sonner';
 import { WorkspaceDirectoryItem } from '../data/mock-workspaces-directory';
 
 interface WorkspaceDetailsDrawerProps {
@@ -22,7 +32,8 @@ interface WorkspaceDetailsDrawerProps {
   onClose: () => void;
   onApprove: (workspace: WorkspaceDirectoryItem) => void;
   onReject: (workspace: WorkspaceDirectoryItem, reason: string) => void;
-  onToggleSuspend: (workspace: WorkspaceDirectoryItem) => void;
+  onToggleSuspend: (workspace: WorkspaceDirectoryItem, reason?: string) => void;
+  isSubmitting?: boolean;
 }
 
 export function WorkspaceDetailsDrawer({
@@ -31,10 +42,13 @@ export function WorkspaceDetailsDrawer({
   onClose,
   onApprove,
   onReject,
-  onToggleSuspend
+  onToggleSuspend,
+  isSubmitting = false
 }: WorkspaceDetailsDrawerProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'media' | 'floor' | 'audit'>('general');
   const [rejectionNotes, setRejectionNotes] = useState('');
+  const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
+  const [suspendReasonInput, setSuspendReasonInput] = useState('');
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -166,7 +180,7 @@ export function WorkspaceDetailsDrawer({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              Amenities &amp; Media ({workspace.gallery.length})
+              Amenities & Media ({workspace.gallery.length})
             </button>
             <button
               type='button'
@@ -179,7 +193,7 @@ export function WorkspaceDetailsDrawer({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              Floor Plan &amp; Rates
+              Floor Plan & Rates
             </button>
             <button
               type='button'
@@ -192,7 +206,7 @@ export function WorkspaceDetailsDrawer({
                   : 'border-transparent text-muted-foreground hover:text-foreground'
               }`}
             >
-              Audit &amp; Compliance
+              Review & Governance
             </button>
           </div>
         </div>
@@ -219,7 +233,7 @@ export function WorkspaceDetailsDrawer({
                       {workspace.geofenceCluster}
                     </div>
                     <span className='text-[10px] text-slate-300 mt-1 font-mono'>
-                      Geofence Radius: 150m Verified via National Cadastral Map
+                      Geofence Radius: Not available
                     </span>
                   </div>
 
@@ -267,8 +281,8 @@ export function WorkspaceDetailsDrawer({
                     <ImageIcon className='size-3.5 text-primary' aria-hidden='true' />
                     Facility Media Verification
                   </h3>
-                  <span className='text-[11px] text-emerald-700 dark:text-emerald-400 font-semibold'>
-                    +{workspace.gallery.length} verified photos
+                  <span className='text-[11px] text-muted-foreground font-semibold'>
+                    +{workspace.gallery.length} uploaded photos
                   </span>
                 </div>
 
@@ -306,7 +320,7 @@ export function WorkspaceDetailsDrawer({
               <section aria-label='Moderation Notes' className='space-y-2 pt-2'>
                 <label htmlFor='moderatorNotes' className='text-xs font-bold text-foreground flex items-center justify-between'>
                   <span>Moderator Review Note / Rejection Reason</span>
-                  <span className='text-[10px] font-normal text-muted-foreground'>(Sent to operator upon decision)</span>
+                  <span className='text-[10px] font-normal text-muted-foreground'>(Required if rejecting; logged on record)</span>
                 </label>
                 <Textarea
                   id='moderatorNotes'
@@ -316,6 +330,11 @@ export function WorkspaceDetailsDrawer({
                   rows={3}
                   className='text-xs bg-background'
                 />
+                {workspace.reviewFeedback && (
+                  <div className='p-2.5 rounded bg-muted/60 border border-border text-[11px] text-muted-foreground'>
+                    <strong className='text-foreground font-semibold'>Existing Review Feedback:</strong> {workspace.reviewFeedback}
+                  </div>
+                )}
               </section>
             </>
           )}
@@ -328,13 +347,17 @@ export function WorkspaceDetailsDrawer({
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
                 {workspace.gallery.map((item) => (
                   <div key={item.id} className='p-4 rounded-xl border border-border bg-muted/40 space-y-2'>
-                    <div className='h-28 rounded-lg bg-slate-900/10 dark:bg-slate-800 flex items-center justify-center text-muted-foreground'>
-                      <ImageIcon className='size-8 opacity-40' aria-hidden='true' />
+                    <div className='h-32 rounded-lg bg-slate-900/10 dark:bg-slate-800 flex items-center justify-center text-muted-foreground overflow-hidden relative'>
+                      {item.url ? (
+                        <img src={item.url} alt={item.label} className='w-full h-full object-cover' />
+                      ) : (
+                        <ImageIcon className='size-8 opacity-40' aria-hidden='true' />
+                      )}
                     </div>
                     <div className='flex items-center justify-between text-xs'>
                       <strong className='text-foreground'>{item.label}</strong>
                       <span className='text-emerald-700 dark:text-emerald-400 font-medium flex items-center gap-1 text-[11px]'>
-                        <CheckCircle2 className='size-3' aria-hidden='true' /> OCR Verified
+                        <CheckCircle2 className='size-3' aria-hidden='true' /> Verified
                       </span>
                     </div>
                     <p className='text-[11px] text-muted-foreground'>{item.category}</p>
@@ -351,46 +374,123 @@ export function WorkspaceDetailsDrawer({
               </h3>
               <div className='p-4 rounded-xl border border-border bg-muted/30 space-y-3 text-xs'>
                 <div className='flex justify-between py-1.5 border-b border-border'>
-                  <span className='text-muted-foreground'>Hot Desks (Hourly / Daily Nomad)</span>
+                  <span className='text-muted-foreground'>Hot Desks (Nomad Stations)</span>
                   <strong className='text-foreground'>{workspace.capacityDesks} Units</strong>
                 </div>
                 <div className='flex justify-between py-1.5 border-b border-border'>
-                  <span className='text-muted-foreground'>Meeting Rooms (4-12 Person)</span>
+                  <span className='text-muted-foreground'>Meeting Rooms</span>
                   <strong className='text-foreground'>{workspace.meetingRooms} Rooms</strong>
                 </div>
                 <div className='flex justify-between py-1.5 border-b border-border'>
                   <span className='text-muted-foreground'>Acoustic Focus &amp; Phone Pods</span>
                   <strong className='text-foreground'>{workspace.focusPods} Pods</strong>
                 </div>
-                <div className='flex justify-between py-1.5'>
+                <div className='flex justify-between py-1.5 border-b border-border'>
                   <span className='text-muted-foreground'>Standard Daily Pass Rate</span>
-                  <strong className='text-foreground font-mono'>150,000 – 250,000 VND / day</strong>
+                  <strong className='text-foreground font-mono'>
+                    {workspace.pricePerDay ? `${workspace.pricePerDay.toLocaleString()} VND / day` : '150,000 – 250,000 VND / day'}
+                  </strong>
                 </div>
+                {workspace.pricePerHour && (
+                  <div className='flex justify-between py-1.5 border-b border-border'>
+                    <span className='text-muted-foreground'>Hourly Nomad Rate</span>
+                    <strong className='text-foreground font-mono'>{workspace.pricePerHour.toLocaleString()} VND / hr</strong>
+                  </div>
+                )}
+                {workspace.pricePerMonth && (
+                  <div className='flex justify-between py-1.5'>
+                    <span className='text-muted-foreground'>Dedicated Monthly Desk</span>
+                    <strong className='text-foreground font-mono'>{workspace.pricePerMonth.toLocaleString()} VND / mo</strong>
+                  </div>
+                )}
               </div>
+
+              {workspace.floorsList && workspace.floorsList.length > 0 && (
+                <div className='space-y-2 pt-2'>
+                  <h4 className='text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5'>
+                    <Layers className='size-3.5' aria-hidden='true' />
+                    Floor Breakdown ({workspace.floorsList.length} Levels)
+                  </h4>
+                  <div className='space-y-2'>
+                    {workspace.floorsList.map((flp) => (
+                      <div key={flp.id} className='p-3 rounded-lg border border-border bg-card flex justify-between items-center text-xs'>
+                        <div>
+                          <span className='font-semibold text-foreground'>{flp.name}</span>
+                          <span className='text-muted-foreground ml-2 text-[11px]'>(Floor {flp.floorNumber})</span>
+                        </div>
+                        <div className='text-muted-foreground text-[11px] font-mono'>
+                          {flp.totalDesks || 0} Desks • {flp.totalRooms || 0} Rooms
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {activeTab === 'audit' && (
             <div className='space-y-4'>
-              <h3 className='text-xs font-bold uppercase tracking-wider text-foreground'>
-                Regulatory Compliance &amp; Traceability
+              <h3 className='text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5'>
+                <FileText className='size-3.5 text-primary' aria-hidden='true' />
+                Review Status &amp; Governance Details
               </h3>
               <div className='p-4 rounded-xl border border-border bg-muted/30 space-y-3 text-xs'>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>Building Lease Deed</span>
-                  <span className='text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1'>
-                    <CheckCircle2 className='size-3.5' aria-hidden='true' /> Validated
+                <div className='flex items-center justify-between py-1 border-b border-border'>
+                  <span className='text-muted-foreground'>Organizer Entity</span>
+                  <span className='font-medium text-foreground'>{workspace.organizerLegalName}</span>
+                </div>
+                <div className='flex items-center justify-between py-1 border-b border-border'>
+                  <span className='text-muted-foreground'>Tax ID / Registration Number</span>
+                  <span className='font-mono text-foreground'>{workspace.organizerTaxId || 'Tax ID Pending'}</span>
+                </div>
+                <div className='flex items-center justify-between py-1 border-b border-border'>
+                  <span className='text-muted-foreground'>Partner Verification</span>
+                  <span className={`font-semibold flex items-center gap-1 ${workspace.organizerVerified ? 'text-emerald-700 dark:text-emerald-400' : 'text-amber-700 dark:text-amber-400'}`}>
+                    <CheckCircle2 className='size-3.5' aria-hidden='true' />
+                    {workspace.organizerVerified ? 'Verified Platform Partner' : 'Verification Incomplete'}
                   </span>
                 </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>Fire Safety Clearance (PCCC)</span>
-                  <span className='text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-1'>
-                    <CheckCircle2 className='size-3.5' aria-hidden='true' /> Certified
+                <div className='flex items-center justify-between py-1 border-b border-border'>
+                  <span className='text-muted-foreground'>Review Status</span>
+                  <span className='font-semibold text-foreground'>{workspace.reviewStatus}</span>
+                </div>
+                {workspace.reviewedBy && (
+                  <div className='flex items-center justify-between py-1 border-b border-border'>
+                    <span className='text-muted-foreground'>Latest Review Handler</span>
+                    <span className='font-mono text-foreground'>{workspace.reviewedBy}</span>
+                  </div>
+                )}
+                {workspace.reviewedAt && (
+                  <div className='flex items-center justify-between py-1 border-b border-border'>
+                    <span className='text-muted-foreground'>Latest Review Timestamp</span>
+                    <span className='text-muted-foreground'>{new Date(workspace.reviewedAt).toLocaleString()}</span>
+                  </div>
+                )}
+                {workspace.reviewFeedback && (
+                  <div className='py-1 border-b border-border'>
+                    <span className='text-muted-foreground block mb-0.5'>Latest Review Feedback:</span>
+                    <span className='text-foreground'>{workspace.reviewFeedback}</span>
+                  </div>
+                )}
+                <div className='text-[10px] text-muted-foreground italic py-1 border-b border-border'>
+                  Note: Displays latest recorded review decision metadata. Complete historical event timeline is not recorded.
+                </div>
+                <div className='flex items-center justify-between py-1 border-b border-border'>
+                  <span className='text-muted-foreground'>Moderation Standing</span>
+                  <span className={`font-semibold ${workspace.moderationStatus === 'Suspended' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                    {workspace.moderationStatus}
                   </span>
                 </div>
-                <div className='flex items-center justify-between'>
-                  <span className='text-muted-foreground'>SecOps Cryptographic Session</span>
-                  <span className='font-mono text-muted-foreground'>{workspace.hsmSessionId}</span>
+                {workspace.suspendReason && (
+                  <div className='py-1 border-b border-border'>
+                    <span className='text-muted-foreground block mb-0.5'>Suspension Reason:</span>
+                    <span className='text-rose-600 dark:text-rose-400 font-medium'>{workspace.suspendReason}</span>
+                  </div>
+                )}
+                <div className='flex items-center justify-between py-1'>
+                  <span className='text-muted-foreground'>Canonical Version</span>
+                  <span className='font-mono text-foreground font-semibold'>v{workspace.version}</span>
                 </div>
               </div>
             </div>
@@ -400,9 +500,11 @@ export function WorkspaceDetailsDrawer({
         {/* Sticky Action Footer */}
         <div className='border-t border-border bg-card p-4 space-y-3 shrink-0'>
           <div className='flex items-center gap-1.5 text-[11px] text-muted-foreground justify-between'>
-            <span className='flex items-center gap-1'>
-              <Lock className='size-3 text-muted-foreground' aria-hidden='true' />
-              Signed with SecOps HSM Key: <strong className='font-mono'>{workspace.hsmSessionId}</strong>
+            <span>
+              Canonical Hub: <strong className='font-mono text-foreground'>#{workspace.id}</strong> • Version: <strong className='font-mono text-foreground'>v{workspace.version}</strong>
+            </span>
+            <span className='text-[10px] text-muted-foreground'>
+              {workspace.reviewStatus === 'Pending' ? 'Awaiting Review Decision' : `Status: ${workspace.status}`}
             </span>
           </div>
 
@@ -412,19 +514,29 @@ export function WorkspaceDetailsDrawer({
                 <Button
                   type='button'
                   variant='outline'
-                  onClick={() => onReject(workspace, rejectionNotes)}
+                  disabled={isSubmitting}
+                  onClick={() => {
+                    if (!rejectionNotes || rejectionNotes.trim().length < 5) {
+                      toast.error('Rejection Reason Required', {
+                        description: 'Please enter a rejection reason (minimum 5 characters) explaining what needs correction.'
+                      });
+                      return;
+                    }
+                    onReject(workspace, rejectionNotes.trim());
+                  }}
                   className='flex-1 h-10 border-rose-300 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-semibold'
                 >
                   <AlertTriangle className='size-3.5 mr-1.5' aria-hidden='true' />
-                  <span>Reject with Feedback</span>
+                  <span>{isSubmitting ? 'Rejecting...' : 'Reject with Feedback'}</span>
                 </Button>
                 <Button
                   type='button'
+                  disabled={isSubmitting}
                   onClick={() => onApprove(workspace)}
                   className='flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs'
                 >
                   <ShieldCheck className='size-3.5 mr-1.5' aria-hidden='true' />
-                  <span>Approve &amp; Publish to Marketplace</span>
+                  <span>{isSubmitting ? 'Approving...' : 'Approve Workspace'}</span>
                 </Button>
               </>
             )}
@@ -433,7 +545,11 @@ export function WorkspaceDetailsDrawer({
               <Button
                 type='button'
                 variant='outline'
-                onClick={() => onToggleSuspend(workspace)}
+                disabled={isSubmitting}
+                onClick={() => {
+                  setSuspendReasonInput('');
+                  setIsSuspendModalOpen(true);
+                }}
                 className='w-full h-10 border-amber-300 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/50 text-xs font-semibold'
               >
                 <AlertTriangle className='size-3.5 mr-1.5' aria-hidden='true' />
@@ -444,16 +560,77 @@ export function WorkspaceDetailsDrawer({
             {workspace.status === 'suspended' && (
               <Button
                 type='button'
+                disabled={isSubmitting}
                 onClick={() => onToggleSuspend(workspace)}
                 className='w-full h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold'
               >
                 <CheckCircle2 className='size-3.5 mr-1.5' aria-hidden='true' />
-                <span>Restore to Active Marketplace</span>
+                <span>{isSubmitting ? 'Restoring...' : 'Restore to Active Marketplace'}</span>
               </Button>
             )}
           </div>
         </div>
       </aside>
+
+      {/* Suspend Confirmation Dialog */}
+      <Dialog open={isSuspendModalOpen} onOpenChange={setIsSuspendModalOpen}>
+        <DialogContent className='max-w-md bg-card border border-border shadow-xl'>
+          <DialogHeader className='space-y-2'>
+            <div className='w-10 h-10 rounded-xl bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 flex items-center justify-center'>
+              <AlertTriangle className='size-5' aria-hidden='true' />
+            </div>
+            <DialogTitle className='text-base font-bold font-heading text-foreground'>
+              Suspend Workspace Listing
+            </DialogTitle>
+            <DialogDescription className='text-xs text-muted-foreground'>
+              Please specify the reason for suspending <strong>{workspace.name}</strong> ({workspace.id}). The workspace will be immediately hidden from the customer marketplace.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className='space-y-2 py-2'>
+            <label htmlFor='suspendReason' className='text-xs font-semibold text-foreground'>
+              Suspension Reason (Required, min 5 chars)
+            </label>
+            <Textarea
+              id='suspendReason'
+              value={suspendReasonInput}
+              onChange={(e) => setSuspendReasonInput(e.target.value)}
+              placeholder='e.g., Immediate safety audit due to noisy machinery complaint or unverified lease extension...'
+              rows={3}
+              className='text-xs bg-background'
+            />
+          </div>
+
+          <DialogFooter className='gap-2 sm:gap-0'>
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              onClick={() => setIsSuspendModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type='button'
+              size='sm'
+              disabled={isSubmitting || suspendReasonInput.trim().length < 5}
+              onClick={() => {
+                if (suspendReasonInput.trim().length < 5) {
+                  toast.error('Suspension Reason Required', {
+                    description: 'Please provide at least 5 characters explaining the reason for suspension.'
+                  });
+                  return;
+                }
+                setIsSuspendModalOpen(false);
+                onToggleSuspend(workspace, suspendReasonInput.trim());
+              }}
+              className='bg-rose-600 hover:bg-rose-700 text-white font-semibold'
+            >
+              Confirm Suspension
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }

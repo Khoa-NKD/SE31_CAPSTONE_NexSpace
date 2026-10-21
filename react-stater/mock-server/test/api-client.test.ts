@@ -173,7 +173,8 @@ async function runClientTests() {
     // 14. Workspaces via apiClient (List & Pagination)
     console.log('\n--- Client Test 14: GET /workspaces via apiClient ---');
     const wsListResponse = await apiClient.get<any>('/workspaces', {
-      params: { page: 1, limit: 4 }
+      params: { page: 1, limit: 4 },
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
     assert(Array.isArray(wsListResponse?.content), 'apiClient unwraps envelope and returns content array');
     assert(wsListResponse?.content?.length === 4, 'apiClient respects pagination limit of 4');
@@ -181,21 +182,31 @@ async function runClientTests() {
 
     // 15. Workspace Detail by Reconciled Legacy Aliases via apiClient
     console.log('\n--- Client Test 15: GET /workspaces/:id Reconciled Legacy Aliases ---');
-    const ws101 = await apiClient.get<any>('/workspaces/1');
+    const ws101 = await apiClient.get<any>('/workspaces/1', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
     assert(ws101?.id === 'WS-101', 'apiClient resolves ID 1 to 72 Le Thanh Ton (WS-101)');
     assert(ws101?.name.includes('Central Tower'), 'Name matches Central Tower');
 
-    const ws104 = await apiClient.get<any>('/workspaces/2');
+    const ws104 = await apiClient.get<any>('/workspaces/2', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
     assert(ws104?.id === 'WS-104', 'apiClient resolves ID 2 to Bitexco (WS-104)');
 
-    const wsSgPrime = await apiClient.get<any>('/workspaces/ws-sg-prime-01');
+    const wsSgPrime = await apiClient.get<any>('/workspaces/ws-sg-prime-01', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
     assert(wsSgPrime?.id === 'WS-104', 'apiClient resolves ws-sg-prime-01 to Bitexco (WS-104)');
     assert(wsSgPrime?.name === 'NexSpace Saigon Prime Hub', 'Saigon Prime Hub name verified');
 
-    const ws108 = await apiClient.get<any>('/workspaces/westlake-loft-hanoi');
+    const ws108 = await apiClient.get<any>('/workspaces/westlake-loft-hanoi', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
     assert(ws108?.id === 'WS-108', 'apiClient resolves westlake-loft-hanoi to WS-108');
 
-    const ws120 = await apiClient.get<any>('/workspaces/ba-dinh-boardroom-hanoi');
+    const ws120 = await apiClient.get<any>('/workspaces/ba-dinh-boardroom-hanoi', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
     assert(ws120?.id === 'WS-120', 'apiClient resolves ba-dinh-boardroom-hanoi to WS-120');
 
     // 16. Workspace Creation via apiClient
@@ -208,6 +219,8 @@ async function runClientTests() {
       district: 'District 3',
       organizerId: 'USR-9432',
       pricePerHour: 2.5
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(Boolean(createdClientWs?.id), 'apiClient created workspace with ID: ' + createdClientWs?.id);
     assert(createdClientWs?.reviewStatus === 'Draft', 'New workspace starts in Draft status');
@@ -218,6 +231,8 @@ async function runClientTests() {
     const updatedClientWs = await apiClient.patch<any>(`/workspaces/${createdClientWs.id}`, {
       shortDescription: 'Updated via apiClient test',
       pricePerHour: 3.5
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(updatedClientWs?.shortDescription === 'Updated via apiClient test', 'Patched shortDescription via apiClient');
     assert(updatedClientWs?.pricePerHour === 3.5, 'Patched pricePerHour via apiClient');
@@ -228,12 +243,16 @@ async function runClientTests() {
     const lifecyclePaused = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
       action: 'pause',
       reason: 'apiClient testing pause'
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(lifecyclePaused?.operatingStatus === 'Inactive', 'Paused via apiClient');
     assert(lifecyclePaused?.isLive === false, 'isLive false via apiClient');
 
     const lifecycleResumed = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
       action: 'resume'
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(lifecycleResumed?.operatingStatus === 'Active', 'Resumed via apiClient');
     assert(lifecycleResumed?.isLive === true, 'isLive true via apiClient');
@@ -242,7 +261,9 @@ async function runClientTests() {
     console.log('\n--- Client Test 18: ApiError Handling on invalid POST /workspaces ---');
     let wsValidationError: IApiError | null = null;
     try {
-      await apiClient.post('/workspaces', { name: 'X', category: 'invalid_category' });
+      await apiClient.post('/workspaces', { name: 'X', category: 'invalid_category' }, {
+        headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
+      });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         wsValidationError = err;
@@ -263,21 +284,59 @@ async function runClientTests() {
 
     // 20. Admin Review & Moderation via apiClient
     console.log('\n--- Client Test 20: Admin Governance via apiClient ---');
-    const reviewedWs = await apiClient.patch<any>('/admin/workspaces/WS-108/review', {
-      reviewStatus: 'Approved',
-      reviewedBy: 'USR-1882'
+    const ws108ForReview = await apiClient.get<any>('/workspaces/WS-108', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
+    const reviewedWs = await apiClient.patch<any>(
+      '/admin/workspaces/WS-108/review',
+      {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        expectedVersion: ws108ForReview?.version || 1
+      },
+      {
+        headers: {
+          'x-mock-role': 'Administrator',
+          'x-mock-user-id': 'USR-1882'
+        }
+      }
+    );
     assert(reviewedWs?.reviewStatus === 'Approved', 'apiClient admin review succeeded');
 
-    const moderatedWs = await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', {
-      moderationStatus: 'Suspended',
-      suspendedBy: 'USR-1882',
-      suspendReason: 'Client test suspension'
+    const ws104ForMod = await apiClient.get<any>('/workspaces/WS-104', {
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
+    const moderatedWs = await apiClient.patch<any>(
+      '/admin/workspaces/WS-104/moderation',
+      {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882',
+        suspendReason: 'Client test suspension',
+        expectedVersion: ws104ForMod?.version || 1
+      },
+      {
+        headers: {
+          'x-mock-role': 'Administrator',
+          'x-mock-user-id': 'USR-1882'
+        }
+      }
+    );
     assert(moderatedWs?.moderationStatus === 'Suspended', 'apiClient admin moderation succeeded');
 
     // Restore WS-104
-    await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', { moderationStatus: 'Normal' });
+    await apiClient.patch<any>(
+      '/admin/workspaces/WS-104/moderation',
+      {
+        moderationStatus: 'Normal',
+        expectedVersion: moderatedWs?.version || 2
+      },
+      {
+        headers: {
+          'x-mock-role': 'Administrator',
+          'x-mock-user-id': 'USR-1882'
+        }
+      }
+    );
 
     // 21. Cleanup reset
     console.log('\n--- Client Test 21: Reset via apiClient ---');

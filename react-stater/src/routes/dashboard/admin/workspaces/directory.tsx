@@ -1,20 +1,24 @@
-import React, { useState, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, ArrowLeft } from 'lucide-react';
+import { FileDown, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  INITIAL_WORKSPACE_DIRECTORY,
-  MOCK_DIRECTORY_KPIS,
   WorkspaceDirectoryItem,
-  WorkspaceStatus
+  WorkspaceStatus,
+  mapCanonicalToDirectoryItem
 } from '@/features/admin-workspaces/data/mock-workspaces-directory';
 import { WorkspaceDirectoryFilters } from '@/features/admin-workspaces/components/workspace-directory-filters';
 import { WorkspaceDirectoryTable } from '@/features/admin-workspaces/components/workspace-directory-table';
 import { WorkspaceDetailsDrawer } from '@/features/admin-workspaces/components/workspace-details-drawer';
+import {
+  useWorkspacesQuery,
+  useAdminReviewWorkspaceMutation,
+  useAdminModerateWorkspaceMutation
+} from '@/features/workspaces/api';
 
 const directorySearchSchema = z.object({
   search: z.string().optional(),
@@ -37,9 +41,9 @@ export const Route = createFileRoute('/dashboard/admin/workspaces/directory')({
   component: WorkspaceDirectoryPage
 });
 
-function handleExportDirectory() {
+function handleExportDirectory(count: number) {
   toast.success('Workspace Directory Exported (CSV)', {
-    description: 'Downloaded metadata and compliance records for 618 workspaces.'
+    description: `Exported directory records for ${count} workspaces.`
   });
 }
 
@@ -47,14 +51,55 @@ function WorkspaceDirectoryPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
 
-  const [workspaces, setWorkspaces] = useState<WorkspaceDirectoryItem[]>(INITIAL_WORKSPACE_DIRECTORY);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceDirectoryItem | null>(() => {
-    if (searchParams.hubId) {
-      return INITIAL_WORKSPACE_DIRECTORY.find((w) => w.id === searchParams.hubId) || null;
-    }
-    return null;
+  // 1. Fetch real canonical workspaces from centralized Workspace REST API
+  const {
+    data: workspacesResponse,
+    isLoading,
+    isError,
+    error,
+    refetch,
+    isFetching
+  } = useWorkspacesQuery({
+    role: 'Administrator',
+    limit: 100
   });
-  const [isDrawerOpen, setIsDrawerOpen] = useState(() => Boolean(searchParams.hubId));
+
+  // 2. Administrator Review and Moderation mutations
+  const reviewMutation = useAdminReviewWorkspaceMutation();
+  const moderateMutation = useAdminModerateWorkspaceMutation();
+
+  const isSubmitting = reviewMutation.isPending || moderateMutation.isPending;
+
+  // 3. Map canonical workspaces to directory items
+  const content = workspacesResponse?.content;
+  const workspaces: WorkspaceDirectoryItem[] = useMemo(() => {
+    if (!content) return [];
+    return content.map(mapCanonicalToDirectoryItem);
+  }, [content]);
+
+  // 4. Calculate dynamic summary KPIs from persisted data
+  const directoryKpis = useMemo(() => {
+    const totalCount = workspaces.length;
+    const pendingReviewCount = workspaces.filter((w) => w.reviewStatus === 'Pending').length;
+    const activeCount = workspaces.filter(
+      (w) => w.reviewStatus === 'Approved' && w.moderationStatus === 'Normal'
+    ).length;
+    const suspendedCount = workspaces.filter((w) => w.moderationStatus === 'Suspended').length;
+    return {
+      totalCount,
+      pendingReviewCount,
+      activeCount,
+      suspendedCount
+    };
+  }, [workspaces]);
+
+  // 5. Drawer selection synced with query param
+  const selectedWorkspace = useMemo(() => {
+    if (!searchParams.hubId) return null;
+    return workspaces.find((w) => w.id === searchParams.hubId) || null;
+  }, [searchParams.hubId, workspaces]);
+
+  const isDrawerOpen = Boolean(searchParams.hubId);
 
   const searchQuery = searchParams.search || '';
   const statusFilter = (searchParams.status as WorkspaceStatus | 'all') || 'all';
@@ -113,8 +158,6 @@ function WorkspaceDirectoryPage() {
   };
 
   const handleSelectWorkspace = (workspace: WorkspaceDirectoryItem) => {
-    setSelectedWorkspace(workspace);
-    setIsDrawerOpen(true);
     navigate({
       search: (prev) => ({ ...prev, hubId: workspace.id }),
       replace: true,
@@ -123,7 +166,6 @@ function WorkspaceDirectoryPage() {
   };
 
   const handleCloseDrawer = () => {
-    setIsDrawerOpen(false);
     navigate({
       search: (prev) => {
         const next = { ...prev };
@@ -135,37 +177,82 @@ function WorkspaceDirectoryPage() {
     });
   };
 
-  const handleApprove = (item: WorkspaceDirectoryItem) => {
-    setWorkspaces((prev) =>
-      prev.map((w) => (w.id === item.id ? { ...w, status: 'active' as WorkspaceStatus } : w))
-    );
-    setSelectedWorkspace((prev) => (prev?.id === item.id ? { ...prev, status: 'active' } : prev));
-    toast.success(`Workspace Approved & Published`, {
-      description: `${item.name} (#${item.id}) is now active and indexed on the consumer marketplace.`
-    });
+  const handleApprove = async (item: WorkspaceDirectoryItem) => {
+    try {
+      await reviewMutation.mutateAsync({
+        id: item.id,
+        dto: {
+          reviewStatus: 'Approved',
+          reviewedBy: 'USR-1882',
+          reviewFeedback: 'Approved by Administrator.',
+          expectedVersion: item.version ?? 1
+        },
+        workspaceName: item.name
+      });
+    } catch {
+      // Error handled by mutation onError
+    }
   };
 
-  const handleReject = (item: WorkspaceDirectoryItem, reason: string) => {
-    setWorkspaces((prev) =>
-      prev.map((w) => (w.id === item.id ? { ...w, status: 'suspended' as WorkspaceStatus, moderatorNotes: reason } : w))
-    );
-    setSelectedWorkspace((prev) =>
-      prev?.id === item.id ? { ...prev, status: 'suspended', moderatorNotes: reason } : prev
-    );
-    toast.error(`Workspace Listing Returned`, {
-      description: `Correction request sent to ${item.organizerLegalName}. Feedback logged.`
-    });
+  const handleReject = async (item: WorkspaceDirectoryItem, reason: string) => {
+    if (!reason || reason.trim().length < 5) {
+      toast.error('Rejection Reason Required', {
+        description: 'Please provide at least 5 characters explaining what needs correction.'
+      });
+      return;
+    }
+    try {
+      await reviewMutation.mutateAsync({
+        id: item.id,
+        dto: {
+          reviewStatus: 'Rejected',
+          reviewedBy: 'USR-1882',
+          reviewFeedback: reason.trim(),
+          expectedVersion: item.version ?? 1
+        },
+        workspaceName: item.name
+      });
+    } catch {
+      // Error handled by mutation onError
+    }
   };
 
-  const handleToggleSuspend = (item: WorkspaceDirectoryItem) => {
-    const nextStatus: WorkspaceStatus = item.status === 'active' ? 'suspended' : 'active';
-    setWorkspaces((prev) =>
-      prev.map((w) => (w.id === item.id ? { ...w, status: nextStatus } : w))
-    );
-    setSelectedWorkspace((prev) => (prev?.id === item.id ? { ...prev, status: nextStatus } : prev));
-    toast.info(`Status Updated`, {
-      description: `${item.name} (#${item.id}) transitioned to ${nextStatus}.`
-    });
+  const handleToggleSuspend = async (item: WorkspaceDirectoryItem, reason?: string) => {
+    if (item.status === 'active') {
+      if (!reason || reason.trim().length < 5) {
+        toast.error('Suspension Reason Required', {
+          description: 'A reason of at least 5 characters is required to suspend a workspace.'
+        });
+        return;
+      }
+      try {
+        await moderateMutation.mutateAsync({
+          id: item.id,
+          dto: {
+            moderationStatus: 'Suspended',
+            suspendedBy: 'USR-1882',
+            suspendReason: reason.trim(),
+            expectedVersion: item.version ?? 1
+          },
+          workspaceName: item.name
+        });
+      } catch {
+        // Error handled by mutation onError
+      }
+    } else {
+      try {
+        await moderateMutation.mutateAsync({
+          id: item.id,
+          dto: {
+            moderationStatus: 'Normal',
+            expectedVersion: item.version ?? 1
+          },
+          workspaceName: item.name
+        });
+      } catch {
+        // Error handled by mutation onError
+      }
+    }
   };
 
   return (
@@ -195,7 +282,18 @@ function WorkspaceDirectoryPage() {
             <Button
               variant='outline'
               size='sm'
-              onClick={handleExportDirectory}
+              disabled={isFetching}
+              onClick={() => refetch()}
+              className='gap-2 shadow-2xs'
+            >
+              <RefreshCw className={`size-3.5 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} aria-hidden='true' />
+              <span>Refresh</span>
+            </Button>
+
+            <Button
+              variant='outline'
+              size='sm'
+              onClick={() => handleExportDirectory(workspaces.length)}
               className='gap-2 shadow-2xs'
             >
               <FileDown className='size-4 text-muted-foreground' aria-hidden='true' />
@@ -212,16 +310,39 @@ function WorkspaceDirectoryPage() {
           onStatusChange={handleStatusChange}
           selectedCity={selectedCity}
           onCityChange={handleCityChange}
-          kpis={MOCK_DIRECTORY_KPIS}
+          kpis={directoryKpis}
           onReset={handleResetFilters}
         />
 
+        {/* Loading and Error States */}
+        {isLoading && (
+          <div className='p-12 text-center bg-card rounded-xl border border-border shadow-2xs flex flex-col items-center justify-center gap-3'>
+            <RefreshCw className='size-6 text-primary animate-spin' aria-hidden='true' />
+            <p className='text-xs text-muted-foreground'>Loading platform workspaces from centralized REST API...</p>
+          </div>
+        )}
+
+        {isError && (
+          <div className='p-8 text-center bg-card rounded-xl border border-rose-300 dark:border-rose-900/60 shadow-2xs flex flex-col items-center justify-center gap-3'>
+            <AlertCircle className='size-8 text-rose-600 dark:text-rose-400' aria-hidden='true' />
+            <h3 className='text-sm font-semibold text-foreground'>Failed to load workspace inventory</h3>
+            <p className='text-xs text-muted-foreground max-w-md'>
+              {error instanceof Error ? error.message : 'The server returned an error while retrieving workspaces.'}
+            </p>
+            <Button variant='outline' size='sm' onClick={() => refetch()} className='mt-2'>
+              Retry Request
+            </Button>
+          </div>
+        )}
+
         {/* Inventory Table */}
-        <WorkspaceDirectoryTable
-          items={filteredWorkspaces}
-          selectedWorkspaceId={selectedWorkspace?.id}
-          onSelectWorkspace={handleSelectWorkspace}
-        />
+        {!isLoading && !isError && (
+          <WorkspaceDirectoryTable
+            items={filteredWorkspaces}
+            selectedWorkspaceId={selectedWorkspace?.id}
+            onSelectWorkspace={handleSelectWorkspace}
+          />
+        )}
 
         {/* Slide-over Inspection Drawer */}
         <WorkspaceDetailsDrawer
@@ -231,6 +352,7 @@ function WorkspaceDirectoryPage() {
           onApprove={handleApprove}
           onReject={handleReject}
           onToggleSuspend={handleToggleSuspend}
+          isSubmitting={isSubmitting}
         />
       </div>
     </PageContainer>
