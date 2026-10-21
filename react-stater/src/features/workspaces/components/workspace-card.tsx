@@ -15,10 +15,12 @@ import {
   Calendar,
   Shield,
   Printer,
-  Car
+  Car,
+  Building
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import type { PublicWorkspaceSummary } from '../api/types';
 
 export interface Workspace {
   id: string;
@@ -38,8 +40,10 @@ export interface Workspace {
   isFastFilling?: boolean;
 }
 
+export type WorkspaceItem = PublicWorkspaceSummary | Workspace;
+
 interface WorkspaceCardProps {
-  workspace: Workspace;
+  workspace: WorkspaceItem;
   isActive?: boolean;
 }
 
@@ -63,10 +67,70 @@ import { useCurrency } from '@/features/landing/context/currency-context';
 export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
   const { formatPrice } = useCurrency();
 
+  const id = workspace.id;
+  const name = workspace.name;
+  const rating = workspace.rating || 0;
+  const reviews = 'reviewsCount' in workspace ? workspace.reviewsCount : ('reviews' in workspace ? workspace.reviews : 0);
+  const pricePerHour = workspace.pricePerHour || 0;
+  const pricePerDay = workspace.pricePerDay || 0;
+  const availableDesks = 'capacityDesks' in workspace ? (workspace.capacityDesks ?? 0) : ('availableDesks' in workspace ? workspace.availableDesks : 0);
+
+  const neighborhood =
+    'district' in workspace && workspace.district
+      ? `${workspace.district}${workspace.city ? `, ${workspace.city}` : ''}`
+      : 'neighborhood' in workspace && workspace.neighborhood
+      ? workspace.neighborhood
+      : 'city' in workspace && workspace.city
+      ? workspace.city
+      : 'Location upon request';
+
+  const address =
+    'streetAddress' in workspace && workspace.streetAddress
+      ? workspace.streetAddress
+      : 'address' in workspace && workspace.address
+      ? workspace.address
+      : '';
+
+  const distance =
+    'distance' in workspace && workspace.distance
+      ? workspace.distance
+      : '';
+
+  const imageUrl =
+    'coverImageUrl' in workspace && workspace.coverImageUrl
+      ? workspace.coverImageUrl
+      : 'imageUrl' in workspace && workspace.imageUrl
+      ? workspace.imageUrl
+      : 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80';
+
+  const imageAlt = 'imageAlt' in workspace ? workspace.imageAlt : name;
+  const tags = workspace.tags || [];
+  const isFastFilling = 'isFastFilling' in workspace ? workspace.isFastFilling : false;
+
+  const normalizedAmenities: { icon: string; label: string }[] = React.useMemo(() => {
+    if (!workspace.amenities || !Array.isArray(workspace.amenities)) return [];
+    return workspace.amenities.slice(0, 4).map((a) => {
+      if (typeof a === 'string') {
+        const lower = a.toLowerCase();
+        let icon = 'wifi';
+        if (lower.includes('desk') || lower.includes('chair')) icon = 'desk';
+        else if (lower.includes('coffee') || lower.includes('cafe')) icon = 'coffee';
+        else if (lower.includes('hour') || lower.includes('24/7') || lower.includes('clock')) icon = 'clock';
+        else if (lower.includes('monitor') || lower.includes('screen')) icon = 'monitor';
+        else if (lower.includes('pod') || lower.includes('room') || lower.includes('door')) icon = 'door';
+        else if (lower.includes('park')) icon = 'park';
+        else if (lower.includes('print')) icon = 'print';
+        else if (lower.includes('car')) icon = 'car';
+        return { icon, label: a };
+      }
+      return a;
+    });
+  }, [workspace.amenities]);
+
   return (
     <Link
       to="/workspaces/$workspaceId"
-      params={{ workspaceId: workspace.id }}
+      params={{ workspaceId: id }}
       className={cn(
         'group relative overflow-hidden rounded-xl border bg-card transition-all duration-300 shrink-0 flex flex-col sm:flex-row sm:min-h-[170px] hover:-translate-y-1 hover:shadow-lg cursor-pointer',
         isActive
@@ -77,30 +141,30 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
       {/* Photo */}
       <div className="relative shrink-0 overflow-hidden bg-muted w-full h-[160px] sm:h-auto sm:w-[240px]">
         <img
-          alt={workspace.imageAlt}
-          src={workspace.imageUrl}
+          alt={imageAlt}
+          src={imageUrl}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        
+
         <div className="absolute left-3 top-3 z-10 flex flex-col gap-1.5">
-          {workspace.isFastFilling ? (
+          {isFastFilling ? (
             <Badge variant="secondary" className="flex items-center gap-1 border-amber-500/20 bg-amber-500/90 text-white hover:bg-amber-500 px-2 py-0.5 h-5 text-[10px] rounded font-semibold shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 cursor-default">
               <Clock className="h-3 w-3" />
               Fast Filling
             </Badge>
           ) : (
-            <Badge variant="secondary" className="flex items-center gap-1 border-emerald-500/20 bg-emerald-500/90 text-white hover:bg-emerald-500 px-2 py-0.5 h-5 text-[10px] rounded font-semibold shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 cursor-default">
-              <Zap className="h-3 w-3" />
-              Instant Booking
+            <Badge variant="secondary" className="flex items-center gap-1 border-primary/20 bg-primary/90 text-white hover:bg-primary px-2 py-0.5 h-5 text-[10px] rounded font-semibold shadow-sm backdrop-blur-md transition-all duration-200 hover:scale-105 cursor-default">
+              <Building className="h-3 w-3" />
+              Listed Workspace
             </Badge>
           )}
-          {workspace.tags.includes('Verified Host') && (
+          {tags.includes('Verified Host') && (
             <Badge variant="outline" className="bg-background/95 text-foreground shadow-sm px-2 py-0.5 h-5 text-[10px] rounded font-semibold border-none transition-all duration-200 hover:bg-background hover:scale-105 cursor-default">
-              Verified Host
+              Partner Host
             </Badge>
           )}
         </div>
-        
+
         <button
           aria-label="Save to favorites"
           onClick={(e) => {
@@ -118,29 +182,33 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
         {/* Header: Neighborhood & Rating */}
         <div className="flex items-start justify-between gap-2">
           <span className="text-[10px] font-bold uppercase tracking-wider text-[#4b41e1] truncate block mb-1">
-            {workspace.neighborhood}
+            {neighborhood}
           </span>
           <div className="flex shrink-0 items-center gap-1">
             <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-            <span className="text-sm font-bold text-foreground leading-none">{workspace.rating}</span>
-            <span className="text-[11px] text-muted-foreground hidden sm:inline-block leading-none">({workspace.reviews})</span>
+            <span className="text-sm font-bold text-foreground leading-none">{rating}</span>
+            <span className="text-[11px] text-muted-foreground hidden sm:inline-block leading-none">({reviews})</span>
           </div>
         </div>
 
         {/* Title */}
         <h2 className="text-base font-semibold leading-tight text-foreground transition-colors hover:text-[#4b41e1] cursor-pointer line-clamp-2 pr-4">
-          {workspace.name}
+          {name}
         </h2>
 
         {/* Location / Distance */}
         <div className="mt-1.5 flex items-center text-xs text-muted-foreground gap-1.5">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-muted-foreground/70" />
-          <span className="truncate">{workspace.address} <span className="hidden sm:inline-block mx-1 text-muted-foreground/40">•</span> <span className="hidden sm:inline-block text-muted-foreground/80">{workspace.distance}</span></span>
+          <span className="truncate">
+            {address}
+            {address && distance ? <span className="hidden sm:inline-block mx-1 text-muted-foreground/40">•</span> : null}
+            {distance ? <span className="hidden sm:inline-block text-muted-foreground/80">{distance}</span> : null}
+          </span>
         </div>
 
         {/* Amenities */}
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {workspace.amenities.map((amenity, idx) => {
+          {normalizedAmenities.map((amenity, idx) => {
             const Icon = iconMap[amenity.icon] || Zap;
             return (
               <div key={idx} className="flex items-center gap-1 rounded bg-muted/50 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
@@ -155,15 +223,21 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
         <div className="mt-auto pt-3 flex items-end justify-between">
           <div className="flex flex-col">
             <span className="text-xs font-medium text-muted-foreground">
-              <span className="text-emerald-500 font-semibold">{workspace.availableDesks} desks</span> available
+              {availableDesks > 0 ? (
+                <>
+                  <span className="text-foreground font-semibold">{availableDesks} desks</span> capacity
+                </>
+              ) : (
+                <span>Capacity upon request</span>
+              )}
             </span>
           </div>
           <div className="flex flex-col items-end">
             <div className="flex items-baseline gap-1">
-              <span className="text-lg font-bold text-foreground leading-none">{formatPrice(workspace.pricePerHour)}</span>
+              <span className="text-lg font-bold text-foreground leading-none">{formatPrice(pricePerHour)}</span>
               <span className="text-[11px] font-medium text-muted-foreground">/hr</span>
             </div>
-            <span className="text-[10px] text-muted-foreground mt-0.5 font-medium">{formatPrice(workspace.pricePerDay)}/day</span>
+            <span className="text-[10px] text-muted-foreground mt-0.5 font-medium">{formatPrice(pricePerDay)}/day</span>
           </div>
         </div>
       </div>

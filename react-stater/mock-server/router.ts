@@ -23,6 +23,7 @@ import {
   handleGetWorkspaceById,
   handleGetPublicWorkspaces,
   handleGetPublicWorkspaceById,
+  handleGetAdminWorkspaceKpis,
   handleCreateWorkspace,
   handleUpdateWorkspace,
   handleWorkspaceLifecycle,
@@ -276,7 +277,13 @@ export async function handleRequest(
     return;
   }
 
-  // 13. Admin Workspace Review Governance: PATCH/PUT /api/v1/admin/workspaces/:id/review
+  // 13. Admin Workspace KPIs (A06): GET /api/v1/admin/workspaces/kpis
+  if (pathname === '/api/v1/admin/workspaces/kpis' && method === 'GET') {
+    await handleGetAdminWorkspaceKpis(req, res);
+    return;
+  }
+
+  // 14. Admin Workspace Review Governance: PATCH/PUT /api/v1/admin/workspaces/:id/review
   const adminReviewMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/review$/);
   if (adminReviewMatch && (method === 'PATCH' || method === 'PUT')) {
     const workspaceId = adminReviewMatch[1];

@@ -406,7 +406,7 @@ export async function handleGetPublicWorkspaces(
 
     filtered.sort((a, b) => {
       if (sortBy === 'rating') {
-        return ((a.rating || 0) - (b.rating || 0)) * (sortOrder === 1 ? -1 : 1);
+        return ((a.rating || 0) - (b.rating || 0)) * sortOrder;
       }
       if (sortBy === 'pricePerHour') {
         return ((a.pricePerHour || 0) - (b.pricePerHour || 0)) * sortOrder;
@@ -2044,6 +2044,139 @@ export async function handleWorkspaceSubmit(
         status: 500,
         error: 'InternalServerError',
         message: err instanceof Error ? err.message : 'Failed to submit workspace',
+        timestamp: new Date().toISOString()
+      })
+    );
+  }
+}
+
+/**
+ * GET /api/v1/admin/workspaces/kpis
+ * Dedicated Administrator endpoint for platform-wide workspace KPIs.
+ * Computes metrics across the full canonical dataset independent of pagination.
+ */
+export async function handleGetAdminWorkspaceKpis(
+  req: IncomingMessage,
+  res: ServerResponse
+): Promise<void> {
+  try {
+    const users = await storage.getAll<{ id: string; role: string }>('users');
+    const caller = resolveCallerContext(req, users);
+
+    if (!caller.valid) {
+      res.writeHead(caller.status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: caller.status,
+          error: caller.errorCode,
+          message: caller.errorMessage,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.isAdmin) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Administrator authority required to access workspace KPIs.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.userId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Administrator identity required to access workspace KPIs.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const validAdminIds = new Set(
+      users.filter((u) => u.role === 'Administrator').map((u) => u.id)
+    );
+
+    if (!validAdminIds.has(caller.userId)) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: `Forbidden: User '${caller.userId}' is not an authorized Administrator.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const allWorkspaces = await getAllNormalizedWorkspaces();
+    const now = Date.now();
+
+    const published = allWorkspaces.filter(isPubliclyEligible).length;
+    const pending = allWorkspaces.filter((w) => w.reviewStatus === 'Pending').length;
+    const suspended = allWorkspaces.filter((w) => w.moderationStatus === 'Suspended').length;
+    const drafts = allWorkspaces.filter((w) => w.reviewStatus === 'Draft').length;
+
+    let oldestHours = 0;
+    const pendingSpaces = allWorkspaces.filter((w) => w.reviewStatus === 'Pending');
+    if (pendingSpaces.length > 0) {
+      const timestamps = pendingSpaces
+        .map((w) => (w.submittedAt ? new Date(w.submittedAt).getTime() : 0))
+        .filter((t) => t > 0);
+      if (timestamps.length > 0) {
+        const earliest = Math.min(...timestamps);
+        oldestHours = Math.max(0, Math.floor((now - earliest) / (1000 * 60 * 60)));
+      }
+    }
+
+    const cities = new Set(allWorkspaces.map((w) => w.city).filter(Boolean));
+    const metroCount = cities.size;
+
+    const kpiData = {
+      totalWorkspaces: allWorkspaces.length,
+      totalPublishedSpaces: published,
+      publishedMonthlyGrowth: null,
+      metroHubsCount: metroCount,
+      pendingModerationCount: pending,
+      pendingOldestHours: oldestHours,
+      suspendedCount: suspended,
+      suspendedGrievanceDetails:
+        suspended > 0
+          ? `${suspended} workspace(s) currently suspended by admin action`
+          : 'No active suspensions',
+      partnerDraftsCount: drafts
+    };
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: kpiData,
+        timestamp: new Date().toISOString()
+      })
+    );
+  } catch (err: unknown) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        status: 500,
+        error: 'InternalServerError',
+        message: err instanceof Error ? err.message : 'Failed to retrieve workspace KPIs',
         timestamp: new Date().toISOString()
       })
     );

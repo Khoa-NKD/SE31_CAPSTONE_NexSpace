@@ -16,6 +16,8 @@
     "test:c3:gate": "node --experimental-strip-types mock-server/test/phase-c3-acceptance-gate.test.ts",
     "test:c3:upload": "node --experimental-strip-types mock-server/test/phase-c3-1-upload-concurrency.test.ts",
     "test:c4": "node --experimental-strip-types mock-server/test/phase-c4-admin-review.test.ts",
+    "test:c5": "node --experimental-strip-types mock-server/test/phase-c5-integration.test.ts",
+    "test:c5:playwright": "node --experimental-strip-types mock-server/test/playwright-c5-verification.ts",
     "build": "vite build",
     "start": "node .output/server/index.mjs",
     "lint": "oxlint",

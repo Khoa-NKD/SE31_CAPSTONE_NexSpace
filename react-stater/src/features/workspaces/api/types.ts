@@ -381,3 +381,15 @@ export function isWorkspacePubliclyEligible(
     w.isListingVisible === true
   );
 }
+
+export interface AdminWorkspaceKpisDto {
+  totalWorkspaces: number;
+  totalPublishedSpaces: number;
+  publishedMonthlyGrowth: number | null;
+  metroHubsCount: number;
+  pendingModerationCount: number;
+  pendingOldestHours: number;
+  suspendedCount: number;
+  suspendedGrievanceDetails: string;
+  partnerDraftsCount: number;
+}

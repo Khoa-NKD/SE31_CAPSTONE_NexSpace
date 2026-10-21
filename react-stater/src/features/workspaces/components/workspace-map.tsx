@@ -1,13 +1,31 @@
 import React from 'react';
-import { RefreshCw, LocateFixed, Plus, Minus, Zap } from 'lucide-react';
+import { RefreshCw, LocateFixed, Plus, Minus, Building, MapPin } from 'lucide-react';
+import type { PublicWorkspaceSummary } from '../api/types';
 
-export function WorkspaceMap() {
+interface WorkspaceMapProps {
+  workspaces?: PublicWorkspaceSummary[];
+}
+
+// Deterministic schematic layout anchors (percentages) for up to 6 nodes
+const SCHEMATIC_COORDINATES = [
+  { left: '50%', top: '44%' },
+  { left: '72%', top: '38%' },
+  { left: '34%', top: '58%' },
+  { left: '62%', top: '68%' },
+  { left: '38%', top: '28%' },
+  { left: '78%', top: '64%' }
+];
+
+export function WorkspaceMap({ workspaces = [] }: WorkspaceMapProps) {
+  const hasWorkspaces = workspaces && workspaces.length > 0;
+  const primary = hasWorkspaces ? workspaces[0] : null;
+
   return (
     <section 
       className="hidden h-full w-1/2 relative overflow-hidden border-l border-border bg-[#E2E8F0] lg:block"
-      data-location="Ho Chi Minh City"
+      data-location="Schematic Metro Network"
     >
-      {/* Architectural Vector Canvas Mockup representing District 1, HCMC */}
+      {/* Abstract Modern Architectural & Metro Schematic Canvas */}
       <div 
         className="absolute inset-0 h-full w-full"
         style={{
@@ -17,54 +35,57 @@ export function WorkspaceMap() {
         }}
       >
         <svg className="h-full w-full object-cover" fill="none" viewBox="0 0 1000 800" xmlns="http://www.w3.org/2000/svg">
-          {/* Saigon River Curve */}
-          <path d="M720,0 C680,180 820,380 910,520 C960,600 980,720 1000,800 L1000,0 Z" fill="#D3E4FE" opacity="0.75" />
-          <path d="M720,0 C680,180 820,380 910,520 C960,600 980,720 1000,800" fill="none" opacity="0.6" stroke="#93C5FD" strokeWidth="6" />
+          {/* Curving River / Waterway Corridor */}
+          <path d="M720,0 C680,180 820,380 910,520 C960,600 980,720 1000,800 L1000,0 Z" fill="#D3E4FE" opacity="0.45" />
+          <path d="M720,0 C680,180 820,380 910,520 C960,600 980,720 1000,800" fill="none" opacity="0.4" stroke="#93C5FD" strokeWidth="4" />
           
-          {/* 23-9 Park & Botanical Gardens green spaces */}
-          <rect fill="#D1FAE5" height="70" opacity="0.6" rx="8" width="240" x="80" y="560" />
-          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="600" x="140" y="600">23 Tháng 9 Park</text>
+          {/* Neutral Green Zones */}
+          <rect fill="#D1FAE5" height="70" opacity="0.4" rx="8" width="220" x="80" y="560" />
+          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="600" x="140" y="600">Metro Green Park</text>
           
-          <circle cx="560" cy="140" fill="#D1FAE5" opacity="0.5" r="85" />
-          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="600" x="500" y="145">Saigon Zoo & Botanical</text>
+          <circle cx="560" cy="140" fill="#D1FAE5" opacity="0.35" r="70" />
+          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="10" fontWeight="600" x="515" y="145">Civic Garden Zone</text>
           
-          <rect fill="#D1FAE5" height="90" opacity="0.4" rx="6" width="160" x="260" y="240" />
-          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="12" fontWeight="600" x="290" y="290">Tao Dan Park</text>
+          <rect fill="#D1FAE5" height="80" opacity="0.3" rx="6" width="140" x="260" y="240" />
+          <text fill="#047857" fontFamily="Inter, sans-serif" fontSize="11" fontWeight="600" x="290" y="285">Central Commons</text>
           
-          {/* Major Arterial Roads */}
-          <line stroke="#CBD5E1" strokeLinecap="round" strokeWidth="12" x1="200" x2="680" y1="200" y2="280" />
-          <line stroke="#FFFFFF" strokeLinecap="round" strokeWidth="8" x1="200" x2="680" y1="200" y2="280" />
-          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="10" fontWeight="600" letterSpacing="1" x="370" y="235">ĐƯỜNG LÊ DUẨN</text>
+          {/* Abstract Metro Transit Lines */}
+          <line stroke="#CBD5E1" strokeLinecap="round" strokeWidth="10" x1="180" x2="680" y1="200" y2="280" />
+          <line stroke="#FFFFFF" strokeLinecap="round" strokeWidth="6" x1="180" x2="680" y1="200" y2="280" />
+          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" letterSpacing="1" x="370" y="235">METRO CORRIDOR A</text>
           
-          <line stroke="#CBD5E1" strokeLinecap="round" strokeWidth="14" x1="380" x2="780" y1="520" y2="400" />
-          <line stroke="#FFFFFF" strokeLinecap="round" strokeWidth="10" x1="380" x2="780" y1="520" y2="400" />
-          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="10" fontWeight="600" letterSpacing="1" x="520" y="470">PHỐ ĐI BỘ NGUYỄN HUỆ</text>
+          <line stroke="#CBD5E1" strokeLinecap="round" strokeWidth="12" x1="360" x2="780" y1="520" y2="400" />
+          <line stroke="#FFFFFF" strokeLinecap="round" strokeWidth="8" x1="360" x2="780" y1="520" y2="400" />
+          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" letterSpacing="1" x="520" y="470">AVENUE TRANSIT B</text>
           
-          <line stroke="#E2E8F0" strokeWidth="7" x1="410" x2="720" y1="460" y2="350" />
-          <line stroke="#FFFFFF" strokeWidth="4" x1="410" x2="720" y1="460" y2="350" />
+          <line stroke="#E2E8F0" strokeWidth="6" x1="410" x2="720" y1="460" y2="350" />
+          <line stroke="#FFFFFF" strokeWidth="3" x1="410" x2="720" y1="460" y2="350" />
           
-          <line stroke="#CBD5E1" strokeWidth="9" x1="280" x2="650" y1="410" y2="330" />
-          <line stroke="#FFFFFF" strokeWidth="6" x1="280" x2="650" y1="410" y2="330" />
-          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" letterSpacing="0.5" x="410" y="365">LÊ THÁNH TÔN</text>
-          
-          {/* Ben Thanh Market Landmark Footprint */}
-          <rect fill="#F8FAFC" height="45" rx="4" stroke="#94A3B8" strokeWidth="1.5" width="55" x="290" y="490" />
-          <text fill="#475569" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" x="294" y="516">Bến Thành</text>
-          
-          {/* Notre Dame Cathedral Landmark */}
-          <polygon fill="#FEE2E2" points="410,240 435,215 450,245 425,270" stroke="#F87171" strokeWidth="1" />
-          <text fill="#991B1B" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="600" x="410" y="285">Notre Dame</text>
-          
-          {/* Bitexco Financial Tower Footprint */}
-          <circle cx="730" cy="460" fill="#E2E8F0" r="18" stroke="#64748B" strokeWidth="2" />
-          <text fill="#334155" fontFamily="Inter, sans-serif" fontSize="9" fontWeight="700" x="712" y="495">Bitexco</text>
+          <line stroke="#CBD5E1" strokeWidth="8" x1="260" x2="650" y1="410" y2="330" />
+          <line stroke="#FFFFFF" strokeWidth="5" x1="260" x2="650" y1="410" y2="330" />
+          <text fill="#64748B" fontFamily="Inter, sans-serif" fontSize="8" fontWeight="600" letterSpacing="0.5" x="410" y="365">CENTRAL LINK</text>
         </svg>
       </div>
 
+      {/* Empty State Overlay when no workspaces match filter */}
+      {!hasWorkspaces && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-6 text-center z-20 pointer-events-none">
+          <div className="bg-card/95 border rounded-2xl p-6 shadow-lg backdrop-blur-md max-w-sm pointer-events-auto">
+            <div className="w-12 h-12 rounded-xl bg-muted flex items-center justify-center text-muted-foreground mx-auto mb-3">
+              <MapPin className="w-6 h-6 text-primary" />
+            </div>
+            <h3 className="text-base font-bold text-foreground">No Workspaces in Current View</h3>
+            <p className="text-xs text-muted-foreground mt-1.5 leading-relaxed">
+              Adjust filters or clear search query to display active workspace nodes on the map.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* MAP CONTROLS */}
-      {/* Top Center: Floating "Search This Area" Pill */}
+      {/* Top Center: Floating Search This Area Pill */}
       <div className="absolute left-1/2 top-5 z-20 -translate-x-1/2">
-        <button className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2 text-sm font-semibold text-foreground shadow-[0_10px_15px_-3px_rgba(15,23,42,0.09)] backdrop-blur-md transition-all hover:border-[#4b41e1] hover:bg-card">
+        <button className="flex items-center gap-2 rounded-full border border-border bg-card/95 px-4 py-2 text-sm font-semibold text-foreground shadow-sm backdrop-blur-md transition-all hover:border-[#4b41e1] hover:bg-card cursor-pointer">
           <RefreshCw className="h-4 w-4 animate-spin text-[#4b41e1]" style={{ animationDuration: '3s' }} />
           <span>Search this area</span>
         </button>
@@ -109,82 +130,76 @@ export function WorkspaceMap() {
       </div>
 
       {/* Bottom Left: Map Legend & Telemetry Status */}
-      <div className="absolute bottom-6 left-6 z-20 flex items-center gap-3 rounded-lg border border-border bg-card/95 px-3.5 py-2 shadow-md backdrop-blur-md">
-        <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground">
-          <span className="h-2 w-2 rounded-full bg-emerald-500" />
-          <span>Available Now</span>
-        </div>
-        <span className="text-[11px] text-muted-foreground/70">•</span>
+      <div className="absolute bottom-6 left-6 z-20 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 rounded-lg border border-border bg-card/95 px-3.5 py-2 shadow-md backdrop-blur-md">
         <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-foreground">
           <span className="h-2 w-2 rounded-full bg-[#4b41e1]" />
-          <span>Instant Book</span>
+          <span>Listed Workspace</span>
         </div>
+        <span className="hidden sm:inline text-[11px] text-muted-foreground/70">•</span>
+        <span className="text-[10px] text-muted-foreground font-mono">
+          Schematic Map · Illustrative node placement
+        </span>
       </div>
 
-      {/* INTERACTIVE MAP PINS / NODES */}
-      
-      {/* PIN 1: ACTIVE / HIGHLIGHTED NODE */}
-      <div className="absolute left-[48%] top-[44%] z-30 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center">
-        {/* Floating Mini Preview Tooltip */}
-        <div 
-          className="mb-2 flex w-60 animate-bounce items-center gap-2.5 rounded-lg border border-border bg-card p-2 shadow-[0_20px_25px_-5px_rgba(15,23,42,0.18)]"
-          style={{ animationDuration: '2.5s', animationIterationCount: 'infinite' }}
+      {/* DYNAMIC INTERACTIVE MAP PINS: Driven strictly by workspaces array */}
+      {hasWorkspaces && primary && (
+        <div
+          className="absolute z-30 flex -translate-x-1/2 -translate-y-1/2 cursor-pointer flex-col items-center"
+          style={{ left: SCHEMATIC_COORDINATES[0].left, top: SCHEMATIC_COORDINATES[0].top }}
         >
-          <img
-            alt="Thumbnail NexSpace Central"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuD3G4bLH1lBqCv4pVxV3wYmajef3jn_QFTnFAq0p1pOZgih4qi8Nhbew9JySzBL015kb-xCq3Wyk4QdmA09XGNutc_-jsPZxDTMLvpaWJbZo8GuvqeY3CKVC2d_OHvxiI0j9KdFzGmZFeNN86NsNZP76jJJMQVjacWZCr2apx2w0dhZrXRaYNDNWd929cjU7fM_l6LRWo8OutEJqHvu3iigZPQi8McDuUmHVFT7oPJnihtNWMsnYyUIKQ"
-            className="h-12 w-12 shrink-0 rounded object-cover"
-          />
-          <div className="overflow-hidden">
-            <p className="truncate text-sm font-bold text-foreground">NexSpace Central Tower</p>
-            <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4b41e1]">$2.50/hr • 8 desks left</p>
+          {/* Floating Mini Preview Tooltip */}
+          <div
+            className="mb-2 flex w-60 animate-bounce items-center gap-2.5 rounded-lg border border-border bg-card p-2 shadow-xl"
+            style={{ animationDuration: '2.5s', animationIterationCount: 'infinite' }}
+          >
+            {primary.coverImageUrl ? (
+              <img
+                alt={primary.name}
+                src={primary.coverImageUrl}
+                className="h-12 w-12 shrink-0 rounded object-cover"
+              />
+            ) : (
+              <div className="h-12 w-12 shrink-0 rounded bg-muted flex items-center justify-center text-muted-foreground">
+                <Building className="w-5 h-5" />
+              </div>
+            )}
+            <div className="overflow-hidden">
+              <p className="truncate text-sm font-bold text-foreground">{primary.name}</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wider text-[#4b41e1]">
+                {typeof primary.pricePerHour === 'number' ? `$${primary.pricePerHour.toFixed(2)}/hr` : 'Price on request'}
+                {primary.capacityDesks ? ` • ${primary.capacityDesks} desks` : ''}
+              </p>
+            </div>
+          </div>
+
+          {/* Solid Primary Pill with Pulsing Glow Ring */}
+          <div className="relative">
+            <div className="absolute -inset-1.5 animate-ping rounded-full bg-[#4b41e1] opacity-30" />
+            <div className="relative flex items-center gap-1 rounded-full bg-[#4b41e1] px-3 py-1.5 text-sm font-bold text-white shadow-lg ring-2 ring-card">
+              <Building className="h-[14px] w-[14px]" />
+              <span>{typeof primary.pricePerHour === 'number' ? `$${primary.pricePerHour.toFixed(2)}/hr` : 'View'}</span>
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Solid Primary Pill with Pulsing Glow Ring */}
-        <div className="relative">
-          <div className="absolute -inset-1.5 animate-ping rounded-full bg-[#4b41e1] opacity-30" />
-          <div className="relative flex items-center gap-1 rounded-full bg-[#4b41e1] px-3 py-1.5 text-sm font-bold text-white shadow-lg ring-2 ring-card">
-            <Zap className="h-[14px] w-[14px]" />
-            <span>$2.50/hr</span>
+      {/* Subsequent workspace pins (indices 1..5) */}
+      {workspaces.slice(1, 6).map((ws, idx) => {
+        const coord = SCHEMATIC_COORDINATES[idx + 1] || SCHEMATIC_COORDINATES[1];
+        const priceDisplay = typeof ws.pricePerHour === 'number' ? `$${ws.pricePerHour.toFixed(2)}/hr` : 'View';
+
+        return (
+          <div
+            key={ws.id || idx}
+            className="group absolute z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer"
+            style={{ left: coord.left, top: coord.top }}
+          >
+            <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-bold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
+              <span>{priceDisplay}</span>
+            </div>
           </div>
-        </div>
-      </div>
-
-      {/* PIN 2 */}
-      <div className="group absolute left-[72%] top-[58%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-bold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$3.20/hr</span>
-        </div>
-      </div>
-
-      {/* PIN 3 */}
-      <div className="group absolute left-[42%] top-[32%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-bold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$2.80/hr</span>
-        </div>
-      </div>
-
-      {/* PIN 4 */}
-      <div className="group absolute left-[60%] top-[28%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-bold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$4.00/hr</span>
-        </div>
-      </div>
-
-      {/* PIN 5 */}
-      <div className="group absolute left-[34%] top-[68%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-semibold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$2.20/hr</span>
-        </div>
-      </div>
-
-      {/* PIN 6 */}
-      <div className="group absolute left-[82%] top-[75%] z-20 -translate-x-1/2 -translate-y-1/2 cursor-pointer">
-        <div className="flex items-center gap-1 rounded-full border border-border bg-card px-2.5 py-1 text-sm font-semibold text-foreground shadow-md transition-all group-hover:scale-110 group-hover:border-[#4b41e1] group-hover:bg-[#4b41e1] group-hover:text-white">
-          <span>$3.50/hr</span>
-        </div>
-      </div>
+        );
+      })}
     </section>
   );
 }
