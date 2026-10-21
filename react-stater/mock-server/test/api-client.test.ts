@@ -219,6 +219,8 @@ async function runClientTests() {
       district: 'District 3',
       organizerId: 'USR-9432',
       pricePerHour: 2.5
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(Boolean(createdClientWs?.id), 'apiClient created workspace with ID: ' + createdClientWs?.id);
     assert(createdClientWs?.reviewStatus === 'Draft', 'New workspace starts in Draft status');
@@ -229,6 +231,8 @@ async function runClientTests() {
     const updatedClientWs = await apiClient.patch<any>(`/workspaces/${createdClientWs.id}`, {
       shortDescription: 'Updated via apiClient test',
       pricePerHour: 3.5
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(updatedClientWs?.shortDescription === 'Updated via apiClient test', 'Patched shortDescription via apiClient');
     assert(updatedClientWs?.pricePerHour === 3.5, 'Patched pricePerHour via apiClient');
@@ -239,12 +243,16 @@ async function runClientTests() {
     const lifecyclePaused = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
       action: 'pause',
       reason: 'apiClient testing pause'
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(lifecyclePaused?.operatingStatus === 'Inactive', 'Paused via apiClient');
     assert(lifecyclePaused?.isLive === false, 'isLive false via apiClient');
 
     const lifecycleResumed = await apiClient.patch<any>('/workspaces/WS-104/lifecycle', {
       action: 'resume'
+    }, {
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
     });
     assert(lifecycleResumed?.operatingStatus === 'Active', 'Resumed via apiClient');
     assert(lifecycleResumed?.isLive === true, 'isLive true via apiClient');
@@ -253,7 +261,9 @@ async function runClientTests() {
     console.log('\n--- Client Test 18: ApiError Handling on invalid POST /workspaces ---');
     let wsValidationError: IApiError | null = null;
     try {
-      await apiClient.post('/workspaces', { name: 'X', category: 'invalid_category' });
+      await apiClient.post('/workspaces', { name: 'X', category: 'invalid_category' }, {
+        headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' }
+      });
     } catch (err: unknown) {
       if (err instanceof ApiError) {
         wsValidationError = err;

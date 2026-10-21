@@ -1125,11 +1125,71 @@ export async function handleCreateWorkspace(
   body: unknown
 ): Promise<void> {
   try {
-    // Check users for Organizer role validation
     const users = await storage.getAll<{ id: string; role: string }>('users');
+    const caller = resolveCallerContext(req, users);
+    if (!caller.valid) {
+      res.writeHead(caller.status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: caller.status,
+          error: caller.errorCode || 'Forbidden',
+          message: caller.errorMessage,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.role || caller.role !== 'organizer' || !caller.isOrganizer) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Explicit Organizer role required to create workspaces.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.userId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Organizer identity required to create workspaces.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    // Reject mismatches between submitted organizerId and caller identity
+    const rawPayload = (body && typeof body === 'object') ? (body as Record<string, unknown>) : {};
+    const submittedOrgId = typeof rawPayload.organizerId === 'string' ? rawPayload.organizerId.trim() : undefined;
+    if (submittedOrgId && submittedOrgId.toLowerCase() !== caller.userId.toLowerCase()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: `Forbidden: Submitted organizerId '${submittedOrgId}' does not match caller identity '${caller.userId}'.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
     const validOrganizerIds = new Set(
-      users.filter((u) => u.role === 'Organizer').map((u) => u.id)
+      users.filter((u) => u.role.toLowerCase() === 'organizer').map((u) => u.id)
     );
+    validOrganizerIds.add(caller.userId);
 
     const validation = validateCreateWorkspace(body, validOrganizerIds);
     if (!validation.valid || !validation.normalizedData) {
@@ -1148,17 +1208,17 @@ export async function handleCreateWorkspace(
     }
 
     const payload = validation.normalizedData as Partial<CanonicalWorkspace>;
-    const callerOrganizerId = ((req.headers?.['x-organizer-id'] || req.headers?.['x-mock-user-id']) as string | undefined)?.trim();
-    const effectiveOrganizerId = callerOrganizerId || payload.organizerId || 'USR-9432';
+    const effectiveOrganizerId = caller.userId;
 
     // Atomic Mutex Lock: guarantees check-and-create serialization across concurrent requests
     await storage.withLock('workspaces-create', async () => {
       const allWorkspaces = await getAllNormalizedWorkspaces();
 
       // Idempotent draft creation: return existing canonical workspace if same organizer & clientDraftKey
-      if (payload.clientDraftKey) {
+      const effectiveDraftKey = payload.clientDraftKey || (req.headers['x-client-draft-key'] as string | undefined)?.trim();
+      if (effectiveDraftKey) {
         const existing = allWorkspaces.find(
-          (w) => w.organizerId === effectiveOrganizerId && w.clientDraftKey === payload.clientDraftKey
+          (w) => w.organizerId === effectiveOrganizerId && w.clientDraftKey === effectiveDraftKey
         );
         if (existing) {
           res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -1266,7 +1326,7 @@ export async function handleCreateWorkspace(
         totalBookingsMtd: 0,
         tier: 'Standard',
         publicUrl: `https://nexspace.vn/spaces/${newId.toLowerCase()}`,
-        clientDraftKey: payload.clientDraftKey,
+        clientDraftKey: effectiveDraftKey,
         createdAt: now,
         updatedAt: now,
         version: 1
@@ -1354,22 +1414,62 @@ export async function handleUpdateWorkspace(
     const existing = allWorkspaces[existingIndex];
 
     // Tenant Scope / Ownership Authorization
-    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id']) as string | undefined)?.trim();
-    const callerRole = (req.headers['x-mock-role'] as string | undefined)?.trim();
-    if (callerOrganizerId && callerRole !== 'Administrator') {
-      if (existing.organizerId && existing.organizerId !== callerOrganizerId) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            success: false,
-            status: 403,
-            error: 'ForbiddenOperation',
-            message: `Mock Organizer '${callerOrganizerId}' is not authorized to mutate workspace '${existing.id}' owned by '${existing.organizerId}'.`,
-            timestamp: new Date().toISOString()
-          })
-        );
-        return;
-      }
+    const users = await storage.getAll<{ id: string; role: string }>('users');
+    const caller = resolveCallerContext(req, users);
+    if (!caller.valid) {
+      res.writeHead(caller.status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: caller.status,
+          error: caller.errorCode || 'Forbidden',
+          message: caller.errorMessage,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.role || caller.role !== 'organizer' || !caller.isOrganizer) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Explicit Organizer role required to update workspace.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.userId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Organizer identity required to update workspace.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (existing.organizerId && existing.organizerId.toLowerCase() !== caller.userId.toLowerCase()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: `Mock Organizer '${caller.userId}' is not authorized to mutate workspace '${existing.id}' owned by '${existing.organizerId}'.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
     }
 
     const updates = (body as Record<string, any>) || {};
@@ -1556,22 +1656,62 @@ export async function handleWorkspaceLifecycle(
     const existing = allWorkspaces[existingIndex];
 
     // Tenant Scope / Ownership Authorization
-    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id']) as string | undefined)?.trim();
-    const callerRole = (req.headers['x-mock-role'] as string | undefined)?.trim();
-    if (callerOrganizerId && callerRole !== 'Administrator') {
-      if (existing.organizerId && existing.organizerId !== callerOrganizerId) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            success: false,
-            status: 403,
-            error: 'ForbiddenOperation',
-            message: `Mock Organizer '${callerOrganizerId}' is not authorized to mutate workspace '${existing.id}' owned by '${existing.organizerId}'.`,
-            timestamp: new Date().toISOString()
-          })
-        );
-        return;
-      }
+    const users = await storage.getAll<{ id: string; role: string }>('users');
+    const caller = resolveCallerContext(req, users);
+    if (!caller.valid) {
+      res.writeHead(caller.status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: caller.status,
+          error: caller.errorCode || 'Forbidden',
+          message: caller.errorMessage,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.role || caller.role !== 'organizer' || !caller.isOrganizer) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: 'Forbidden: Explicit Organizer role required for workspace lifecycle operations.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.userId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: 'Forbidden: Organizer identity required for workspace lifecycle operations.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (existing.organizerId && existing.organizerId.toLowerCase() !== caller.userId.toLowerCase()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: `Mock Organizer '${caller.userId}' is not authorized to mutate workspace '${existing.id}' owned by '${existing.organizerId}'.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
     }
 
     // Optimistic Concurrency Precondition
@@ -1778,22 +1918,62 @@ export async function handleWorkspaceSubmit(
     const existing = allWorkspaces[existingIndex];
 
     // Caller Ownership / Authorization
-    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id']) as string | undefined)?.trim();
-    const callerRole = (req.headers['x-mock-role'] as string | undefined)?.trim();
-    if (callerOrganizerId && callerRole !== 'Administrator') {
-      if (existing.organizerId && existing.organizerId !== callerOrganizerId) {
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(
-          JSON.stringify({
-            success: false,
-            status: 403,
-            error: 'ForbiddenOperation',
-            message: `Mock Organizer '${callerOrganizerId}' is not authorized to submit workspace '${existing.id}' owned by '${existing.organizerId}'.`,
-            timestamp: new Date().toISOString()
-          })
-        );
-        return;
-      }
+    const users = await storage.getAll<{ id: string; role: string }>('users');
+    const caller = resolveCallerContext(req, users);
+    if (!caller.valid) {
+      res.writeHead(caller.status, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: caller.status,
+          error: caller.errorCode || 'Forbidden',
+          message: caller.errorMessage,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.role || caller.role !== 'organizer' || !caller.isOrganizer) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: 'Forbidden: Explicit Organizer role required to submit workspace for review.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (!caller.userId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: 'Forbidden: Organizer identity required to submit workspace for review.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (existing.organizerId && existing.organizerId.toLowerCase() !== caller.userId.toLowerCase()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'ForbiddenOperation',
+          message: `Mock Organizer '${caller.userId}' is not authorized to submit workspace '${existing.id}' owned by '${existing.organizerId}'.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
     }
 
     // Optimistic Concurrency Control Precondition

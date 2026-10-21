@@ -186,8 +186,15 @@ export const workspaceService = {
   /**
    * Creates a new workspace in Draft state.
    */
-  async createWorkspace(dto: CreateWorkspaceDto): Promise<CanonicalWorkspace> {
-    return apiClient.post<CanonicalWorkspace>('/workspaces', dto);
+  async createWorkspace(
+    dto: CreateWorkspaceDto,
+    options?: { organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
+      'x-organizer-id': options?.organizerId || dto.organizerId || 'USR-9432'
+    };
+    return apiClient.post<CanonicalWorkspace>('/workspaces', dto, { headers });
   },
 
   /**
@@ -200,7 +207,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
-      'x-mock-role': 'organizer',
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.patch<CanonicalWorkspace>(
@@ -221,6 +228,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.patch<CanonicalWorkspace>(
@@ -240,6 +248,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.post<CanonicalWorkspace>(

@@ -237,7 +237,7 @@ async function runPhaseC4TestSuite() {
     // Create a new draft workspace
     const createDraftRes = await apiRequest('/workspaces', {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: makeValidDraftPayload('C4 Draft Workspace For Testing')
     });
     const draftWorkspace = createDraftRes.data;
@@ -291,7 +291,7 @@ async function runPhaseC4TestSuite() {
     // 4.1 Organizer submits workspace
     const submitRes = await apiRequest(`/workspaces/${draftWorkspace.id}/submit`, {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: { agreementConfirmed: true }
     });
     const submittedWorkspace = submitRes.data;
@@ -350,12 +350,12 @@ async function runPhaseC4TestSuite() {
     // Create another workspace and submit it for rejection testing
     const createDraft2 = await apiRequest('/workspaces', {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: makeValidDraftPayload('C4 Workspace For Rejection Testing')
     });
     await apiRequest(`/workspaces/${createDraft2.data.id}/submit`, {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: { agreementConfirmed: true }
     });
 
@@ -553,7 +553,7 @@ async function runPhaseC4TestSuite() {
     // 6.7 Generic Organizer PATCH cannot modify review or moderation fields (400 Bad Request)
     const orgBypassReviewRes = await apiRequest(`/workspaces/${draftWorkspace.id}`, {
       method: 'PATCH',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: {
         reviewStatus: 'Approved',
         expectedVersion: draftWorkspace.version
@@ -566,7 +566,7 @@ async function runPhaseC4TestSuite() {
 
     const orgBypassModRes = await apiRequest(`/workspaces/${draftWorkspace.id}`, {
       method: 'PATCH',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: {
         moderationStatus: 'Suspended',
         expectedVersion: draftWorkspace.version
@@ -585,12 +585,12 @@ async function runPhaseC4TestSuite() {
     // Setup another pending workspace
     const createDraft3 = await apiRequest('/workspaces', {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: makeValidDraftPayload('C4 Workspace For Concurrent Review')
     });
     const submitted3Res = await apiRequest(`/workspaces/${createDraft3.data.id}/submit`, {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-ORG-C4' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-ORG-C4' },
       body: { agreementConfirmed: true }
     });
     const targetVersion = submitted3Res.data.version;
@@ -762,7 +762,7 @@ async function runPhaseC4TestSuite() {
     // Step A: Organizer creates draft (v1)
     const lifecycleDraft = await apiRequest('/workspaces', {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-LIFECYCLE' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-LIFECYCLE' },
       body: makeValidDraftPayload('Full Lifecycle E2E Space')
     });
     assert(lifecycleDraft.data.version === 1 && lifecycleDraft.data.reviewStatus === 'Draft', '10.1 Step A: Created draft v1');
@@ -770,7 +770,7 @@ async function runPhaseC4TestSuite() {
     // Step B: Organizer updates draft (v2)
     const lifecycleUpdate = await apiRequest(`/workspaces/${lifecycleDraft.data.id}`, {
       method: 'PATCH',
-      headers: { 'x-mock-user-id': 'USR-LIFECYCLE' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-LIFECYCLE' },
       body: {
         usableAreaSqm: 500,
         expectedVersion: 1
@@ -781,7 +781,7 @@ async function runPhaseC4TestSuite() {
     // Step C: Organizer submits for review (v3)
     const lifecycleSubmit = await apiRequest(`/workspaces/${lifecycleDraft.data.id}/submit`, {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-LIFECYCLE' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-LIFECYCLE' },
       body: { expectedVersion: 2, agreementConfirmed: true }
     });
     assert(
@@ -808,7 +808,7 @@ async function runPhaseC4TestSuite() {
     // Step E: Organizer updates photos and resubmits
     const lifecycleFix = await apiRequest(`/workspaces/${lifecycleDraft.data.id}`, {
       method: 'PATCH',
-      headers: { 'x-mock-user-id': 'USR-LIFECYCLE' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-LIFECYCLE' },
       body: {
         description: 'Updated with all requested safety documentation and HD photos',
         expectedVersion: 4
@@ -819,7 +819,7 @@ async function runPhaseC4TestSuite() {
     // Step F: Organizer resubmits (v6)
     const lifecycleResubmit = await apiRequest(`/workspaces/${lifecycleDraft.data.id}/submit`, {
       method: 'POST',
-      headers: { 'x-mock-user-id': 'USR-LIFECYCLE' },
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-LIFECYCLE' },
       body: { expectedVersion: 5, agreementConfirmed: true }
     });
     assert(
@@ -1573,6 +1573,454 @@ async function runPhaseC4TestSuite() {
       aliasAuth.status === 200 && aliasAuth.data?.id === 'WS-108',
       '13.28b Legacy alias resolves authorized detail for owner organizer (200 OK)'
     );
+
+    // =========================================================================
+    // SECTION 13 (Cont.): Organizer Mutation Authorization Consistency Gate
+    // =========================================================================
+    console.log('\n--- SECTION 13 (Cont.): Workspace Mutation Authorization Gate ---');
+
+    function getIsolatedWorkspace(id: string) {
+      const data = JSON.parse(fs.readFileSync(path.join(ISOLATED_TEST_RUNTIME, 'workspaces.json'), 'utf8'));
+      return data.find((w: any) => w.id === id);
+    }
+
+    // --- 1. POST /workspaces (Create Authorization) ---
+    // 13.29 Missing role => 403
+    const createNoRole = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-organizer-id': 'USR-9432' },
+      body: { name: 'Unauthorized Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createNoRole.status === 403, '13.29 POST /workspaces without role returns 403 Forbidden');
+
+    // 13.30 Missing identity => 403
+    const createNoId = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer' },
+      body: { name: 'Unauthorized Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createNoId.status === 403, '13.30 POST /workspaces without identity returns 403 Forbidden');
+
+    // 13.31 Customer role => 403
+    const createCustomer = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Customer', 'x-mock-user-id': 'USR-9432' },
+      body: { name: 'Unauthorized Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createCustomer.status === 403, '13.31 POST /workspaces with Customer role returns 403 Forbidden');
+
+    // 13.32 Invalid role => 403
+    const createInvalidRole = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'SuperAdmin', 'x-mock-user-id': 'USR-9432' },
+      body: { name: 'Unauthorized Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createInvalidRole.status === 403, '13.32 POST /workspaces with invalid role returns 403 Forbidden');
+
+    // 13.33 Administrator role cannot create organizer workspaces => 403
+    const createAdmin = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' },
+      body: { name: 'Admin Attempt Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createAdmin.status === 403, '13.33 POST /workspaces with Administrator role returns 403 Forbidden');
+
+    // 13.34 Conflicting role/identity headers => 403
+    const createConflict = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer', 'x-mock-user-id': 'USR-9432', 'x-admin-id': 'USR-1882' },
+      body: { name: 'Conflicting Headers Create', category: 'coworking_hub', streetAddress: '123 St', city: 'HCMC', district: 'D1' }
+    });
+    assert(createConflict.status === 403, '13.34 POST /workspaces with conflicting identity headers returns 403 Forbidden');
+
+    // 13.35 Create payload organizerId mismatch with caller identity => 403
+    const createMismatch = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: {
+        name: 'Spoofed Organizer Create',
+        category: 'coworking_hub',
+        streetAddress: '123 St',
+        city: 'HCMC',
+        district: 'D1',
+        organizerId: 'USR-2194'
+      }
+    });
+    assert(createMismatch.status === 403, '13.35 POST /workspaces with mismatched body organizerId returns 403 Forbidden');
+
+    // 13.36 Valid Organizer creates Draft successfully (201 Created)
+    const validCreateKey = `draft-key-${Date.now()}`;
+    const validDraftPayload = {
+      ...makeValidDraftPayload('Gate Authorized Draft Space'),
+      organizerId: 'USR-9432',
+      clientDraftKey: validCreateKey
+    };
+    const validCreateRes = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: {
+        'x-mock-role': 'Organizer',
+        'x-organizer-id': 'USR-9432',
+        'x-client-draft-key': validCreateKey
+      },
+      body: validDraftPayload
+    });
+    assert(
+      validCreateRes.status === 201 && validCreateRes.data?.organizerId === 'USR-9432',
+      '13.36 Valid Organizer creates Draft workspace (201 Created)'
+    );
+    const gateCreatedId = validCreateRes.data?.id;
+
+    // 13.37 Concurrent create idempotency with clientDraftKey returns existing
+    const duplicateCreateRes = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: {
+        'x-mock-role': 'Organizer',
+        'x-organizer-id': 'USR-9432',
+        'x-client-draft-key': validCreateKey
+      },
+      body: validDraftPayload
+    });
+    assert(
+      duplicateCreateRes.status === 200 && duplicateCreateRes.data?.id === gateCreatedId,
+      '13.37 Idempotent create with matching clientDraftKey returns 200 and existing workspace'
+    );
+
+    // --- 2. PATCH /workspaces/:id (Update Authorization) ---
+    // Target workspace: WS-108 (owned by USR-2194)
+    const ws108Before = getIsolatedWorkspace('WS-108');
+    const ws108InitialVersion = ws108Before.version;
+    const ws108InitialName = ws108Before.name;
+
+    // 13.38 Update without role => 403, no change persisted
+    const updateNoRole = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': 'USR-2194' },
+      body: { name: 'Hacked Name No Role' }
+    });
+    assert(updateNoRole.status === 403, '13.38 PATCH /workspaces/:id without role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.38b WS-108 remains unmutated after 403 denial');
+
+    // 13.39 Update without identity => 403, no change persisted
+    const updateNoId = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer' },
+      body: { name: 'Hacked Name No Id' }
+    });
+    assert(updateNoId.status === 403, '13.39 PATCH /workspaces/:id without identity returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.39b WS-108 remains unmutated after 403 denial');
+
+    // 13.40 Update with Customer role => 403, no change persisted
+    const updateCustomer = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Customer', 'x-mock-user-id': 'USR-2194' },
+      body: { name: 'Hacked Name Customer' }
+    });
+    assert(updateCustomer.status === 403, '13.40 PATCH /workspaces/:id with Customer role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.40b WS-108 remains unmutated after 403 denial');
+
+    // 13.41 Update with Administrator role attempting Organizer PATCH => 403, no change persisted
+    const updateAdmin = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' },
+      body: { name: 'Hacked Name Admin' }
+    });
+    assert(updateAdmin.status === 403, '13.41 PATCH /workspaces/:id with Administrator role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.41b WS-108 remains unmutated after 403 denial');
+
+    // 13.42 Update by Wrong Organizer tenant => 403, no change persisted
+    const updateWrongOrg = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: { name: 'Hacked Name Wrong Org' }
+    });
+    assert(updateWrongOrg.status === 403, '13.42 PATCH /workspaces/:id by wrong Organizer tenant returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.42b WS-108 remains unmutated after cross-tenant 403 denial');
+
+    // 13.43 Update with Conflicting role/identity headers => 403
+    const updateConflict = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-2194', 'x-role': 'Customer' },
+      body: { name: 'Hacked Name Conflict' }
+    });
+    assert(updateConflict.status === 403, '13.43 PATCH /workspaces/:id with conflicting role headers returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.43b WS-108 remains unmutated after conflicting 403 denial');
+
+    // 13.44 Update legacy alias by Wrong Organizer tenant => 403
+    const updateAliasWrongOrg = await apiRequest('/workspaces/westlake-loft-hanoi', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: { name: 'Hacked Name Alias Wrong Org' }
+    });
+    assert(updateAliasWrongOrg.status === 403, '13.44 PATCH legacy alias by wrong Organizer tenant returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-108').name === ws108InitialName, '13.44b WS-108 remains unmutated after alias cross-tenant 403');
+
+    // 13.45 Update by Valid Owning Organizer => 200 OK, persisted with incremented version
+    const updateValid = await apiRequest('/workspaces/WS-108', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-2194' },
+      body: {
+        shortDescription: 'Authorized description update by USR-2194',
+        expectedVersion: ws108InitialVersion
+      }
+    });
+    assert(
+      updateValid.status === 200 && updateValid.data?.shortDescription === 'Authorized description update by USR-2194',
+      '13.45 Valid Owning Organizer updates workspace successfully (200 OK)'
+    );
+    const ws108After = getIsolatedWorkspace('WS-108');
+    assert(
+      ws108After.shortDescription === 'Authorized description update by USR-2194' && ws108After.version === ws108InitialVersion + 1,
+      '13.45b WS-108 data persisted to storage with version increment'
+    );
+
+    // --- 3. PATCH /workspaces/:id/lifecycle (Lifecycle Authorization) ---
+    // Target workspace: WS-104 (owned by USR-9432, Active, Normal)
+    const ws104Before = getIsolatedWorkspace('WS-104');
+    const ws104InitialStatus = ws104Before.operatingStatus;
+    const ws104InitialVersion = ws104Before.version;
+
+    // 13.46 Lifecycle without role => 403, no change persisted
+    const lifecycleNoRole = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-organizer-id': 'USR-9432' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleNoRole.status === 403, '13.46 PATCH /lifecycle without role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-104').operatingStatus === ws104InitialStatus, '13.46b WS-104 operatingStatus intact after 403');
+
+    // 13.47 Lifecycle without identity => 403
+    const lifecycleNoId = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleNoId.status === 403, '13.47 PATCH /lifecycle without identity returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-104').operatingStatus === ws104InitialStatus, '13.47b WS-104 operatingStatus intact after 403');
+
+    // 13.48 Lifecycle with Customer role => 403
+    const lifecycleCustomer = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Customer', 'x-mock-user-id': 'USR-9432' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleCustomer.status === 403, '13.48 PATCH /lifecycle with Customer role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-104').operatingStatus === ws104InitialStatus, '13.48b WS-104 operatingStatus intact after 403');
+
+    // 13.49 Lifecycle with Administrator role attempting organizer lifecycle => 403
+    const lifecycleAdmin = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleAdmin.status === 403, '13.49 PATCH /lifecycle with Administrator role returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-104').operatingStatus === ws104InitialStatus, '13.49b WS-104 operatingStatus intact after 403');
+
+    // 13.50 Lifecycle by Wrong Organizer tenant => 403
+    const lifecycleWrongOrg = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-2194' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleWrongOrg.status === 403, '13.50 PATCH /lifecycle by wrong Organizer tenant returns 403 Forbidden');
+    assert(getIsolatedWorkspace('WS-104').operatingStatus === ws104InitialStatus, '13.50b WS-104 operatingStatus intact after cross-tenant 403');
+
+    // 13.51 Lifecycle legacy alias by Wrong Organizer tenant => 403
+    const lifecycleAliasWrongOrg = await apiRequest('/workspaces/ba-dinh-boardroom-hanoi/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: { action: 'pause' }
+    });
+    assert(lifecycleAliasWrongOrg.status === 403, '13.51 PATCH legacy alias lifecycle by wrong Organizer tenant returns 403 Forbidden');
+
+    // 13.52 Valid Owning Organizer updates lifecycle (pause) => 200 OK
+    const lifecycleValid = await apiRequest('/workspaces/WS-104/lifecycle', {
+      method: 'PATCH',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: { action: 'pause', expectedVersion: ws104InitialVersion, reason: 'Temporary maintenance pause' }
+    });
+    assert(
+      lifecycleValid.status === 200 && lifecycleValid.data?.operatingStatus === 'Inactive',
+      '13.52 Valid Owning Organizer pauses workspace lifecycle (200 OK)'
+    );
+    const ws104Paused = getIsolatedWorkspace('WS-104');
+    assert(
+      ws104Paused.operatingStatus === 'Inactive' && ws104Paused.version === ws104InitialVersion + 1,
+      '13.52b WS-104 persisted as Inactive with version increment'
+    );
+
+    // --- 4. POST /workspaces/:id/submit (Submit for Review Authorization) ---
+    // Target workspace: gateCreatedId (owned by USR-9432, reviewStatus = 'Draft')
+    const draftBefore = getIsolatedWorkspace(gateCreatedId);
+    const draftInitialReviewStatus = draftBefore.reviewStatus;
+
+    // 13.53 Submit without role => 403, no change persisted
+    const submitNoRole = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-organizer-id': 'USR-9432' }
+    });
+    assert(submitNoRole.status === 403, '13.53 POST /submit without role returns 403 Forbidden');
+    assert(getIsolatedWorkspace(gateCreatedId).reviewStatus === draftInitialReviewStatus, '13.53b Draft reviewStatus intact after 403');
+
+    // 13.54 Submit without identity => 403
+    const submitNoId = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer' }
+    });
+    assert(submitNoId.status === 403, '13.54 POST /submit without identity returns 403 Forbidden');
+    assert(getIsolatedWorkspace(gateCreatedId).reviewStatus === draftInitialReviewStatus, '13.54b Draft reviewStatus intact after 403');
+
+    // 13.55 Submit with Customer role => 403
+    const submitCustomer = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Customer', 'x-mock-user-id': 'USR-9432' }
+    });
+    assert(submitCustomer.status === 403, '13.55 POST /submit with Customer role returns 403 Forbidden');
+    assert(getIsolatedWorkspace(gateCreatedId).reviewStatus === draftInitialReviewStatus, '13.55b Draft reviewStatus intact after 403');
+
+    // 13.56 Submit with Administrator role attempting submit => 403
+    const submitAdmin = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
+    });
+    assert(submitAdmin.status === 403, '13.56 POST /submit with Administrator role returns 403 Forbidden');
+    assert(getIsolatedWorkspace(gateCreatedId).reviewStatus === draftInitialReviewStatus, '13.56b Draft reviewStatus intact after 403');
+
+    // 13.57 Submit by Wrong Organizer tenant => 403
+    const submitWrongOrg = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-2194' }
+    });
+    assert(submitWrongOrg.status === 403, '13.57 POST /submit by wrong Organizer tenant returns 403 Forbidden');
+    assert(getIsolatedWorkspace(gateCreatedId).reviewStatus === draftInitialReviewStatus, '13.57b Draft reviewStatus intact after cross-tenant 403');
+
+    // 13.58 Submit by Valid Owning Organizer => 200 OK, status transitions to Pending
+    const submitValid = await apiRequest(`/workspaces/${gateCreatedId}/submit`, {
+      method: 'POST',
+      headers: { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' },
+      body: { agreementConfirmed: true }
+    });
+    assert(
+      submitValid.status === 200 && submitValid.data?.reviewStatus === 'Pending',
+      '13.58 Valid Owning Organizer submits workspace for review (200 OK, reviewStatus: Pending)'
+    );
+    const draftAfterSubmit = getIsolatedWorkspace(gateCreatedId);
+    assert(
+      draftAfterSubmit.reviewStatus === 'Pending',
+      '13.58b Submitted workspace persisted as Pending in storage'
+    );
+
+    // =========================================================================
+    // SECTION 14: End-to-End Complete Lifecycle Acceptance
+    // =========================================================================
+    console.log('\n--- SECTION 14: End-to-End Lifecycle & Authorization Acceptance ---');
+
+    // Flow: Organizer creates Draft -> edits -> saves -> reloads -> submits -> Admin approves ->
+    //       Organizer publishes -> Admin suspends -> Organizer cannot resume while suspended -> Admin restores.
+    const e2eOrgHeaders = { 'x-mock-role': 'Organizer', 'x-organizer-id': 'USR-9432' };
+    const e2eAdminHeaders = { 'x-mock-role': 'Administrator', 'x-mock-user-id': 'USR-1882' };
+
+    // Step 1: Organizer creates Draft
+    const e2eCreateRes = await apiRequest('/workspaces', {
+      method: 'POST',
+      headers: e2eOrgHeaders,
+      body: makeValidDraftPayload('E2E Lifecycle Verification Hub')
+    });
+    assert(e2eCreateRes.status === 201 && e2eCreateRes.data?.reviewStatus === 'Draft', 'E2E-1 Organizer creates Draft workspace');
+    const e2eId = e2eCreateRes.data?.id;
+    let currentVer = e2eCreateRes.data?.version;
+
+    // Step 2: Organizer edits / saves workspace
+    const e2eEditRes = await apiRequest(`/workspaces/${e2eId}`, {
+      method: 'PATCH',
+      headers: e2eOrgHeaders,
+      body: {
+        shortDescription: 'Refined description during drafting',
+        expectedVersion: currentVer
+      }
+    });
+    assert(e2eEditRes.status === 200 && e2eEditRes.data?.shortDescription === 'Refined description during drafting', 'E2E-2 Organizer edits & saves draft');
+    currentVer = e2eEditRes.data?.version;
+
+    // Step 3: Organizer reloads draft
+    const e2eReloadRes = await apiRequest(`/workspaces/${e2eId}`, {
+      method: 'GET',
+      headers: e2eOrgHeaders
+    });
+    assert(e2eReloadRes.status === 200 && e2eReloadRes.data?.id === e2eId, 'E2E-3 Organizer reloads saved draft');
+
+    // Step 4: Organizer submits for review
+    const e2eSubmitRes = await apiRequest(`/workspaces/${e2eId}/submit`, {
+      method: 'POST',
+      headers: e2eOrgHeaders,
+      body: { agreementConfirmed: true }
+    });
+    assert(e2eSubmitRes.status === 200 && e2eSubmitRes.data?.reviewStatus === 'Pending', 'E2E-4 Organizer submits workspace for review');
+    currentVer = e2eSubmitRes.data?.version;
+
+    // Step 5: Admin approves workspace
+    const e2eApproveRes = await apiRequest(`/admin/workspaces/${e2eId}/review`, {
+      method: 'PATCH',
+      headers: e2eAdminHeaders,
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        reviewFeedback: 'Meets all compliance criteria',
+        expectedVersion: currentVer
+      }
+    });
+    assert(e2eApproveRes.status === 200 && e2eApproveRes.data?.reviewStatus === 'Approved', 'E2E-5 Admin approves workspace');
+    currentVer = e2eApproveRes.data?.version;
+
+    // Step 6: Organizer publishes (resumes/activates) workspace
+    const e2ePublishRes = await apiRequest(`/workspaces/${e2eId}/lifecycle`, {
+      method: 'PATCH',
+      headers: e2eOrgHeaders,
+      body: {
+        action: 'resume',
+        expectedVersion: currentVer
+      }
+    });
+    assert(e2ePublishRes.status === 200 && e2ePublishRes.data?.operatingStatus === 'Active', 'E2E-6 Organizer publishes workspace (Active)');
+    currentVer = e2ePublishRes.data?.version;
+
+    // Step 7: Admin suspends workspace
+    const e2eSuspendRes = await apiRequest(`/admin/workspaces/${e2eId}/moderation`, {
+      method: 'PATCH',
+      headers: e2eAdminHeaders,
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882',
+        suspendReason: 'Safety audit check',
+        expectedVersion: currentVer
+      }
+    });
+    assert(e2eSuspendRes.status === 200 && e2eSuspendRes.data?.moderationStatus === 'Suspended', 'E2E-7 Admin suspends workspace');
+    currentVer = e2eSuspendRes.data?.version;
+
+    // Step 8: Organizer CANNOT resume while suspended
+    const e2eResumeBlockedRes = await apiRequest(`/workspaces/${e2eId}/lifecycle`, {
+      method: 'PATCH',
+      headers: e2eOrgHeaders,
+      body: {
+        action: 'resume',
+        expectedVersion: currentVer
+      }
+    });
+    assert(
+      e2eResumeBlockedRes.status === 400 || e2eResumeBlockedRes.status === 403,
+      'E2E-8 Organizer cannot resume suspended workspace (rejected)'
+    );
+
+    // Step 9: Admin restores workspace
+    const e2eRestoreRes = await apiRequest(`/admin/workspaces/${e2eId}/moderation`, {
+      method: 'PATCH',
+      headers: e2eAdminHeaders,
+      body: {
+        moderationStatus: 'Normal',
+        expectedVersion: currentVer
+      }
+    });
+    assert(e2eRestoreRes.status === 200 && e2eRestoreRes.data?.moderationStatus === 'Normal', 'E2E-9 Admin restores workspace to Normal moderation');
 
   } catch (err) {
     console.error('💥 Test suite encountered fatal error:', err);
