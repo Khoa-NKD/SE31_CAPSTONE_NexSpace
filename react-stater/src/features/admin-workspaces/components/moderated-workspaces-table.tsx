@@ -30,6 +30,10 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
     return true;
   });
 
+  const approvedCount = records.filter((r) => r.actionStatus === 'approved' || r.actionStatus === 'reactivated').length;
+  const suspendedCount = records.filter((r) => r.actionStatus === 'suspended').length;
+  const resolvedCount = records.filter((r) => r.actionStatus === 'resolved').length;
+
   return (
     <>
       <section aria-label='Recently Moderated Workspaces' className='bg-card rounded-xl border border-border shadow-2xs p-6'>
@@ -40,7 +44,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
               Recent Moderation Decisions &amp; Lifecycle Events
             </h2>
             <p className='text-xs text-muted-foreground mt-0.5'>
-              Last 24 hours of administrative state transitions, approvals, and compliance notices.
+              Latest administrative decisions and review records across registered workspaces.
             </p>
           </div>
 
@@ -71,7 +75,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                All (28)
+                All ({records.length})
               </button>
               <button
                 type='button'
@@ -84,7 +88,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Approved (24)
+                Approved ({approvedCount})
               </button>
               <button
                 type='button'
@@ -97,7 +101,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Suspended (3)
+                Suspended ({suspendedCount})
               </button>
               <button
                 type='button'
@@ -110,7 +114,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Flags Resolved (1)
+                Flags Resolved ({resolvedCount})
               </button>
             </div>
           </div>
@@ -222,9 +226,9 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
 
         {/* Table Footer */}
         <div className='pt-4 mt-2 border-t border-border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground'>
-          <span>Showing <strong>{filteredRecords.length}</strong> of <strong>28</strong> recent administrative actions</span>
+          <span>Showing <strong>{filteredRecords.length}</strong> of <strong>{records.length}</strong> recent administrative actions</span>
           <span className='text-muted-foreground italic flex items-center gap-1'>
-            <span>Compliance history audit trails logged to SecOps partition</span>
+            <span>Displays latest recorded review decisions. Full event history stored in system audit log.</span>
           </span>
         </div>
       </section>

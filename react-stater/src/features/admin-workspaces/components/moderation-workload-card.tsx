@@ -6,13 +6,13 @@ import { ModerationWorkloadItem } from '../data/mock-workspaces';
 interface ModerationWorkloadCardProps {
   items: ModerationWorkloadItem[];
   awaitingCount: number;
-  averageTurnaroundHours: number;
+  averageTurnaroundHours?: number;
 }
 
 export function ModerationWorkloadCard({
   items,
   awaitingCount,
-  averageTurnaroundHours
+  averageTurnaroundHours: _averageTurnaroundHours
 }: ModerationWorkloadCardProps) {
   return (
     <div className='bg-card p-6 rounded-xl border border-border shadow-2xs flex flex-col justify-between'>
@@ -33,7 +33,7 @@ export function ModerationWorkloadCard({
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Spaces queued for physical or legal verification prior to search engine indexing and checkout activation.
+          Spaces queued for administrative review and approval prior to marketplace activation.
         </p>
 
         {/* Categorized Inspection Items */}
@@ -69,7 +69,7 @@ export function ModerationWorkloadCard({
         <div className='flex items-center gap-2'>
           <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
           <span className='font-mono text-xs text-muted-foreground'>
-            Avg Turnaround: <strong className='text-foreground font-semibold'>{averageTurnaroundHours}h</strong> (100% within SLA)
+            Queue Status: <strong className='text-foreground font-semibold'>{awaitingCount > 0 ? `${awaitingCount} pending review` : 'Queue clear'}</strong>
           </span>
         </div>
         <Link

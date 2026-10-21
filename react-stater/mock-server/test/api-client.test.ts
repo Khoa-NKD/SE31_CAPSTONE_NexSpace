@@ -263,21 +263,28 @@ async function runClientTests() {
 
     // 20. Admin Review & Moderation via apiClient
     console.log('\n--- Client Test 20: Admin Governance via apiClient ---');
+    const ws108ForReview = await apiClient.get<any>('/workspaces/WS-108');
     const reviewedWs = await apiClient.patch<any>('/admin/workspaces/WS-108/review', {
       reviewStatus: 'Approved',
-      reviewedBy: 'USR-1882'
+      reviewedBy: 'USR-1882',
+      expectedVersion: ws108ForReview?.version || 1
     });
     assert(reviewedWs?.reviewStatus === 'Approved', 'apiClient admin review succeeded');
 
+    const ws104ForMod = await apiClient.get<any>('/workspaces/WS-104');
     const moderatedWs = await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', {
       moderationStatus: 'Suspended',
       suspendedBy: 'USR-1882',
-      suspendReason: 'Client test suspension'
+      suspendReason: 'Client test suspension',
+      expectedVersion: ws104ForMod?.version || 1
     });
     assert(moderatedWs?.moderationStatus === 'Suspended', 'apiClient admin moderation succeeded');
 
     // Restore WS-104
-    await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', { moderationStatus: 'Normal' });
+    await apiClient.patch<any>('/admin/workspaces/WS-104/moderation', {
+      moderationStatus: 'Normal',
+      expectedVersion: moderatedWs?.version || 2
+    });
 
     // 21. Cleanup reset
     console.log('\n--- Client Test 21: Reset via apiClient ---');

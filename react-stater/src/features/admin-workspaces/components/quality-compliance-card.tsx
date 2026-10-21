@@ -17,16 +17,16 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
               <Shield className='size-5' aria-hidden='true' />
             </div>
             <h2 className='text-base font-bold font-heading text-foreground'>
-              Quality &amp; Safety Compliance Index
+              Quality &amp; Operational Health
             </h2>
           </div>
-          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'>
+          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'>
             {metrics.gradeBadge}
           </span>
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Aggregated platform standards measured via nomad audits, facility inspections, and noise telemetry.
+          Aggregated platform indicators derived from verified guest reviews and operator submission data.
         </p>
 
         {/* Metrics Triple Tiles */}
@@ -53,11 +53,11 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
 
           {/* Score 3 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
-            <span className='text-xs text-muted-foreground block mb-1'>Mystery Audits</span>
+            <span className='text-xs text-muted-foreground block mb-1'>Audit Benchmark</span>
             <div className='flex items-center gap-1'>
-              <span className='text-xl font-bold font-heading text-foreground'>{metrics.mysteryAuditsPercentage}%</span>
+              <span className='text-sm font-semibold font-mono text-muted-foreground'>Not Available</span>
             </div>
-            <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.verifiedHubsCount} verified hubs</span>
+            <span className='text-[10px] text-muted-foreground mt-1 block'>Audit telemetry unavailable</span>
           </div>
         </div>
 
@@ -65,7 +65,7 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
         <div className='p-3 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-3'>
           <Sparkles className='size-5 text-primary shrink-0' aria-hidden='true' />
           <p className='text-xs text-foreground leading-relaxed'>
-            Automated photo resolution and metadata scanner validated 100% of newly submitted workspace gallery media.
+            All submitted workspace media and floor plans are reviewed prior to marketplace indexing.
           </p>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
           type='button'
           className='inline-flex items-center gap-1 text-xs text-primary hover:text-indigo-700 font-semibold transition-colors'
         >
-          <span>Audit Rules Engine</span>
+          <span>Review Guidelines</span>
           <Settings className='size-3.5' aria-hidden='true' />
         </button>
       </div>

@@ -714,12 +714,16 @@ async function runTestSuite() {
     });
     assert(invalidReviewerRes.status === 400, 'Rejects non-admin reviewer with 400 Bad Request');
 
+    const ws108Res = await httpFetch(`${BASE_URL}/workspaces/WS-108`);
+    const ws108Version = ws108Res.data?.data?.version || 1;
+
     const validReviewRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-108/review`, {
       method: 'PATCH',
       body: {
         reviewStatus: 'Approved',
         reviewedBy: 'USR-1882',
-        reviewFeedback: 'Complies with all safety and facility standards.'
+        reviewFeedback: 'Complies with all safety and facility standards.',
+        expectedVersion: ws108Version
       }
     });
     assert(validReviewRes.status === 200, 'Approves workspace via admin review endpoint');
@@ -729,11 +733,15 @@ async function runTestSuite() {
 
     // 39. Dedicated Administrator Moderation Endpoint
     console.log('\n--- Test 39: PATCH /admin/workspaces/:id/moderation Endpoint ---');
+    const ws104ModRes = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const ws104Version = ws104ModRes.data?.data?.version || 1;
+
     const missingReasonRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
       method: 'PATCH',
       body: {
         moderationStatus: 'Suspended',
-        suspendedBy: 'USR-1882'
+        suspendedBy: 'USR-1882',
+        expectedVersion: ws104Version
         // Missing suspendReason
       }
     });
@@ -744,7 +752,8 @@ async function runTestSuite() {
       body: {
         moderationStatus: 'Suspended',
         suspendedBy: 'USR-1882',
-        suspendReason: 'Temporary security audit and inspection in progress.'
+        suspendReason: 'Temporary security audit and inspection in progress.',
+        expectedVersion: ws104Version
       }
     });
     assert(validSuspendRes.status === 200, 'Suspends workspace via dedicated admin endpoint');
@@ -754,9 +763,13 @@ async function runTestSuite() {
     assert(validSuspendRes.data?.data?.status === 'suspended', 'Display status updated to suspended');
 
     // Restore WS-104 to Normal moderation
+    const suspendedVersion = validSuspendRes.data?.data?.version || (ws104Version + 1);
     await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
       method: 'PATCH',
-      body: { moderationStatus: 'Normal' }
+      body: {
+        moderationStatus: 'Normal',
+        expectedVersion: suspendedVersion
+      }
     });
 
     // 40. Public Marketplace Endpoints & Data Sanitization

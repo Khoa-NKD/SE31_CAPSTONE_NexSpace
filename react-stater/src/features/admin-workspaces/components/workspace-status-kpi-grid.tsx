@@ -39,10 +39,14 @@ export function WorkspaceStatusKpiGrid({ kpis }: WorkspaceStatusKpiGridProps) {
         <div className='flex items-baseline gap-3 mb-2'>
           <span className='text-2xl lg:text-3xl font-bold font-heading text-foreground'>{kpis.pendingModerationCount}</span>
           <span className='font-mono text-xs text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded font-semibold'>
-            SLA &lt; 24h
+            Pending Review
           </span>
         </div>
-        <p className='text-xs text-muted-foreground'>Oldest ticket submitted {kpis.pendingOldestHours} hours ago</p>
+        <p className='text-xs text-muted-foreground'>
+          {kpis.pendingModerationCount > 0
+            ? `Oldest submission elapsed: ${kpis.pendingOldestHours}h`
+            : 'No submissions awaiting review'}
+        </p>
       </div>
 
       {/* KPI 3: Suspended / Violations */}

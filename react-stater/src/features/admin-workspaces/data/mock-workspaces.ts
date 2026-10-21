@@ -71,7 +71,7 @@ export const MOCK_MODERATION_WORKLOAD_ITEMS: ModerationWorkloadItem[] = [
   {
     id: 'workload-1',
     title: '5 New Workspace Onboardings',
-    description: 'Initial space specs, electrical load safety check, and lease title review.',
+    description: 'Initial space specs, operational details, and organizer profile review.',
     priorityLabel: 'Priority 1',
     icon: 'add_business',
     iconBgClass: 'bg-amber-100 dark:bg-amber-950/50',
@@ -93,10 +93,10 @@ export const MOCK_QUALITY_HEALTH_METRICS: QualityHealthMetrics = {
   totalRatingsCount: '14.2k user ratings',
   hygieneFlags: 0,
   hygieneCleanPeriod: 'Past 7 days clean',
-  mysteryAuditsPercentage: 98.2,
-  verifiedHubsCount: 45,
-  gradeBadge: 'Grade: Exceptional (A+)',
-  standardsEngineNote: 'ISO-27001 & OSHA compliant'
+  mysteryAuditsPercentage: 0,
+  verifiedHubsCount: 0,
+  gradeBadge: 'Platform Monitored',
+  standardsEngineNote: 'Internal Operational Baseline'
 };
 
 export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
@@ -118,7 +118,7 @@ export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
     },
     timestamp: '25m ago',
     timestampExact: 'Oct 24, 2025 15:15 UTC',
-    auditTrailNotes: 'Electrical safety load verification approved; capacity set to 24 seats.'
+    auditTrailNotes: 'Initial administrative review completed; capacity set to 24 seats.'
   },
   {
     id: 'rec-2',
@@ -158,7 +158,7 @@ export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
     },
     timestamp: '5h ago',
     timestampExact: 'Oct 24, 2025 10:45 UTC',
-    auditTrailNotes: 'Updated fire safety compliance certificate submitted and verified with Da Nang municipal authorities.'
+    auditTrailNotes: 'Updated documentation submitted by operator; listing restored to active status.'
   },
   {
     id: 'rec-4',
@@ -178,7 +178,7 @@ export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
     },
     timestamp: 'Yesterday',
     timestampExact: 'Oct 23, 2025 17:20 UTC',
-    auditTrailNotes: 'Initial onboarding audit completed. Noise baseline measured at 38dB (Class A quiet space).'
+    auditTrailNotes: 'Initial space onboarding review completed.'
   },
   {
     id: 'rec-5',
@@ -198,7 +198,7 @@ export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
     },
     timestamp: 'Yesterday',
     timestampExact: 'Oct 23, 2025 14:10 UTC',
-    auditTrailNotes: 'Air quality HVAC filter maintenance verified by on-site third-party audit.'
+    auditTrailNotes: 'Operator submitted updated facility maintenance confirmation.'
   },
   {
     id: 'rec-6',

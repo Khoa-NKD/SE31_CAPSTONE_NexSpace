@@ -520,8 +520,21 @@ export async function handleGetWorkspaces(
     const city = searchParams.get('city')?.toLowerCase().trim() || '';
     const district = searchParams.get('district')?.toLowerCase().trim() || '';
     const category = searchParams.get('category')?.toLowerCase().trim() || '';
-    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id'] || searchParams.get('organizerId')) as string | undefined)?.trim() || '';
-    const organizerId = callerOrganizerId;
+    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
+    const isAdmin = callerRole === 'administrator' || callerRole === 'admin';
+    let organizerId = searchParams.get('organizerId')?.trim() || '';
+    if (!organizerId && !isAdmin) {
+      const explicitOrgHeader = (req.headers['x-organizer-id'] as string | undefined)?.trim();
+      if (explicitOrgHeader) {
+        organizerId = explicitOrgHeader;
+      } else {
+        const callerUserId = (req.headers['x-mock-user-id'] as string | undefined)?.trim();
+        if (callerUserId && (callerRole === 'organizer' || !callerRole)) {
+          // If caller explicitly passed mock user ID without admin role, check if they are an organizer
+          organizerId = callerUserId;
+        }
+      }
+    }
     const status = searchParams.get('status')?.toLowerCase().trim() || '';
     const reviewStatus = searchParams.get('reviewStatus')?.trim() || '';
     const operatingStatus = searchParams.get('operatingStatus')?.trim() || '';
@@ -708,7 +721,7 @@ export async function handleCreateWorkspace(
     }
 
     const payload = validation.normalizedData as Partial<CanonicalWorkspace>;
-    const callerOrganizerId = (req.headers?.['x-organizer-id'] as string)?.trim();
+    const callerOrganizerId = ((req.headers?.['x-organizer-id'] || req.headers?.['x-mock-user-id']) as string | undefined)?.trim();
     const effectiveOrganizerId = callerOrganizerId || payload.organizerId || 'USR-9432';
 
     // Atomic Mutex Lock: guarantees check-and-create serialization across concurrent requests
@@ -1011,7 +1024,7 @@ export async function handleUpdateWorkspace(
       organizerTaxId: existing.organizerTaxId,
       organizerVerified: existing.organizerVerified,
       legacyAliases: existing.legacyAliases,
-      reviewStatus: existing.reviewStatus,
+      reviewStatus: existing.reviewStatus === 'Rejected' ? 'Draft' : existing.reviewStatus,
       reviewedBy: existing.reviewedBy,
       reviewedAt: existing.reviewedAt,
       reviewFeedback: existing.reviewFeedback,
@@ -1390,7 +1403,6 @@ export async function handleWorkspaceSubmit(
       return;
     }
 
-    const { expectedVersion } = validation.normalizedData;
 
     const now = new Date().toISOString();
     const submissionNotes = (body as any)?.notes || (body as any)?.submissionNotes || null;
@@ -1436,11 +1448,27 @@ export async function handleWorkspaceSubmit(
  * Dedicated Administrator endpoint for approving, rejecting, or requesting changes.
  */
 export async function handleAdminReviewWorkspace(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   body: unknown
 ): Promise<void> {
   try {
+    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
+    if (callerRole && callerRole !== 'administrator' && callerRole !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Administrator authority required to perform review actions.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
     const users = await storage.getAll<{ id: string; role: string }>('users');
     const validAdminIds = new Set(
       users.filter((u) => u.role === 'Administrator').map((u) => u.id)
@@ -1462,72 +1490,105 @@ export async function handleAdminReviewWorkspace(
       return;
     }
 
-    const { reviewStatus, reviewedBy, reviewFeedback } = validation.normalizedData;
-    const allWorkspaces = await getAllNormalizedWorkspaces();
-    const existingIndex = allWorkspaces.findIndex((w) => {
-      if (w.id.toLowerCase() === id.toLowerCase()) return true;
-      if (w.workspaceCode && w.workspaceCode.toLowerCase() === id.toLowerCase()) return true;
-      if (Array.isArray(w.legacyAliases)) {
-        return w.legacyAliases.some((alias) => alias.toLowerCase() === id.toLowerCase());
-      }
-      return false;
-    });
+    const { reviewStatus, reviewedBy, reviewFeedback, expectedVersion } = validation.normalizedData;
 
-    if (existingIndex === -1) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
+    await storage.withLock('workspaces-mutation', async () => {
+      const allWorkspaces = await getAllNormalizedWorkspaces();
+      const existingIndex = allWorkspaces.findIndex((w) => {
+        if (w.id.toLowerCase() === id.toLowerCase()) return true;
+        if (w.workspaceCode && w.workspaceCode.toLowerCase() === id.toLowerCase()) return true;
+        if (Array.isArray(w.legacyAliases)) {
+          return w.legacyAliases.some((alias) => alias.toLowerCase() === id.toLowerCase());
+        }
+        return false;
+      });
+
+      if (existingIndex === -1) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 404,
+            error: 'NotFound',
+            message: `Workspace with identifier '${id}' was not found.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+
+      const existing = allWorkspaces[existingIndex];
+
+      if (existing.reviewStatus === 'Draft') {
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 400,
+            error: 'BadRequest',
+            message: 'Cannot review a workspace in Draft status; the workspace must be submitted by the Organizer first.',
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+
+      if (existing.version !== expectedVersion) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 409,
+            error: 'Conflict',
+            message: `Optimistic concurrency conflict: Workspace was modified by another session (expected version ${expectedVersion}, current version ${existing.version}). Please refresh and reconfirm your review decision.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+
+      const now = new Date().toISOString();
+
+      let operatingStatus = existing.operatingStatus;
+      let isLive = existing.isLive;
+      let isListingVisible = existing.isListingVisible;
+      let status = existing.status;
+
+      if (reviewStatus !== 'Approved') {
+        operatingStatus = 'Inactive';
+        isLive = false;
+        isListingVisible = false;
+        status = reviewStatus.toLowerCase() as any;
+      } else {
+        // Preserves operatingStatus, isLive, and isListingVisible
+        status = existing.operatingStatus === 'Active' ? 'active' : 'draft';
+      }
+
+      const updatedWorkspace: CanonicalWorkspace = {
+        ...existing,
+        reviewStatus,
+        reviewedBy,
+        reviewedAt: now,
+        reviewFeedback: reviewFeedback || null,
+        operatingStatus,
+        isLive,
+        isListingVisible,
+        status,
+        updatedAt: now,
+        version: existing.version + 1
+      };
+
+      await persistWorkspaceMutation(updatedWorkspace);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
-          success: false,
-          status: 404,
-          error: 'NotFound',
-          message: `Workspace with identifier '${id}' was not found.`,
+          success: true,
+          data: updatedWorkspace,
           timestamp: new Date().toISOString()
         })
       );
-      return;
-    }
-
-    const existing = allWorkspaces[existingIndex];
-    const now = new Date().toISOString();
-
-    let operatingStatus = existing.operatingStatus;
-    let isLive = existing.isLive;
-    let isListingVisible = existing.isListingVisible;
-    let status = existing.status;
-
-    if (reviewStatus !== 'Approved') {
-      operatingStatus = 'Inactive';
-      isLive = false;
-      isListingVisible = false;
-      status = reviewStatus.toLowerCase() as any;
-    } else {
-      status = existing.operatingStatus === 'Active' ? 'active' : 'draft';
-    }
-
-    const updatedWorkspace: CanonicalWorkspace = {
-      ...existing,
-      reviewStatus,
-      reviewedBy,
-      reviewedAt: now,
-      reviewFeedback: reviewFeedback || null,
-      operatingStatus,
-      isLive,
-      isListingVisible,
-      status,
-      updatedAt: now,
-      version: existing.version + 1
-    };
-
-    await persistWorkspaceMutation(updatedWorkspace);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        success: true,
-        data: updatedWorkspace,
-        timestamp: new Date().toISOString()
-      })
-    );
+    });
   } catch (err: unknown) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(
@@ -1547,11 +1608,27 @@ export async function handleAdminReviewWorkspace(
  * Dedicated Administrator endpoint for suspending or restoring a workspace.
  */
 export async function handleAdminModerationWorkspace(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string,
   body: unknown
 ): Promise<void> {
   try {
+    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
+    if (callerRole && callerRole !== 'administrator' && callerRole !== 'admin') {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Administrator authority required to perform moderation actions.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
     const users = await storage.getAll<{ id: string; role: string }>('users');
     const validAdminIds = new Set(
       users.filter((u) => u.role === 'Administrator').map((u) => u.id)
@@ -1573,73 +1650,98 @@ export async function handleAdminModerationWorkspace(
       return;
     }
 
-    const { moderationStatus, suspendedBy, suspendReason } = validation.normalizedData;
-    const allWorkspaces = await getAllNormalizedWorkspaces();
-    const existingIndex = allWorkspaces.findIndex((w) => {
-      if (w.id.toLowerCase() === id.toLowerCase()) return true;
-      if (w.workspaceCode && w.workspaceCode.toLowerCase() === id.toLowerCase()) return true;
-      if (Array.isArray(w.legacyAliases)) {
-        return w.legacyAliases.some((alias) => alias.toLowerCase() === id.toLowerCase());
-      }
-      return false;
-    });
+    const { moderationStatus, suspendedBy, suspendReason, expectedVersion } = validation.normalizedData;
 
-    if (existingIndex === -1) {
-      res.writeHead(404, { 'Content-Type': 'application/json' });
+    await storage.withLock('workspaces-mutation', async () => {
+      const allWorkspaces = await getAllNormalizedWorkspaces();
+      const existingIndex = allWorkspaces.findIndex((w) => {
+        if (w.id.toLowerCase() === id.toLowerCase()) return true;
+        if (w.workspaceCode && w.workspaceCode.toLowerCase() === id.toLowerCase()) return true;
+        if (Array.isArray(w.legacyAliases)) {
+          return w.legacyAliases.some((alias) => alias.toLowerCase() === id.toLowerCase());
+        }
+        return false;
+      });
+
+      if (existingIndex === -1) {
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 404,
+            error: 'NotFound',
+            message: `Workspace with identifier '${id}' was not found.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+
+      const existing = allWorkspaces[existingIndex];
+
+      if (existing.version !== expectedVersion) {
+        res.writeHead(409, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 409,
+            error: 'Conflict',
+            message: `Optimistic concurrency conflict: Workspace was modified by another session (expected version ${expectedVersion}, current version ${existing.version}). Please refresh and reconfirm your moderation decision.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+
+      const now = new Date().toISOString();
+
+      let operatingStatus = existing.operatingStatus;
+      let isLive = existing.isLive;
+      let isListingVisible = existing.isListingVisible;
+      let status = existing.status;
+
+      if (moderationStatus === 'Suspended') {
+        operatingStatus = 'Inactive';
+        isLive = false;
+        isListingVisible = false;
+        status = 'suspended';
+      } else {
+        // Restoring to Normal moderation: approved workspaces return to active bookable state
+        if (existing.reviewStatus === 'Approved') {
+          operatingStatus = 'Active';
+          isLive = true;
+          isListingVisible = true;
+          status = 'active';
+        } else {
+          status = existing.reviewStatus.toLowerCase() as any;
+        }
+      }
+
+      const updatedWorkspace: CanonicalWorkspace = {
+        ...existing,
+        moderationStatus,
+        suspendedBy: moderationStatus === 'Suspended' ? suspendedBy || null : null,
+        suspendedAt: moderationStatus === 'Suspended' ? now : null,
+        suspendReason: moderationStatus === 'Suspended' ? suspendReason || null : null,
+        operatingStatus,
+        isLive,
+        isListingVisible,
+        status,
+        updatedAt: now,
+        version: existing.version + 1
+      };
+
+      await persistWorkspaceMutation(updatedWorkspace);
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
-          success: false,
-          status: 404,
-          error: 'NotFound',
-          message: `Workspace with identifier '${id}' was not found.`,
+          success: true,
+          data: updatedWorkspace,
           timestamp: new Date().toISOString()
         })
       );
-      return;
-    }
-
-    const existing = allWorkspaces[existingIndex];
-    const now = new Date().toISOString();
-
-    let operatingStatus = existing.operatingStatus;
-    let isLive = existing.isLive;
-    let isListingVisible = existing.isListingVisible;
-    let status = existing.status;
-
-    if (moderationStatus === 'Suspended') {
-      operatingStatus = 'Inactive';
-      isLive = false;
-      isListingVisible = false;
-      status = 'suspended';
-    } else {
-      // Restoring to Normal moderation
-      status = existing.reviewStatus === 'Approved' ? 'draft' : (existing.reviewStatus.toLowerCase() as any);
-    }
-
-    const updatedWorkspace: CanonicalWorkspace = {
-      ...existing,
-      moderationStatus,
-      suspendedBy: moderationStatus === 'Suspended' ? suspendedBy || null : null,
-      suspendedAt: moderationStatus === 'Suspended' ? now : null,
-      suspendReason: moderationStatus === 'Suspended' ? suspendReason || null : null,
-      operatingStatus,
-      isLive,
-      isListingVisible,
-      status,
-      updatedAt: now,
-      version: existing.version + 1
-    };
-
-    await persistWorkspaceMutation(updatedWorkspace);
-
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(
-      JSON.stringify({
-        success: true,
-        data: updatedWorkspace,
-        timestamp: new Date().toISOString()
-      })
-    );
+    });
   } catch (err: unknown) {
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(

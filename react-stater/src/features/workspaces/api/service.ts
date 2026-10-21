@@ -133,6 +133,9 @@ export const workspaceService = {
     if (params?.organizerId) {
       headers['x-organizer-id'] = params.organizerId;
     }
+    if (params?.role) {
+      headers['x-mock-role'] = params.role;
+    }
 
     return apiClient.get<WorkspaceListResponse>('/workspaces', {
       params: queryParams,
@@ -216,17 +219,41 @@ export const workspaceService = {
   /**
    * Dedicated Admin endpoint for reviewing workspace submission (Approve / Reject).
    */
-  async adminReviewWorkspace(id: string, dto: AdminReviewWorkspaceDto): Promise<CanonicalWorkspace> {
+  async adminReviewWorkspace(
+    id: string,
+    dto: AdminReviewWorkspaceDto,
+    options?: { adminId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.patch<CanonicalWorkspace>(`/admin/workspaces/${encodeURIComponent(resolvedId)}/review`, dto);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || dto.reviewedBy || 'USR-1882'
+    };
+    return apiClient.patch<CanonicalWorkspace>(
+      `/admin/workspaces/${encodeURIComponent(resolvedId)}/review`,
+      dto,
+      { headers }
+    );
   },
 
   /**
    * Dedicated Admin endpoint for moderating workspace (Suspend / Restore).
    */
-  async adminModerateWorkspace(id: string, dto: AdminModerationWorkspaceDto): Promise<CanonicalWorkspace> {
+  async adminModerateWorkspace(
+    id: string,
+    dto: AdminModerationWorkspaceDto,
+    options?: { adminId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.patch<CanonicalWorkspace>(`/admin/workspaces/${encodeURIComponent(resolvedId)}/moderation`, dto);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || dto.suspendedBy || 'USR-1882'
+    };
+    return apiClient.patch<CanonicalWorkspace>(
+      `/admin/workspaces/${encodeURIComponent(resolvedId)}/moderation`,
+      dto,
+      { headers }
+    );
   },
 
   /**

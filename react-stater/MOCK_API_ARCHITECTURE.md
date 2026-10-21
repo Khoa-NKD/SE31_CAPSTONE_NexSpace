@@ -496,3 +496,58 @@ When submitting a workspace for review (`POST /api/v1/workspaces/:id/submit`):
 ### 12.8 Production vs. Development Distinction
 - **Development Service**: Stores media files locally on the development machine filesystem; provides zero cloud credentials; development-only.
 - **Future Production Service**: In production, media will be uploaded directly to cloud object storage (AWS S3, Cloudflare R2) via presigned upload URLs with CDN edge caching, automatic image resizing/WebP transcoding, and cloud antivirus scanning.
+
+---
+
+## 13. Phase C4 — Administrator Workspace Management & Approval Workflow
+
+Phase C4 connects the Administrator Workspace Management console (A06 Overview and A07 Workspace Directory) to the centralized REST API, establishing a resilient, server-persisted review and moderation workflow with strict concurrency guarantees and cross-role lifecycle parity.
+
+### 13.1 Authoritative Public Eligibility Predicate
+To prevent discrepancies between public customer discovery and administrative metrics, workspace eligibility is governed by a single authoritative contract:
+
+$$\text{isPubliclyEligible}(w) \iff \begin{cases}
+w.\text{reviewStatus} = \text{'Approved'} \\
+w.\text{operatingStatus} = \text{'Active'} \\
+w.\text{moderationStatus} = \text{'Normal'} \\
+w.\text{isListingVisible} = \text{true}
+\end{cases}$$
+
+- **Shared Pure Function**: Exported as `isWorkspacePubliclyEligible(w)` from `src/features/workspaces/api/types.ts` and mirrored in `mock-server/routes/workspaces.ts`.
+- **A06 KPI Metric Alignment**: A06 "Total Published Spaces" computes counts strictly using this predicate, guaranteeing 100% agreement with `GET /api/v1/public/workspaces`.
+- **Decoupling Approval from Publication**: Administrator approval (`reviewStatus: 'Approved'`) verifies legal, safety, and facility standards. Approval **does not** automatically publish the workspace to customers; publication remains an autonomous Organizer operational action (O16) setting `isListingVisible: true`.
+
+### 13.2 Mandatory Optimistic Concurrency Control (OCC)
+To eliminate lost updates and prevent concurrent administrators from overriding decisions without seeing current record state, Admin review and moderation endpoints enforce mandatory OCC:
+
+- **Endpoints**:
+  - `PATCH /api/v1/admin/workspaces/:id/review`
+  - `PATCH /api/v1/admin/workspaces/:id/moderation`
+- **Request Contract**: `expectedVersion` is a **required positive integer**.
+  - Missing `expectedVersion` $\to$ `400 BadRequest` (`expectedVersion is required and must be a positive integer`).
+  - Invalid `expectedVersion` ($\le 0$ or non-integer) $\to$ `400 BadRequest`.
+  - Stale `expectedVersion` ($\ne \text{existing.version}$) $\to$ `409 Conflict`.
+  - Valid `expectedVersion` ($= \text{existing.version}$) $\to$ Executes atomic transition and increments `version` monotonically ($v \gets v + 1$).
+- **Atomicity & Mutex Locking**: Handlers acquire `storage.withLock('workspaces-mutation', ...)` to guarantee serial execution across async ticks. In concurrent race conditions with identical versions, exactly one request succeeds (HTTP 200) and the losing request receives HTTP 409 Conflict.
+- **UI Conflict Feedback & Reconfirmation**: On HTTP 409, the client invalidates React Query caches (`workspaceKeys.all`) to pull latest server state, alerts the administrator via toast warning, preserves user-entered notes, and requires explicit reconfirmation against the latest state.
+- **Organizer Bypass Prevention**: Generic `PATCH /api/v1/workspaces/:id` enforces `DISALLOWED_WORKSPACE_PATCH_FIELDS`, rejecting any organizer attempts to modify governance fields (`reviewStatus`, `moderationStatus`, etc.) with `400 BadRequest`.
+
+### 13.3 Review & Moderation State Lifecycle
+- **Draft Protection**: Workspaces in `Draft` status cannot be reviewed or moderated; the organizer must submit the workspace first (transitions to `Pending`).
+- **Mandatory Rejection Feedback**: Admin rejection requires explanatory feedback (minimum 5 characters) explaining required corrections. Rejection preserves the feedback note and transitions the workspace to `Rejected`. Subsequent edits by the organizer reset `reviewStatus` back to `Draft` for iterative remediation.
+- **Moderation Suspension**: Active workspaces can be suspended by an administrator for safety or compliance investigations. Suspension requires an explanatory reason (minimum 5 characters), records `suspendedBy`, `suspendedAt`, and immediately excludes the workspace from the customer marketplace.
+- **Moderation Restoration**: Restoring a suspended workspace back to `Normal` clears suspension metadata (`suspendedBy`, `suspendedAt`, `suspendReason`), returning the workspace to active public eligibility if all other criteria remain satisfied.
+
+### 13.4 Admin Data Provenance & Neutralized Claims
+To maintain factual integrity and avoid misleading dashboard claims:
+- **Elapsed Time vs. SLA**: Removed unverified SLA promises (`SLA < 24h`, `Avg Turnaround: 3.4h`). Labeled neutrally as `Pending Review`, with oldest ticket wait time calculated dynamically from persisted `submittedAt` timestamps.
+- **Geofence Verification**: Unpersisted geofence claims neutralized to `Not available`.
+- **Compliance & Audits**: Removed fabricated claims of ISO-27001, OSHA, and automated scanner compliance. Retained canonical regulatory fields (Tax ID, verified facility photos, floor plan certificates).
+- **Decision History Limitations**: Persisted records capture the *latest* review and moderation metadata. The Admin UI presents "Latest Decision" rather than synthesizing a multi-event historical timeline. Full immutable event sourcing is deferred to production database audit tables.
+
+### 13.5 Mock Identity Headers vs. Production Security
+- **Development Simulation Only**: Headers `x-mock-role`, `x-mock-user-id`, and `x-organizer-id` allow deterministic testing of multi-role personas (Administrator, Organizer, Customer) in local development.
+- **Not Production Security**: In production Spring Boot 3.5.0:
+  - Caller identity is extracted exclusively from cryptographic JWT / OAuth2 access tokens via Spring Security `SecurityContextHolder`.
+  - Endpoints are protected by method-level authorization: `@PreAuthorize("hasRole('ADMINISTRATOR')")`.
+  - OCC maps directly to JPA `@Version` on the canonical `Workspace` entity, throwing `OptimisticLockException` mapped to HTTP 409 Conflict.

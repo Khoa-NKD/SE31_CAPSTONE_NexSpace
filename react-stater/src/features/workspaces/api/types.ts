@@ -234,6 +234,7 @@ export interface WorkspaceFilterParams {
   limit?: number;
   sortBy?: 'name' | 'createdAt' | 'rating' | 'featuredPosition' | 'usableAreaSqm';
   sortOrder?: 'asc' | 'desc';
+  role?: string;
 }
 
 export interface PublicWorkspaceFilterParams {
@@ -352,10 +353,31 @@ export interface AdminReviewWorkspaceDto {
   reviewStatus: WorkspaceReviewStatus;
   reviewedBy: string;
   reviewFeedback?: string;
+  expectedVersion: number;
 }
 
 export interface AdminModerationWorkspaceDto {
   moderationStatus: WorkspaceModerationStatus;
   suspendedBy?: string;
   suspendReason?: string;
+  expectedVersion: number;
+}
+
+/**
+ * Pure predicate evaluating canonical public marketplace eligibility.
+ * Authoritative contract:
+ * 1. reviewStatus === 'Approved'
+ * 2. operatingStatus === 'Active'
+ * 3. moderationStatus === 'Normal'
+ * 4. isListingVisible === true
+ */
+export function isWorkspacePubliclyEligible(
+  w: Pick<CanonicalWorkspace, 'reviewStatus' | 'operatingStatus' | 'moderationStatus' | 'isListingVisible'>
+): boolean {
+  return (
+    w.reviewStatus === 'Approved' &&
+    w.operatingStatus === 'Active' &&
+    w.moderationStatus === 'Normal' &&
+    w.isListingVisible === true
+  );
 }
