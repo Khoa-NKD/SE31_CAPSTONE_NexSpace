@@ -20,11 +20,21 @@ export function WorkspaceStatusKpiGrid({ kpis }: WorkspaceStatusKpiGridProps) {
         </div>
         <div className='flex items-baseline gap-3 mb-2'>
           <span className='text-2xl lg:text-3xl font-bold font-heading text-foreground'>{kpis.totalPublishedSpaces}</span>
-          <span className='text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-0.5'>
-            <TrendingUp className='size-3.5' aria-hidden='true' /> +{kpis.publishedMonthlyGrowth} this mo
-          </span>
+          {kpis.publishedMonthlyGrowth != null && kpis.publishedMonthlyGrowth > 0 ? (
+            <span className='text-xs text-emerald-700 dark:text-emerald-400 font-semibold flex items-center gap-0.5'>
+              <TrendingUp className='size-3.5' aria-hidden='true' /> +{kpis.publishedMonthlyGrowth} this mo
+            </span>
+          ) : (
+            <span className='text-xs text-muted-foreground font-mono'>
+              Growth data unavailable
+            </span>
+          )}
         </div>
-        <p className='text-xs text-muted-foreground'>Distributed across {kpis.metroHubsCount} high-density metro hubs</p>
+        <p className='text-xs text-muted-foreground'>
+          {kpis.metroHubsCount > 0
+            ? `Distributed across ${kpis.metroHubsCount} active metro hub${kpis.metroHubsCount === 1 ? '' : 's'}`
+            : 'No active metro hubs'}
+        </p>
       </div>
 
       {/* KPI 2: Pending Moderation */}

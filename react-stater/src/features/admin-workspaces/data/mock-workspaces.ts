@@ -2,10 +2,12 @@
  * Strictly deterministic mock data aligned with Stitch Project 6390451165421541093.
  * Screen: A06: Workspace Administration Overview (Screen ID: e4047dc13f1c46cb9952dc34e5ab15a5)
  */
+import type { CanonicalWorkspace } from '../../workspaces/api/types.ts';
+import { isWorkspacePubliclyEligible } from '../../workspaces/api/types.ts';
 
 export interface WorkspaceKpis {
   totalPublishedSpaces: number;
-  publishedMonthlyGrowth: number;
+  publishedMonthlyGrowth?: number | null;
   metroHubsCount: number;
   pendingModerationCount: number;
   pendingOldestHours: number;
@@ -13,6 +15,17 @@ export interface WorkspaceKpis {
   suspendedGrievanceDetails: string;
   partnerDraftsCount: number;
 }
+
+export const ZERO_WORKSPACE_KPIS: WorkspaceKpis = {
+  totalPublishedSpaces: 0,
+  publishedMonthlyGrowth: null,
+  metroHubsCount: 0,
+  pendingModerationCount: 0,
+  pendingOldestHours: 0,
+  suspendedCount: 0,
+  suspendedGrievanceDetails: 'No active suspensions',
+  partnerDraftsCount: 0
+};
 
 export interface ModerationWorkloadItem {
   id: string;
@@ -25,9 +38,9 @@ export interface ModerationWorkloadItem {
 }
 
 export interface QualityHealthMetrics {
-  nomadRating: number;
+  nomadRating: string | number;
   totalRatingsCount: string;
-  hygieneFlags: number;
+  hygieneFlags: string | number;
   hygieneCleanPeriod: string;
   mysteryAuditsPercentage: number;
   verifiedHubsCount: number;
@@ -43,13 +56,13 @@ export interface ModerationDecisionRecord {
   metroZone: string;
   shortCode: string;
   organizerLegalEntity: string;
-  action: 'Approved & Published' | 'Suspended (Safety Audit)' | 'Re-activated' | 'Flags Resolved';
-  actionStatus: 'approved' | 'suspended' | 'reactivated' | 'resolved';
+  action: 'Approved' | 'Suspended' | 'Rejected' | 'Approved & Published' | 'Suspended (Safety Audit)' | 'Re-activated' | 'Flags Resolved';
+  actionStatus: 'approved' | 'suspended' | 'rejected' | 'reactivated' | 'resolved';
   adminHandler: {
     name: string;
     initials: string;
     avatarBgClass: string;
-    role: string;
+    role?: string;
   };
   timestamp: string;
   timestampExact: string;
@@ -89,14 +102,14 @@ export const MOCK_MODERATION_WORKLOAD_ITEMS: ModerationWorkloadItem[] = [
 ];
 
 export const MOCK_QUALITY_HEALTH_METRICS: QualityHealthMetrics = {
-  nomadRating: 4.85,
-  totalRatingsCount: '14.2k user ratings',
-  hygieneFlags: 0,
-  hygieneCleanPeriod: 'Past 7 days clean',
+  nomadRating: '—',
+  totalRatingsCount: 'Rating telemetry unavailable',
+  hygieneFlags: '—',
+  hygieneCleanPeriod: 'Hygiene telemetry unavailable',
   mysteryAuditsPercentage: 0,
   verifiedHubsCount: 0,
-  gradeBadge: 'Platform Monitored',
-  standardsEngineNote: 'Internal Operational Baseline'
+  gradeBadge: 'Telemetry Pending',
+  standardsEngineNote: 'Awaiting Audit Integration'
 };
 
 export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
@@ -221,3 +234,169 @@ export const INITIAL_MODERATION_RECORDS: ModerationDecisionRecord[] = [
     auditTrailNotes: 'Floor plan review passed; amenity tags synchronized with customer booking portal.'
   }
 ];
+
+/**
+ * Pure calculation of A06 workspace status KPIs based strictly on canonical workspaces.
+ * Valid empty API response or null produces zero actual counts.
+ */
+export function computeWorkspaceKpis(
+  workspaces?: CanonicalWorkspace[] | null,
+  now: number = Date.now()
+): WorkspaceKpis {
+  if (!workspaces || workspaces.length === 0) {
+    return ZERO_WORKSPACE_KPIS;
+  }
+
+  // Authoritative public eligibility predicate
+  const published = workspaces.filter(isWorkspacePubliclyEligible).length;
+  const pending = workspaces.filter((w) => w.reviewStatus === 'Pending').length;
+  const suspended = workspaces.filter((w) => w.moderationStatus === 'Suspended').length;
+  const drafts = workspaces.filter((w) => w.reviewStatus === 'Draft').length;
+
+  let oldestHours = 0;
+  const pendingSpaces = workspaces.filter((w) => w.reviewStatus === 'Pending');
+  if (pendingSpaces.length > 0) {
+    const timestamps = pendingSpaces
+      .map((w) => (w.submittedAt ? new Date(w.submittedAt).getTime() : 0))
+      .filter((t) => t > 0);
+    if (timestamps.length > 0) {
+      const earliest = Math.min(...timestamps);
+      oldestHours = Math.max(0, Math.floor((now - earliest) / (1000 * 60 * 60)));
+    }
+  }
+
+  const cities = new Set(workspaces.map((w) => w.city).filter(Boolean));
+  const metroCount = cities.size;
+
+  return {
+    totalPublishedSpaces: published,
+    publishedMonthlyGrowth: null,
+    metroHubsCount: metroCount,
+    pendingModerationCount: pending,
+    pendingOldestHours: oldestHours,
+    suspendedCount: suspended,
+    suspendedGrievanceDetails:
+      suspended > 0
+        ? `${suspended} workspace(s) currently suspended by admin action`
+        : 'No active suspensions',
+    partnerDraftsCount: drafts
+  };
+}
+
+/**
+ * Derive operational moderation workload items strictly from canonical workspaces.
+ */
+export function deriveModerationWorkloadItems(
+  workspaces?: CanonicalWorkspace[] | null
+): ModerationWorkloadItem[] {
+  if (!workspaces) return [];
+
+  const pendingWorkspaces = workspaces.filter((w) => w.reviewStatus === 'Pending');
+  if (pendingWorkspaces.length === 0) return [];
+
+  return [
+    {
+      id: 'workload-pending-review',
+      title: `${pendingWorkspaces.length} Pending Workspace Review${pendingWorkspaces.length === 1 ? '' : 's'}`,
+      description: 'New workspace registrations and onboarding submissions awaiting administrative compliance sign-off.',
+      priorityLabel: 'Priority 1',
+      icon: 'add_business',
+      iconBgClass: 'bg-amber-100 dark:bg-amber-950/50',
+      iconColorClass: 'text-amber-800 dark:text-amber-400'
+    }
+  ];
+}
+
+/**
+ * Derive latest administrative decisions strictly from genuine persisted review/moderation metadata.
+ * Never appends static mock records.
+ */
+export function deriveModerationDecisionRecords(
+  workspaces?: CanonicalWorkspace[] | null
+): ModerationDecisionRecord[] {
+  if (!workspaces || workspaces.length === 0) return [];
+
+  return workspaces
+    .filter((w) => {
+      const hasSuspension = w.moderationStatus === 'Suspended' && Boolean(w.suspendedAt || w.suspendedBy || w.suspendReason);
+      const hasReviewDecision = (w.reviewStatus === 'Approved' || w.reviewStatus === 'Rejected') && Boolean(w.reviewedAt || w.reviewedBy);
+      return hasSuspension || hasReviewDecision;
+    })
+    .map((w) => {
+      const isSuspended = w.moderationStatus === 'Suspended';
+      const isApproved = w.reviewStatus === 'Approved';
+      const isRejected = w.reviewStatus === 'Rejected';
+
+      const action: ModerationDecisionRecord['action'] = isSuspended
+        ? 'Suspended'
+        : isApproved
+        ? 'Approved'
+        : isRejected
+        ? 'Rejected'
+        : 'Flags Resolved';
+
+      const actionStatus: ModerationDecisionRecord['actionStatus'] = isSuspended
+        ? 'suspended'
+        : isApproved
+        ? 'approved'
+        : isRejected
+        ? 'rejected'
+        : 'resolved';
+
+      const dateStr = isSuspended ? w.suspendedAt : (w.reviewedAt || null);
+      let displayTime = 'Recorded';
+      let exactTime = 'Historical decision metadata';
+      if (dateStr) {
+        try {
+          const parsed = new Date(dateStr);
+          if (!isNaN(parsed.getTime())) {
+            displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            exactTime = parsed.toUTCString();
+          }
+        } catch {
+          // Keep fallback
+        }
+      }
+
+      const adminName = isSuspended
+        ? (w.suspendedBy || 'Administrator')
+        : (w.reviewedBy || 'Administrator');
+
+      const initials =
+        adminName
+          .split(' ')
+          .map((s) => s[0])
+          .filter(Boolean)
+          .join('')
+          .slice(0, 2)
+          .toUpperCase() || 'AD';
+
+      const auditTrailNotes = isSuspended
+        ? (w.suspendReason || 'Workspace suspended by administrative policy.')
+        : isApproved
+        ? (w.reviewFeedback || 'Workspace approved by administrator.')
+        : (w.reviewFeedback || 'Workspace rejected during administrative review.');
+
+      return {
+        id: `rec-dyn-${w.id}`,
+        workspaceId: w.workspaceCode || w.id,
+        workspaceName: w.name,
+        unit: w.facilitySubtitle || w.streetAddress || 'Main Unit',
+        metroZone: `${w.district ? `${w.district}, ` : ''}${w.city || 'HCMC'}`,
+        shortCode: (w.name || 'WS').slice(0, 2).toUpperCase(),
+        organizerLegalEntity: w.organizerLegalName || 'Organizer Partner',
+        action,
+        actionStatus,
+        adminHandler: {
+          name: adminName,
+          initials,
+          avatarBgClass: isSuspended ? 'bg-slate-700 text-white' : 'bg-primary text-white',
+          role: 'Administrator'
+        },
+        timestamp: displayTime,
+        timestampExact: exactTime,
+        auditTrailNotes
+      };
+    });
+}
+

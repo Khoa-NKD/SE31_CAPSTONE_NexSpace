@@ -26,7 +26,7 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Aggregated platform indicators derived from verified guest reviews and operator submission data.
+          Platform quality and operational health telemetry indicators. Live metrics activate upon guest review and field audit telemetry integration.
         </p>
 
         {/* Metrics Triple Tiles */}
@@ -34,9 +34,13 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
           {/* Score 1 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
             <span className='text-xs text-muted-foreground block mb-1'>Nomad Rating</span>
-            <div className='flex items-center gap-1'>
+            <div className='flex items-center gap-1.5'>
               <span className='text-xl font-bold font-heading text-foreground'>{metrics.nomadRating}</span>
-              <Star className='size-4 fill-amber-400 text-amber-400' aria-hidden='true' />
+              {typeof metrics.nomadRating === 'number' ? (
+                <Star className='size-4 fill-amber-400 text-amber-400' aria-hidden='true' />
+              ) : (
+                <Star className='size-4 text-muted-foreground/40' aria-hidden='true' />
+              )}
             </div>
             <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.totalRatingsCount}</span>
           </div>
@@ -44,9 +48,11 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
           {/* Score 2 */}
           <div className='p-3.5 rounded-lg bg-muted/50 border border-border'>
             <span className='text-xs text-muted-foreground block mb-1'>Hygiene Flags</span>
-            <div className='flex items-center gap-1'>
-              <span className='text-xl font-bold font-heading text-emerald-600 dark:text-emerald-400'>{metrics.hygieneFlags}</span>
-              <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
+            <div className='flex items-center gap-1.5'>
+              <span className={`text-xl font-bold font-heading ${typeof metrics.hygieneFlags === 'number' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground'}`}>
+                {metrics.hygieneFlags}
+              </span>
+              <CheckCircle2 className={`size-4 ${typeof metrics.hygieneFlags === 'number' ? 'text-emerald-600 dark:text-emerald-400' : 'text-muted-foreground/40'}`} aria-hidden='true' />
             </div>
             <span className='text-[10px] text-muted-foreground mt-1 block'>{metrics.hygieneCleanPeriod}</span>
           </div>
@@ -77,7 +83,9 @@ export function QualityComplianceCard({ metrics }: QualityComplianceCardProps) {
         </span>
         <button
           type='button'
-          className='inline-flex items-center gap-1 text-xs text-primary hover:text-indigo-700 font-semibold transition-colors'
+          disabled
+          className='inline-flex items-center gap-1 text-xs text-muted-foreground/60 cursor-not-allowed font-semibold'
+          title='Guidelines preview not connected'
         >
           <span>Review Guidelines</span>
           <Settings className='size-3.5' aria-hidden='true' />

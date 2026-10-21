@@ -20,7 +20,10 @@ process.env.MOCK_RUNTIME_DIR = ISOLATED_TEST_RUNTIME;
 
 const TEST_MOCK_PORT = 4106;
 const TEST_FE_PORT = 3010;
-const ARTIFACTS_DIR = '/Users/huymd/.gemini/antigravity-ide/brain/b6c4cef6-1037-422b-b5a8-7aae4e9da0d4';
+const ARTIFACTS_DIR = process.env.ARTIFACTS_DIR || '/Users/huymd/.gemini/antigravity-ide/brain/397e7656-ec17-4e3a-83ae-1ec85d840eb0';
+if (!fs.existsSync(ARTIFACTS_DIR)) {
+  fs.mkdirSync(ARTIFACTS_DIR, { recursive: true });
+}
 
 function runCli(cmd: string): string {
   try {
@@ -139,15 +142,15 @@ async function run() {
     runCli('playwright-cli close-all');
 
     // =========================================================================
-    // 1. A06 Overview Verification
+    // 1. A06 Overview Verification (Populated & Empty Fixtures)
     // =========================================================================
-    console.log('\n--- 1. Navigating to A06 Workspace Administration Overview ---');
+    console.log('\n--- 1. Navigating to A06 Workspace Administration Overview (Populated Fixture) ---');
     runCli('playwright-cli resize 1440 900');
     runCli(`playwright-cli open http://localhost:${TEST_FE_PORT}/dashboard/admin/workspaces/`);
     await waitForPageText('Workspace Administration');
     await new Promise((r) => setTimeout(r, 2000));
 
-    // Desktop Viewport (1440x900)
+    // Desktop Viewport (1440x900) - Populated Fixture
     console.log('  Capturing A06 Desktop (1440x900)...');
     const a06Text = runCli('playwright-cli eval "() => document.body.innerText"');
     assert(
@@ -159,6 +162,28 @@ async function run() {
       a06Text.includes('Audit Benchmark') && a06Text.includes('Not Available'),
       'A06 Quality Card displays neutral "Not Available" for unsupported Audit Benchmark'
     );
+    assert(
+      a06Text.includes('Rating telemetry unavailable') &&
+        a06Text.includes('Hygiene telemetry unavailable') &&
+        !a06Text.includes('14.2k user ratings') &&
+        !a06Text.includes('Past 7 days clean'),
+      'A06 Quality Card neutralizes fabricated review counts and cleanliness claims'
+    );
+    assert(
+      a06Text.includes('Export Audit Log (Unavailable)'),
+      'A06 Export Audit Log action is clearly disabled with neutral unavailable state'
+    );
+    assert(
+      !a06Text.includes('5 New Workspace Onboardings') &&
+        !a06Text.includes('3 Floor Plan & Capacity Overhauls'),
+      'A06 Moderation Workload Card excludes static fabricated items'
+    );
+    assert(
+      !a06Text.includes('Approved & Published') &&
+        !a06Text.includes('Suspended (Safety Audit)'),
+      'A06 Moderation Decisions Table does not mislabel approval as published or imply safety audit'
+    );
+
     const a06DesktopPath = path.join(ARTIFACTS_DIR, 'a06_overview_desktop_1440x900.png');
     runCli(`playwright-cli screenshot --filename="${a06DesktopPath}"`);
     console.log(`  📸 Saved: ${a06DesktopPath}`);
@@ -178,6 +203,40 @@ async function run() {
     const a06MobilePath = path.join(ARTIFACTS_DIR, 'a06_overview_mobile_390x844.png');
     runCli(`playwright-cli screenshot --filename="${a06MobilePath}"`);
     console.log(`  📸 Saved: ${a06MobilePath}`);
+
+    // Test A06 with Empty Workspace Fixture
+    console.log('\n--- 1.1 Testing A06 with Empty Workspace Fixture ---');
+    const populatedWorkspaceData = JSON.parse(fs.readFileSync(isolatedWorkspacesPath, 'utf-8'));
+    fs.writeFileSync(isolatedWorkspacesPath, JSON.stringify([], null, 2), 'utf-8');
+
+    runCli('playwright-cli resize 1440 900');
+    runCli('playwright-cli reload');
+    await waitForPageText('No Moderation Decisions Recorded');
+    await new Promise((r) => setTimeout(r, 1500));
+
+    const a06EmptyText = runCli('playwright-cli eval "() => document.body.innerText"');
+    assert(
+      a06EmptyText.includes('No Moderation Decisions Recorded'),
+      'A06 Table displays meaningful empty state when zero moderation decisions exist'
+    );
+    assert(
+      a06EmptyText.includes('Queue is clear'),
+      'A06 Workload Card displays "Queue is clear" when no pending submissions exist'
+    );
+    assert(
+      a06EmptyText.includes('No active metro hubs'),
+      'A06 KPI grid displays "No active metro hubs" (no static fallback 14)'
+    );
+
+    const a06EmptyDesktopPath = path.join(ARTIFACTS_DIR, 'a06_overview_empty_desktop_1440x900.png');
+    runCli(`playwright-cli screenshot --filename="${a06EmptyDesktopPath}"`);
+    console.log(`  📸 Saved Empty State Screenshot: ${a06EmptyDesktopPath}`);
+
+    // Restore populated fixture
+    fs.writeFileSync(isolatedWorkspacesPath, JSON.stringify(populatedWorkspaceData, null, 2), 'utf-8');
+    runCli('playwright-cli reload');
+    await waitForPageText('Recent Moderation Decisions');
+    console.log('  ✓ Restored populated workspace fixture for directory & action tests.');
 
     // =========================================================================
     // 2. A07 Directory Verification

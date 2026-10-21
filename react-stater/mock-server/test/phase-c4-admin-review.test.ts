@@ -964,6 +964,190 @@ async function runPhaseC4TestSuite() {
       `KPI Count: ${kpiPublishedCount}, Public API Count: ${publicApiTotal}`
     );
 
+    // =========================================================================
+    // SECTION 12: A06 Admin Dashboard Data Integrity & De-fabrication Regressions
+    // =========================================================================
+    console.log('\n--- SECTION 12: A06 Admin Dashboard Data Integrity & De-fabrication Regressions ---');
+
+    const {
+      computeWorkspaceKpis,
+      deriveModerationDecisionRecords,
+      deriveModerationWorkloadItems,
+      MOCK_QUALITY_HEALTH_METRICS,
+      INITIAL_MODERATION_RECORDS
+    } = await import('../../src/features/admin-workspaces/data/mock-workspaces.ts');
+
+    // 12.1 Empty Workspace API response produces zero actual counts
+    const emptyKpis = computeWorkspaceKpis([]);
+    assert(
+      emptyKpis.totalPublishedSpaces === 0 &&
+        emptyKpis.metroHubsCount === 0 &&
+        emptyKpis.pendingModerationCount === 0 &&
+        emptyKpis.suspendedCount === 0 &&
+        emptyKpis.partnerDraftsCount === 0 &&
+        emptyKpis.publishedMonthlyGrowth === null &&
+        emptyKpis.pendingOldestHours === 0,
+      '12.1 Empty Workspace API response produces zero KPI counts without fabricated fallbacks'
+    );
+
+    const nullKpis = computeWorkspaceKpis(null);
+    assert(
+      nullKpis.totalPublishedSpaces === 0 && nullKpis.metroHubsCount === 0,
+      '12.2 Null/loading workspace list produces zero KPI counts (no fake 618 published spaces)'
+    );
+
+    // 12.3 Approved but unpublished workspace is NOT counted as Published
+    const approvedUnpublishedWs: any = {
+      id: 'WS-REG-UNPUB',
+      name: 'Approved Inactive Workspace',
+      reviewStatus: 'Approved',
+      operatingStatus: 'Inactive',
+      moderationStatus: 'Normal',
+      isListingVisible: false,
+      city: 'HCMC'
+    };
+    const kpisWithUnpub = computeWorkspaceKpis([approvedUnpublishedWs]);
+    assert(
+      kpisWithUnpub.totalPublishedSpaces === 0,
+      '12.3 Approved but unpublished workspace is excluded from totalPublishedSpaces'
+    );
+    assert(
+      kpisWithUnpub.metroHubsCount === 1,
+      '12.4 Metro hubs count reflects actual distinct cities without static fallback 14'
+    );
+    assert(
+      kpisWithUnpub.publishedMonthlyGrowth === null,
+      '12.5 Fixed monthly growth 12 is removed when no historical telemetry supports it'
+    );
+
+    // 12.6 Static mock decision records are strictly excluded
+    const dynamicApprovedWs: any = {
+      id: 'WS-REG-DYN-1',
+      workspaceCode: 'WS-DYN-1',
+      name: 'Dynamic Persisted Hub',
+      streetAddress: '123 Nguyen Hue',
+      city: 'HCMC',
+      organizerLegalName: 'True Partner JSC',
+      reviewStatus: 'Approved',
+      operatingStatus: 'Active',
+      moderationStatus: 'Normal',
+      isListingVisible: true,
+      reviewedBy: 'Auditor Jane',
+      reviewedAt: '2026-10-21T08:00:00.000Z',
+      reviewFeedback: 'Compliance inspection verified successfully.'
+    };
+
+    const decisions = deriveModerationDecisionRecords([dynamicApprovedWs]);
+    const hasInitialMocks = decisions.some((d: any) =>
+      INITIAL_MODERATION_RECORDS.some((mock: any) => mock.id === d.id || mock.workspaceId === d.workspaceId)
+    );
+    assert(
+      hasInitialMocks === false && decisions.length === 1,
+      '12.6 Static INITIAL_MODERATION_RECORDS are strictly excluded from live decisions'
+    );
+
+    // 12.7 Empty review history returns empty state without appending static mocks
+    const draftOnlyWorkspaces: any[] = [
+      { id: 'WS-DRAFT-1', name: 'Draft A', reviewStatus: 'Draft', moderationStatus: 'Normal' },
+      { id: 'WS-PEND-1', name: 'Pending B', reviewStatus: 'Pending', moderationStatus: 'Normal' }
+    ];
+    const emptyDecisions = deriveModerationDecisionRecords(draftOnlyWorkspaces);
+    assert(
+      emptyDecisions.length === 0,
+      '12.7 Empty review history returns empty array for meaningful UI empty state'
+    );
+
+    // 12.8 Approved event is labeled 'Approved' (not mislabeled 'Approved & Published')
+    assert(
+      decisions[0].action === 'Approved',
+      `12.8 Approved event action is "Approved" (received: "${decisions[0].action}"), not mislabeled "Approved & Published"`
+    );
+    assert(
+      decisions[0].actionStatus === 'approved',
+      '12.9 Approved event actionStatus is "approved"'
+    );
+
+    // 12.10 Suspended event does NOT imply a completed safety audit
+    const dynamicSuspendedWs: any = {
+      id: 'WS-REG-DYN-2',
+      workspaceCode: 'WS-DYN-2',
+      name: 'Suspended Hub',
+      streetAddress: '456 Le Loi',
+      city: 'HCMC',
+      organizerLegalName: 'Urban Hubs Ltd',
+      reviewStatus: 'Approved',
+      operatingStatus: 'Active',
+      moderationStatus: 'Suspended',
+      isListingVisible: true,
+      suspendedBy: 'Compliance Lead David',
+      suspendedAt: '2026-10-21T09:00:00.000Z',
+      suspendReason: 'Repeated noise grievance violations reported by neighbors.'
+    };
+    const suspendedDecisions = deriveModerationDecisionRecords([dynamicSuspendedWs]);
+    assert(
+      suspendedDecisions[0].action === 'Suspended',
+      `12.10 Suspended event action is strictly "Suspended" (received: "${suspendedDecisions[0].action}"), avoiding fabricated safety audit claim`
+    );
+    assert(
+      suspendedDecisions[0].auditTrailNotes === dynamicSuspendedWs.suspendReason,
+      '12.11 Suspended record auditTrailNotes reflects actual suspendReason without alteration'
+    );
+
+    // 12.12 Real persisted review metadata renders genuine administrator identity and timestamp
+    assert(
+      decisions[0].adminHandler.name === 'Auditor Jane',
+      '12.12 Real reviewer name "Auditor Jane" is preserved (not fabricated as Marcus Vance)'
+    );
+    assert(
+      decisions[0].adminHandler.initials === 'AJ',
+      '12.13 Admin initials derived correctly from actual handler'
+    );
+    assert(
+      decisions[0].auditTrailNotes === dynamicApprovedWs.reviewFeedback,
+      '12.14 Review feedback note preserved accurately in audit trail'
+    );
+
+    // 12.15 Unsupported Quality & Compliance metrics display neutral unavailable states
+    assert(
+      MOCK_QUALITY_HEALTH_METRICS.nomadRating === '—',
+      '12.15 Nomad rating displays neutral unavailable state "—" instead of fabricated 4.85'
+    );
+    assert(
+      MOCK_QUALITY_HEALTH_METRICS.totalRatingsCount === 'Rating telemetry unavailable',
+      '12.16 Total ratings count displays neutral unavailable state instead of fabricated 14.2k'
+    );
+    assert(
+      MOCK_QUALITY_HEALTH_METRICS.hygieneFlags === '—' &&
+        MOCK_QUALITY_HEALTH_METRICS.hygieneCleanPeriod === 'Hygiene telemetry unavailable',
+      '12.17 Hygiene indicators display neutral unavailable states instead of fabricated cleanliness history'
+    );
+    assert(
+      MOCK_QUALITY_HEALTH_METRICS.gradeBadge === 'Telemetry Pending',
+      '12.18 Grade badge labeled "Telemetry Pending"'
+    );
+    assert(
+      MOCK_QUALITY_HEALTH_METRICS.standardsEngineNote === 'Awaiting Audit Integration',
+      '12.19 Standards engine note labeled "Awaiting Audit Integration"'
+    );
+
+    // 12.20 Moderation Workload Items are derived from actual pending workspaces
+    const workloadWithPending = deriveModerationWorkloadItems([
+      { id: 'WS-P1', name: 'Pending 1', reviewStatus: 'Pending', moderationStatus: 'Normal' },
+      { id: 'WS-P2', name: 'Pending 2', reviewStatus: 'Pending', moderationStatus: 'Normal' }
+    ] as any);
+    assert(
+      workloadWithPending.length === 1 &&
+        workloadWithPending[0].title === '2 Pending Workspace Reviews' &&
+        workloadWithPending[0].priorityLabel === 'Priority 1',
+      '12.20 Moderation Workload items derived from canonical pending workspaces (no fabricated floor plan counts)'
+    );
+
+    const workloadEmpty = deriveModerationWorkloadItems([]);
+    assert(
+      workloadEmpty.length === 0,
+      '12.21 Moderation Workload empty when no pending workspaces exist'
+    );
+
   } catch (err) {
     console.error('💥 Test suite encountered fatal error:', err);
     failed++;

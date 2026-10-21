@@ -302,10 +302,13 @@ async function getAllNormalizedWorkspaces(): Promise<CanonicalWorkspace[]> {
   }
 
   // 2. Seamlessly append canonical seed workspaces not present in runtime (e.g. WS-101, WS-135, WS-142, WS-150)
-  for (const s of seeds) {
-    if (!processedIds.has(s.id.toLowerCase())) {
-      result.push(normalizeWorkspaceRecord(s, seedMap));
-      processedIds.add(s.id.toLowerCase());
+  // If runtime records array is explicitly empty ([]), do not append seeds to preserve empty fixtures.
+  if (records.length > 0) {
+    for (const s of seeds) {
+      if (!processedIds.has(s.id.toLowerCase())) {
+        result.push(normalizeWorkspaceRecord(s, seedMap));
+        processedIds.add(s.id.toLowerCase());
+      }
     }
   }
 
