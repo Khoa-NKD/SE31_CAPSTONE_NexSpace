@@ -33,6 +33,7 @@ process.env.INTERNAL_API_URL = BASE_URL;
 async function httpFetch(url: string, options: Omit<RequestInit, 'body'> & { body?: any } = {}) {
   const fetchOptions: RequestInit = { ...options };
   const headers: Record<string, string> = {
+    'x-mock-role': 'Organizer',
     'x-organizer-id': 'USR-9432',
     ...(fetchOptions.headers as Record<string, string> | undefined)
   };

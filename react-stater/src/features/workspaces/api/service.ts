@@ -130,11 +130,21 @@ export const workspaceService = {
     }
 
     const headers: Record<string, string> = {};
-    if (params?.organizerId) {
-      headers['x-organizer-id'] = params.organizerId;
-    }
     if (params?.role) {
       headers['x-mock-role'] = params.role;
+      if (params.role.toLowerCase() === 'administrator' || params.role.toLowerCase() === 'admin') {
+        headers['x-mock-user-id'] = 'USR-1882';
+      }
+    }
+    if (params?.organizerId) {
+      headers['x-organizer-id'] = params.organizerId;
+      if (!headers['x-mock-role']) {
+        headers['x-mock-role'] = 'organizer';
+      }
+    }
+    if (!headers['x-mock-role'] && !headers['x-organizer-id'] && !params?.isPublic) {
+      headers['x-mock-role'] = 'organizer';
+      headers['x-organizer-id'] = 'USR-9432';
     }
 
     return apiClient.get<WorkspaceListResponse>('/workspaces', {
@@ -152,13 +162,20 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {};
-    if (options?.role) {
-      headers['x-mock-role'] = options.role;
-    }
-    if (options?.organizerId) {
+    const role = options?.role?.toLowerCase();
+    if (role === 'administrator' || role === 'admin') {
+      headers['x-mock-role'] = 'Administrator';
+      headers['x-mock-user-id'] = 'USR-1882';
+    } else if (options?.organizerId) {
+      headers['x-mock-role'] = options?.role || 'organizer';
       headers['x-organizer-id'] = options.organizerId;
-    }
-    if (!options?.role && !options?.organizerId) {
+    } else if (options?.role) {
+      headers['x-mock-role'] = options.role;
+      if (options.role.toLowerCase() === 'customer') {
+        headers['x-mock-user-id'] = 'USR-8821';
+      }
+    } else {
+      headers['x-mock-role'] = 'organizer';
       headers['x-organizer-id'] = 'USR-9432';
     }
     return apiClient.get<CanonicalWorkspace>(`/workspaces/${encodeURIComponent(resolvedId)}`, {
@@ -183,6 +200,7 @@ export const workspaceService = {
   ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     const headers: Record<string, string> = {
+      'x-mock-role': 'organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
     return apiClient.patch<CanonicalWorkspace>(

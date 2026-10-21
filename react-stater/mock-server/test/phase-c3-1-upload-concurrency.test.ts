@@ -594,6 +594,7 @@ async function runPhaseC31TestSuite() {
     // 4.5 Verify organizer workspace list includes the submitted workspace with Pending status
     const organizerListRes = await fetch(`${BASE_URL}/workspaces?organizerId=ORG-NEX-01`, {
       headers: {
+        'x-mock-role': 'Organizer',
         'x-organizer-id': 'ORG-NEX-01'
       }
     });

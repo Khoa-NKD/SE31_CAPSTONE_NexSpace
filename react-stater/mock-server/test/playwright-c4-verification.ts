@@ -308,7 +308,7 @@ async function run() {
 
     // Check API state for WS-104
     const ws104Res = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-104`, {
-      headers: { 'X-Role': 'Administrator' }
+      headers: { 'X-Role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
     const ws104Json = await ws104Res.json();
     const ws104Data = ws104Json.data || ws104Json;
@@ -366,7 +366,7 @@ async function run() {
 
     // Check API state for WS-108
     const ws108Res = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-108`, {
-      headers: { 'X-Role': 'Administrator' }
+      headers: { 'X-Role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
     const ws108Json = await ws108Res.json();
     const ws108Data = ws108Json.data || ws108Json;
@@ -426,7 +426,7 @@ async function run() {
 
     // Verify API state
     const ws092SuspendedRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-092`, {
-      headers: { 'X-Role': 'Administrator' }
+      headers: { 'X-Role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
     const ws092SuspendedJson = await ws092SuspendedRes.json();
     const ws092Suspended = ws092SuspendedJson.data || ws092SuspendedJson;
@@ -452,7 +452,7 @@ async function run() {
 
     // Verify restored state in API
     const ws092RestoredRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-092`, {
-      headers: { 'X-Role': 'Administrator' }
+      headers: { 'X-Role': 'Administrator', 'x-mock-user-id': 'USR-1882' }
     });
     const ws092RestoredJson = await ws092RestoredRes.json();
     const ws092Restored = ws092RestoredJson.data || ws092RestoredJson;
@@ -499,7 +499,7 @@ async function run() {
     console.log('\n--- 8. Testing Cross-Tenant Non-Owner Denial ---');
     // Non-owner organizer USR-9432 attempting to access WS-108 (owned by USR-2194)
     const nonOwnerRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-108`, {
-      headers: { 'x-organizer-id': 'USR-9432' }
+      headers: { 'x-organizer-id': 'USR-9432', 'x-mock-role': 'Organizer' }
     });
     assert(
       nonOwnerRes.status === 403,
