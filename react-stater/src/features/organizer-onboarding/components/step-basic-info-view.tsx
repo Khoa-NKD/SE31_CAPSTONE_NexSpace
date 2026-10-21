@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
   CloudSync,
@@ -9,15 +9,18 @@ import {
   Phone,
   Mail,
   Save,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
 import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { useWizardStore } from '../store/wizard-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { basicInfoSchema } from '../schemas/wizard-schemas';
 import type { SpaceCategory } from '../types/wizard';
 
@@ -47,13 +50,30 @@ const CATEGORIES: Array<{
   }
 ];
 
-export function StepBasicInfoView() {
+interface StepBasicInfoViewProps {
+  routeWorkspaceId?: string;
+}
+
+export function StepBasicInfoView({ routeWorkspaceId }: StepBasicInfoViewProps = {}) {
   const router = useRouter();
   const basicInfo = useWizardStore((state) => state.basicInfo);
   const setBasicInfo = useWizardStore((state) => state.setBasicInfo);
-  const saveDraft = useWizardStore((state) => state.saveDraft);
+  const {
+    canonicalWorkspaceId,
+    serverVersion,
+    isSaving,
+    saveDraftToServer,
+    loadWorkspaceFromServer
+  } = useWizardDraftSync();
 
-  // Form local state initialized from store
+  // Load workspace if route query param is provided
+  useEffect(() => {
+    if (routeWorkspaceId && routeWorkspaceId !== canonicalWorkspaceId) {
+      loadWorkspaceFromServer(routeWorkspaceId);
+    }
+  }, [routeWorkspaceId, canonicalWorkspaceId, loadWorkspaceFromServer]);
+
+  // Form local state initialized from store and updated when store hydrates
   const [name, setName] = useState(basicInfo.name);
   const [category, setCategory] = useState<SpaceCategory>(basicInfo.category);
   const [description, setDescription] = useState(basicInfo.description);
@@ -61,10 +81,20 @@ export function StepBasicInfoView() {
   const [contactPhone, setContactPhone] = useState(basicInfo.contactPhone);
   const [contactEmail, setContactEmail] = useState(basicInfo.contactEmail);
 
+  useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    setName(basicInfo.name);
+    setCategory(basicInfo.category);
+    setDescription(basicInfo.description);
+    setTotalArea(String(basicInfo.totalArea || 1250));
+    setContactPhone(basicInfo.contactPhone);
+    setContactEmail(basicInfo.contactEmail);
+  }, [basicInfo]);
+
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     const numericArea = parseFloat(totalArea.replace(/,/g, '')) || 0;
     setBasicInfo({
       name,
@@ -74,13 +104,10 @@ export function StepBasicInfoView() {
       contactPhone,
       contactEmail
     });
-    saveDraft();
-    toast.success('Draft Saved Locally', {
-      description: 'Your workspace setup progress has been saved.'
-    });
+    await saveDraftToServer();
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
     const numericArea = parseFloat(totalArea.replace(/,/g, '')) || 0;
 
@@ -112,7 +139,7 @@ export function StepBasicInfoView() {
 
     setErrors({});
     setBasicInfo(values);
-    saveDraft();
+    await saveDraftToServer({ silent: true });
     router.navigate({ to: '/dashboard/organizer/workspaces/create/location' });
   };
 
@@ -127,11 +154,23 @@ export function StepBasicInfoView() {
       {/* Main Form Container Card (Max-width 760px matching Stitch) */}
       <section className='max-w-[760px] mx-auto bg-card rounded-xl border border-border p-6 sm:p-8 shadow-2xs'>
         {/* Info Banner at Top */}
-        <div className='mb-6 flex items-center gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-lg text-indigo-700 dark:text-indigo-300'>
-          <CloudSync className='size-5 shrink-0' />
-          <p className='text-xs sm:text-sm font-medium'>
-            Changes will be saved automatically as draft to your account.
-          </p>
+        <div className='mb-6 flex items-center justify-between gap-3 px-4 py-3 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800/60 rounded-lg text-indigo-700 dark:text-indigo-300'>
+          <div className='flex items-center gap-3'>
+            <CloudSync className='size-5 shrink-0' />
+            <p className='text-xs sm:text-sm font-medium'>
+              {canonicalWorkspaceId
+                ? `Canonical record ${canonicalWorkspaceId} (v${serverVersion || 1}) synchronized with REST API.`
+                : 'Changes will be saved automatically as draft to your account.'}
+            </p>
+          </div>
+          {canonicalWorkspaceId && (
+            <Badge
+              variant='outline'
+              className='text-[11px] font-mono font-semibold bg-white dark:bg-card border-indigo-300 dark:border-indigo-700 text-indigo-700 dark:text-indigo-300 shrink-0'
+            >
+              {canonicalWorkspaceId}
+            </Badge>
+          )}
         </div>
 
         {/* Card Header */}
@@ -340,19 +379,21 @@ export function StepBasicInfoView() {
             <Button
               type='button'
               variant='outline'
+              disabled={isSaving}
               onClick={handleSaveDraft}
               className='gap-2 text-xs sm:text-sm border-border hover:bg-muted'
             >
-              <Save className='size-4' />
-              <span>Save as Draft</span>
+              {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+              <span>{isSaving ? 'Saving Draft...' : 'Save as Draft'}</span>
             </Button>
 
             <Button
               type='submit'
+              disabled={isSaving}
               className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
             >
               <span>Continue to Location &amp; Map</span>
-              <ArrowRight className='size-4' />
+              {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
             </Button>
           </div>
         </form>

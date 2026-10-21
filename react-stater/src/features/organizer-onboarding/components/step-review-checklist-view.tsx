@@ -29,7 +29,15 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
-import { useWorkspacesStore } from '@/features/organizer-workspaces/store/workspaces-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
+import { useSubmitWorkspaceMutation } from '@/features/workspaces/api';
+import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
+
+function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolean {
+  if (!item.url) return false;
+  if (item.uploadStatus === 'error' || item.uploadStatus === 'uploading') return false;
+  return isDurableMediaUrl(item.url);
+}
 
 export function StepReviewChecklistView() {
   const router = useRouter();
@@ -44,7 +52,12 @@ export function StepReviewChecklistView() {
     setSubmissionStatus
   } = useWizardStore();
 
-  const updateWorkspaceStatus = useWorkspacesStore((state) => state.updateWorkspaceStatus);
+  const {
+    isSaving,
+    saveDraftToServer
+  } = useWizardDraftSync();
+
+  const submitMutation = useSubmitWorkspaceMutation();
 
   const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
   const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
@@ -55,11 +68,31 @@ export function StepReviewChecklistView() {
   const isBasicInfoValid =
     Boolean(basicInfo.name && basicInfo.category && basicInfo.totalArea > 0 && basicInfo.contactEmail);
   const isLocationValid =
-    Boolean(location.streetAddress && location.district && location.city && location.latitude && location.longitude);
+    Boolean(
+      location.streetAddress &&
+      location.district &&
+      location.city &&
+      typeof location.latitude === 'number' &&
+      !Number.isNaN(location.latitude) &&
+      location.latitude !== 0 &&
+      typeof location.longitude === 'number' &&
+      !Number.isNaN(location.longitude) &&
+      location.longitude !== 0
+    );
   const isOperatingHoursValid =
     operatingHours.is247 || operatingHours.schedule.some((s) => s.isOpen);
   const isAmenitiesValid = amenities.length >= 1;
-  const isMediaValid = media.items.length >= 1 && Boolean(media.coverPhotoId);
+
+  const durableMediaCount = media.items.filter(isItemValidMedia).length;
+  const hasDurableCover = Boolean(
+    media.coverPhotoId &&
+    media.items.some(
+      (item) => item.id === media.coverPhotoId && isItemValidMedia(item)
+    )
+  );
+  const hasOnlyLocalPreviews = media.items.length > 0 && durableMediaCount === 0;
+  const isMediaValid = durableMediaCount >= 1 && (hasDurableCover || durableMediaCount > 0);
+
   const isFloorPlanValid =
     floorPlan.floors.length >= 1 &&
     floorPlan.zones.length >= 1 &&
@@ -80,22 +113,54 @@ export function StepReviewChecklistView() {
   const totalCapacity = floorPlan.zones.reduce((acc, z) => acc + z.capacity, 0);
   const coverPhoto = media.items.find((item) => item.id === media.coverPhotoId) || media.items[0];
 
-  const handleConfirmSubmit = () => {
+  const handleConfirmSubmit = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    try {
+      if (!isMediaValid) {
+        toast.error('Submission Blocked: Missing Durable Media', {
+          description: hasOnlyLocalPreviews
+            ? 'Only temporary local previews are present. Please ensure all photographs are uploaded before submitting for review.'
+            : 'At least 1 durable workspace photograph is required before submitting for review.'
+        });
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Always persist current wizard changes to canonical Workspace on server first
+      const saved = await saveDraftToServer({ silent: true });
+      if (!saved) {
+        // saveDraftToServer already displayed conflict / validation error toast if save failed
+        setIsSubmitting(false);
+        return;
+      }
+
+      const targetId = saved.id;
+      const targetVersion = saved.version;
+
+      await submitMutation.mutateAsync({
+        id: targetId,
+        dto: {
+          expectedVersion: targetVersion,
+          agreementConfirmed: true
+        },
+        workspaceName: basicInfo.name
+      });
+
       setSubmissionStatus('under_review');
-      // Update mock workspace to reflect submitted state
-      updateWorkspaceStatus('ws-tech-d7-03', 'UNDER_REVIEW');
       saveDraft();
-      setIsSubmitting(false);
       setIsSubmitModalOpen(false);
 
       toast.success('Workspace Submitted for Review!', {
-        description: 'Listing entered partner verification queue #NX-VER-2026. Platform review takes 12-24 hours.'
+        description: `Listing ${targetId} submitted for review. An administrator will review your workspace before marketplace publication.`
       });
 
       router.navigate({ to: '/dashboard/organizer/workspaces' });
-    }, 1000);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Submission failed';
+      toast.error('Submission Error', { description: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -159,7 +224,7 @@ export function StepReviewChecklistView() {
               <ShieldCheck className='size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5' />
               <div>
                 <span className='font-bold text-foreground'>Your workspace is 100% complete! </span>
-                All mandatory operational fields, geolocation coordinates, and floor zones meet platform publishing requirements.
+                All mandatory operational fields, geolocation coordinates, and floor zones meet platform review and submission requirements.
               </div>
             </div>
           ) : (
@@ -167,7 +232,7 @@ export function StepReviewChecklistView() {
               <AlertTriangle className='size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
               <div>
                 <span className='font-bold text-foreground'>Your workspace is almost ready! </span>
-                Please address pending sections highlighted below to enable marketplace publication.
+                Please address pending sections highlighted below to enable submission for administrator review.
               </div>
             </div>
           )}
@@ -229,7 +294,11 @@ export function StepReviewChecklistView() {
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Geolocation</span>
               <span className='font-medium text-foreground mt-0.5 flex items-center gap-1'>
                 <MapPin className='size-3.5 text-emerald-600' />
-                <span>{location.latitude.toFixed(4)}° N, {location.longitude.toFixed(4)}° E (Verified Pin)</span>
+                <span>
+                  {typeof location.latitude === 'number' && typeof location.longitude === 'number'
+                    ? `${location.latitude.toFixed(4)}° N, ${location.longitude.toFixed(4)}° E (Verified Pin)`
+                    : 'Coordinates not configured'}
+                </span>
               </span>
             </div>
             <div>
@@ -371,6 +440,19 @@ export function StepReviewChecklistView() {
             </div>
           </div>
 
+          {/* Local Previews Warning Banner if no durable media */}
+          {hasOnlyLocalPreviews && (
+            <div className='p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 text-xs'>
+              <AlertTriangle className='size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
+              <div>
+                <p className='font-semibold'>Local Previews Only (Upload Service Offline)</p>
+                <p className='mt-0.5 text-amber-800/90 dark:text-amber-300/90'>
+                  Your gallery contains only temporary local file previews. Because cloud storage is not connected, these photos cannot be saved to the server or submitted for review. At least 1 durable photograph is required.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Media Previews Grid */}
           <div>
             <div className='flex items-center justify-between text-xs mb-2'>
@@ -477,7 +559,7 @@ export function StepReviewChecklistView() {
             />
             <label htmlFor='terms' className='text-xs leading-relaxed text-muted-foreground cursor-pointer'>
               <span className='font-bold text-foreground'>Organizer Platform Agreement Declaration: </span>
-              I confirm that all facility descriptions, safety standards, fire codes, and hourly pricing matrices are accurate and comply with the NexSpace Partner Master Service Agreement. I authorize NexSpace to inspect and publish this listing.
+              I confirm that all facility descriptions, safety standards, fire codes, and hourly pricing matrices are accurate and comply with the NexSpace Partner Master Service Agreement. I authorize NexSpace to inspect and verify this listing for administrator review.
             </label>
           </div>
         </div>
@@ -504,7 +586,7 @@ export function StepReviewChecklistView() {
             <span className='text-[11px] text-muted-foreground mt-0.5'>
               {isReadyForSubmission
                 ? 'All mandatory requirements satisfied. Ready for submission.'
-                : 'Complete all steps before publishing to marketplace.'}
+                : 'Complete all steps before submitting for review.'}
             </span>
           </div>
 
@@ -513,18 +595,18 @@ export function StepReviewChecklistView() {
             <Button
               type='button'
               variant='outline'
-              onClick={() => {
-                saveDraft();
-                toast.success('Workspace draft saved locally');
+              disabled={isSaving || isSubmitting}
+              onClick={async () => {
+                await saveDraftToServer({ silent: false });
               }}
               className='h-10 text-xs sm:text-sm font-medium border-border'
             >
-              Save as Draft
+              {isSaving ? 'Saving Draft...' : 'Save as Draft'}
             </Button>
 
             <Button
               type='button'
-              disabled={!isReadyForSubmission || !hasAgreedTerms}
+              disabled={!isReadyForSubmission || !hasAgreedTerms || isSubmitting || isSaving}
               onClick={() => setIsSubmitModalOpen(true)}
               className={`h-10 px-5 text-xs sm:text-sm font-semibold gap-2 shadow-xs transition-all ${
                 isReadyForSubmission && hasAgreedTerms
@@ -533,7 +615,7 @@ export function StepReviewChecklistView() {
               }`}
             >
               <Send className='size-4' />
-              <span>Submit for Marketplace Publishing</span>
+              <span>Submit for Review</span>
             </Button>
           </div>
         </div>
@@ -545,15 +627,15 @@ export function StepReviewChecklistView() {
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400'>
               <Send className='size-5' />
-              <span>Confirm Marketplace Submission</span>
+              <span>Confirm Submission for Review</span>
             </DialogTitle>
             <DialogDescription>
-              Submit <strong className='text-foreground'>{basicInfo.name}</strong> for administrator review and marketplace publication.
+              Submit <strong className='text-foreground'>{basicInfo.name}</strong> for administrator review. Once approved by our team, the listing will be published to the marketplace.
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-3 py-2 text-xs text-muted-foreground'>
             <p>
-              Once submitted, our Partner Operations team will verify the property details, license records, and fire safety compliance within 12–24 hours.
+              Once submitted, administrators will review your workspace details, license records, and safety compliance before approving publication.
             </p>
             <div className='p-3 bg-muted/60 rounded-lg border border-border space-y-1.5'>
               <div className='flex justify-between'>
@@ -565,8 +647,8 @@ export function StepReviewChecklistView() {
                 <span className='font-semibold text-foreground'>{floorPlan.floors.length} Floors • {totalCapacity} Desks</span>
               </div>
               <div className='flex justify-between'>
-                <span>Assigned Submission Queue:</span>
-                <span className='font-mono font-semibold text-indigo-600'>#NX-VER-2026</span>
+                <span>Review Status:</span>
+                <span className='font-semibold text-amber-600 dark:text-amber-400'>Pending Administrator Review</span>
               </div>
             </div>
           </div>
@@ -574,7 +656,7 @@ export function StepReviewChecklistView() {
             <Button variant='outline' onClick={() => setIsSubmitModalOpen(false)}>Cancel</Button>
             <Button
               onClick={handleConfirmSubmit}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSaving}
               className='bg-indigo-600 hover:bg-indigo-700 text-white'
             >
               {isSubmitting ? 'Submitting...' : 'Confirm Submission'}

@@ -7,6 +7,7 @@ import type {
   CreateWorkspaceDto,
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
+  SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto
 } from './types';
@@ -204,6 +205,78 @@ export function useWorkspaceLifecycleMutation() {
         }
       }
       toast.error('Lifecycle Action Failed', { description });
+    }
+  });
+}
+
+export interface SubmitWorkspaceVariables {
+  id: string;
+  dto?: SubmitWorkspaceDto;
+  workspaceName?: string;
+}
+
+/**
+ * TanStack Query mutation hook for Organizer workspace submission for Administrator review.
+ */
+export function useSubmitWorkspaceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CanonicalWorkspace, Error, SubmitWorkspaceVariables>({
+    mutationFn: ({ id, dto }) => workspaceService.submitWorkspace(id, dto),
+
+    onSuccess: (updatedWorkspace, variables) => {
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+      queryClient.setQueryData(workspaceQueryKeys.detail(updatedWorkspace.id), updatedWorkspace);
+
+      const displayName = variables.workspaceName || updatedWorkspace.name;
+      toast.success('Workspace Submitted for Review', {
+        description: `"${displayName}" (${updatedWorkspace.id}) has been submitted for platform review.`
+      });
+    },
+
+    onError: (err: unknown) => {
+      let description = 'Could not submit workspace. Please check required fields.';
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          description = 'Concurrency conflict: this workspace was modified by another session. Please reload the latest draft.';
+        } else if (err.status === 403) {
+          description = err.message || 'You are not authorized to submit this workspace.';
+        } else if (err.validationErrors) {
+          const firstErr = Object.values(err.validationErrors)[0];
+          description = firstErr || err.message;
+        } else {
+          description = err.message;
+        }
+      }
+      toast.error('Submission Failed', { description });
+    }
+  });
+}
+
+export interface UploadMediaVariables {
+  file: File | Blob;
+  filename?: string;
+}
+
+export interface UploadMediaResult {
+  id: string;
+  filename: string;
+  originalName: string;
+  mimeType: string;
+  size: number;
+  url: string;
+}
+
+/**
+ * TanStack Query mutation hook for uploading media to the development mock server.
+ */
+export function useUploadMediaMutation() {
+  return useMutation<UploadMediaResult, Error, UploadMediaVariables>({
+    mutationFn: ({ file, filename }) => workspaceService.uploadMedia(file, filename),
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Media upload failed';
+      toast.error('Upload Failed', { description });
     }
   });
 }

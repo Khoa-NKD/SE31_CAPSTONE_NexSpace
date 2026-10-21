@@ -291,3 +291,208 @@ The Mock API establishes three distinct access-scoped contract tiers:
      - `PATCH /api/v1/admin/workspaces/:id/**` -> `@PreAuthorize("hasRole('ADMIN')")`.
 3. **Frontend Decoupling**:
    - The frontend service layer in `src/features/workspaces/api/` completely abstracts these transport concerns, allowing an effortless switch from mock development headers to standard HTTP interceptor Bearer tokens when real microservices are ready.
+
+---
+
+## 11. Phase C3: Organizer Workspace Onboarding Wizard Integration & Submission Architecture
+
+### 11.1 Onboarding Workflow Overview
+Phase C3 migrates the 6-step Organizer Workspace Creation Wizard (O05–O10) and Pre-submission Review Checklist (O15) to the centralized, writable Mock REST API.
+
+```text
+[O05 Basic Info] ──(POST /workspaces)──► [Canonical ID Assigned: WS-xxx, v1]
+       │
+[O06 Location] ──(PATCH /workspaces/:id)──► [Address, Coordinates, v2]
+       │
+[O07 Hours] ──(PATCH /workspaces/:id)──► [Operating Schedules, 24/7 flag, v3]
+       │
+[O08 Amenities] ──(PATCH /workspaces/:id)──► [Canonical Amenity IDs, v4]
+       │
+[O09 Media] ──(PATCH /workspaces/:id)──► [Durable Remote URLs Only, v5]
+       │
+[O10 Floor Plan] ──(PATCH /workspaces/:id)──► [Capacity & Floor Summaries, v6]
+       │
+[O15 Review Checklist] ──(POST /workspaces/:id/submit)──► [reviewStatus: 'Pending', v7]
+       │
+       ▼
+[O04 Dashboard] ── Reflects 'UNDER REVIEW' badge (Excluded from Public Marketplace)
+```
+
+---
+
+### 11.2 Draft Creation & Idempotent Save Semantics
+1. **Initial Draft Creation (`POST /api/v1/workspaces`)**:
+   - Triggered on Step O05 when the user clicks "Save as Draft" or advances if no server ID exists.
+   - Enforces server-side assignment of `canonicalWorkspaceId` (e.g. `WS-111`), organizer tenant ownership (`USR-9432`), `reviewStatus: 'Draft'`, `moderationStatus: 'Normal'`, and initial `version: 1`.
+   - Never allows client-controlled ID generation or auto-publishing.
+   - **Idempotent Draft Creation Contract (`clientDraftKey`)**:
+     - Before issuing the initial creation POST, the client generates and persists a stable UUID/token (`clientDraftKey`) in Zustand / localStorage (`nexspace_organizer_onboarding_draft_v1`).
+     - On double-clicks, slow network timeouts, React Strict Mode remounts, or user retries, the same `clientDraftKey` is re-sent.
+     - The mock server matches `w.organizerId === payload.organizerId && w.clientDraftKey === payload.clientDraftKey`. If a matching workspace already exists, it returns `200 OK` with the existing canonical record rather than creating a duplicate workspace.
+     - Scoped strictly by `organizerId` to prevent cross-organizer key collisions.
+   - Guarded in-memory during single-session execution via `inFlightPromiseRef` lock ref.
+2. **Incremental Step Updates (`PATCH /api/v1/workspaces/:id`)**:
+   - Every subsequent step (O06 to O10) transmits only its supported domain fields along with the current `expectedVersion`.
+   - On success, the server increments `version` sequentially and returns the updated canonical record.
+   - Store updates `serverVersion` and marks `isDraftSynced: true`.
+
+---
+
+### 11.3 Field-to-API Bidirectional Mapper & Media Upload Reality (`wizard-api-mapper.ts`)
+A dedicated pure mapping utility reconciles wizard frontend state with canonical REST DTOs:
+- **Operating Hours**:
+  - Wizard UI represents hours in 12-hour AM/PM format (e.g., `"08:00 AM"`).
+  - Mapper converts to 24-hour ISO format (`"08:00"`) for canonical `WorkspaceOperatingHour[]`.
+  - Rehydration back into the store preserves 12-hour formatting for user inputs.
+- **Media Gallery & Ephemeral Blob Safety**:
+  - `mapWizardMediaToCanonical` strictly filters for durable remote URLs (`http://`, `https://`).
+  - Temporary browser blob URLs (`blob:http://...`) created via `URL.createObjectURL(file)` during local file selection are strictly excluded from server payloads to avoid storage of ephemeral, unresolvable browser references.
+  - When the browser reloads, in-memory `blob:` URLs are revoked by the browser engine. Local drafts that contain only local blobs are clearly distinguished with `Local Preview (Unsynced)` badges.
+  - In O15 pre-submission review, `isMediaValid` strictly requires at least 1 durable remote photograph (`http://` or `https://`). If only local previews exist, submission is disabled with an actionable banner explaining that an active cloud upload service is required.
+  - Seeded remote HTTPS images remain fully durable.
+- **Floor Plan & Zone Aggregation**:
+  - Aggregates zone capacities, desk counts, and meeting rooms into workspace-level summary fields (`capacityDesks`, `meetingRooms`, `focusPods`, `capacityLabel`, `totalFloors`).
+  - Does not overwrite granular seat/canvas data owned by separate editor modules.
+
+---
+
+### 11.4 LocalStorage Draft Compatibility & Non-Destructive Reconciliation
+- **Data Safety Requirement**: Existing localStorage keys (`nexspace_organizer_onboarding_draft_v1` and `nexspace_organizer_workspaces_v1`) are never deleted or wiped.
+- **State Separation**:
+  1. *Canonical Server Record*: Authoritative backend state fetched by ID.
+  2. *Local Draft State*: Contains unsaved user changes, local form state, and uploaded blob previews.
+  3. *UI State*: Current active step, expanded accordion tabs, modal visibility.
+- **Draft Recovery Flow**:
+  - When the wizard mounts with an existing local draft lacking `canonicalWorkspaceId`, the UI indicates `Unsynchronized Local Draft`.
+  - An explicit path allows the organizer to save the draft, promoting it to a canonical record on the server without creating duplicates on mount.
+  - If a canonical record is loaded (via URL query param `?id=WS-xxx`), the store rehydrates server values while preserving pending local media blobs.
+
+---
+
+### 11.5 Optimistic Concurrency & Conflict Protection
+- All mutation requests (`PATCH /api/v1/workspaces/:id` and `POST /api/v1/workspaces/:id/submit`) provide `expectedVersion`.
+- If another session modified the workspace concurrently, the mock server rejects the request with `409 Conflict` (`CONCURRENCY_CONFLICT`).
+- The UI catches the 409 error, sets `syncError`, alerts the organizer via toast, and preserves unsaved local form input so data is never silently discarded.
+
+---
+
+### 11.6 Dedicated Submission Endpoint (`POST /api/v1/workspaces/:id/submit`)
+- **Route**: `POST /api/v1/workspaces/:id/submit`
+- **Ownership Check**: Verifies the requester matches the workspace `organizerId`.
+- **Eligibility Validation**:
+  - `reviewStatus` must currently be `Draft`. Submitting an already `Pending` or `Approved` workspace is rejected.
+  - `moderationStatus` must not be `Suspended`.
+- **Completeness Validation**:
+  - Title (>= 3 chars) and valid category.
+  - Physical address (street, district, city).
+  - At least one active operating schedule or 24/7 setting.
+  - Minimum configured capacity (`capacityDesks > 0` or valid zone desks).
+  - At least 1 selected amenity.
+  - At least 1 durable photograph or cover image.
+- **State Transition**:
+  - Transitions `reviewStatus: 'Pending'`, `status: 'pending'`, `draftProgress: 100`, `onboardingCompleted: true`.
+  - Sets `submittedAt` timestamp and stores organizer submission notes.
+  - Does **not** auto-approve or auto-publish (Admin approval is handled separately in Phase C4).
+- **Public Marketplace Isolation**:
+  - Workspaces in `Draft` or `Pending` status are excluded from `/api/v1/public/workspaces`.
+  - Only `Approved` + `Active` + `isListingVisible: true` spaces appear in customer search.
+
+---
+
+### 11.7 Future Spring Boot Integration Notes
+When transitioning from the Node.js Mock API to production Spring Boot microservices:
+1. Replace simulated `X-Organizer-Id` with OAuth2 JWT principal extraction (`@AuthenticationPrincipal Jwt jwt`).
+2. Implement file uploads via S3/Cloudflare R2 presigned URLs (`POST /api/v1/media/upload-url`) before attaching URLs to the workspace DTO.
+3. Maintain the same DTO schemas (`CreateWorkspaceDto`, `UpdateWorkspaceDto`, `SubmitWorkspaceDto`) to ensure zero frontend regression.
+4. Concurrency versioning maps directly to `@Version` JPA entity optimistic locking.
+
+---
+
+## 12. Phase C3.1: Development-Only Media Upload & Concurrency Architecture
+
+### 12.1 Development-Only Media Upload Contract
+The mock server provides a lightweight, development-only file upload service operating under `/api/v1/media`:
+
+- **Upload Endpoint**: `POST /api/v1/media/upload`
+  - Accepts `multipart/form-data` with a single file field named `file`.
+  - Parsed using standard Node 24 streaming multipart (`new Request(url, { body: req, duplex: 'half' }).formData()`) without unsafe third-party ad-hoc parsers.
+  - Returns `201 Created` with metadata envelope:
+    ```json
+    {
+      "success": true,
+      "data": {
+        "id": "media-1792527689763-42ce7f02",
+        "filename": "media-1792527689763-42ce7f02.png",
+        "originalName": "workspace-photo.png",
+        "mimeType": "image/png",
+        "size": 67,
+        "url": "/api/v1/media/media-1792527689763-42ce7f02.png"
+      },
+      "timestamp": "2026-10-20T20:21:29.800Z"
+    }
+    ```
+- **Retrieval Endpoint**: `GET /api/v1/media/:mediaId` (also supports `HEAD`)
+  - Streams binary file content directly from disk.
+  - Enforces headers: `Content-Type: image/...`, `Content-Length`, `Cache-Control: public, max-age=86400`, `X-Content-Type-Options: nosniff`.
+  - Returns `404 Not Found` if file does not exist, or `400 Bad Request` if `:mediaId` contains invalid characters or directory traversal sequences.
+
+### 12.2 Storage Location & Git Protection
+- Uploaded files are written directly to `<MOCK_RUNTIME_DIR>/uploads/`.
+- In normal local development, this resolves to `react-stater/mock-data/runtime/uploads/`.
+- **Git Protection**: `mock-data/runtime/.gitignore` specifies `*` to strictly ignore all runtime JSON and uploaded media files. The root `.gitignore` is never modified.
+- **Test Isolation**: All automated tests configure `process.env.MOCK_RUNTIME_DIR` to isolated temporary directories (`os.tmpdir()`), ensuring developer working runtime JSON and uploads are never modified or polluted by tests.
+
+### 12.3 Strict Binary File Validation & Ingestion Boundary Safety
+Validation does not trust the client's `Content-Type` header alone; it inspects magic binary file signatures and enforces HTTP boundary limits:
+- **HTTP Ingestion Boundary Protection**:
+  - Checks `Content-Length` header at the HTTP ingestion boundary before buffering or parsing formData.
+  - Employs a bounded streaming counter to safely reject chunked or unbounded streams exceeding 10MB without buffering them into memory.
+  - Drains oversized streams to `/dev/null` with `Connection: close` to prevent client socket `EPIPE` / `ECONNRESET` exceptions.
+  - Safely handles malformed multipart requests, returning `400 BadRequest` instead of unhandled 500 crashes.
+  - Responses include `X-Development-Only: local-mock-storage` to clearly identify the mock storage provider.
+- **Binary Signature Validation**:
+  - **JPEG**: Leading magic bytes `FF D8 FF`.
+  - **PNG**: Leading magic bytes `89 50 4E 47 0D 0A 1A 0A`.
+  - **WebP**: Leading `RIFF` header with `WEBP` container signature.
+- **Rejection Rules**:
+  - Empty files (0 bytes) return `400 EmptyFile`.
+  - Oversized files (>10MB) return `400 FileTooLarge`.
+  - Executable binaries, scripts, or text files disguised with image extensions return `400 InvalidFileType`.
+  - Directory traversal sequences (`..`, `/`, `\`) in filename or `:mediaId` return `400 InvalidMediaId` or are stripped.
+
+### 12.4 Server-Side Media Reference Disk Verification on Submission
+When submitting a workspace for review (`POST /api/v1/workspaces/:id/submit`):
+- All referenced media URLs (`coverImageUrl` and items in `images`) are validated.
+- **Local Development Media (`/api/v1/media/<filename>`)**:
+  - Validates filename format (`^[a-zA-Z0-9_.-]+$`) and rejects path traversal sequences.
+  - Verifies that the referenced file actually exists on physical disk in `<MOCK_RUNTIME_DIR>/uploads/`.
+  - Rejects nonexistent references (e.g. `/api/v1/media/not-found.png`) with `400 BadRequest` and explicit validation error (`Local media asset does not exist on disk`).
+- **External HTTPS Media URLs**:
+  - Validates basic URL structure and syntax.
+  - *Documented Limitation*: Live external network requests (HTTP GET/HEAD) are deliberately not performed in the local mock server to prevent external network flakiness, latency, and SSRF risks. Production cloud object storage validates asset existence via bucket ACLs and presigned URL tokens.
+- **O15 Client Review Checklist Alignment**:
+  - O15 verifies that media items are durable and free of upload errors before marking the media checklist section complete.
+
+### 12.5 Durable Development URLs & Vite Proxy Routing
+- The upload API returns a relative durable URL: `/api/v1/media/:mediaId`.
+- **No Machine-Specific Hostnames**: Persisting relative URLs avoids hardcoding hostnames (`http://localhost:4000`), allowing uploaded media to resolve identically across different ports, LAN IP addresses, and reverse proxies.
+- **Vite Connect Middleware Proxy**: `vite.config.ts` includes early connect proxy middleware (`mockApiProxyPlugin`) that intercepts all `/api/` traffic and forwards it to the mock server on port 4000 before TanStack Start router middleware executes.
+
+### 12.5 Browser Reload & Server Restart Durability
+- Unlike transient browser `blob:` or `data:` URLs, uploaded media files reside in physical disk storage.
+- When an organizer reloads the browser, the canonical workspace record hydrates with durable `/api/v1/media/...` URLs, which load immediately.
+- When the Mock Server process is restarted, runtime JSON and files in `uploads/` remain intact, and all media URLs continue to resolve byte-for-byte.
+
+### 12.6 Concurrent Draft Creation Idempotency
+- **Atomic Concurrency Mutex**: Draft check-and-create operations are wrapped in `storage.withLock('workspaces-create', ...)` to serialize execution across async ticks.
+- **Simultaneous Request Guarantees**: Multiple simultaneous `POST /api/v1/workspaces` requests (e.g. from rapid double-clicks, concurrent tabs, or `Promise.all` bursts) with the same `clientDraftKey` execute within the lock. The first request creates the canonical record; subsequent concurrent requests detect the existing record and return HTTP 200 with the identical canonical ID.
+- **Tenant Scope Isolation**: Idempotency is strictly scoped to the server-resolved organizer identity (`effectiveOrganizerId`). Different organizers using the same key create independent, isolated workspaces with distinct IDs without key collisions.
+- **Multi-Process Limitation**: The in-process async mutex guarantees serialization within a single Node.js mock server process. In a distributed multi-process environment, a distributed Redis lock or database unique constraint would be required.
+
+### 12.7 O11–O14 Module Boundaries
+- The Onboarding Wizard (O05–O10, O15) strictly manages high-level workspace metadata, operating hours, amenities, media gallery, and aggregated floor summaries.
+- Detailed floor plan layout drawing, resource/seat canvas editors, individual desk assignments, and pricing rule configurations (O11–O14) belong to collaborator-owned modules and are preserved without modification.
+
+### 12.8 Production vs. Development Distinction
+- **Development Service**: Stores media files locally on the development machine filesystem; provides zero cloud credentials; development-only.
+- **Future Production Service**: In production, media will be uploaded directly to cloud object storage (AWS S3, Cloudflare R2) via presigned upload URLs with CDN edge caching, automatic image resizing/WebP transcoding, and cloud antivirus scanning.

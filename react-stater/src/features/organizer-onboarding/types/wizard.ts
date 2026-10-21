@@ -14,8 +14,8 @@ export interface LocationValues {
   district: string;
   city: string;
   floorSuite: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   entryNotes: string;
 }
 
@@ -65,6 +65,8 @@ export interface AmenityItem {
   isCommon?: boolean;
 }
 
+export type MediaUploadStatus = 'uploaded' | 'uploading' | 'error';
+
 export interface MediaItem {
   id: string;
   url: string;
@@ -73,6 +75,8 @@ export interface MediaItem {
   caption?: string;
   size?: number;
   isCover: boolean;
+  uploadStatus?: MediaUploadStatus;
+  uploadError?: string;
 }
 
 export interface MediaGalleryValues {
@@ -118,6 +122,11 @@ export interface OnboardingDraftState {
   version: number;
   lastSavedAt: string | null;
   isDraftSynced: boolean;
+  canonicalWorkspaceId?: string;
+  clientDraftKey?: string;
+  serverVersion?: number;
+  isSavingToServer?: boolean;
+  syncError?: string | null;
   basicInfo: BasicInfoValues;
   location: LocationValues;
   operatingHours: OperatingHoursValues;

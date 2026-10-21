@@ -77,8 +77,8 @@ export interface CanonicalWorkspace {
   district: string;
   city: string;
   postalCode?: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   timezone: string;
   entryInstructions?: string;
 
@@ -117,6 +117,7 @@ export interface CanonicalWorkspace {
   reviewedBy?: string | null;
   reviewedAt?: string | null;
   reviewFeedback?: string | null;
+  submissionNotes?: string | null;
 
   // 10. Admin Moderation Status
   moderationStatus: WorkspaceModerationStatus;
@@ -149,6 +150,7 @@ export interface CanonicalWorkspace {
   publicUrl?: string;
 
   // Audit timestamps & concurrency control
+  clientDraftKey?: string;
   createdAt: string;
   updatedAt: string;
   version: number;
@@ -262,8 +264,8 @@ export interface CreateWorkspaceDto {
   organizerLegalName?: string;
   organizerTaxId?: string;
   organizerVerified?: boolean;
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   timezone?: string;
   pricePerHour?: number;
   pricePerDay?: number;
@@ -276,6 +278,7 @@ export interface CreateWorkspaceDto {
   tags?: string[];
   operatingHours?: WorkspaceOperatingHour[];
   receptionHours?: string;
+  clientDraftKey?: string;
 }
 
 /**
@@ -298,6 +301,9 @@ export interface UpdateWorkspaceDto {
   supportEmail?: string;
   operatorContactName?: string;
   operatorContactPhone?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  timezone?: string;
   entryInstructions?: string;
   operatingHours?: WorkspaceOperatingHour[];
   receptionHours?: string;
@@ -335,6 +341,11 @@ export interface WorkspaceLifecycleDto {
   action: WorkspaceLifecycleAction;
   expectedVersion?: number;
   reason?: string;
+}
+
+export interface SubmitWorkspaceDto {
+  expectedVersion?: number;
+  agreementConfirmed?: boolean;
 }
 
 export interface AdminReviewWorkspaceDto {

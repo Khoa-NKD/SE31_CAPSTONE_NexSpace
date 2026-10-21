@@ -23,8 +23,8 @@ import { searchLandmarks } from '../data/vietnam-locations';
 interface RealInteractiveMapProps {
   venueName: string;
   streetAddress: string;
-  latitude: number;
-  longitude: number;
+  latitude: number | null;
+  longitude: number | null;
   onCoordinatesChange: (lat: number, lng: number) => void;
   onAddressSelect?: (address: {
     street?: string;
@@ -144,9 +144,12 @@ export function RealInteractiveMap({
   const markerInstanceRef = useRef<MapLibreGL.Marker | null>(null);
   const mapLibreModuleRef = useRef<typeof MapLibreGL | null>(null);
 
+  const safeLat = typeof latitude === 'number' && !Number.isNaN(latitude) && latitude !== 0 ? latitude : 10.7769;
+  const safeLng = typeof longitude === 'number' && !Number.isNaN(longitude) && longitude !== 0 ? longitude : 106.7009;
+
   const onCoordinatesChangeRef = useRef(onCoordinatesChange);
   const onAddressSelectRef = useRef(onAddressSelect);
-  const initialCoordsRef = useRef({ lat: latitude, lng: longitude });
+  const initialCoordsRef = useRef({ lat: safeLat, lng: safeLng });
   const venueNameRef = useRef(venueName);
   const streetAddressRef = useRef(streetAddress);
 
@@ -300,6 +303,7 @@ export function RealInteractiveMap({
   // Synchronize external coordinate changes to marker position
   useEffect(() => {
     if (!markerInstanceRef.current || !mapInstanceRef.current) return;
+    if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
     const currentLngLat = markerInstanceRef.current.getLngLat();
     const diffLat = Math.abs(currentLngLat.lat - latitude);
     const diffLng = Math.abs(currentLngLat.lng - longitude);
@@ -332,8 +336,10 @@ export function RealInteractiveMap({
   // Recenter to Current Venue Pin
   const handleRecenter = () => {
     if (!mapInstanceRef.current) return;
+    const targetLng = typeof longitude === 'number' && !Number.isNaN(longitude) ? longitude : 106.7009;
+    const targetLat = typeof latitude === 'number' && !Number.isNaN(latitude) ? latitude : 10.7769;
     mapInstanceRef.current.flyTo({
-      center: [longitude, latitude],
+      center: [targetLng, targetLat],
       zoom: 17,
       essential: true
     });
@@ -432,10 +438,13 @@ export function RealInteractiveMap({
 
       try {
         // Priority 1: If Goong REST API Key is configured, use official Goong Autocomplete V2 API
+        const searchLat = typeof latitude === 'number' && !Number.isNaN(latitude) ? latitude : 10.7769;
+        const searchLng = typeof longitude === 'number' && !Number.isNaN(longitude) ? longitude : 106.7009;
+
         if (isGoongApiActive) {
           const goongUrl = `https://rsapi.goong.io/v2/place/autocomplete?api_key=${encodeURIComponent(
             goongApiKey
-          )}&input=${encodeURIComponent(trimmed)}&location=${latitude},${longitude}&limit=6`;
+          )}&input=${encodeURIComponent(trimmed)}&location=${searchLat},${searchLng}&limit=6`;
 
           const res = await fetch(goongUrl);
           const data = await res.json();
@@ -482,7 +491,7 @@ export function RealInteractiveMap({
           // Priority 3: Photon Vietnam Geocoding API
           const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(
             trimmed
-          )}&limit=6&lat=${latitude}&lon=${longitude}`;
+          )}&limit=6&lat=${searchLat}&lon=${searchLng}`;
           const res = await fetch(photonUrl);
           const data = await res.json();
 

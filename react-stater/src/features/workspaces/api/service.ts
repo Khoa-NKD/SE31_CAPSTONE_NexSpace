@@ -9,6 +9,7 @@ import type {
   CreateWorkspaceDto,
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
+  SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto
 } from './types';
@@ -194,6 +195,25 @@ export const workspaceService = {
   },
 
   /**
+   * Dedicated Organizer command endpoint for submitting a complete Draft workspace for Admin review.
+   */
+  async submitWorkspace(
+    id: string,
+    dto?: SubmitWorkspaceDto,
+    options?: { organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
+    const resolvedId = resolveWorkspaceId(id);
+    const headers: Record<string, string> = {
+      'x-organizer-id': options?.organizerId || 'USR-9432'
+    };
+    return apiClient.post<CanonicalWorkspace>(
+      `/workspaces/${encodeURIComponent(resolvedId)}/submit`,
+      dto || {},
+      { headers }
+    );
+  },
+
+  /**
    * Dedicated Admin endpoint for reviewing workspace submission (Approve / Reject).
    */
   async adminReviewWorkspace(id: string, dto: AdminReviewWorkspaceDto): Promise<CanonicalWorkspace> {
@@ -207,5 +227,22 @@ export const workspaceService = {
   async adminModerateWorkspace(id: string, dto: AdminModerationWorkspaceDto): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
     return apiClient.patch<CanonicalWorkspace>(`/admin/workspaces/${encodeURIComponent(resolvedId)}/moderation`, dto);
+  },
+
+  /**
+   * Uploads a local binary image (JPEG/PNG/WebP) to the development-only mock media service.
+   * Returns durable relative media URL (/api/v1/media/<filename>).
+   */
+  async uploadMedia(file: File | Blob, filename?: string): Promise<{
+    id: string;
+    filename: string;
+    originalName: string;
+    mimeType: string;
+    size: number;
+    url: string;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file, filename || (file instanceof File ? file.name : 'upload.png'));
+    return apiClient.post('/media/upload', formData);
   }
 };

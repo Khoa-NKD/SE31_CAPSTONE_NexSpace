@@ -8,7 +8,8 @@ import {
   Navigation,
   Sliders,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -25,6 +26,7 @@ import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { RealInteractiveMap } from './real-interactive-map';
 import { useWizardStore } from '../store/wizard-store';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { locationSchema } from '../schemas/wizard-schemas';
 import {
   VIETNAM_CITIES,
@@ -39,15 +41,15 @@ export function StepLocationView() {
   const location = useWizardStore((state) => state.location);
   const setLocation = useWizardStore((state) => state.setLocation);
   const setCoordinates = useWizardStore((state) => state.setCoordinates);
-  const saveDraft = useWizardStore((state) => state.saveDraft);
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
 
   // Local Form State
   const [streetAddress, setStreetAddress] = useState(location.streetAddress);
   const [district, setDistrict] = useState(location.district);
   const [city, setCity] = useState(location.city);
   const [floorSuite, setFloorSuite] = useState(location.floorSuite);
-  const [latitude, setLatitudeState] = useState(location.latitude);
-  const [longitude, setLongitudeState] = useState(location.longitude);
+  const [latitude, setLatitudeState] = useState<number | null>(location.latitude);
+  const [longitude, setLongitudeState] = useState<number | null>(location.longitude);
   const [entryNotes, setEntryNotes] = useState(location.entryNotes);
   const [isManualCoords, setIsManualCoords] = useState(false);
 
@@ -56,7 +58,9 @@ export function StepLocationView() {
 
   // Dynamic Ward list for current city
   const availableWards = getWardsForCity(city);
-  const verification = verifyCoordinatesMatchCity(city, latitude, longitude);
+  const verification = typeof latitude === 'number' && typeof longitude === 'number'
+    ? verifyCoordinatesMatchCity(city, latitude, longitude)
+    : { isMatch: false, message: 'Coordinates not calibrated' };
 
   const handleCoordinatesChange = (lat: number, lng: number) => {
     setLatitudeState(lat);
@@ -118,7 +122,7 @@ export function StepLocationView() {
     }
   };
 
-  const handleSaveDraft = () => {
+  const handleSaveDraft = async () => {
     setLocation({
       streetAddress,
       district,
@@ -128,10 +132,7 @@ export function StepLocationView() {
       longitude,
       entryNotes
     });
-    saveDraft();
-    toast.success('Draft Saved Locally', {
-      description: 'Location and coordinates saved to local draft.'
-    });
+    await saveDraftToServer();
   };
 
   const handleBack = () => {
@@ -148,7 +149,7 @@ export function StepLocationView() {
     router.navigate({ to: '/dashboard/organizer/workspaces/create' });
   };
 
-  const handleContinue = (e: React.FormEvent) => {
+  const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const values = {
@@ -180,7 +181,7 @@ export function StepLocationView() {
 
     setErrors({});
     setLocation(values);
-    saveDraft();
+    await saveDraftToServer({ silent: true });
 
     toast.success('Location Saved', {
       description: 'Proceeding to Operating Hours configuration.'
@@ -350,8 +351,8 @@ export function StepLocationView() {
                         id='manual-lat'
                         type='number'
                         step='0.0001'
-                        value={latitude}
-                        onChange={(e) => handleCoordinatesChange(parseFloat(e.target.value) || 0, longitude)}
+                        value={typeof latitude === 'number' ? latitude : ''}
+                        onChange={(e) => handleCoordinatesChange(parseFloat(e.target.value) || 0, longitude ?? 106.7009)}
                         className='h-8 text-xs font-mono'
                       />
                     </div>
@@ -363,8 +364,8 @@ export function StepLocationView() {
                         id='manual-lng'
                         type='number'
                         step='0.0001'
-                        value={longitude}
-                        onChange={(e) => handleCoordinatesChange(latitude, parseFloat(e.target.value) || 0)}
+                        value={typeof longitude === 'number' ? longitude : ''}
+                        onChange={(e) => handleCoordinatesChange(latitude ?? 10.7769, parseFloat(e.target.value) || 0)}
                         className='h-8 text-xs font-mono'
                       />
                     </div>
@@ -372,9 +373,9 @@ export function StepLocationView() {
                 ) : (
                   <div className='flex items-baseline justify-between pt-0.5'>
                     <div className='font-mono text-xs font-medium text-foreground bg-card px-2.5 py-1 rounded border border-border'>
-                      Lat: <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{latitude.toFixed(4)}° N</span>{' '}
+                      Lat: <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{typeof latitude === 'number' ? `${latitude.toFixed(4)}° N` : '—'}</span>{' '}
                       | Long:{' '}
-                      <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{longitude.toFixed(4)}° E</span>
+                      <span className='font-semibold text-indigo-600 dark:text-indigo-400'>{typeof longitude === 'number' ? `${longitude.toFixed(4)}° E` : '—'}</span>
                     </div>
                   </div>
                 )}
@@ -445,20 +446,22 @@ export function StepLocationView() {
           <Button
             type='button'
             variant='outline'
+            disabled={isSaving}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            <Save className='size-4' />
-            <span>Save Draft</span>
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
           <Button
             type='button'
+            disabled={isSaving}
             onClick={handleContinue}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
             <span>Continue to Operating Hours</span>
-            <ArrowRight className='size-4' />
+            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>
