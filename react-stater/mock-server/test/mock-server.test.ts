@@ -446,7 +446,9 @@ async function runTestSuite() {
 
     // 27. Workspaces List & Pagination
     console.log('\n--- Test 27: GET /workspaces (List & Pagination) ---');
-    const wsListRes = await httpFetch(`${BASE_URL}/workspaces?page=1&limit=5`);
+    const wsListRes = await httpFetch(`${BASE_URL}/workspaces?page=1&limit=5`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(wsListRes.status === 200, 'GET /workspaces returns 200 OK');
     assert(Array.isArray(wsListRes.data?.data?.content), 'Returns content array');
     assert(wsListRes.data?.data?.content.length === 5, 'Page limit of 5 respected');
@@ -473,20 +475,26 @@ async function runTestSuite() {
 
     // 29. Workspace Filtering & Search (city, search query)
     console.log('\n--- Test 29: GET /workspaces Filtering & Search ---');
-    const hanoiWsRes = await httpFetch(`${BASE_URL}/workspaces?city=Hanoi`);
+    const hanoiWsRes = await httpFetch(`${BASE_URL}/workspaces?city=Hanoi`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(hanoiWsRes.status === 200, 'Filter by city=Hanoi returns 200 OK');
     const hanoiWorkspaces = hanoiWsRes.data?.data?.content || [];
     assert(hanoiWorkspaces.length >= 2, 'Returns at least 2 Hanoi workspaces');
     assert(hanoiWorkspaces.every((w: any) => w.city === 'Hanoi'), 'All returned workspaces have city=Hanoi');
 
-    const wsSearchRes = await httpFetch(`${BASE_URL}/workspaces?search=Saigon`);
+    const wsSearchRes = await httpFetch(`${BASE_URL}/workspaces?search=Saigon`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(wsSearchRes.status === 200, 'Search by keyword Saigon returns 200 OK');
     const searchWorkspaces = wsSearchRes.data?.data?.content || [];
     assert(searchWorkspaces.some((w: any) => w.id === 'WS-104'), 'Search results include WS-104 (NexSpace Saigon Prime Hub)');
 
     // 30. GET /workspaces/:id by Canonical ID
     console.log('\n--- Test 30: GET /workspaces/:id (Canonical ID) ---');
-    const ws104Res = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const ws104Res = await httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(ws104Res.status === 200, 'GET /workspaces/WS-104 returns 200 OK');
     assert(ws104Res.data?.data?.name === 'NexSpace Saigon Prime Hub', 'Name matches canonical seed');
     assert(ws104Res.data?.data?.organizerId === 'USR-9432', 'Organizer ID matches seeded Sarah Jenkins');
@@ -494,34 +502,48 @@ async function runTestSuite() {
 
     // 31. Legacy ID & Alias Compatibility Resolution
     console.log('\n--- Test 31: Legacy ID & Alias Compatibility Resolution ---');
-    const alias1Res = await httpFetch(`${BASE_URL}/workspaces/1`);
+    const alias1Res = await httpFetch(`${BASE_URL}/workspaces/1`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(alias1Res.status === 200, 'GET /workspaces/1 resolves customer sample ID to 200 OK');
     assert(alias1Res.data?.data?.id === 'WS-101', 'Resolves ID 1 to 72 Le Thanh Ton (WS-101)');
 
-    const alias2Res = await httpFetch(`${BASE_URL}/workspaces/2`);
+    const alias2Res = await httpFetch(`${BASE_URL}/workspaces/2`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(alias2Res.status === 200, 'GET /workspaces/2 resolves customer sample ID to 200 OK');
     assert(alias2Res.data?.data?.id === 'WS-104', 'Resolves ID 2 to Bitexco Saigon Prime (WS-104)');
 
-    const aliasSgPrimeRes = await httpFetch(`${BASE_URL}/workspaces/ws-sg-prime-01`);
+    const aliasSgPrimeRes = await httpFetch(`${BASE_URL}/workspaces/ws-sg-prime-01`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(aliasSgPrimeRes.status === 200, 'GET /workspaces/ws-sg-prime-01 resolves to 200 OK');
     assert(aliasSgPrimeRes.data?.data?.id === 'WS-104', 'Resolves ws-sg-prime-01 to Bitexco Saigon Prime (WS-104)');
     assert(aliasSgPrimeRes.data?.data?.name === 'NexSpace Saigon Prime Hub', 'Saigon Prime Hub name verified');
 
-    const alias3Res = await httpFetch(`${BASE_URL}/workspaces/hive-central-hcm`);
+    const alias3Res = await httpFetch(`${BASE_URL}/workspaces/hive-central-hcm`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(alias3Res.status === 200, 'GET /workspaces/hive-central-hcm resolves landing ID to 200 OK');
     assert(alias3Res.data?.data?.id === 'WS-104', 'Resolves hive-central-hcm to canonical ID WS-104');
 
-    const alias4Res = await httpFetch(`${BASE_URL}/workspaces/westlake-loft-hanoi`);
+    const alias4Res = await httpFetch(`${BASE_URL}/workspaces/westlake-loft-hanoi`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(alias4Res.status === 200, 'GET /workspaces/westlake-loft-hanoi resolves landing ID to 200 OK');
     assert(alias4Res.data?.data?.id === 'WS-108', 'Resolves westlake-loft-hanoi to Tay Ho lab (WS-108)');
 
-    const alias5Res = await httpFetch(`${BASE_URL}/workspaces/ba-dinh-boardroom-hanoi`);
+    const alias5Res = await httpFetch(`${BASE_URL}/workspaces/ba-dinh-boardroom-hanoi`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(alias5Res.status === 200, 'GET /workspaces/ba-dinh-boardroom-hanoi resolves landing ID to 200 OK');
     assert(alias5Res.data?.data?.id === 'WS-120', 'Resolves ba-dinh-boardroom-hanoi to Ba Dinh suites (WS-120)');
 
     // 32. Unknown Identifier Rejection
     console.log('\n--- Test 32: Unknown Workspace Identifier Rejection ---');
-    const unknownWsRes = await httpFetch(`${BASE_URL}/workspaces/NON-EXISTENT-WS-9999`);
+    const unknownWsRes = await httpFetch(`${BASE_URL}/workspaces/NON-EXISTENT-WS-9999`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     assert(unknownWsRes.status === 404, 'Unknown ID returns 404 Not Found');
     assert(unknownWsRes.data?.error === 'NotFound', 'Error type is NotFound');
 
@@ -663,7 +685,9 @@ async function runTestSuite() {
     assert(suspendedLifecycleRes.data?.error === 'ForbiddenOperation', 'Error is ForbiddenOperation');
 
     // Test pausing active workspace WS-104
-    const getWs104Before = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const getWs104Before = await httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+      headers: { 'X-Organizer-Id': 'USR-9432' }
+    });
     const initialVersion = getWs104Before.data?.data?.version;
     const pauseWsRes = await httpFetch(`${BASE_URL}/workspaces/WS-104/lifecycle`, {
       method: 'PATCH',
@@ -707,6 +731,9 @@ async function runTestSuite() {
     console.log('\n--- Test 38: PATCH /admin/workspaces/:id/review Endpoint ---');
     const invalidReviewerRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-108/review`, {
       method: 'PATCH',
+      headers: {
+        'X-Mock-Role': 'Administrator'
+      },
       body: {
         reviewStatus: 'Approved',
         reviewedBy: 'USR-8821' // Customer, not Administrator
@@ -714,11 +741,17 @@ async function runTestSuite() {
     });
     assert(invalidReviewerRes.status === 400, 'Rejects non-admin reviewer with 400 Bad Request');
 
-    const ws108Res = await httpFetch(`${BASE_URL}/workspaces/WS-108`);
+    const ws108Res = await httpFetch(`${BASE_URL}/workspaces/WS-108`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     const ws108Version = ws108Res.data?.data?.version || 1;
 
     const validReviewRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-108/review`, {
       method: 'PATCH',
+      headers: {
+        'X-Mock-Role': 'Administrator',
+        'X-Mock-User-Id': 'USR-1882'
+      },
       body: {
         reviewStatus: 'Approved',
         reviewedBy: 'USR-1882',
@@ -733,11 +766,17 @@ async function runTestSuite() {
 
     // 39. Dedicated Administrator Moderation Endpoint
     console.log('\n--- Test 39: PATCH /admin/workspaces/:id/moderation Endpoint ---');
-    const ws104ModRes = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const ws104ModRes = await httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+      headers: { 'X-Mock-Role': 'Administrator' }
+    });
     const ws104Version = ws104ModRes.data?.data?.version || 1;
 
     const missingReasonRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
       method: 'PATCH',
+      headers: {
+        'X-Mock-Role': 'Administrator',
+        'X-Mock-User-Id': 'USR-1882'
+      },
       body: {
         moderationStatus: 'Suspended',
         suspendedBy: 'USR-1882',
@@ -749,6 +788,10 @@ async function runTestSuite() {
 
     const validSuspendRes = await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
       method: 'PATCH',
+      headers: {
+        'X-Mock-Role': 'Administrator',
+        'X-Mock-User-Id': 'USR-1882'
+      },
       body: {
         moderationStatus: 'Suspended',
         suspendedBy: 'USR-1882',
@@ -766,6 +809,9 @@ async function runTestSuite() {
     const suspendedVersion = validSuspendRes.data?.data?.version || (ws104Version + 1);
     await httpFetch(`${BASE_URL}/admin/workspaces/WS-104/moderation`, {
       method: 'PATCH',
+      headers: {
+        'X-Mock-Role': 'Administrator'
+      },
       body: {
         moderationStatus: 'Normal',
         expectedVersion: suspendedVersion
@@ -830,7 +876,9 @@ async function runTestSuite() {
     await new Promise<void>((resolve) => server!.close(() => resolve()));
     server = await startServer(TEST_PORT, '127.0.0.1');
 
-    const ws104AfterRestart = await httpFetch(`${BASE_URL}/workspaces/WS-104`);
+    const ws104AfterRestart = await httpFetch(`${BASE_URL}/workspaces/WS-104`, {
+      headers: { 'X-Organizer-Id': 'USR-9432' }
+    });
     assert(ws104AfterRestart.status === 200, 'Workspace retrieved after server restart');
     assert(
       ws104AfterRestart.data?.data?.receptionHours === '06:30 – 22:30 Daily' ||

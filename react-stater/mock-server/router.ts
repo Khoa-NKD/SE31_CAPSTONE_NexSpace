@@ -325,7 +325,7 @@ export async function handleRequest(
   if (workspaceDetailMatch) {
     const workspaceId = workspaceDetailMatch[1];
     if (method === 'GET') {
-      await handleGetWorkspaceById(res, workspaceId);
+      await handleGetWorkspaceById(req, res, workspaceId);
       return;
     }
     if (method === 'PATCH' || method === 'PUT') {

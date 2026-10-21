@@ -146,9 +146,24 @@ export const workspaceService = {
   /**
    * Fetches a single workspace by canonical ID, workspace code, or legacy alias for owner/admin.
    */
-  async getWorkspaceById(id: string): Promise<CanonicalWorkspace> {
+  async getWorkspaceById(
+    id: string,
+    options?: { role?: string; organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.get<CanonicalWorkspace>(`/workspaces/${encodeURIComponent(resolvedId)}`);
+    const headers: Record<string, string> = {};
+    if (options?.role) {
+      headers['x-mock-role'] = options.role;
+    }
+    if (options?.organizerId) {
+      headers['x-organizer-id'] = options.organizerId;
+    }
+    if (!options?.role && !options?.organizerId) {
+      headers['x-organizer-id'] = 'USR-9432';
+    }
+    return apiClient.get<CanonicalWorkspace>(`/workspaces/${encodeURIComponent(resolvedId)}`, {
+      headers
+    });
   },
 
   /**

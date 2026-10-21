@@ -523,26 +523,77 @@ export async function handleGetWorkspaces(
     const city = searchParams.get('city')?.toLowerCase().trim() || '';
     const district = searchParams.get('district')?.toLowerCase().trim() || '';
     const category = searchParams.get('category')?.toLowerCase().trim() || '';
-    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
+
+    const rawRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.trim();
+    const callerRole = rawRole?.toLowerCase();
     const isAdmin = callerRole === 'administrator' || callerRole === 'admin';
-    let organizerId = searchParams.get('organizerId')?.trim() || '';
-    if (!organizerId && !isAdmin) {
-      const explicitOrgHeader = (req.headers['x-organizer-id'] as string | undefined)?.trim();
-      if (explicitOrgHeader) {
-        organizerId = explicitOrgHeader;
-      } else {
-        const callerUserId = (req.headers['x-mock-user-id'] as string | undefined)?.trim();
-        if (callerUserId && (callerRole === 'organizer' || !callerRole)) {
-          // If caller explicitly passed mock user ID without admin role, check if they are an organizer
-          organizerId = callerUserId;
-        }
-      }
+    const isCustomer = callerRole === 'customer';
+
+    const isPublic = searchParams.get('isPublic') === 'true' || searchParams.get('isPublic') === '1';
+
+    // 1. Customer caller attempting to list private workspaces
+    if (isCustomer && !isPublic) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Customers are not authorized to access private workspace listings. Use /api/v1/public/workspaces for public marketplace discovery.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
     }
+
+    // 2. Resolve caller identity
+    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id'] || req.headers['x-user-id']) as string | undefined)?.trim();
+    const requestedOrganizerId = searchParams.get('organizerId')?.trim() || '';
+
+    let effectiveOrganizerId = '';
+
+    if (isAdmin) {
+      // Administrator can view all workspaces or optionally filter by an organizerId query param
+      effectiveOrganizerId = requestedOrganizerId;
+    } else if (callerOrganizerId) {
+      // Organizer caller: strictly scoped to their own callerOrganizerId
+      if (requestedOrganizerId && requestedOrganizerId !== callerOrganizerId) {
+        // Cross-tenant list attempt
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            success: false,
+            status: 403,
+            error: 'Forbidden',
+            message: `Mock Organizer '${callerOrganizerId}' is not authorized to list workspaces for '${requestedOrganizerId}'.`,
+            timestamp: new Date().toISOString()
+          })
+        );
+        return;
+      }
+      effectiveOrganizerId = callerOrganizerId;
+    } else if (isPublic) {
+      // Public query compatibility (Test 28)
+      effectiveOrganizerId = requestedOrganizerId;
+    } else {
+      // Missing identity: Must not silently grant platform-wide read access
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Authentication required to list private workspaces. Use /api/v1/public/workspaces for public marketplace discovery.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
     const status = searchParams.get('status')?.toLowerCase().trim() || '';
     const reviewStatus = searchParams.get('reviewStatus')?.trim() || '';
     const operatingStatus = searchParams.get('operatingStatus')?.trim() || '';
     const moderationStatus = searchParams.get('moderationStatus')?.trim() || '';
-    const isPublic = searchParams.get('isPublic') === 'true' || searchParams.get('isPublic') === '1';
 
     let filtered = allWorkspaces.filter((w) => {
       if (isPublic && !isPubliclyEligible(w)) return false;
@@ -562,7 +613,7 @@ export async function handleGetWorkspaces(
       if (city && w.city?.toLowerCase() !== city) return false;
       if (district && w.district?.toLowerCase() !== district) return false;
       if (category && w.category?.toLowerCase() !== category) return false;
-      if (organizerId && w.organizerId !== organizerId) return false;
+      if (effectiveOrganizerId && w.organizerId !== effectiveOrganizerId) return false;
 
       if (reviewStatus && w.reviewStatus?.toLowerCase() !== reviewStatus.toLowerCase()) return false;
       if (operatingStatus && w.operatingStatus?.toLowerCase() !== operatingStatus.toLowerCase()) return false;
@@ -648,6 +699,7 @@ export async function handleGetWorkspaces(
  * Fetches full workspace record by canonical ID or legacy alias for authorized owner/admin.
  */
 export async function handleGetWorkspaceById(
+  req: IncomingMessage,
   res: ServerResponse,
   id: string
 ): Promise<void> {
@@ -663,6 +715,67 @@ export async function handleGetWorkspaceById(
           status: 404,
           error: 'NotFound',
           message: `Workspace with identifier '${id}' was not found.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const rawRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.trim();
+    const callerRole = rawRole?.toLowerCase();
+    const isAdmin = callerRole === 'administrator' || callerRole === 'admin';
+    const isCustomer = callerRole === 'customer';
+
+    if (isAdmin) {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: true,
+          data: workspace,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (isCustomer) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Customers are not authorized to access private workspace details. Use /api/v1/public/workspaces/:id for public workspace information.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const callerOrganizerId = ((req.headers['x-organizer-id'] || req.headers['x-mock-user-id'] || req.headers['x-user-id']) as string | undefined)?.trim();
+
+    if (!callerOrganizerId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: 'Forbidden: Authentication required to access private workspace details. Use /api/v1/public/workspaces/:id for public workspace information.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    if (workspace.organizerId !== callerOrganizerId) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: `Mock Organizer '${callerOrganizerId}' is not authorized to access private workspace '${id}' owned by '${workspace.organizerId}'.`,
           timestamp: new Date().toISOString()
         })
       );
@@ -1457,8 +1570,9 @@ export async function handleAdminReviewWorkspace(
   body: unknown
 ): Promise<void> {
   try {
-    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
-    if (callerRole && callerRole !== 'administrator' && callerRole !== 'admin') {
+    const rawRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.trim();
+    const callerRole = rawRole?.toLowerCase();
+    if (!callerRole || (callerRole !== 'administrator' && callerRole !== 'admin')) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -1466,6 +1580,22 @@ export async function handleAdminReviewWorkspace(
           status: 403,
           error: 'Forbidden',
           message: 'Forbidden: Administrator authority required to perform review actions.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const callerAdminId = ((req.headers['x-mock-user-id'] || req.headers['x-user-id'] || req.headers['x-admin-id']) as string | undefined)?.trim();
+    const bodyReviewer = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).reviewedBy : undefined;
+    if (callerAdminId && typeof bodyReviewer === 'string' && bodyReviewer.trim() && callerAdminId !== bodyReviewer.trim()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: `Forbidden: Authenticated administrator '${callerAdminId}' does not match body-specified reviewer '${bodyReviewer}'.`,
           timestamp: new Date().toISOString()
         })
       );
@@ -1617,8 +1747,9 @@ export async function handleAdminModerationWorkspace(
   body: unknown
 ): Promise<void> {
   try {
-    const callerRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.toLowerCase();
-    if (callerRole && callerRole !== 'administrator' && callerRole !== 'admin') {
+    const rawRole = ((req.headers['x-mock-role'] || req.headers['x-role']) as string | undefined)?.trim();
+    const callerRole = rawRole?.toLowerCase();
+    if (!callerRole || (callerRole !== 'administrator' && callerRole !== 'admin')) {
       res.writeHead(403, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
@@ -1626,6 +1757,22 @@ export async function handleAdminModerationWorkspace(
           status: 403,
           error: 'Forbidden',
           message: 'Forbidden: Administrator authority required to perform moderation actions.',
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const callerAdminId = ((req.headers['x-mock-user-id'] || req.headers['x-user-id'] || req.headers['x-admin-id']) as string | undefined)?.trim();
+    const bodySuspendedBy = typeof body === 'object' && body !== null ? (body as Record<string, unknown>).suspendedBy : undefined;
+    if (callerAdminId && typeof bodySuspendedBy === 'string' && bodySuspendedBy.trim() && callerAdminId !== bodySuspendedBy.trim()) {
+      res.writeHead(403, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 403,
+          error: 'Forbidden',
+          message: `Forbidden: Authenticated administrator '${callerAdminId}' does not match body-specified moderator '${bodySuspendedBy}'.`,
           timestamp: new Date().toISOString()
         })
       );

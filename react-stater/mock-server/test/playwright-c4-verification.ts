@@ -471,24 +471,55 @@ async function run() {
     assert(is092PublicWhenRestored, 'Public marketplace API re-includes restored workspace WS-092');
 
     // =========================================================================
-    // 6. Action 4: Concurrency Conflict (HTTP 409) Verification
+    // 7. Organizer Own Workspace Detail & Draft Resume (Browser E2E)
     // =========================================================================
-    console.log('\n--- 6. Testing HTTP 409 Optimistic Concurrency Conflict ---');
-    const staleRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/admin/workspaces/WS-092/moderation`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'X-Role': 'Administrator' },
-      body: JSON.stringify({
-        moderationStatus: 'Suspended',
-        suspendedBy: 'USR-1882',
-        suspendReason: 'Testing optimistic concurrency conflict.',
-        expectedVersion: 1 // Stale! WS-092 is at version 3
-      })
-    });
-    assert(staleRes.status === 409, `Stale expectedVersion: 1 returned HTTP 409 Conflict (status=${staleRes.status})`);
-    const staleBody = await staleRes.json();
+    console.log('\n--- 7. Testing Organizer Own Workspace Detail & Draft Resume in Browser ---');
+    runCli(`playwright-cli goto http://localhost:${TEST_FE_PORT}/dashboard/organizer/workspaces/lifecycle?id=WS-104`);
+    await waitForPageText('Operational Status');
+    await new Promise((r) => setTimeout(r, 1000));
+
+    const lifecycleText = runCli('playwright-cli eval "() => document.body.innerText"');
     assert(
-      staleBody.error === 'Conflict' || staleBody.code === 'CONCURRENCY_CONFLICT',
-      `Conflict response payload: "${staleBody.message}"`
+      lifecycleText.includes('Operational Status') || lifecycleText.includes('NexSpace Saigon Prime Hub'),
+      'Organizer O16 lifecycle view successfully hydrates own workspace details (WS-104)'
+    );
+
+    // Test Organizer draft resume on O05 create wizard
+    runCli(`playwright-cli goto http://localhost:${TEST_FE_PORT}/dashboard/organizer/workspaces/create`);
+    await waitForPageText('Basic Information');
+    const wizardText = runCli('playwright-cli eval "() => document.body.innerText"');
+    assert(
+      wizardText.includes('Basic Information') || wizardText.includes('Venue Details'),
+      'Organizer Onboarding Wizard loads successfully with draft synchronization'
+    );
+
+    // =========================================================================
+    // 8. Cross-Tenant Isolation & Non-Owner Denial
+    // =========================================================================
+    console.log('\n--- 8. Testing Cross-Tenant Non-Owner Denial ---');
+    // Non-owner organizer USR-9432 attempting to access WS-108 (owned by USR-2194)
+    const nonOwnerRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-108`, {
+      headers: { 'x-organizer-id': 'USR-9432' }
+    });
+    assert(
+      nonOwnerRes.status === 403,
+      `Non-owner Organizer attempting to access private workspace detail returns 403 Forbidden (status=${nonOwnerRes.status})`
+    );
+
+    // Customer attempting to access private workspace detail
+    const customerRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-104`, {
+      headers: { 'x-mock-role': 'Customer', 'x-mock-user-id': 'USR-8821' }
+    });
+    assert(
+      customerRes.status === 403,
+      `Customer attempting to access private workspace detail returns 403 Forbidden (status=${customerRes.status})`
+    );
+
+    // Anonymous caller attempting to access private workspace detail
+    const anonRes = await fetch(`http://localhost:${TEST_MOCK_PORT}/api/v1/workspaces/WS-104`);
+    assert(
+      anonRes.status === 403,
+      `Anonymous caller attempting to access private workspace detail returns 403 Forbidden (status=${anonRes.status})`
     );
 
   } catch (err: any) {

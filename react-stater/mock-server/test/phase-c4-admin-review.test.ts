@@ -1148,6 +1148,243 @@ async function runPhaseC4TestSuite() {
       '12.21 Moderation Workload empty when no pending workspaces exist'
     );
 
+    // =========================================================================
+    // SECTION 13: Focused Security Regression Tests (Mock Authorization Final Gate)
+    // =========================================================================
+    console.log('\n--- SECTION 13: Focused Security Regression Tests (Mock Authorization Final Gate) ---');
+
+    // 13.1 Admin review without role header => denied (403 Forbidden)
+    const reviewNoRole = await apiRequest(`/admin/workspaces/WS-108/review`, {
+      method: 'PATCH',
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        expectedVersion: 1
+      }
+    });
+    assert(
+      reviewNoRole.status === 403,
+      '13.1 Admin review without role header => 403 Forbidden'
+    );
+
+    // 13.2 Admin moderation without role header => denied (403 Forbidden)
+    const modNoRole = await apiRequest(`/admin/workspaces/WS-108/moderation`, {
+      method: 'PATCH',
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882',
+        suspendReason: 'Security check',
+        expectedVersion: 1
+      }
+    });
+    assert(
+      modNoRole.status === 403,
+      '13.2 Admin moderation without role header => 403 Forbidden'
+    );
+
+    // 13.3 Organizer attempting review => denied (403 Forbidden)
+    const orgReview = await apiRequest(`/admin/workspaces/WS-108/review`, {
+      method: 'PATCH',
+      headers: {
+        'x-mock-role': 'Organizer',
+        'x-organizer-id': 'USR-9432'
+      },
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        expectedVersion: 1
+      }
+    });
+    assert(
+      orgReview.status === 403,
+      '13.3 Organizer attempting review => 403 Forbidden'
+    );
+
+    // 13.4 Customer attempting moderation => denied (403 Forbidden)
+    const custMod = await apiRequest(`/admin/workspaces/WS-108/moderation`, {
+      method: 'PATCH',
+      headers: {
+        'x-mock-role': 'Customer',
+        'x-mock-user-id': 'USR-8821'
+      },
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-1882',
+        suspendReason: 'Unauthorized moderation attempt',
+        expectedVersion: 1
+      }
+    });
+    assert(
+      custMod.status === 403,
+      '13.4 Customer attempting moderation => 403 Forbidden'
+    );
+
+    // 13.5 Legitimate Administrator review => succeeds (200 OK)
+    const ws108PreReview = await apiRequest('/workspaces/WS-108', {
+      headers: {
+        'x-mock-role': 'Administrator',
+        'x-mock-user-id': 'USR-1882'
+      }
+    });
+    assert(ws108PreReview.status === 200, 'WS-108 detail fetched by Administrator');
+    const legitReview = await apiRequest('/admin/workspaces/WS-108/review', {
+      method: 'PATCH',
+      headers: {
+        'x-mock-role': 'Administrator',
+        'x-mock-user-id': 'USR-1882'
+      },
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-1882',
+        reviewFeedback: 'Authorized review passed',
+        expectedVersion: ws108PreReview.data.version
+      }
+    });
+    assert(
+      legitReview.status === 200 && legitReview.data?.reviewStatus === 'Approved',
+      '13.5 Legitimate Administrator review => 200 OK'
+    );
+
+    // 13.6 Owner Organizer GET workspace detail => succeeds (200 OK)
+    const ownerDetail = await apiRequest('/workspaces/WS-108', {
+      headers: {
+        'x-organizer-id': 'USR-2194'
+      }
+    });
+    assert(
+      ownerDetail.status === 200 && ownerDetail.data?.id === 'WS-108',
+      '13.6 Owner Organizer GET workspace detail => 200 OK'
+    );
+
+    // 13.7 Non-owner Organizer GET workspace detail => denied (403 Forbidden)
+    const nonOwnerDetail = await apiRequest('/workspaces/WS-108', {
+      headers: {
+        'x-organizer-id': 'USR-OTHER-ORG'
+      }
+    });
+    assert(
+      nonOwnerDetail.status === 403,
+      '13.7 Non-owner Organizer GET workspace detail => 403 Forbidden'
+    );
+
+    // 13.8 Customer GET private workspace detail => denied (403 Forbidden)
+    const custDetail = await apiRequest('/workspaces/WS-108', {
+      headers: {
+        'x-mock-role': 'Customer',
+        'x-mock-user-id': 'USR-8821'
+      }
+    });
+    assert(
+      custDetail.status === 403,
+      '13.8 Customer GET private workspace detail => 403 Forbidden'
+    );
+
+    // 13.9 Public Workspace detail => returns safe projection only (no organizerTaxId, no reviewedBy, no grossRevenueMtd)
+    const publicDetail = await apiRequest('/public/workspaces/WS-104');
+    assert(
+      publicDetail.status === 200 &&
+        publicDetail.data?.id === 'WS-104' &&
+        publicDetail.data?.organizerTaxId === undefined &&
+        publicDetail.data?.reviewedBy === undefined &&
+        publicDetail.data?.grossRevenueMtd === undefined,
+      '13.9 Public Workspace detail => 200 OK safe projection only'
+    );
+
+    // 13.10 Organizer listing another organizerId => denied or safely scoped (403 Forbidden cross-tenant)
+    const crossTenantList = await apiRequest('/workspaces?organizerId=USR-OTHER', {
+      headers: {
+        'x-organizer-id': 'USR-9432'
+      }
+    });
+    assert(
+      crossTenantList.status === 403,
+      '13.10 Organizer listing another organizerId => 403 Forbidden cross-tenant isolation'
+    );
+
+    // 13.11 Admin platform-wide listing => succeeds (200 OK)
+    const adminList = await apiRequest('/workspaces', {
+      headers: {
+        'x-mock-role': 'Administrator',
+        'x-mock-user-id': 'USR-1882'
+      }
+    });
+    assert(
+      adminList.status === 200 && Array.isArray(adminList.data?.content) && adminList.data.content.length > 0,
+      '13.11 Admin platform-wide listing => 200 OK'
+    );
+
+    // 13.12 Legacy alias does not bypass detail authorization
+    const aliasUnauth = await apiRequest('/workspaces/westlake-loft-hanoi', {
+      headers: {
+        'x-organizer-id': 'USR-UNAUTHORIZED'
+      }
+    });
+    assert(
+      aliasUnauth.status === 403,
+      '13.12a Legacy alias does not bypass detail authorization (unauthorized organizer => 403)'
+    );
+
+    const aliasAuth = await apiRequest('/workspaces/westlake-loft-hanoi', {
+      headers: {
+        'x-organizer-id': 'USR-2194'
+      }
+    });
+    assert(
+      aliasAuth.status === 200 && aliasAuth.data?.id === 'WS-108',
+      '13.12b Legacy alias resolves authorized detail for owner organizer (200 OK)'
+    );
+
+    // 13.13 Reviewer mismatch between header and body => denied (403 Forbidden)
+    const reviewerMismatch = await apiRequest('/admin/workspaces/WS-108/review', {
+      method: 'PATCH',
+      headers: {
+        'x-mock-role': 'Administrator',
+        'x-mock-user-id': 'USR-1882'
+      },
+      body: {
+        reviewStatus: 'Approved',
+        reviewedBy: 'USR-ADMIN-OTHER',
+        expectedVersion: legitReview.data.version
+      }
+    });
+    assert(
+      reviewerMismatch.status === 403,
+      '13.13 Reviewer mismatch between header and body => 403 Forbidden'
+    );
+
+    // 13.14 Moderator mismatch between header and body => denied (403 Forbidden)
+    const moderatorMismatch = await apiRequest('/admin/workspaces/WS-108/moderation', {
+      method: 'PATCH',
+      headers: {
+        'x-mock-role': 'Administrator',
+        'x-mock-user-id': 'USR-1882'
+      },
+      body: {
+        moderationStatus: 'Suspended',
+        suspendedBy: 'USR-ADMIN-OTHER',
+        suspendReason: 'Mismatch test',
+        expectedVersion: legitReview.data.version
+      }
+    });
+    assert(
+      moderatorMismatch.status === 403,
+      '13.14 Moderator mismatch between header and body => 403 Forbidden'
+    );
+
+    // 13.15 Anonymous GET workspace detail => denied (403 Forbidden)
+    const anonDetail = await apiRequest('/workspaces/WS-108');
+    assert(
+      anonDetail.status === 403,
+      '13.15 Anonymous GET private workspace detail => 403 Forbidden'
+    );
+
+    // 13.16 Anonymous GET workspaces list => denied (403 Forbidden)
+    const anonList = await apiRequest('/workspaces');
+    assert(
+      anonList.status === 403,
+      '13.16 Anonymous GET private workspaces list => 403 Forbidden'
+    );
+
   } catch (err) {
     console.error('💥 Test suite encountered fatal error:', err);
     failed++;

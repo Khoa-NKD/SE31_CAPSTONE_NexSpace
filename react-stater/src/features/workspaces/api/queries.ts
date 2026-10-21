@@ -35,10 +35,13 @@ export const publicWorkspacesQueryOptions = (params: PublicWorkspaceFilterParams
 /**
  * TanStack Query options for fetching individual workspace details by ID or alias.
  */
-export const workspaceDetailQueryOptions = (id: string | null) =>
+export const workspaceDetailQueryOptions = (
+  id: string | null,
+  options?: { role?: string; organizerId?: string }
+) =>
   queryOptions({
-    queryKey: id ? workspaceQueryKeys.detail(id) : [...workspaceQueryKeys.details(), 'empty'],
-    queryFn: () => (id ? workspaceService.getWorkspaceById(id) : null),
+    queryKey: id ? [...workspaceQueryKeys.detail(id), options] : [...workspaceQueryKeys.details(), 'empty'],
+    queryFn: () => (id ? workspaceService.getWorkspaceById(id, options) : null),
     enabled: Boolean(id)
   });
 
@@ -69,8 +72,11 @@ export function usePublicWorkspacesQuery(params: PublicWorkspaceFilterParams = {
 /**
  * Hook for querying a single workspace by ID.
  */
-export function useWorkspaceDetailQuery(id: string | null) {
-  return useQuery(workspaceDetailQueryOptions(id));
+export function useWorkspaceDetailQuery(
+  id: string | null,
+  options?: { role?: string; organizerId?: string }
+) {
+  return useQuery(workspaceDetailQueryOptions(id, options));
 }
 
 /**
