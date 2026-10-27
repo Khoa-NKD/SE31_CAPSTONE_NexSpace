@@ -1,0 +1,41 @@
+name: Backend CI
+on:
+  pull_request:
+    paths: ["spring-starter/**", ".github/workflows/backend-ci.yml"]
+  push:
+    branches: ["feature/backend", "develop", "staging", "main"]
+    paths: ["spring-starter/**", ".github/workflows/backend-ci.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backend-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: spring-starter
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+          cache-dependency-path: spring-starter/pom.xml
+      - name: Format, compile and test
+        run: ./mvnw -B -ntp clean verify
+      - name: MySQL migration and packaged backend smoke tests
+        run: python3 scripts/verify-migration.py
+      - name: Build Docker image
+        run: docker build -t nexspace-backend:ci .
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-test-reports
+          path: spring-starter/target/surefire-reports/
+          if-no-files-found: ignore
