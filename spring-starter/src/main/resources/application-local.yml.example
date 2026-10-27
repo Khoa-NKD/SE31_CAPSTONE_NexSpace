@@ -1,0 +1,19 @@
+# Copy to application-local.yml (gitignored) and fill in real values.
+spring:
+  datasource:
+    url: "jdbc:mysql://localhost:3307/MOCK_PROJECT_NEXSPACE?allowPublicKeyRetrieval=true&useSSL=false&connectionTimeZone=UTC"
+    username: "nexspace"
+    password: "<password>"
+  # Optional: configure SMTP for verification and password reset emails.
+  # mail:
+  #   username: "<smtp user>"
+  #   password: "<smtp app password>"
+
+app:
+  jwt:
+    secret: "<random string, at least 32 bytes>"
+  seed:
+    admin:
+      enabled: false
+      email: "admin@example.com"
+      password: "<initial admin password>"
