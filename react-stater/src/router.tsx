@@ -11,6 +11,7 @@ export function createRouter() {
   const router = createTanStackRouter({
     routeTree,
     scrollRestoration: true,
+    getScrollRestorationKey: (location) => location.pathname,
     defaultPreloadStaleTime: 0,
     context: { queryClient },
     defaultPendingComponent: () => (

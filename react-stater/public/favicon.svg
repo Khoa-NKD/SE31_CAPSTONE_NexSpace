@@ -1,6 +1,45 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32" role="img" aria-label="TanStack Start Dashboard">
-  <rect width="32" height="32" rx="7" fill="#09090b" />
-  <rect x="7" y="17" width="4" height="8" rx="1.5" fill="#ffffff" />
-  <rect x="14" y="11" width="4" height="14" rx="1.5" fill="#ffffff" />
-  <rect x="21" y="7" width="4" height="18" rx="1.5" fill="#ff4154" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" fill="none" width="56" height="56">
+  <defs>
+    <linearGradient id="nexPillarLeftFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#6366F1"/>
+      <stop offset="100%" stop-color="#4F46E5"/>
+    </linearGradient>
+    <linearGradient id="nexCenterPlaneFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8"/>
+      <stop offset="100%" stop-color="#0284C7"/>
+    </linearGradient>
+    <linearGradient id="nexPillarRightFav" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4338CA"/>
+      <stop offset="100%" stop-color="#1E1B4B"/>
+    </linearGradient>
+    <linearGradient id="nexRoofFacetFav" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#BAE6FD" stop-opacity="0.9"/>
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.95"/>
+    </linearGradient>
+    <filter id="cyanGlowFav" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#38BDF8" flood-opacity="0.7"/>
+    </filter>
+  </defs>
+
+  <rect width="56" height="56" rx="14" fill="#0F172A"/>
+
+  <g transform="translate(4, 4)">
+    <!-- Left Vertical Pillar -->
+    <path d="M6,13 L19,5.5 L19,38 L6,45 Z" fill="url(#nexPillarLeftFav)"/>
+    <path d="M6,13 L19,5.5" stroke="#818CF8" stroke-width="1" stroke-linecap="round" opacity="0.6"/>
+
+    <!-- Center Connecting Diagonal Spatial Plane -->
+    <path d="M19,17.5 L35,8 L35,39.5 L19,49 Z" fill="url(#nexCenterPlaneFav)" fill-opacity="0.96"/>
+    <path d="M19,17.5 L35,8" stroke="#E0F2FE" stroke-width="1.2" stroke-linecap="round" opacity="0.8"/>
+
+    <!-- Right Pillar -->
+    <path d="M35,8 L48,15.5 L48,47 L35,39.5 Z" fill="url(#nexPillarRightFav)"/>
+
+    <!-- Dynamic interlocking roof facet / spatial node fold -->
+    <polygon points="19,5.5 35,8 25,14 9,11.5" fill="url(#nexRoofFacetFav)"/>
+
+    <!-- Satellite Smart-Space Cyan Node -->
+    <circle cx="27" cy="5.5" r="3.5" fill="#38BDF8" filter="url(#cyanGlowFav)"/>
+    <circle cx="27" cy="5.5" r="1.5" fill="#FFFFFF"/>
+  </g>
 </svg>

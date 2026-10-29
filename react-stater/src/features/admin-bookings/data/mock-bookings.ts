@@ -1,0 +1,398 @@
+export type BookingStatus = 'confirmed' | 'checked_in' | 'completed' | 'cancelled';
+
+export interface BookingCustomer {
+  name: string;
+  email: string;
+  phone: string;
+  membershipTier: string;
+  avatarInitials: string;
+}
+
+export interface BookingWorkspaceAlloc {
+  name: string;
+  hubId: string;
+  address: string;
+  resourceName: string;
+  zone: string;
+  hardwareSpecs: string;
+  authorizedSlot: string;
+  nfcPassCode: string;
+}
+
+export interface PayOsEscrowRecord {
+  status: 'Verified' | 'Pending Settlement' | 'Refunded';
+  txReference: string; // e.g. "TX-4412" -> relates to A09!
+  grossFeeUsd: number;
+  grossFeeVnd: number;
+  platformTakeRatePercent: number;
+  platformTakeRateUsd: number;
+  platformTakeRateVnd: number;
+  netPayoutUsd: number;
+  netPayoutVnd: number;
+  escrowContractId: string;
+}
+
+export interface BookingLifecycleEvent {
+  id: string;
+  title: string;
+  timestamp: string;
+  description: string;
+  completed: boolean;
+  isLive?: boolean;
+}
+
+export interface BookingItem {
+  id: string; // e.g. "NX-9021"
+  customer: BookingCustomer;
+  workspace: BookingWorkspaceAlloc;
+  timeSlot: string;
+  grossAmountDisplay: string;
+  status: BookingStatus;
+  relativeStatusTime: string;
+  escrow: PayOsEscrowRecord;
+  timeline: BookingLifecycleEvent[];
+}
+
+export interface BookingSummaryKpis {
+  todayTotalBookings: number;
+  todayGrowthPercentage: number;
+  activeConcurrencyRate: number;
+  confirmedCount: number;
+  rfidComplianceRate: number;
+  completedCount: number;
+  cancelledCount: number;
+}
+
+export const MOCK_BOOKING_KPIS: BookingSummaryKpis = {
+  todayTotalBookings: 1420,
+  todayGrowthPercentage: 8.4,
+  activeConcurrencyRate: 84,
+  confirmedCount: 384,
+  rfidComplianceRate: 100,
+  completedCount: 782,
+  cancelledCount: 142
+};
+
+export const INITIAL_BOOKINGS_DATA: BookingItem[] = [
+  {
+    id: 'NX-9021',
+    customer: {
+      name: 'Alex Nguyen',
+      email: 'alex@pentacord.io',
+      phone: '+84 908 123 456',
+      membershipTier: 'Nomad Pass',
+      avatarInitials: 'AN'
+    },
+    workspace: {
+      name: 'NexSpace Saigon Prime Hub',
+      hubId: 'WS-104',
+      address: 'Floor 14, Bitexco Financial Tower, 2 Hai Trieu St, District 1, HCMC',
+      resourceName: 'Desk A-12 (Hot Desk)',
+      zone: 'Quiet Ergonomic Wing',
+      hardwareSpecs: 'Dual 27" 4K Monitors • 1Gbps Fiber WiFi 6 Dedicated',
+      authorizedSlot: 'Today • 09:00 - 13:00 (4.0 hrs)',
+      nfcPassCode: 'NFC - 9543'
+    },
+    timeSlot: 'Today • 09:00 - 13:00',
+    grossAmountDisplay: '$10.00 (245,000 VND)',
+    status: 'checked_in',
+    relativeStatusTime: 'Checked-In 54m ago',
+    escrow: {
+      status: 'Verified',
+      txReference: 'TX-4412',
+      grossFeeUsd: 10.0,
+      grossFeeVnd: 245000,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 1.2,
+      platformTakeRateVnd: 29400,
+      netPayoutUsd: 8.8,
+      netPayoutVnd: 215600,
+      escrowContractId: '#ESC-9012'
+    },
+    timeline: [
+      {
+        id: 't-1',
+        title: 'Created & Hold Placed',
+        timestamp: 'Jan 25, 2026 • 08:45:12',
+        description: '10-minute hold placed on Desk A-12 via Mobile App.',
+        completed: true
+      },
+      {
+        id: 't-2',
+        title: 'PayOS Payment Authorized',
+        timestamp: 'Jan 25, 2026 • 08:48:50',
+        description: 'Card tokenized, webhook 200 OK received from PayOS gateway.',
+        completed: true
+      },
+      {
+        id: 't-3',
+        title: 'Booking Confirmed & NFC Issued',
+        timestamp: 'Jan 25, 2026 • 08:48:52',
+        description: 'Turnstile credentials and dynamic cryptographic QR token synchronized.',
+        completed: true
+      },
+      {
+        id: 't-4',
+        title: 'Checked-In (Currently Active)',
+        timestamp: 'Jan 25, 2026 • 09:04:15',
+        description: 'Physical access logged at Bitexco Turnstile 02 via Apple Wallet NFC.',
+        completed: true,
+        isLive: true
+      }
+    ]
+  },
+  {
+    id: 'NX-9020',
+    customer: {
+      name: 'Sarah Jenkins',
+      email: 's.jenkins@innoasia.sg',
+      phone: '+65 9123 4567',
+      membershipTier: 'Enterprise Flex',
+      avatarInitials: 'SJ'
+    },
+    workspace: {
+      name: 'Hanoi Westlake Creative Space',
+      hubId: 'WS-108',
+      address: 'Keangnam Landmark 72, Fl. 21, Nam Tu Liem, Hanoi',
+      resourceName: 'Meeting Room 03 (4p)',
+      zone: 'Executive Meeting Suite',
+      hardwareSpecs: '4K Telepresence System • Acoustic Wall Insulation',
+      authorizedSlot: 'Today • 14:00 - 16:00 (2.0 hrs)',
+      nfcPassCode: 'NFC - 9542'
+    },
+    timeSlot: 'Today • 14:00 - 16:00',
+    grossAmountDisplay: '$32.00 (784,000 VND)',
+    status: 'confirmed',
+    relativeStatusTime: 'Starts in 2h',
+    escrow: {
+      status: 'Verified',
+      txReference: 'TX-4411',
+      grossFeeUsd: 32.0,
+      grossFeeVnd: 784000,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 3.84,
+      platformTakeRateVnd: 94080,
+      netPayoutUsd: 28.16,
+      netPayoutVnd: 689920,
+      escrowContractId: '#ESC-9011'
+    },
+    timeline: [
+      {
+        id: 't-21',
+        title: 'Created & Hold Placed',
+        timestamp: 'Jan 25, 2026 • 07:12:00',
+        description: 'Meeting Room 03 reserved via Web Client.',
+        completed: true
+      },
+      {
+        id: 't-22',
+        title: 'PayOS Payment Authorized',
+        timestamp: 'Jan 25, 2026 • 07:13:30',
+        description: 'VietQR instant payment matched in escrow.',
+        completed: true
+      },
+      {
+        id: 't-23',
+        title: 'Booking Confirmed & NFC Issued',
+        timestamp: 'Jan 25, 2026 • 07:13:35',
+        description: 'Visitor pass PIN & dynamic QR issued to applicant.',
+        completed: true
+      }
+    ]
+  },
+  {
+    id: 'NX-9019',
+    customer: {
+      name: 'David Kim',
+      email: 'david.corea@gmail.com',
+      phone: '+84 934 555 789',
+      membershipTier: 'Day Pass',
+      avatarInitials: 'DK'
+    },
+    workspace: {
+      name: 'Da Nang Coastal Tech Haven',
+      hubId: 'WS-092',
+      address: '36 Bach Dang, Hai Chau 1, Hai Chau, Da Nang',
+      resourceName: 'Desk C-08 (River View)',
+      zone: 'Open Panoramic Area',
+      hardwareSpecs: 'Ultra-wide Curved Monitor • Ergonomic Chair',
+      authorizedSlot: 'Yesterday • 08:00 - 18:00 (10.0 hrs)',
+      nfcPassCode: 'NFC - 9539'
+    },
+    timeSlot: 'Yesterday • Full Day',
+    grossAmountDisplay: '$18.50 (453,250 VND)',
+    status: 'completed',
+    relativeStatusTime: 'Checked-Out Yesterday',
+    escrow: {
+      status: 'Verified',
+      txReference: 'TX-4410',
+      grossFeeUsd: 18.5,
+      grossFeeVnd: 453250,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 2.22,
+      platformTakeRateVnd: 54390,
+      netPayoutUsd: 16.28,
+      netPayoutVnd: 398860,
+      escrowContractId: '#ESC-9010'
+    },
+    timeline: [
+      {
+        id: 't-31',
+        title: 'Booking Confirmed',
+        timestamp: 'Jan 24, 2026 • 07:30:00',
+        description: 'Payment authorized and validated.',
+        completed: true
+      },
+      {
+        id: 't-32',
+        title: 'Checked-In',
+        timestamp: 'Jan 24, 2026 • 08:14:20',
+        description: 'Turnstile check-in completed.',
+        completed: true
+      },
+      {
+        id: 't-33',
+        title: 'Checked-Out & Settled',
+        timestamp: 'Jan 24, 2026 • 18:02:11',
+        description: 'Turnstile check-out logged. Escrow funds released to host.',
+        completed: true
+      }
+    ]
+  },
+  {
+    id: 'NX-9018',
+    customer: {
+      name: 'Elena Rostova',
+      email: 'elena@archstudio.design',
+      phone: '+84 911 223 344',
+      membershipTier: 'Desk Monthly',
+      avatarInitials: 'ER'
+    },
+    workspace: {
+      name: 'Thao Dien Creative Hub',
+      hubId: 'WS-115',
+      address: '18 Nguyen Van Huong, Thao Dien, Thu Duc City, HCMC',
+      resourceName: 'Studio 04 (Dedicated)',
+      zone: 'Design & Architecture Wing',
+      hardwareSpecs: 'Large Drafting Table • Color Calibrated Display',
+      authorizedSlot: 'Today • 08:00 - 20:00 (12.0 hrs)',
+      nfcPassCode: 'NFC - 9540'
+    },
+    timeSlot: 'Today • 08:00 - 20:00',
+    grossAmountDisplay: '$45.00 (1,102,500 VND)',
+    status: 'checked_in',
+    relativeStatusTime: 'Checked-In 3h ago',
+    escrow: {
+      status: 'Verified',
+      txReference: 'TX-4409',
+      grossFeeUsd: 45.0,
+      grossFeeVnd: 1102500,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 5.4,
+      platformTakeRateVnd: 132300,
+      netPayoutUsd: 39.6,
+      netPayoutVnd: 970200,
+      escrowContractId: '#ESC-9009'
+    },
+    timeline: [
+      {
+        id: 't-41',
+        title: 'Checked-In (Currently Active)',
+        timestamp: 'Jan 25, 2026 • 08:05:00',
+        description: 'Bluetooth smart lock access confirmed.',
+        completed: true,
+        isLive: true
+      }
+    ]
+  },
+  {
+    id: 'NX-9017',
+    customer: {
+      name: 'Michael Thorne',
+      email: 'm.thorne@singpost.sg',
+      phone: '+65 8234 5678',
+      membershipTier: 'Nomad Pass',
+      avatarInitials: 'MT'
+    },
+    workspace: {
+      name: 'NexSpace Saigon Prime Hub',
+      hubId: 'WS-104',
+      address: 'Floor 14, Bitexco Financial Tower, 2 Hai Trieu St, District 1, HCMC',
+      resourceName: 'Desk B-04 (Ergonomic)',
+      zone: 'Quiet Ergonomic Wing',
+      hardwareSpecs: 'Standard Ergonomic Desk',
+      authorizedSlot: 'Today • 10:00 - 14:00',
+      nfcPassCode: 'NFC - 9535'
+    },
+    timeSlot: 'Today • 10:00 - 14:00',
+    grossAmountDisplay: '$10.00 (245,000 VND)',
+    status: 'cancelled',
+    relativeStatusTime: 'Cancelled 1h ago',
+    escrow: {
+      status: 'Refunded',
+      txReference: 'TX-4408',
+      grossFeeUsd: 10.0,
+      grossFeeVnd: 245000,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 0,
+      platformTakeRateVnd: 0,
+      netPayoutUsd: 0,
+      netPayoutVnd: 0,
+      escrowContractId: '#ESC-9008'
+    },
+    timeline: [
+      {
+        id: 't-51',
+        title: 'Cancelled & Full Refund Processed',
+        timestamp: 'Jan 25, 2026 • 08:30:10',
+        description: 'User initiated cancellation >2h before start. Escrow released full refund.',
+        completed: true
+      }
+    ]
+  },
+  {
+    id: 'NX-9016',
+    customer: {
+      name: 'Bao Chau Tran',
+      email: 'chau.tran@fintechvn.io',
+      phone: '+84 977 889 900',
+      membershipTier: 'Enterprise Flex',
+      avatarInitials: 'BC'
+    },
+    workspace: {
+      name: 'Landmark 81 Innovation Center',
+      hubId: 'WS-128',
+      address: '720A Dien Bien Phu, Ward 22, Binh Thanh, HCMC',
+      resourceName: 'Executive Suite 02',
+      zone: 'FinTech Innovation Zone',
+      hardwareSpecs: 'Conference Setup • 8K Display',
+      authorizedSlot: 'Tomorrow • 09:00 - 17:00',
+      nfcPassCode: 'NFC - 9530'
+    },
+    timeSlot: 'Tomorrow • 09:00 - 17:00',
+    grossAmountDisplay: '$58.50 (1,433,250 VND)',
+    status: 'confirmed',
+    relativeStatusTime: 'Starts tomorrow',
+    escrow: {
+      status: 'Verified',
+      txReference: 'TX-4407',
+      grossFeeUsd: 58.5,
+      grossFeeVnd: 1433250,
+      platformTakeRatePercent: 12,
+      platformTakeRateUsd: 7.02,
+      platformTakeRateVnd: 171990,
+      netPayoutUsd: 51.48,
+      netPayoutVnd: 1261260,
+      escrowContractId: '#ESC-9007'
+    },
+    timeline: [
+      {
+        id: 't-61',
+        title: 'Booking Confirmed & Escrow Held',
+        timestamp: 'Jan 25, 2026 • 09:15:00',
+        description: 'Payment authorized via PayOS corporate card.',
+        completed: true
+      }
+    ]
+  }
+];

@@ -59,5 +59,7 @@ temp
 # clerk configuration (can include secrets)
 /.clerk/
 
-#Agent Skills
-.agent
+# Agent Skills & Local Rules
+.agent/
+.agents/
+SCREEN_ARCHITECTURE_STANDARDS.md

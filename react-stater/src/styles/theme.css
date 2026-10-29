@@ -16,6 +16,16 @@ body {
 
 :root {
   --header-height: calc(var(--spacing, 0.25rem) * 12 + 1px);
+  --stitch-sidebar: #090D16;
+  --stitch-sidebar-hover: #1E293B;
+  --stitch-canvas: #F8FAFC;
+  --stitch-primary: #4F46E5;
+  --stitch-primary-dark: #4338CA;
+  --stitch-border-subtle: #E2E8F0;
+  --stitch-border-strong: #CBD5E1;
+  --stitch-status-active: #10B981;
+  --stitch-status-pending: #F59E0B;
+  --stitch-status-critical: #EF4444;
 }
 
 /* Apply theme fonts to body for all themes */
