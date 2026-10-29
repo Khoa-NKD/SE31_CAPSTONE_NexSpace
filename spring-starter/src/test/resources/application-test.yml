@@ -1,0 +1,22 @@
+# Isolated in-memory database for integration tests; never connects to local MySQL.
+spring:
+  flyway:
+    # MySQL-specific V1 is verified separately against a real MySQL 8.4 container.
+    enabled: false
+  datasource:
+    url: jdbc:h2:mem:nexspace-openapi;MODE=MySQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ""
+    hikari:
+      connection-init-sql: ""
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+
+app:
+  jwt:
+    secret: nexspace-test-only-jwt-secret-32-bytes-minimum
+  seed:
+    admin:
+      enabled: false
