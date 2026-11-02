@@ -13,8 +13,10 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.ColumnDefault;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 @Getter
 @Setter
@@ -59,6 +61,46 @@ public class UserModel extends BaseModel {
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "role_id", nullable = false)
     private RoleModel roleEntity;
+
+    // ── Cột bổ sung theo thiết kế NexSpace App_User ─────────────────────
+    // NOT NULL kèm @ColumnDefault để ddl-auto=update thêm cột được vào bảng đã có dữ liệu.
+
+    /** Đăng nhập Google; thay bảng User_Social_Account. */
+    @Column(name = "google_id", unique = true, length = 100)
+    private String googleId;
+
+    @Column(name = "facebook_id", unique = true, length = 100)
+    private String facebookId;
+
+    @Column(name = "email_verified_at")
+    private LocalDateTime emailVerifiedAt;
+
+    @Column(name = "phone_verified_at")
+    private LocalDateTime phoneVerifiedAt;
+
+    @ColumnDefault("0")
+    @Column(name = "two_factor_enabled", nullable = false)
+    private boolean twoFactorEnabled;
+
+    /** Mã hoá. */
+    @Column(name = "two_factor_secret")
+    private String twoFactorSecret;
+
+    @ColumnDefault("0")
+    @Column(name = "failed_login_count", nullable = false)
+    private int failedLoginCount;
+
+    /** Khoá tạm (BR-03). */
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
+    @Column(name = "last_login_at")
+    private LocalDateTime lastLoginAt;
+
+    /** vi, en. */
+    @ColumnDefault("'vi'")
+    @Column(name = "preferred_locale", nullable = false, length = 5)
+    private String preferredLocale = "vi";
 
     public UserRole getRole() {
         return roleEntity == null ? null : UserRole.valueOf(roleEntity.getName());
