@@ -37,6 +37,7 @@ base.api
 
 Thêm module mới: tạo `feature/<tên>/...` theo đúng mẫu `feature/auth`, controller `extends BaseAPIController`,
 ném `BadRequestException` / `NotFoundException` / `ConflictException`... để handler trả response chuẩn.
+Quy tắc đầy đủ khi viết API mới (kèm code mẫu + checklist): xem [API_RULES.md](API_RULES.md).
 
 ## API mẫu (feature/auth)
 
