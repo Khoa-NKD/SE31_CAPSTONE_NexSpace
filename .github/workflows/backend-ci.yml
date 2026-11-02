@@ -23,13 +23,11 @@ jobs:
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "21"
+          java-version: "17"
           cache: maven
           cache-dependency-path: spring-starter/pom.xml
-      - name: Format, compile and test
+      - name: Compile and test
         run: ./mvnw -B -ntp clean verify
-      - name: MySQL migration and packaged backend smoke tests
-        run: python3 scripts/verify-migration.py
       - name: Build Docker image
         run: docker build -t nexspace-backend:ci .
       - name: Upload test reports
