@@ -1,0 +1,11 @@
+# Copy to application-local.properties (gitignored) and fill in real values.
+spring.datasource.url=jdbc:mysql://<host>:3306/<database>?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Ho_Chi_Minh
+spring.datasource.username=<username>
+spring.datasource.password=<password>
+
+app.jwt.secret=<random string, at least 32 bytes>
+app.seed.admin.password=<initial admin password>
+
+# Optional — only needed when app.auth.email-verification-enabled=true or for forgot-password emails
+# spring.mail.username=<smtp user>
+# spring.mail.password=<smtp app password>

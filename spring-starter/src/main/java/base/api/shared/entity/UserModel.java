@@ -1,82 +1,77 @@
 package base.api.shared.entity;
 
-import base.api.shared.enums.*;
-import jakarta.persistence.*;
-import java.time.*;
+import base.api.shared.enums.UserGender;
+import base.api.shared.enums.UserRole;
+import base.api.shared.enums.UserStatus;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
+
+import java.time.LocalDate;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "m_app_user")
+@Table(name = "users")
 public class UserModel extends BaseModel {
-  @Column(nullable = false, unique = true, length = 255)
-  private String email;
 
-  @Column(name = "password_hash", length = 255)
-  private String password;
+    @Column(name = "user_name", nullable = false, unique = true, length = 100)
+    private String userName;
 
-  @Column(name = "password_changed_at")
-  private LocalDateTime passwordChangedAt;
+    @Column(nullable = false, unique = true)
+    private String email;
 
-  @Column(name = "full_name", nullable = false, length = 100)
-  private String fullName;
+    @Column(name = "password_hash", nullable = false)
+    private String password;
 
-  @Column(length = 20)
-  private String phone;
+    @Column(name = "first_name", length = 100)
+    private String firstName;
 
-  @Column(name = "date_of_birth")
-  private LocalDate birthDate;
+    @Column(name = "last_name", length = 100)
+    private String lastName;
 
-  @Column(length = 500)
-  private String address;
+    @Column(length = 20)
+    private String phone;
 
-  @Column(name = "avatar_url", length = 500)
-  private String avatarUrl;
+    @Enumerated(EnumType.STRING)
+    @Column(length = 16)
+    private UserGender gender;
 
-  @Column(nullable = false, length = 20)
-  private UserRole role = UserRole.CUSTOMER;
+    @Column(name = "birth_date")
+    private LocalDate birthDate;
 
-  @Column(nullable = false, length = 20)
-  private UserStatus status = UserStatus.UNVERIFIED;
+    private String avatar;
 
-  @Column(name = "email_verified_at")
-  private LocalDateTime emailVerifiedAt;
+    @Column(name = "is_verified", nullable = false)
+    private boolean verified;
 
-  @Column(name = "two_factor_enabled", nullable = false, columnDefinition = "tinyint unsigned")
-  private int twoFactorEnabled;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 16)
+    private UserStatus status = UserStatus.ACTIVE;
 
-  @Column(name = "locked_until")
-  private LocalDateTime lockedUntil;
+    @ManyToOne(fetch = FetchType.EAGER, optional = false)
+    @JoinColumn(name = "role_id", nullable = false)
+    private RoleModel roleEntity;
 
-  @Column(name = "last_login_at")
-  private LocalDateTime lastLoginAt;
+    public UserRole getRole() {
+        return roleEntity == null ? null : UserRole.valueOf(roleEntity.getName());
+    }
 
-  @Column(name = "created_at", nullable = false, updatable = false)
-  private LocalDateTime createdAt;
+    public boolean isActive() {
+        return status == UserStatus.ACTIVE;
+    }
 
-  @Column(name = "updated_at", nullable = false)
-  private LocalDateTime updatedAt;
-
-  @PrePersist
-  void createTimestamps() {
-    createdAt = LocalDateTime.now(ZoneOffset.UTC);
-    updatedAt = createdAt;
-  }
-
-  @PreUpdate
-  void updateTimestamp() {
-    updatedAt = LocalDateTime.now(ZoneOffset.UTC);
-  }
-
-  public boolean isVerified() {
-    return emailVerifiedAt != null;
-  }
-
-  public boolean isActive() {
-    return status == UserStatus.ACTIVE
-        && isVerified()
-        && (lockedUntil == null || !lockedUntil.isAfter(LocalDateTime.now(ZoneOffset.UTC)));
-  }
+    public String getFullName() {
+        String first = firstName == null ? "" : firstName.trim();
+        String last = lastName == null ? "" : lastName.trim();
+        String name = (first + " " + last).trim();
+        return name.isEmpty() ? userName : name;
+    }
 }

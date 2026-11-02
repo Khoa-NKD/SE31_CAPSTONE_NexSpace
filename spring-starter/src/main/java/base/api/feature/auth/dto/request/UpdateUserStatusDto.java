@@ -6,6 +6,6 @@ import lombok.Data;
 
 @Data
 public class UpdateUserStatusDto {
-  @NotNull(message = "Trạng thái không được để trống")
-  private UserStatus status;
+    @NotNull(message = "Trạng thái không được để trống")
+    private UserStatus status;
 }

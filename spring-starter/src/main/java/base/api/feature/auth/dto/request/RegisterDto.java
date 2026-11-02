@@ -1,24 +1,31 @@
 package base.api.feature.auth.dto.request;
 
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
 
 @Data
 public class RegisterDto {
-  @NotBlank
-  @Email
-  @Size(max = 255)
-  private String email;
+    @NotBlank(message = "Tên đăng nhập không được để trống")
+    @Size(min = 3, max = 100, message = "Tên đăng nhập từ 3 đến 100 ký tự")
+    @Pattern(regexp = "^[a-zA-Z0-9._-]+$", message = "Tên đăng nhập chỉ gồm chữ, số, dấu . _ -")
+    private String userName;
 
-  @NotBlank
-  @Size(min = 6, max = 72)
-  private String password;
+    @NotBlank(message = "Email không được để trống")
+    @Email(message = "Email không hợp lệ")
+    private String email;
 
-  @NotBlank
-  @Size(max = 100)
-  private String fullName;
+    @NotBlank(message = "Mật khẩu không được để trống")
+    @Size(min = 6, max = 100, message = "Mật khẩu phải có ít nhất 6 ký tự")
+    private String password;
 
-  @Size(max = 20)
-  @Pattern(regexp = "^(0|\\+84)[0-9]{9,10}$", message = "Số điện thoại không hợp lệ")
-  private String phone;
+    @NotBlank(message = "Họ không được để trống")
+    private String firstName;
+
+    private String lastName;
+
+    @Pattern(regexp = "^(0|\\+84)[0-9]{9,10}$", message = "Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)")
+    private String phone;
 }

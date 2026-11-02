@@ -7,7 +7,5 @@ target/
 *.md
 .env
 src/main/resources/application-local.properties
-src/main/resources/application-local.yml
-src/main/resources/application-local.yaml
 Dockerfile
 docker-compose.yml

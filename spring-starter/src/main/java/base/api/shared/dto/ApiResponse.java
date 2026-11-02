@@ -1,17 +1,25 @@
 package base.api.shared.dto;
 
-import java.time.Instant;
-import lombok.*;
-import org.slf4j.MDC;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 
+import java.util.Map;
+
+/**
+ * Envelope chung cho mọi response: { success, data, message, statusCode, errors }.
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public class ApiResponse<T> {
-  private boolean success;
-  private T data;
-  private String message;
-  @Builder.Default private Instant timestamp = Instant.now();
-  @Builder.Default private String requestId = MDC.get("requestId");
+    private Boolean success;
+    private T data;
+    private String message;
+    private Integer statusCode;
+    private Map<String, String> errors;
 }
