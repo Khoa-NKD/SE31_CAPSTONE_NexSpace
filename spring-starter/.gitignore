@@ -6,8 +6,6 @@ target/
 
 ### Local config / secrets ###
 application-local.properties
-application-local.yml
-application-local.yaml
 .env
 
 ### STS ###
@@ -43,7 +41,3 @@ build/
 
 ### Logs ###
 *.log
-
-# Python verification scripts
-__pycache__/
-*.pyc

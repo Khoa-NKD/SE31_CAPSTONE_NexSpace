@@ -1,16 +1,14 @@
 package base.api.feature.auth.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonAlias;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 @Data
 public class AuthRequest {
-  @JsonAlias("username")
-  @NotBlank
-  @Email
-  @Size(max = 255)
-  private String email;
+    /** Username hoặc email. */
+    @NotBlank(message = "Tên đăng nhập không được để trống")
+    private String username;
 
-  @NotBlank private String password;
+    @NotBlank(message = "Mật khẩu không được để trống")
+    private String password;
 }

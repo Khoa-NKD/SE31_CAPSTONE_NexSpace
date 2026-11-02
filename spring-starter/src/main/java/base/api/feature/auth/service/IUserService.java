@@ -6,18 +6,17 @@ import base.api.feature.auth.dto.response.UserDto;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
-import java.util.UUID;
 import org.springframework.data.domain.Page;
 
 public interface IUserService {
 
-  UserDto getById(UUID userId);
+    UserDto getById(Long userId);
 
-  UserDto updateProfile(UUID userId, UpdateProfileDto dto);
+    UserDto updateProfile(Long userId, UpdateProfileDto dto);
 
-  void changePassword(UUID userId, ChangePasswordDto dto);
+    void changePassword(Long userId, ChangePasswordDto dto);
 
-  Page<UserDto> getUserPage(PageRequestDTO pageRequest, UserRole role, UserStatus status);
+    Page<UserDto> getUserPage(PageRequestDTO pageRequest, UserRole role, UserStatus status);
 
-  UserDto updateUserStatus(UUID actorId, UUID targetUserId, UserStatus status);
+    UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status);
 }

@@ -1,73 +1,63 @@
 package base.api.shared.config;
 
 import base.api.shared.entity.UserModel;
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
-import java.nio.charset.StandardCharsets;
-import java.time.Instant;
-import java.util.*;
-import javax.crypto.SecretKey;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import javax.crypto.SecretKey;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.Date;
+
 @Component
 public class JwtUtil {
-  private final SecretKey key;
-  private final long expirationMs;
 
-  public JwtUtil(
-      @Value("${app.jwt.secret}") String secret,
-      @Value("${app.jwt.expiration-ms:900000}") long expirationMs) {
-    if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < 32)
-      throw new IllegalStateException("JWT_SECRET must be set and at least 32 bytes long");
-    key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
-    this.expirationMs = expirationMs;
-  }
+    private static final int MIN_SECRET_BYTES = 32;
 
-  public String generateToken(UserModel user, UUID sessionId) {
-    Instant now = Instant.now();
-    return Jwts.builder()
-        .setIssuer("nexspace-api")
-        .setSubject(user.getId().toString())
-        .setId(UUID.randomUUID().toString())
-        .claim("id", user.getId().toString())
-        .claim("sid", sessionId.toString())
-        .claim("role", user.getRole().getValue())
-        .setIssuedAt(Date.from(now))
-        .setExpiration(Date.from(now.plusMillis(expirationMs)))
-        .signWith(key, SignatureAlgorithm.HS256)
-        .compact();
-  }
+    private final SecretKey key;
+    private final long expirationMs;
 
-  public Claims parseClaims(String token) {
-    return Jwts.parserBuilder()
-        .requireIssuer("nexspace-api")
-        .setSigningKey(key)
-        .build()
-        .parseClaimsJws(token)
-        .getBody();
-  }
-
-  public UUID extractUserId(String token) {
-    return identifier(parseClaims(token).getSubject());
-  }
-
-  public UUID extractSessionId(String token) {
-    return identifier(parseClaims(token).get("sid", String.class));
-  }
-
-  public Instant extractExpiration(String token) {
-    return parseClaims(token).getExpiration().toInstant();
-  }
-
-  private UUID identifier(String value) {
-    try {
-      UUID id = UUID.fromString(value);
-      if (!id.toString().equals(value)) throw new IllegalArgumentException();
-      return id;
-    } catch (IllegalArgumentException | NullPointerException ex) {
-      throw new io.jsonwebtoken.MalformedJwtException(
-          "JWT must contain canonical UUID identifiers");
+    public JwtUtil(@Value("${app.jwt.secret}") String secret,
+                   @Value("${app.jwt.expiration-ms:86400000}") long expirationMs) {
+        if (secret == null || secret.getBytes(StandardCharsets.UTF_8).length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(
+                    "app.jwt.secret (JWT_SECRET) must be set and at least " + MIN_SECRET_BYTES + " bytes long");
+        }
+        this.key = Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
+        this.expirationMs = expirationMs;
     }
-  }
+
+    public String generateToken(UserModel user) {
+        Date now = new Date();
+        return Jwts.builder()
+                .setSubject(user.getUserName())
+                .claim("id", user.getId())
+                .claim("email", user.getEmail())
+                .claim("role", user.getRole().name())
+                .setIssuedAt(now)
+                .setExpiration(new Date(now.getTime() + expirationMs))
+                .signWith(key, SignatureAlgorithm.HS256)
+                .compact();
+    }
+
+    /** Parse + verify chữ ký và hạn dùng. Ném exception nếu token không hợp lệ/hết hạn. */
+    public Claims parseClaims(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody();
+    }
+
+    public Long extractUserId(String token) {
+        return parseClaims(token).get("id", Long.class);
+    }
+
+    public Instant extractExpiration(String token) {
+        return parseClaims(token).getExpiration().toInstant();
+    }
 }

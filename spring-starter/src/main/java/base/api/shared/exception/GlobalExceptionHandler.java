@@ -1,93 +1,111 @@
 package base.api.shared.exception;
 
-import base.api.shared.dto.ApiError;
-import jakarta.servlet.http.HttpServletRequest;
-import java.util.*;
+import base.api.shared.dto.ApiResponse;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.dao.DataIntegrityViolationException;
-import org.springframework.http.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.validation.FieldError;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.bind.*;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
-  @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<ApiError> validation(
-      MethodArgumentNotValidException ex, HttpServletRequest req) {
-    Map<String, String> errors = new LinkedHashMap<>();
-    ex.getBindingResult()
-        .getFieldErrors()
-        .forEach(
-            e ->
-                errors.putIfAbsent(
-                    e.getField(),
-                    e.getDefaultMessage() == null
-                        ? "Giá trị không hợp lệ"
-                        : e.getDefaultMessage()));
-    return respond(HttpStatus.BAD_REQUEST, "Dữ liệu nhập không hợp lệ", req, errors);
-  }
 
-  @ExceptionHandler(BadRequestException.class)
-  public ResponseEntity<ApiError> badRequest(BadRequestException ex, HttpServletRequest req) {
-    return respond(HttpStatus.BAD_REQUEST, ex.getMessage(), req, null);
-  }
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex, WebRequest req) {
+        Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
+                .collect(Collectors.toMap(
+                        FieldError::getField,
+                        fe -> fe.getDefaultMessage() == null ? "Giá trị không hợp lệ" : fe.getDefaultMessage(),
+                        (a, b) -> a,
+                        LinkedHashMap::new
+                ));
+        String firstMessage = errors.values().stream().findFirst().orElse("Dữ liệu không hợp lệ");
+        log.warn("[{}] Validation failed: {}", req.getDescription(false), errors);
 
-  @ExceptionHandler({
-    IllegalArgumentException.class,
-    HttpMessageNotReadableException.class,
-    MissingServletRequestParameterException.class,
-    MethodArgumentTypeMismatchException.class
-  })
-  public ResponseEntity<ApiError> invalid(Exception ex, HttpServletRequest req) {
-    return respond(HttpStatus.BAD_REQUEST, "Yêu cầu không hợp lệ", req, null);
-  }
+        ApiResponse<Void> body = ApiResponse.<Void>builder()
+                .success(false)
+                .statusCode(HttpStatus.BAD_REQUEST.value())
+                .message(firstMessage)
+                .errors(errors)
+                .build();
+        return ResponseEntity.badRequest().body(body);
+    }
 
-  @ExceptionHandler(UnauthorizedException.class)
-  public ResponseEntity<ApiError> unauthorized(UnauthorizedException ex, HttpServletRequest req) {
-    return respond(HttpStatus.UNAUTHORIZED, ex.getMessage(), req, null);
-  }
+    @ExceptionHandler({
+            BadRequestException.class,
+            IllegalArgumentException.class,
+            MissingServletRequestParameterException.class,
+            MethodArgumentTypeMismatchException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.BAD_REQUEST);
+    }
 
-  @ExceptionHandler({ForbiddenException.class, AccessDeniedException.class})
-  public ResponseEntity<ApiError> forbidden(Exception ex, HttpServletRequest req) {
-    return respond(HttpStatus.FORBIDDEN, "Không có quyền truy cập", req, null);
-  }
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex, WebRequest req) {
+        return build("Request body không hợp lệ", req, HttpStatus.BAD_REQUEST);
+    }
 
-  @ExceptionHandler({NotFoundException.class, NoResourceFoundException.class})
-  public ResponseEntity<ApiError> notFound(Exception ex, HttpServletRequest req) {
-    return respond(HttpStatus.NOT_FOUND, "Không tìm thấy tài nguyên", req, null);
-  }
+    @ExceptionHandler(UnauthorizedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUnauthorized(UnauthorizedException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.UNAUTHORIZED);
+    }
 
-  @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
-  public ResponseEntity<ApiError> method(Exception ex, HttpServletRequest req) {
-    return respond(HttpStatus.METHOD_NOT_ALLOWED, "Phương thức không được hỗ trợ", req, null);
-  }
+    @ExceptionHandler(ForbiddenException.class)
+    public ResponseEntity<ApiResponse<Void>> handleForbidden(ForbiddenException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.FORBIDDEN);
+    }
 
-  @ExceptionHandler(ConflictException.class)
-  public ResponseEntity<ApiError> conflict(ConflictException ex, HttpServletRequest req) {
-    return respond(HttpStatus.CONFLICT, ex.getMessage(), req, null);
-  }
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleAccessDenied(AccessDeniedException ex, WebRequest req) {
+        return build("Access denied", req, HttpStatus.FORBIDDEN);
+    }
 
-  @ExceptionHandler(DataIntegrityViolationException.class)
-  public ResponseEntity<ApiError> integrity(Exception ex, HttpServletRequest req) {
-    return respond(HttpStatus.CONFLICT, "Dữ liệu trùng lặp hoặc vi phạm ràng buộc", req, null);
-  }
+    @ExceptionHandler({NotFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.NOT_FOUND);
+    }
 
-  @ExceptionHandler(Exception.class)
-  public ResponseEntity<ApiError> unexpected(Exception ex, HttpServletRequest req) {
-    log.error("Unhandled request failure", ex);
-    return respond(
-        HttpStatus.INTERNAL_SERVER_ERROR, "Đã có lỗi xảy ra, vui lòng thử lại sau", req, null);
-  }
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.METHOD_NOT_ALLOWED);
+    }
 
-  private ResponseEntity<ApiError> respond(
-      HttpStatus status, String message, HttpServletRequest req, Map<String, String> errors) {
-    return ResponseEntity.status(status)
-        .body(ApiError.of(status, message, req.getRequestURI(), errors));
-  }
+    @ExceptionHandler(ConflictException.class)
+    public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.CONFLICT);
+    }
+
+    @ExceptionHandler(Exception.class)
+    public ResponseEntity<ApiResponse<Void>> handleAny(Exception ex, WebRequest req) {
+        log.error("[{}] Unhandled error", req.getDescription(false), ex);
+        // Không trả chi tiết lỗi nội bộ ra client.
+        return build("Đã có lỗi xảy ra, vui lòng thử lại sau", req, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private ResponseEntity<ApiResponse<Void>> build(String message, WebRequest req, HttpStatus status) {
+        if (status.is4xxClientError()) {
+            log.warn("[{}] {}", req.getDescription(false), message);
+        }
+        ApiResponse<Void> body = ApiResponse.<Void>builder()
+                .success(false)
+                .statusCode(status.value())
+                .message(message)
+                .build();
+        return ResponseEntity.status(status).body(body);
+    }
 }

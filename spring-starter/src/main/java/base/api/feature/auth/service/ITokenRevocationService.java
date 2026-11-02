@@ -1,11 +1,8 @@
 package base.api.feature.auth.service;
 
-import java.util.UUID;
-
 public interface ITokenRevocationService {
-  void revoke(String token);
 
-  boolean isRevoked(String token);
+    void revoke(String token);
 
-  void revokeAll(UUID userId);
+    boolean isRevoked(String token);
 }

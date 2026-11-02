@@ -1,24 +1,31 @@
 package base.api.feature.auth.dto.request;
 
-import jakarta.validation.constraints.*;
-import java.time.LocalDate;
+import base.api.shared.enums.UserGender;
+import com.fasterxml.jackson.annotation.JsonFormat;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import lombok.Data;
+
+import java.time.LocalDate;
 
 @Data
 public class UpdateProfileDto {
-  @NotBlank
-  @Size(max = 100)
-  private String fullName;
+    @NotBlank(message = "Họ không được để trống")
+    private String firstName;
 
-  @Size(max = 20)
-  @Pattern(regexp = "^(0|\\+84)[0-9]{9,10}$", message = "Số điện thoại không hợp lệ")
-  private String phone;
+    private String lastName;
 
-  @Size(max = 500)
-  private String avatarUrl;
+    @Pattern(regexp = "^(0|\\+84)[0-9]{9,10}$", message = "Số điện thoại không hợp lệ (VD: 0912345678 hoặc +84912345678)")
+    private String phone;
 
-  @Size(max = 500)
-  private String address;
+    @Size(max = 255)
+    private String avatar;
 
-  @Past private LocalDate birthDate;
+    @Past(message = "Ngày sinh phải là ngày trong quá khứ")
+    @JsonFormat(pattern = "yyyy-MM-dd")
+    private LocalDate birthDate;
+
+    private UserGender gender;
 }

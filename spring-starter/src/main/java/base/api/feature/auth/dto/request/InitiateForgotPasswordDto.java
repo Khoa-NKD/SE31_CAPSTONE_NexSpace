@@ -6,6 +6,6 @@ import lombok.Data;
 /** Dùng cho forgot-password/initiate và resend-verification. */
 @Data
 public class InitiateForgotPasswordDto {
-  @NotBlank(message = "Vui lòng nhập email")
-  private String contactInfo;
+    @NotBlank(message = "Vui lòng nhập email hoặc tên đăng nhập")
+    private String contactInfo;
 }
