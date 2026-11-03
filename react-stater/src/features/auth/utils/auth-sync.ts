@@ -15,16 +15,28 @@ export type AuthSyncEvent =
 const CHANNEL_NAME = 'nexspace_auth_sync';
 const STORAGE_KEY = 'nexspace_auth_sync_event';
 
+let sharedBroadcastChannel: BroadcastChannel | null = null;
+function getBroadcastChannel(): BroadcastChannel | null {
+  if (typeof BroadcastChannel === 'undefined') return null;
+  if (!sharedBroadcastChannel) {
+    try {
+      sharedBroadcastChannel = new BroadcastChannel(CHANNEL_NAME);
+    } catch {
+      sharedBroadcastChannel = null;
+    }
+  }
+  return sharedBroadcastChannel;
+}
+
 /**
  * Broadcast an authentication event to all other open tabs / windows.
  */
 export function broadcastAuthSync(event: AuthSyncEvent) {
   // 1. BroadcastChannel (modern zero-latency standard)
-  if (typeof BroadcastChannel !== 'undefined') {
+  const channel = getBroadcastChannel();
+  if (channel) {
     try {
-      const channel = new BroadcastChannel(CHANNEL_NAME);
       channel.postMessage(event);
-      channel.close();
     } catch {
       // Fallback silently
     }
@@ -89,4 +101,3 @@ export function subscribeAuthSync(handler: (event: AuthSyncEvent) => void): () =
     }
   };
 }
-

@@ -86,7 +86,7 @@ async function runE2ETests() {
     const pwdInputs = await page.$$('input[type="password"]');
     await pwdInputs[0].fill(USER_PASSWORD);
     await pwdInputs[1].fill(USER_PASSWORD);
-    await page.locator('#agreeTerms').check();
+    await page.click('#agreeTerms');
     await page.click('button[type="submit"]');
 
     await page.waitForSelector('text=Xác thực tài khoản của bạn', { timeout: 8000 });

@@ -37,3 +37,6 @@ logs
 
 # Custom rules
 SCREEN_ARCHITECTURE_STANDARDS.md
+
+# Secret Sync
+.gist-url

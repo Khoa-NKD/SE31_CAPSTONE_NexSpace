@@ -108,8 +108,17 @@ export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) 
     onSubmit: ({ value }) => {
       startTransition(async () => {
         try {
+          const rawName = value.fullName.trim();
+          const spaceIdx = rawName.indexOf(' ');
+          const firstName = spaceIdx > 0 ? rawName.slice(0, spaceIdx) : rawName;
+          const lastName = spaceIdx > 0 ? rawName.slice(spaceIdx + 1) : rawName;
+          const cleanEmailPrefix = value.email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '');
+          const userName = (cleanEmailPrefix.length >= 3 ? cleanEmailPrefix : (cleanEmailPrefix + 'user')).padEnd(3, '0') + '_' + Date.now().toString().slice(-4);
+
           await authService.register({
-            fullName: value.fullName.trim(),
+            userName,
+            firstName,
+            lastName,
             email: value.email.trim(),
             password: value.password
           });
