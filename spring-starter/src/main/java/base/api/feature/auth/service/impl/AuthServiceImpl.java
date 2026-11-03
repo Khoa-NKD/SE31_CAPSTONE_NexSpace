@@ -4,6 +4,7 @@ import base.api.feature.auth.dto.request.AuthRequest;
 import base.api.feature.auth.dto.request.CompleteForgotPasswordDto;
 import base.api.feature.auth.dto.request.RegisterDto;
 import base.api.feature.auth.dto.response.AuthResponse;
+import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.mapper.UserMapper;
 import base.api.feature.auth.repository.IEmailVerificationTokenRepository;
@@ -34,8 +35,10 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.UUID;
 
 @Slf4j
@@ -44,6 +47,8 @@ import java.util.UUID;
 public class AuthServiceImpl implements IAuthService {
 
     private static final String TOKEN_TYPE = "Bearer";
+    private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
+    private static final long LOCKOUT_DURATION_MINUTES = 15;
 
     private final AuthenticationManager authenticationManager;
     private final IUserRepository userRepository;
@@ -71,22 +76,67 @@ public class AuthServiceImpl implements IAuthService {
     private String clientUrl;
 
     @Override
-    @Transactional(readOnly = true)
+    @Transactional
     public AuthResponse login(AuthRequest dto) {
         String login = dto.getUsername().trim();
+
+        // Kiểm tra trạng thái tài khoản trước khi xác thực thông tin đăng nhập
+        Optional<UserModel> userOpt = userRepository.findByLogin(login);
+        if (userOpt.isPresent()) {
+            UserModel candidate = userOpt.get();
+
+            // 1. Kiểm tra tài khoản bị quản trị viên khóa
+            if (candidate.getStatus() == UserStatus.LOCKED) {
+                throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
+            }
+
+            // 2. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
+            if (candidate.getLockedUntil() != null) {
+                LocalDateTime now = LocalDateTime.now();
+                if (now.isBefore(candidate.getLockedUntil())) {
+                    long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
+                    throw new UnauthorizedException("Tài khoản đang bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau " + remainingMinutes + " phút");
+                } else {
+                    // Đã hết thời gian tạm khóa => tự động mở lại
+                    candidate.setLockedUntil(null);
+                    candidate.setFailedLoginCount(0);
+                    userRepository.save(candidate);
+                }
+            }
+        }
+
         try {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(login, dto.getPassword()));
         } catch (DisabledException ex) {
             throw new UnauthorizedException("Tài khoản đã bị khóa");
         } catch (AuthenticationException ex) {
+            // Ghi nhận số lần đăng nhập sai nếu tài khoản có tồn tại
+            if (userOpt.isPresent()) {
+                UserModel candidate = userOpt.get();
+                int currentFailures = candidate.getFailedLoginCount() + 1;
+                candidate.setFailedLoginCount(currentFailures);
+                if (currentFailures >= MAX_FAILED_LOGIN_ATTEMPTS) {
+                    candidate.setLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_DURATION_MINUTES));
+                    userRepository.save(candidate);
+                    throw new UnauthorizedException("Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp");
+                }
+                userRepository.save(candidate);
+            }
             throw new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu");
         }
 
-        UserModel user = userRepository.findByLogin(login)
-                .orElseThrow(() -> new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu"));
+        UserModel user = userOpt.orElseGet(() -> userRepository.findByLogin(login)
+                .orElseThrow(() -> new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu")));
+
         if (!user.isVerified()) {
             throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
         }
+
+        // Đăng nhập thành công: xóa bộ đếm đăng nhập sai và cập nhật thời gian đăng nhập gần nhất
+        user.setFailedLoginCount(0);
+        user.setLockedUntil(null);
+        user.setLastLoginAt(LocalDateTime.now());
+        userRepository.save(user);
 
         String token = jwtUtil.generateToken(user);
         return new AuthResponse(token, TOKEN_TYPE, jwtUtil.extractExpiration(token), UserMapper.toDto(user));
@@ -120,6 +170,7 @@ public class AuthServiceImpl implements IAuthService {
         user.setRoleEntity(findRole(UserRole.USER));
         user.setStatus(UserStatus.ACTIVE);
         user.setVerified(!emailVerificationEnabled);
+        user.setPreferredLocale("vi");
 
         UserModel saved = userRepository.save(user);
         if (emailVerificationEnabled) {
@@ -131,7 +182,20 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     @Transactional
     public void verifyEmail(String token) {
-        EmailVerificationTokenModel tokenModel = emailVerificationTokenRepository.findByToken(token)
+        verifyEmailInternal(token);
+    }
+
+    @Override
+    @Transactional
+    public void verifyEmailDirect(String token) {
+        verifyEmailInternal(token);
+    }
+
+    private void verifyEmailInternal(String token) {
+        if (token == null || token.isBlank()) {
+            throw new BadRequestException("Token không hợp lệ");
+        }
+        EmailVerificationTokenModel tokenModel = emailVerificationTokenRepository.findByToken(token.trim())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         if (tokenModel.isUsed() || tokenModel.isExpired()) {
             throw new BadRequestException("Token đã được sử dụng hoặc đã hết hạn");
@@ -140,14 +204,18 @@ public class AuthServiceImpl implements IAuthService {
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         user.setVerified(true);
+        user.setEmailVerifiedAt(LocalDateTime.now());
         tokenModel.setUsed(true);
     }
 
     @Override
     @Transactional
     public void resendVerificationEmail(String contactInfo) {
-        // Không tiết lộ tài khoản có tồn tại hay không.
-        userRepository.findByLogin(contactInfo)
+        if (contactInfo == null || contactInfo.isBlank()) {
+            return;
+        }
+        // Không tiết lộ tài khoản có tồn tại hay không
+        userRepository.findByLogin(contactInfo.trim())
                 .filter(user -> !user.isVerified())
                 .ifPresent(this::sendVerificationEmail);
     }
@@ -155,8 +223,11 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     @Transactional
     public void initiateForgotPassword(String contactInfo) {
-        // Không tiết lộ tài khoản có tồn tại hay không.
-        userRepository.findByLogin(contactInfo).ifPresent(user -> {
+        if (contactInfo == null || contactInfo.isBlank()) {
+            return;
+        }
+        // Không tiết lộ tài khoản có tồn tại hay không
+        userRepository.findByLogin(contactInfo.trim()).ifPresent(user -> {
             passwordResetTokenRepository.deleteByUserId(user.getId());
 
             PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
@@ -165,10 +236,52 @@ public class AuthServiceImpl implements IAuthService {
             tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(resetTtlMinutes));
             passwordResetTokenRepository.save(tokenModel);
 
+            log.info("[AUTH] Đã tạo Password Reset Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
             String resetUrl = clientUrl + "/reset-password?token=" + tokenModel.getToken();
             emailService.sendHtmlEmail(user.getEmail(), "Đặt lại mật khẩu",
                     AuthEmailTemplates.resetPassword(user.getFullName(), resetUrl, resetTtlMinutes));
         });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public TokenValidationResponseDto validateResetToken(String token) {
+        if (token == null || token.isBlank()) {
+            return TokenValidationResponseDto.builder()
+                    .valid(false)
+                    .message("Token không được để trống")
+                    .build();
+        }
+
+        Optional<PasswordResetTokenModel> tokenOpt = passwordResetTokenRepository.findByToken(token.trim());
+        if (tokenOpt.isEmpty()) {
+            return TokenValidationResponseDto.builder()
+                    .valid(false)
+                    .message("Token không tồn tại hoặc không hợp lệ")
+                    .build();
+        }
+
+        PasswordResetTokenModel tokenModel = tokenOpt.get();
+        if (tokenModel.isUsed()) {
+            return TokenValidationResponseDto.builder()
+                    .valid(false)
+                    .message("Token đã được sử dụng")
+                    .build();
+        }
+
+        if (tokenModel.isExpired()) {
+            return TokenValidationResponseDto.builder()
+                    .valid(false)
+                    .message("Token đã hết hạn")
+                    .build();
+        }
+
+        UserModel user = userRepository.findById(tokenModel.getUserId()).orElse(null);
+        return TokenValidationResponseDto.builder()
+                .valid(true)
+                .message("Token hợp lệ")
+                .email(user != null ? user.getEmail() : null)
+                .build();
     }
 
     @Override
@@ -178,7 +291,7 @@ public class AuthServiceImpl implements IAuthService {
             throw new BadRequestException("Mật khẩu xác nhận không khớp");
         }
 
-        PasswordResetTokenModel tokenModel = passwordResetTokenRepository.findByToken(dto.getResetToken())
+        PasswordResetTokenModel tokenModel = passwordResetTokenRepository.findByToken(dto.getResetToken().trim())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         if (tokenModel.isUsed() || tokenModel.isExpired()) {
             throw new BadRequestException("Token đã được sử dụng hoặc đã hết hạn");
@@ -187,10 +300,23 @@ public class AuthServiceImpl implements IAuthService {
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        user.setFailedLoginCount(0);
+        user.setLockedUntil(null);
         tokenModel.setUsed(true);
 
         emailService.sendHtmlEmail(user.getEmail(), "Mật khẩu đã được thay đổi",
                 AuthEmailTemplates.passwordChanged(user.getFullName()));
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isAccountVerified(String contactInfo) {
+        if (contactInfo == null || contactInfo.isBlank()) {
+            return false;
+        }
+        return userRepository.findByLogin(contactInfo.trim())
+                .map(UserModel::isVerified)
+                .orElse(false);
     }
 
     private void sendVerificationEmail(UserModel user) {
@@ -202,6 +328,7 @@ public class AuthServiceImpl implements IAuthService {
         tokenModel.setExpiresAt(LocalDateTime.now().plusHours(verificationTtlHours));
         emailVerificationTokenRepository.save(tokenModel);
 
+        log.info("[AUTH] Đã tạo Email Verification Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
         String verifyUrl = apiUrl + "/api/auth/verify-email?token=" + tokenModel.getToken();
         emailService.sendHtmlEmail(user.getEmail(), "Xác thực tài khoản",
                 AuthEmailTemplates.verifyEmail(user.getFullName(), verifyUrl, verificationTtlHours));

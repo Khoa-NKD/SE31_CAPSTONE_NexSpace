@@ -8,6 +8,5 @@ import java.util.List;
 
 @Repository
 public interface IWorkspaceCancellationRuleRepository extends JpaRepository<WorkspaceCancellationRuleModel, Long> {
-    List<WorkspaceCancellationRuleModel> findByWorkspaceIdOrderByHoursBeforeCheckinDesc(Long workspaceId);
+    List<WorkspaceCancellationRuleModel> findByWorkspaceIdOrderByMinHoursBeforeStartDesc(Long workspaceId);
 }
-

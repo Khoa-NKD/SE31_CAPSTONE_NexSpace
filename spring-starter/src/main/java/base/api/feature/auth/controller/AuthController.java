@@ -6,7 +6,9 @@ import base.api.feature.auth.dto.request.CompleteForgotPasswordDto;
 import base.api.feature.auth.dto.request.InitiateForgotPasswordDto;
 import base.api.feature.auth.dto.request.RegisterDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
+import base.api.feature.auth.dto.request.VerifyTokenRequestDto;
 import base.api.feature.auth.dto.response.AuthResponse;
+import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.service.IAuthService;
 import base.api.feature.auth.service.IUserService;
@@ -47,7 +49,7 @@ public class AuthController extends BaseAPIController {
     @Value("${app.client-url}")
     private String clientUrl;
 
-    @Operation(summary = "Đăng nhập", description = "**Public.** Đăng nhập bằng username hoặc email, trả về JWT.")
+    @Operation(summary = "Đăng nhập", description = "**Public.** Đăng nhập bằng username hoặc email, trả về JWT. Tự động bảo vệ brute-force (BR-03).")
     @SecurityRequirements
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody AuthRequest dto) {
@@ -73,7 +75,7 @@ public class AuthController extends BaseAPIController {
         return created(authService.register(dto), "Đăng ký thành công");
     }
 
-    @Operation(summary = "Xác thực email", description = "**Public.** Link trong email. "
+    @Operation(summary = "Xác thực email (Redirect)", description = "**Public.** Link trong email. "
             + "Redirect về {client-url}/email/verify-success hoặc /email/verify-failed.")
     @SecurityRequirements
     @GetMapping("/verify-email")
@@ -86,6 +88,23 @@ public class AuthController extends BaseAPIController {
             target = clientUrl + "/email/verify-failed";
         }
         return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, target).build();
+    }
+
+    @Operation(summary = "Xác thực email (JSON API)", description = "**Public.** Nhận JSON body cho SPA hoặc Mobile App xác thực trực tiếp.")
+    @SecurityRequirements
+    @PostMapping("/verify-email")
+    public ResponseEntity<ApiResponse<Void>> verifyEmailDirect(@Valid @RequestBody VerifyTokenRequestDto dto) {
+        authService.verifyEmailDirect(dto.getToken());
+        return success(null, "Xác thực email thành công");
+    }
+
+    @Operation(summary = "Kiểm tra trạng thái xác thực tài khoản", description = "**Public.** Cho realtime polling.")
+    @SecurityRequirements
+    @GetMapping("/verification-status")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> checkVerificationStatus(
+            @Parameter(description = "Email hoặc username") @RequestParam String email) {
+        boolean verified = authService.isAccountVerified(email);
+        return success(java.util.Map.of("verified", verified));
     }
 
     @Operation(summary = "Gửi lại email xác thực", description = "**Public.** Nhận email hoặc username.")
@@ -103,6 +122,14 @@ public class AuthController extends BaseAPIController {
     public ResponseEntity<ApiResponse<Void>> initiateForgotPassword(@Valid @RequestBody InitiateForgotPasswordDto dto) {
         authService.initiateForgotPassword(dto.getContactInfo());
         return success(null, GENERIC_EMAIL_MESSAGE);
+    }
+
+    @Operation(summary = "Kiểm tra token đặt lại mật khẩu", description = "**Public.** Kiểm tra tính hợp lệ của token trước khi hiển thị form nhập mật khẩu mới trên Frontend.")
+    @SecurityRequirements
+    @GetMapping("/forgot-password/verify-token")
+    public ResponseEntity<ApiResponse<TokenValidationResponseDto>> verifyResetToken(
+            @Parameter(description = "Token trong link email") @RequestParam String token) {
+        return success(authService.validateResetToken(token));
     }
 
     @Operation(summary = "Quên mật khẩu — đặt mật khẩu mới", description = "**Public.** Dùng token trong link email.")

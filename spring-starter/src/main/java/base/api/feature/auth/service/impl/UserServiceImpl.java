@@ -6,8 +6,10 @@ import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.mapper.UserMapper;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.service.IUserService;
+import base.api.feature.governance.service.IAuditService;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
+import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
@@ -29,6 +31,7 @@ public class UserServiceImpl implements IUserService {
 
     private final IUserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final IAuditService auditService;
 
     @Override
     @Transactional(readOnly = true)
@@ -56,10 +59,15 @@ public class UserServiceImpl implements IUserService {
         if (!passwordEncoder.matches(dto.getOldPassword(), user.getPassword())) {
             throw new BadRequestException("Mật khẩu cũ không đúng");
         }
+        if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu cũ");
+        }
         if (!dto.getNewPassword().equals(dto.getConfirmNewPassword())) {
             throw new BadRequestException("Mật khẩu xác nhận không khớp");
         }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
+        user.setFailedLoginCount(0);
+        user.setLockedUntil(null);
     }
 
     @Override
@@ -76,12 +84,44 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status) {
+        return updateUserStatus(actorId, targetUserId, status, null);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason) {
         if (actorId.equals(targetUserId)) {
             throw new BadRequestException("Không thể tự thay đổi trạng thái tài khoản của mình");
         }
-        UserModel user = findUser(targetUserId);
-        user.setStatus(status);
-        return UserMapper.toDto(userRepository.saveAndFlush(user));
+        UserModel actor = findUser(actorId);
+        UserModel target = findUser(targetUserId);
+        UserStatus oldStatus = target.getStatus();
+
+        target.setStatus(status);
+        if (status == UserStatus.ACTIVE) {
+            // Khi mở khóa, đồng thời xóa trạng thái tạm khóa (nếu có)
+            target.setFailedLoginCount(0);
+            target.setLockedUntil(null);
+        }
+
+        UserModel saved = userRepository.saveAndFlush(target);
+
+        // Ghi Audit Log bất biến theo quy định BR-31
+        String action = (status == UserStatus.LOCKED) ? "USER_LOCKED" : "USER_UNLOCKED";
+        auditService.log(
+                actor,
+                AuditActorType.USER,
+                "USER",
+                action,
+                "UserModel",
+                targetUserId,
+                oldStatus != null ? oldStatus.name() : null,
+                status.name(),
+                reason != null && !reason.isBlank() ? reason : (status == UserStatus.LOCKED ? "Khóa tài khoản" : "Mở khóa tài khoản"),
+                null
+        );
+
+        return UserMapper.toDto(saved);
     }
 
     private UserModel findUser(Long userId) {

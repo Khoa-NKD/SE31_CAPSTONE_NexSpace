@@ -11,8 +11,7 @@ import java.util.Optional;
 
 @Repository
 public interface ISupportCaseRepository extends JpaRepository<SupportCaseModel, Long> {
-    Optional<SupportCaseModel> findByCaseNumber(String caseNumber);
-    Page<SupportCaseModel> findByCreatorId(Long creatorId, Pageable pageable);
+    Optional<SupportCaseModel> findByCaseCode(String caseCode);
+    Page<SupportCaseModel> findByReporterId(Long reporterId, Pageable pageable);
     Page<SupportCaseModel> findByStatus(SupportCaseStatus status, Pageable pageable);
 }
-
