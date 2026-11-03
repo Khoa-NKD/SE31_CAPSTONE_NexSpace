@@ -28,6 +28,9 @@ public class AmenityModel extends BaseModel {
 
     private String icon;
 
+    @Column(length = 500)
+    private String description;
+
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
 }

@@ -47,6 +47,12 @@ public class SecurityConfig {
             "/v3/api-docs/**"
     };
 
+    /** Endpoint GET công khai, không yêu cầu xác thực JWT. */
+    public static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/api/amenities",
+            "/api/amenities/**"
+    };
+
     private final JwtAuthenticationFilter jwtAuthFilter;
 
     @Value("${app.cors.allowed-origins:}")
@@ -61,6 +67,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex
