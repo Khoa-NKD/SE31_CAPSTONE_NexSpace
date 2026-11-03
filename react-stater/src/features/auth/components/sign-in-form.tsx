@@ -2,7 +2,7 @@ import React, { useState, useTransition } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Mail, ArrowRight, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Link, useRouter } from '@tanstack/react-router';
 import { authService } from '../api/auth-service';
 import { useAuthStore } from '../store/auth-store';
+import { getUserRole, checkRouteAccess } from '../utils/role-guard';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
 
@@ -64,19 +65,29 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
         if (onSuccess) {
           onSuccess();
         } else {
-          // Role-aware destination navigation
-          const roles = response.user.roles || (response.user.role ? [response.user.role] : []);
-          const isOrganizer = roles.some((r: string) => r.toUpperCase() === 'ORGANIZER' || r.toUpperCase() === 'ROLE_ORGANIZER');
-          const isAdmin = roles.some((r: string) => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'ROLE_ADMIN');
+          // Role-aware destination navigation with redirect query support
+          const role = getUserRole(response.user);
+          let targetUrl = '';
 
-          if (isAdmin) {
-            router.navigate({ to: '/dashboard/overview' });
-          } else if (isOrganizer) {
-            router.navigate({ to: '/dashboard/organizer/workspaces' });
-          } else {
-            // Normal user goes directly to Landing Page as required
-            router.navigate({ to: '/' });
+          if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const redirectParam = params.get('redirect');
+            if (redirectParam && checkRouteAccess(redirectParam, true, response.user).allowed) {
+              targetUrl = redirectParam;
+            }
           }
+
+          if (!targetUrl) {
+            if (role === 'ADMIN') {
+              targetUrl = '/dashboard/overview';
+            } else if (role === 'ORGANIZER') {
+              targetUrl = '/dashboard/organizer/workspaces';
+            } else {
+              targetUrl = '/';
+            }
+          }
+
+          router.navigate({ to: targetUrl });
         }
       } catch (err: unknown) {
         if (err instanceof ApiError) {
