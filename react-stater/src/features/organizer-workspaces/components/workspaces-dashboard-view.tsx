@@ -40,7 +40,19 @@ export function WorkspacesDashboardView() {
     }
   }, [serverWorkspaces]);
 
-  const workspaces = serverWorkspaces;
+  // -----------------------------------------------------------------------------------------------
+  // [NOTE CHO DEV SAU / FUTURE WORKSPACE INTEGRATION]:
+  // Hiện tại Spring Boot Backend chỉ mới hoàn thành module Auth, User và Amenity, chưa có Workspace CRUD
+  // (`GET /api/workspaces`). Do đó khi proxy sang Backend, query useWorkspacesQuery sẽ trả về 404.
+  // ĐỂ TRÁNH MÀN HÌNH LỖI ĐỎ VÀ GIỮ TRẢI NGHIỆM LIỀN MẠCH:
+  // - Đoạn code này tự động fallback về `useWorkspacesStore.workspaces` (dữ liệu mock khởi tạo ban đầu).
+  // - KHI NÀO BACKEND TRIỂN KHAI XONG API GET /api/workspaces:
+  //   1. Có thể chuyển lại `const workspaces = serverWorkspaces;`
+  //   2. Dùng lại `isError` thay vì `isHardError`.
+  // -----------------------------------------------------------------------------------------------
+  const storeWorkspaces = useWorkspacesStore((state) => state.workspaces);
+  const workspaces = serverWorkspaces.length > 0 ? serverWorkspaces : storeWorkspaces;
+  const isHardError = isError && workspaces.length === 0;
 
   // Compute counts based on live server records
   const counts = useMemo(
@@ -105,7 +117,7 @@ export function WorkspacesDashboardView() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className='pl-9 h-9 text-xs sm:text-sm bg-card'
               aria-label='Search workspace by name or address'
-              disabled={isLoading || isError}
+              disabled={isLoading || isHardError}
             />
           </div>
 
@@ -133,7 +145,7 @@ export function WorkspacesDashboardView() {
         <div className='text-xs text-muted-foreground hidden sm:block'>
           {isLoading ? (
             <span>Loading venues...</span>
-          ) : isError ? (
+          ) : isHardError ? (
             <span className='text-rose-500'>Connection error</span>
           ) : (
             <>
@@ -166,7 +178,7 @@ export function WorkspacesDashboardView() {
       )}
 
       {/* Error State with Retry Button */}
-      {isError && (
+      {isHardError && (
         <div className='rounded-xl border border-destructive/30 bg-destructive/5 p-8 sm:p-12 text-center flex flex-col items-center justify-center my-6 pb-8'>
           <div className='size-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-3'>
             <AlertCircle className='size-6' />
@@ -190,7 +202,7 @@ export function WorkspacesDashboardView() {
       )}
 
       {/* Workspace Cards Grid */}
-      {!isLoading && !isError && filteredWorkspaces.length > 0 && (
+      {!isLoading && !isHardError && filteredWorkspaces.length > 0 && (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8'>
           {filteredWorkspaces.map((ws) => (
             <WorkspaceCard key={ws.id} workspace={ws} />
@@ -199,7 +211,7 @@ export function WorkspacesDashboardView() {
       )}
 
       {/* Empty State */}
-      {!isLoading && !isError && filteredWorkspaces.length === 0 && (
+      {!isLoading && !isHardError && filteredWorkspaces.length === 0 && (
         <div className='rounded-xl border border-border bg-card p-12 text-center flex flex-col items-center justify-center my-6 pb-8'>
           <div className='size-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-3'>
             <Building2 className='size-6' />

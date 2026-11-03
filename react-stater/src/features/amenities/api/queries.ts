@@ -22,5 +22,11 @@ export const amenityQueries = {
       queryKey: [...amenityQueries.all, 'detail', id],
       queryFn: () => amenityService.getAmenityById(id),
       enabled: id > 0
+    }),
+  workspaceAmenities: (workspaceId: number | string | undefined) =>
+    queryOptions({
+      queryKey: [...amenityQueries.all, 'workspace', String(workspaceId)] as const,
+      queryFn: () => amenityService.getWorkspaceAmenities(workspaceId!),
+      enabled: !!workspaceId
     })
 };

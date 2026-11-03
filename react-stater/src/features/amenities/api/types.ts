@@ -44,3 +44,27 @@ export interface AmenityPageResponse {
   pageNumber: number;
   pageSize: number;
 }
+
+export interface WorkspaceAmenityDto {
+  id: number;
+  workspaceId: number;
+  amenityId: number;
+  name: string;
+  category: AmenityCategory;
+  icon?: string;
+  description?: string;
+  addonPricePerHour: number;
+  isComplimentary: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssignAmenityItemPayload {
+  amenityId: number;
+  addonPricePerHour?: number;
+}
+
+export interface AssignWorkspaceAmenitiesPayload {
+  amenities: AssignAmenityItemPayload[];
+}
+
