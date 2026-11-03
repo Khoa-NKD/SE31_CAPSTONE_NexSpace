@@ -10,6 +10,7 @@ export const workspaceQueryKeys = {
   publicList: (params: PublicWorkspaceFilterParams = {}) => [...workspaceQueryKeys.publicLists(), params] as const,
   details: () => [...workspaceQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
+  media: (id: string | number) => [...workspaceQueryKeys.all, 'media', String(id)] as const,
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
@@ -107,3 +108,21 @@ export const adminWorkspaceKpisQueryOptions = (options?: { adminId?: string }) =
 export function useAdminWorkspaceKpisQuery(options?: { adminId?: string }) {
   return useQuery(adminWorkspaceKpisQueryOptions(options));
 }
+
+/**
+ * TanStack Query options for fetching gallery media for a workspace.
+ */
+export const workspaceMediaQueryOptions = (workspaceId: number | string | null | undefined) =>
+  queryOptions({
+    queryKey: workspaceId ? workspaceQueryKeys.media(workspaceId) : [...workspaceQueryKeys.all, 'media', 'none'],
+    queryFn: () => (workspaceId ? workspaceService.getWorkspaceMedia(workspaceId) : []),
+    enabled: Boolean(workspaceId)
+  });
+
+/**
+ * Hook for querying gallery media for a workspace.
+ */
+export function useWorkspaceMediaQuery(workspaceId: number | string | null | undefined) {
+  return useQuery(workspaceMediaQueryOptions(workspaceId));
+}
+

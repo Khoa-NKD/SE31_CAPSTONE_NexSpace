@@ -316,7 +316,10 @@ export function StepAmenitiesView() {
       description: 'Proceeding to Media Gallery & Cover Photo.'
     });
 
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/media' });
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/media',
+      search: (prev) => prev
+    });
   };
 
   return (

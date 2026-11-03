@@ -126,7 +126,10 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               asChild
               className='w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 dark:border-indigo-500 dark:text-indigo-400 font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm'
             >
-              <Link to='/dashboard/organizer/workspaces/create'>
+              <Link
+                to='/dashboard/organizer/workspaces/create'
+                search={{ id: workspace.id, mode: 'edit' }}
+              >
                 <Edit className='size-3.5' />
                 <span>Resume Setup</span>
               </Link>

@@ -123,6 +123,7 @@ export interface OnboardingDraftState {
   lastSavedAt: string | null;
   isDraftSynced: boolean;
   canonicalWorkspaceId?: string;
+  isEditMode?: boolean;
   clientDraftKey?: string;
   serverVersion?: number;
   isSavingToServer?: boolean;
