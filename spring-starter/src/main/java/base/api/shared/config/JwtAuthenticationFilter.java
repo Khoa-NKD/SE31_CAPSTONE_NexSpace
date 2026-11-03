@@ -36,6 +36,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
+        if ("GET".equalsIgnoreCase(request.getMethod()) &&
+                Arrays.stream(SecurityConfig.PUBLIC_GET_ENDPOINTS).anyMatch(pattern -> pathMatcher.match(pattern, path))) {
+            return true;
+        }
         return Arrays.stream(SecurityConfig.PUBLIC_ENDPOINTS).anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
