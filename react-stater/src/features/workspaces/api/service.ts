@@ -312,8 +312,8 @@ export const workspaceService = {
   },
 
   /**
-   * Uploads a local binary image (JPEG/PNG/WebP) to the development-only mock media service.
-   * Returns durable relative media URL (/api/v1/media/<filename>).
+   * Uploads a local binary image (JPEG/PNG/WebP) to the media storage service.
+   * Returns durable media URL.
    */
   async uploadMedia(file: File | Blob, filename?: string): Promise<{
     id: string;
@@ -326,5 +326,14 @@ export const workspaceService = {
     const formData = new FormData();
     formData.append('file', file, filename || (file instanceof File ? file.name : 'upload.png'));
     return apiClient.post('/media/upload', formData);
-  }
+  },
+
+  /**
+   * Deletes an uploaded media file by its publicId or id.
+   */
+  async deleteMedia(publicIdOrId: string): Promise<void> {
+    return apiClient.delete('/media/delete', {
+      params: { publicId: publicIdOrId },
+    });
+  },
 };

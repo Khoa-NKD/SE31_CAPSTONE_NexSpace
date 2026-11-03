@@ -81,7 +81,7 @@ export function StepMediaGalleryView() {
         uploadError: undefined
       });
       toast.success('Photo Uploaded', {
-        description: `${file.name} saved to local development storage.`
+        description: `${file.name} successfully uploaded to media storage.`
       });
       // Synchronize newly durable media to server canonical draft
       await saveDraftToServer({ silent: true });
@@ -119,7 +119,7 @@ export function StepMediaGalleryView() {
     }
 
     const acceptedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB limit (BR-37)
 
     const filesToUpload: { id: string; file: File }[] = [];
     let addedCount = 0;
@@ -133,7 +133,7 @@ export function StepMediaGalleryView() {
 
       if (file.size > maxSizeBytes) {
         toast.error('File Too Large', {
-          description: `${file.name} exceeds 10MB limit.`
+          description: `${file.name} exceeds 5MB limit (BR-37). Please select an image under 5MB.`
         });
         return;
       }
@@ -352,7 +352,7 @@ export function StepMediaGalleryView() {
                 Click to upload or drag and drop high-resolution photos
               </h3>
               <p className='text-xs text-muted-foreground max-w-lg mb-5'>
-                PNG, JPG or WebP up to 10MB each (Minimum 1920×1080px recommended). High-quality photos increase booking conversion by 45%.
+                PNG, JPG or WebP up to 5MB each (BR-37). Minimum 1920×1080px recommended. High-quality photos increase booking conversion.
               </p>
 
               {/* Requirement Tracker Bar */}
