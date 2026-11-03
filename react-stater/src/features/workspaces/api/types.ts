@@ -393,3 +393,38 @@ export interface AdminWorkspaceKpisDto {
   suspendedGrievanceDetails: string;
   partnerDraftsCount: number;
 }
+
+export interface WorkspaceMediaDto {
+  id: number;
+  workspaceId: number;
+  resourceId?: number | null;
+  url: string;
+  mediaType: 'IMAGE' | 'VIDEO';
+  cover: boolean;
+  isCover?: boolean;
+  displayOrder: number;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AddWorkspaceMediaPayload {
+  url: string;
+  mediaType?: 'IMAGE' | 'VIDEO';
+  isCover?: boolean;
+  displayOrder?: number;
+  resourceId?: number | null;
+}
+
+export interface ReorderMediaItemPayload {
+  mediaId: number;
+  displayOrder: number;
+}
+
+export interface ReorderWorkspaceMediaPayload {
+  items: ReorderMediaItemPayload[];
+}
+
+export interface SyncWorkspaceMediaPayload {
+  items: AddWorkspaceMediaPayload[];
+}
+

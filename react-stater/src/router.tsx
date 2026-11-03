@@ -30,6 +30,46 @@ export function createRouter() {
     )
   });
 
+  if (router.isServer) {
+    let rawServerSsr:
+      | {
+          isDehydrated?: () => boolean;
+          onRenderFinished?: (cb: () => void) => void;
+          onCleanup?: (cb: () => void) => void;
+          cleanup?: () => void;
+        }
+      | undefined;
+    let isDehydrated = false;
+
+    Object.defineProperty(router, 'serverSsr', {
+      get() {
+        return (
+          rawServerSsr || {
+            isDehydrated: () => isDehydrated,
+            onRenderFinished: () => {},
+            onCleanup: () => {},
+            cleanup: () => {}
+          }
+        );
+      },
+      set(val) {
+        if (val && typeof val.isDehydrated !== 'function') {
+          val.isDehydrated = () => isDehydrated;
+        }
+        rawServerSsr = val;
+      },
+      configurable: true,
+      enumerable: true
+    });
+
+    const ogDehydrate = router.options.dehydrate;
+    router.options.dehydrate = async () => {
+      const result = await ogDehydrate?.();
+      isDehydrated = true;
+      return result;
+    };
+  }
+
   return routerWithQueryClient(router, queryClient);
 }
 

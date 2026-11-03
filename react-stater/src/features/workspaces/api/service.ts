@@ -12,7 +12,11 @@ import type {
   SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto,
-  AdminWorkspaceKpisDto
+  AdminWorkspaceKpisDto,
+  WorkspaceMediaDto,
+  AddWorkspaceMediaPayload,
+  ReorderWorkspaceMediaPayload,
+  SyncWorkspaceMediaPayload
 } from './types';
 
 /**
@@ -335,5 +339,62 @@ export const workspaceService = {
     return apiClient.delete('/media/delete', {
       params: { publicId: publicIdOrId },
     });
+  },
+
+  /**
+   * Retrieves all media belonging to a workspace, ordered by displayOrder.
+   */
+  async getWorkspaceMedia(workspaceId: number | string): Promise<WorkspaceMediaDto[]> {
+    return apiClient.get(`/workspaces/${workspaceId}/media`);
+  },
+
+  /**
+   * Adds an image to a workspace gallery.
+   */
+  async addWorkspaceMedia(
+    workspaceId: number | string,
+    payload: AddWorkspaceMediaPayload
+  ): Promise<WorkspaceMediaDto> {
+    return apiClient.post(`/workspaces/${workspaceId}/media`, payload);
+  },
+
+  /**
+   * Synchronizes / replaces the entire gallery of a workspace.
+   */
+  async syncWorkspaceMedia(
+    workspaceId: number | string,
+    payload: SyncWorkspaceMediaPayload
+  ): Promise<WorkspaceMediaDto[]> {
+    return apiClient.put(`/workspaces/${workspaceId}/media/sync`, payload);
+  },
+
+  /**
+   * Sets a specific media as the primary cover photo of a workspace.
+   */
+  async setCoverMedia(
+    workspaceId: number | string,
+    mediaId: number | string
+  ): Promise<WorkspaceMediaDto> {
+    return apiClient.patch(`/workspaces/${workspaceId}/media/${mediaId}/cover`, {});
+  },
+
+  /**
+   * Reorders media items within a workspace gallery.
+   */
+  async reorderWorkspaceMedia(
+    workspaceId: number | string,
+    payload: ReorderWorkspaceMediaPayload
+  ): Promise<WorkspaceMediaDto[]> {
+    return apiClient.put(`/workspaces/${workspaceId}/media/reorder`, payload);
+  },
+
+  /**
+   * Deletes a specific media item from a workspace gallery.
+   */
+  async deleteWorkspaceMedia(
+    workspaceId: number | string,
+    mediaId: number | string
+  ): Promise<void> {
+    return apiClient.delete(`/workspaces/${workspaceId}/media/${mediaId}`);
   },
 };

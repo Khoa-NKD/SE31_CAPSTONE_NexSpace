@@ -9,7 +9,11 @@ import type {
   WorkspaceLifecycleDto,
   SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
-  AdminModerationWorkspaceDto
+  AdminModerationWorkspaceDto,
+  WorkspaceMediaDto,
+  AddWorkspaceMediaPayload,
+  ReorderWorkspaceMediaPayload,
+  SyncWorkspaceMediaPayload
 } from './types';
 import { ApiError } from '@/lib/api-client';
 
@@ -304,3 +308,160 @@ export function useDeleteMediaMutation() {
     }
   });
 }
+
+/**
+ * TanStack Query mutation hook for adding an image to a workspace gallery.
+ */
+export function useAddWorkspaceMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceMediaDto,
+    Error,
+    { workspaceId: number | string; payload: AddWorkspaceMediaPayload }
+  >({
+    mutationFn: ({ workspaceId, payload }) =>
+      workspaceService.addWorkspaceMedia(workspaceId, payload),
+
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(variables.workspaceId)
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.detail(String(variables.workspaceId))
+      });
+      toast.success('Photo Added', {
+        description: 'Photo has been added to the workspace gallery.'
+      });
+    },
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Failed to add photo';
+      toast.error('Add Photo Failed', { description });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for setting a photo as cover photo.
+ */
+export function useSetCoverMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceMediaDto,
+    Error,
+    { workspaceId: number | string; mediaId: number | string }
+  >({
+    mutationFn: ({ workspaceId, mediaId }) =>
+      workspaceService.setCoverMedia(workspaceId, mediaId),
+
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(variables.workspaceId)
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.detail(String(variables.workspaceId))
+      });
+      toast.success('Cover Photo Updated', {
+        description: 'Designated as primary cover photo.'
+      });
+    },
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Failed to set cover photo';
+      toast.error('Update Cover Failed', { description });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for reordering photos in a workspace gallery.
+ */
+export function useReorderWorkspaceMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceMediaDto[],
+    Error,
+    { workspaceId: number | string; payload: ReorderWorkspaceMediaPayload }
+  >({
+    mutationFn: ({ workspaceId, payload }) =>
+      workspaceService.reorderWorkspaceMedia(workspaceId, payload),
+
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(variables.workspaceId)
+      });
+    },
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Failed to reorder photos';
+      toast.error('Reorder Failed', { description });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for deleting a photo from a workspace gallery.
+ */
+export function useDeleteWorkspaceMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    void,
+    Error,
+    { workspaceId: number | string; mediaId: number | string }
+  >({
+    mutationFn: ({ workspaceId, mediaId }) =>
+      workspaceService.deleteWorkspaceMedia(workspaceId, mediaId),
+
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(variables.workspaceId)
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.detail(String(variables.workspaceId))
+      });
+      toast.info('Photo Deleted', {
+        description: 'Photo has been removed from workspace gallery.'
+      });
+    },
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Failed to delete photo';
+      toast.error('Delete Failed', { description });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for syncing all gallery photos of a workspace.
+ */
+export function useSyncWorkspaceMediaMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceMediaDto[],
+    Error,
+    { workspaceId: number | string; payload: SyncWorkspaceMediaPayload }
+  >({
+    mutationFn: ({ workspaceId, payload }) =>
+      workspaceService.syncWorkspaceMedia(workspaceId, payload),
+
+    onSuccess: (_data, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(variables.workspaceId)
+      });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.detail(String(variables.workspaceId))
+      });
+    },
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Failed to sync photos';
+      toast.error('Sync Failed', { description });
+    }
+  });
+}
+
