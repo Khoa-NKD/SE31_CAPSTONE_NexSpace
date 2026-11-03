@@ -5,6 +5,7 @@ spring.datasource.password=<password>
 
 app.jwt.secret=<random string, at least 32 bytes>
 app.seed.admin.password=<initial admin password>
+app.seed.organizer.password=<initial organizer password>
 
 # Optional — only needed when app.auth.email-verification-enabled=true or for forgot-password emails
 # spring.mail.username=<smtp user>
