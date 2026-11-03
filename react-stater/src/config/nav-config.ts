@@ -57,6 +57,11 @@ export const navGroups: NavGroup[] = [
             title: 'Directory & Moderation',
             url: '/dashboard/admin/workspaces/directory',
             icon: 'workspace'
+          },
+          {
+            title: 'Amenities Catalog',
+            url: '/dashboard/admin/amenities',
+            icon: 'adjustments'
           }
         ]
       },
@@ -273,6 +278,74 @@ export const organizerNavGroups: NavGroup[] = [
         icon: 'trendingUp',
         disabled: true,
         label: 'Planned'
+      }
+    ]
+  }
+];
+
+/**
+ * Navigation configuration for regular Customers / Users
+ */
+export const customerNavGroups: NavGroup[] = [
+  {
+    label: 'User Workspace',
+    items: [
+      {
+        title: 'Overview',
+        url: '/dashboard/overview',
+        icon: 'dashboard',
+        isActive: false,
+        shortcut: ['d', 'd']
+      },
+      {
+        title: 'Explore Workspaces',
+        url: '/workspaces',
+        icon: 'workspace',
+        isActive: false
+      }
+    ]
+  },
+  {
+    label: 'Collaboration & Tools',
+    items: [
+      {
+        title: 'Chat',
+        url: '/dashboard/chat',
+        icon: 'chat',
+        isActive: false
+      },
+      {
+        title: 'Kanban',
+        url: '/dashboard/kanban',
+        icon: 'kanban',
+        isActive: false
+      }
+    ]
+  }
+];
+
+export const organizerExtendedNavGroups: NavGroup[] = [
+  ...organizerNavGroups,
+  {
+    label: 'User Space & Tools',
+    items: [
+      {
+        title: 'Overview',
+        url: '/dashboard/overview',
+        icon: 'dashboard',
+        isActive: false
+      },
+      {
+        title: 'Chat',
+        url: '/dashboard/chat',
+        icon: 'chat',
+        isActive: false
+      },
+      {
+        title: 'Kanban',
+        url: '/dashboard/kanban',
+        icon: 'kanban',
+        isActive: false
       }
     ]
   }

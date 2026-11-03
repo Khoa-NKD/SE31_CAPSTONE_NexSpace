@@ -10,6 +10,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
@@ -19,6 +20,7 @@ export function UserNav() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const clearAuth = useAuthStore((state) => state.clearAuth);
+  const role = getUserRole(user);
 
   const handleSignOut = async () => {
     try {
@@ -37,6 +39,14 @@ export function UserNav() {
     : 'User';
   const displayEmail = user?.email || 'user@example.com';
   const initial = (user?.firstName?.[0] || user?.userName?.[0] || 'U').toUpperCase();
+
+  const handleDashboardClick = () => {
+    if (role === 'ORGANIZER') {
+      router.navigate({ to: '/dashboard/organizer/workspaces' });
+    } else {
+      router.navigate({ to: '/dashboard/overview' });
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -61,7 +71,7 @@ export function UserNav() {
         <DropdownMenuGroup>
           <DropdownMenuItem
             className='cursor-pointer flex items-center gap-2'
-            onClick={() => router.navigate({ to: '/dashboard/overview' })}
+            onClick={handleDashboardClick}
           >
             <LayoutDashboard className='w-4 h-4 text-muted-foreground' />
             <span>Dashboard</span>
@@ -71,7 +81,7 @@ export function UserNav() {
             onClick={() => router.navigate({ to: '/dashboard/settings' })}
           >
             <Settings className='w-4 h-4 text-muted-foreground' />
-            <span>Cài đặt & Bảo mật</span>
+            <span>Settings & Security</span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -80,7 +90,7 @@ export function UserNav() {
           className='text-red-600 dark:text-red-400 cursor-pointer flex items-center gap-2'
         >
           <LogOut className='w-4 h-4' />
-          <span>Đăng xuất (Sign out)</span>
+          <span>Sign out</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

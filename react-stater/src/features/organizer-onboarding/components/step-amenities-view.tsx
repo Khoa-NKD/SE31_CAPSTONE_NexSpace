@@ -41,176 +41,8 @@ import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { amenitiesSchema } from '../schemas/wizard-schemas';
 import type { AmenityItem } from '../types/wizard';
-
-export const AMENITIES_CATALOG: AmenityItem[] = [
-  // 1. Technology & Connectivity
-  {
-    id: 'fast-wifi',
-    name: 'High-speed WiFi (1 Gbps)',
-    description: 'Symmetric fiber connection, multi-AP roaming and guest portal',
-    category: 'technology',
-    icon: 'Wifi',
-    isCommon: true
-  },
-  {
-    id: 'phone-booth',
-    name: 'Soundproof Phone Booth',
-    description: 'Acoustic glass insulation, ventilation fan & interior task lighting',
-    category: 'technology',
-    icon: 'PhoneCall',
-    isCommon: true
-  },
-  {
-    id: 'screen-casting',
-    name: 'Wireless Screen Casting',
-    description: 'AirPlay, Miracast & Chromecast 4K low-latency streaming',
-    category: 'technology',
-    icon: 'Cast',
-    isCommon: true
-  },
-  {
-    id: 'dual-monitors',
-    name: 'Dual Monitors Station',
-    description: '27-inch 4K IPS monitors with 90W USB-C single cable docking',
-    category: 'technology',
-    icon: 'Monitor',
-    isCommon: false
-  },
-
-  // 2. Facilities & Ergonomics
-  {
-    id: 'ergonomic-chairs',
-    name: 'Herman Miller Chairs',
-    description: 'Aeron ergonomic lumbar support seating for all workstations',
-    category: 'facilities',
-    icon: 'Armchair',
-    isCommon: true
-  },
-  {
-    id: 'standing-desks',
-    name: 'Standing Desks',
-    description: 'Motorized dual-motor height-adjustable sit-stand workstations',
-    category: 'facilities',
-    icon: 'MoveVertical',
-    isCommon: true
-  },
-  {
-    id: 'private-lockers',
-    name: 'Private Lockers',
-    description: 'Digital RFID keycard secured lockers for personal gear & tech',
-    category: 'facilities',
-    icon: 'Lock',
-    isCommon: false
-  },
-  {
-    id: 'shower-room',
-    name: 'Shower Room',
-    description: 'Hot showers with complimentary towel service & premium toiletries',
-    category: 'facilities',
-    icon: 'ShowerHead',
-    isCommon: false
-  },
-  {
-    id: 'wellness-room',
-    name: 'Nursing & Wellness Room',
-    description: 'Private lactation room with dedicated refrigerator & soft armchair',
-    category: 'facilities',
-    icon: 'Heart',
-    isCommon: false
-  },
-  {
-    id: 'bike-storage',
-    name: 'Bicycle Storage Rack',
-    description: 'Secure indoor bicycle parking with pump and maintenance tools',
-    category: 'facilities',
-    icon: 'Bike',
-    isCommon: false
-  },
-  {
-    id: 'event-space',
-    name: 'Event Presentation Space',
-    description: 'Raised stage, 85-inch display panel and dual wireless handheld mics',
-    category: 'facilities',
-    icon: 'Presentation',
-    isCommon: false
-  },
-  {
-    id: 'printing-station',
-    name: 'Printing & 3D Prototyping',
-    description: 'Commercial color laser A3/A4 and dual Bambu Lab 3D printers',
-    category: 'facilities',
-    icon: 'Printer',
-    isCommon: false
-  },
-
-  // 3. Hospitality & Refreshments
-  {
-    id: 'espresso-bar',
-    name: 'Specialty Espresso Bar',
-    description: 'La Marzocco commercial machine & curated single-origin arabica',
-    category: 'hospitality',
-    icon: 'Coffee',
-    isCommon: true
-  },
-  {
-    id: 'filtered-water-tea',
-    name: 'Filtered Water & Tea',
-    description: 'Hot/cold reverse osmosis dispenser & loose-leaf organic teas',
-    category: 'hospitality',
-    icon: 'Droplets',
-    isCommon: true
-  },
-  {
-    id: 'craft-beer',
-    name: 'Craft Beer on Tap',
-    description: 'Complimentary artisan craft brews on tap every Friday evening',
-    category: 'hospitality',
-    icon: 'Beer',
-    isCommon: false
-  },
-  {
-    id: 'pantry-kitchen',
-    name: 'Catering & Pantry Kitchen',
-    description: 'Microwaves, full-size refrigerators, utensils & dishwasher',
-    category: 'hospitality',
-    icon: 'Utensils',
-    isCommon: true
-  },
-
-  // 4. Access, Security & Services
-  {
-    id: 'smart-lock-247',
-    name: '24/7 Keycard Smart Lock',
-    description: 'Mobile app Bluetooth & NFC keyless access with time-based permissions',
-    category: 'security',
-    icon: 'Key',
-    isCommon: true
-  },
-  {
-    id: 'community-manager',
-    name: 'Onsite Community Manager',
-    description: 'Professional front-desk reception & host on duty Monday to Friday',
-    category: 'security',
-    icon: 'UserCheck',
-    isCommon: true
-  },
-  {
-    id: 'cctv-security',
-    name: 'CCTV & Biometric Security',
-    description: 'High-definition 24/7 security recording in all common corridors',
-    category: 'security',
-    icon: 'ShieldCheck',
-    isCommon: true
-  },
-  {
-    id: 'mail-handling',
-    name: 'Mail & Package Handling',
-    description: 'Official business address registration and package receiving',
-    category: 'security',
-    icon: 'Mail',
-    isCommon: true
-  }
-];
+import { useQuery } from '@tanstack/react-query';
+import { amenityQueries } from '@/features/amenities';
 
 const CATEGORY_METADATA = {
   technology: {
@@ -293,16 +125,39 @@ export function StepAmenitiesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  const { data: serverAmenities, isLoading } = useQuery(amenityQueries.available());
+
+  const activeCatalog: AmenityItem[] = useMemo(() => {
+    if (!serverAmenities || serverAmenities.length === 0) {
+      return [];
+    }
+    return serverAmenities.map((item) => {
+      let cat: 'technology' | 'facilities' | 'hospitality' | 'security' = 'technology';
+      if (item.category === 'TECH') cat = 'technology';
+      else if (item.category === 'COMFORT') cat = 'hospitality';
+      else if (item.category === 'SPACE') cat = 'facilities';
+
+      return {
+        id: String(item.id),
+        name: item.name,
+        description: item.description || '',
+        category: cat,
+        icon: item.icon || 'Sparkles',
+        isCommon: true
+      };
+    });
+  }, [serverAmenities]);
+
   const filteredAmenities = useMemo(() => {
-    if (!searchQuery.trim()) return AMENITIES_CATALOG;
+    if (!searchQuery.trim()) return activeCatalog;
     const q = searchQuery.toLowerCase();
-    return AMENITIES_CATALOG.filter(
+    return activeCatalog.filter(
       (a) =>
         a.name.toLowerCase().includes(q) ||
         a.description.toLowerCase().includes(q) ||
         a.category.toLowerCase().includes(q)
     );
-  }, [searchQuery]);
+  }, [searchQuery, activeCatalog]);
 
   const groupedAmenities = useMemo(() => {
     const groups: Record<string, AmenityItem[]> = {
@@ -318,7 +173,7 @@ export function StepAmenitiesView() {
   }, [filteredAmenities]);
 
   const handleSelectCommon = () => {
-    const commonIds = AMENITIES_CATALOG.filter((a) => a.isCommon).map((a) => a.id);
+    const commonIds = activeCatalog.filter((a) => a.isCommon).map((a) => a.id);
     selectCommonAmenities(commonIds);
     setValidationError(null);
     toast.success('Common Amenities Added', {
@@ -430,12 +285,12 @@ export function StepAmenitiesView() {
           </div>
 
           {/* Counter + Bulk Actions */}
-          <div className='flex items-center justify-between sm:justify-end gap-2.5'>
+          <div className='flex items-center justify-between sm:justify-end gap-2.5 flex-wrap'>
             <Badge
               variant='secondary'
               className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold px-2.5 py-1'
             >
-              {amenities.length} of {AMENITIES_CATALOG.length} selected
+              {amenities.length} of {activeCatalog.length} selected
             </Badge>
 
             <Button
@@ -461,7 +316,27 @@ export function StepAmenitiesView() {
           </div>
         </div>
 
+        {/* Loading state */}
+        {isLoading && (
+          <div className='flex items-center justify-center py-16 gap-3 text-muted-foreground'>
+            <Loader2 className='size-5 animate-spin' />
+            <span className='text-sm'>Đang tải danh mục tiện ích từ hệ thống...</span>
+          </div>
+        )}
+
+        {/* Empty state */}
+        {!isLoading && filteredAmenities.length === 0 && (
+          <div className='text-center py-16 border rounded-xl border-dashed bg-muted/20'>
+            <AlertCircle className='size-8 mx-auto text-muted-foreground mb-2' />
+            <p className='text-sm font-medium text-foreground'>Không có tiện ích nào</p>
+            <p className='text-xs text-muted-foreground mt-1'>
+              {searchQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Chưa có tiện ích nào được tạo trong hệ thống'}
+            </p>
+          </div>
+        )}
+
         {/* Amenities Categories */}
+        {!isLoading && (
         <div className='space-y-8'>
           {(['technology', 'facilities', 'hospitality', 'security'] as const).map(
             (catKey) => {
@@ -583,6 +458,7 @@ export function StepAmenitiesView() {
             }
           )}
         </div>
+        )}
       </div>
 
       {/* Sticky Action Footer Bar */}

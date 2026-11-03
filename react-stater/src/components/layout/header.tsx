@@ -1,5 +1,4 @@
 import React from 'react';
-import { useLocation } from '@tanstack/react-router';
 import { SidebarTrigger } from '../ui/sidebar';
 import SearchInput from '../search-input';
 import { ThemeSelector } from '../themes/theme-selector';
@@ -8,10 +7,19 @@ import { NotificationCenter } from '@/features/notifications/components/notifica
 import { UserNav } from './user-nav';
 import { Badge } from '../ui/badge';
 import { ShieldCheck, Activity } from 'lucide-react';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 
 export default function Header() {
-  const { pathname } = useLocation();
-  const isOrganizer = pathname.startsWith('/dashboard/organizer');
+  const user = useAuthStore((state) => state.user);
+  const role = getUserRole(user);
+
+  const roleLabel =
+    role === 'ADMIN'
+      ? 'SUPER ADMIN'
+      : role === 'ORGANIZER'
+      ? 'ORGANIZER HUB'
+      : 'CUSTOMER';
 
   return (
     <header className='bg-background/80 sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2.5 sm:gap-4 border-b border-border/70 backdrop-blur-md px-3 sm:px-4'>
@@ -52,7 +60,7 @@ export default function Header() {
             variant='outline'
             className='font-mono text-[10px] tracking-wider font-semibold border-indigo-500/30 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 whitespace-nowrap'
           >
-            {isOrganizer ? 'ORGANIZER HUB' : 'SUPER ADMIN'}
+            {roleLabel}
           </Badge>
         </div>
 
