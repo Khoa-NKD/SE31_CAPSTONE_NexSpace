@@ -299,6 +299,9 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+        if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+        }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
