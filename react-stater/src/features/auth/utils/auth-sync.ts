@@ -1,0 +1,92 @@
+/**
+ * Cross-tab & multi-window Realtime Authentication Synchronization Utility
+ *
+ * Automatically synchronizes auth state across tabs and devices:
+ * - Email verified (via link in Gmail)
+ * - Password reset token received / validated
+ * - Password reset completed
+ */
+
+export type AuthSyncEvent =
+  | { type: 'EMAIL_VERIFIED_SUCCESS'; email?: string }
+  | { type: 'RESET_TOKEN_CLICKED'; token: string; email?: string }
+  | { type: 'RESET_PASSWORD_COMPLETED' };
+
+const CHANNEL_NAME = 'nexspace_auth_sync';
+const STORAGE_KEY = 'nexspace_auth_sync_event';
+
+/**
+ * Broadcast an authentication event to all other open tabs / windows.
+ */
+export function broadcastAuthSync(event: AuthSyncEvent) {
+  // 1. BroadcastChannel (modern zero-latency standard)
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      const channel = new BroadcastChannel(CHANNEL_NAME);
+      channel.postMessage(event);
+      channel.close();
+    } catch {
+      // Fallback silently
+    }
+  }
+
+  // 2. localStorage event (robust fallback across all browsers and subdomains)
+  if (typeof window !== 'undefined' && window.localStorage) {
+    try {
+      window.localStorage.setItem(
+        STORAGE_KEY,
+        JSON.stringify({ ...event, _timestamp: Date.now() })
+      );
+    } catch {
+      // Fallback silently
+    }
+  }
+}
+
+/**
+ * Subscribe to authentication events from other tabs.
+ * Returns an unsubscribe cleanup function.
+ */
+export function subscribeAuthSync(handler: (event: AuthSyncEvent) => void): () => void {
+  let channel: BroadcastChannel | null = null;
+
+  if (typeof BroadcastChannel !== 'undefined') {
+    try {
+      channel = new BroadcastChannel(CHANNEL_NAME);
+      channel.onmessage = (e) => {
+        if (e.data && e.data.type) {
+          handler(e.data as AuthSyncEvent);
+        }
+      };
+    } catch {
+      // Fallback to storage event
+    }
+  }
+
+  const storageListener = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY && e.newValue) {
+      try {
+        const parsed = JSON.parse(e.newValue);
+        if (parsed && parsed.type) {
+          handler(parsed as AuthSyncEvent);
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+  };
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', storageListener);
+  }
+
+  return () => {
+    if (channel) {
+      channel.close();
+    }
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', storageListener);
+    }
+  };
+}
+

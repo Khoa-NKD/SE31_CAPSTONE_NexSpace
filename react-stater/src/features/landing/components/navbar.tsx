@@ -13,12 +13,16 @@ import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
 import { useCurrency } from '../context/currency-context';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { UserNav } from '@/components/layout/user-nav';
 
 export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { currency, setCurrency } = useCurrency();
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
 
   const handleMobileNavigate = (to: string) => {
     setMobileMenuOpen(false);
@@ -234,17 +238,23 @@ export function Navbar() {
             </DropdownMenu>
           </div>
 
-          {/* Zone 3: Sole Radiant CTA Button */}
-          <Link
-            to='/auth/sign-in'
-            className='group flex cursor-pointer items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]'
-          >
-            <span>{t('nav.signIn')}</span>
-            <div className="relative h-3.5 w-3.5">
-              <DoorClosed className="absolute inset-0 h-3.5 w-3.5 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-              <DoorOpen className="absolute inset-0 h-3.5 w-3.5 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+          {/* Zone 3: Sole Radiant CTA Button OR Authenticated User Profile */}
+          {isAuthenticated ? (
+            <div className='flex items-center gap-2 pl-1'>
+              <UserNav />
             </div>
-          </Link>
+          ) : (
+            <Link
+              to='/auth/sign-in'
+              className='group flex cursor-pointer items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]'
+            >
+              <span>{t('nav.signIn')}</span>
+              <div className="relative h-3.5 w-3.5">
+                <DoorClosed className="absolute inset-0 h-3.5 w-3.5 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
+                <DoorOpen className="absolute inset-0 h-3.5 w-3.5 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+              </div>
+            </Link>
+          )}
 
           {/* Mobile Menu Hamburger */}
           <div className='md:hidden'>
@@ -305,16 +315,32 @@ export function Navbar() {
                         {t('nav.hostBadge')}
                       </span>
                     </a>
-                    <Button
-                      className='group flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg active:scale-95'
-                      onClick={() => handleMobileNavigate('/auth/sign-in')}
-                    >
-                      <span>{t('nav.signIn')}</span>
-                      <div className="relative h-4 w-4">
-                        <DoorClosed className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-                        <DoorOpen className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+                    {isAuthenticated ? (
+                      <div className='flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-border/70'>
+                        <div className='flex items-center gap-3'>
+                          <UserNav />
+                          <div className='flex flex-col text-left'>
+                            <span className='text-xs font-bold text-foreground'>
+                              {user?.fullName || user?.userName}
+                            </span>
+                            <span className='text-[11px] text-muted-foreground truncate max-w-[150px]'>
+                              {user?.email}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </Button>
+                    ) : (
+                      <Button
+                        className='group flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg active:scale-95'
+                        onClick={() => handleMobileNavigate('/auth/sign-in')}
+                      >
+                        <span>{t('nav.signIn')}</span>
+                        <div className="relative h-4 w-4">
+                          <DoorClosed className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
+                          <DoorOpen className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+                        </div>
+                      </Button>
+                    )}
                   </div>
                 </div>
               </SheetContent>
