@@ -44,7 +44,8 @@ public class SecurityConfig {
             "/api/auth/forgot-password/complete",
             "/swagger-ui/**",
             "/swagger-ui.html",
-            "/v3/api-docs/**"
+            "/v3/api-docs/**",
+            "/uploads/**"
     };
 
     /** Endpoint GET công khai, không yêu cầu xác thực JWT. */

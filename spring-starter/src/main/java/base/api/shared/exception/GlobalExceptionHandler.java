@@ -49,9 +49,13 @@ public class GlobalExceptionHandler {
             BadRequestException.class,
             IllegalArgumentException.class,
             MissingServletRequestParameterException.class,
-            MethodArgumentTypeMismatchException.class
+            MethodArgumentTypeMismatchException.class,
+            org.springframework.web.multipart.MaxUploadSizeExceededException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex, WebRequest req) {
+        if (ex instanceof org.springframework.web.multipart.MaxUploadSizeExceededException) {
+            return build("Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB).", req, HttpStatus.BAD_REQUEST);
+        }
         return build(ex.getMessage(), req, HttpStatus.BAD_REQUEST);
     }
 
