@@ -3,20 +3,18 @@ import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import {
-  Mail,
   ArrowRight,
   Eye,
   EyeOff,
   CheckCircle2,
   ShieldCheck,
   KeyRound,
-  Building2,
   AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link, useLocation } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { authService } from '../api/auth-service';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
@@ -25,10 +23,6 @@ import { broadcastAuthSync, subscribeAuthSync } from '../utils/auth-sync';
 // Schemas
 const requestSchema = z.object({
   email: z.string().email('Vui lòng nhập địa chỉ email hợp lệ')
-});
-
-const verifySchema = z.object({
-  token: z.string().min(1, 'Vui lòng nhập hoặc dán mã Token từ email')
 });
 
 const resetSchema = z
@@ -105,16 +99,23 @@ function PasswordStrengthMeter({ password, t }: { password?: string; t: (k: stri
 
 export function ResetPasswordForm() {
   const { t } = useLanguage();
-  const location = useLocation();
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>('request');
   const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [successCountdown, setSuccessCountdown] = useState(3);
 
   // State to hold email and token across steps
   const [email, setEmail] = useState('');
-  const [resetToken, setResetToken] = useState('');
+  const [resetToken, setResetToken] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      return new URLSearchParams(window.location.search).get('token') || '';
+    }
+    return '';
+  });
 
   // Forms
   const requestForm = useForm<z.infer<typeof requestSchema>>({
@@ -122,55 +123,85 @@ export function ResetPasswordForm() {
     defaultValues: { email: '' }
   });
 
-  const verifyForm = useForm<z.infer<typeof verifySchema>>({
-    resolver: zodResolver(verifySchema),
-    defaultValues: { token: '' }
-  });
-
   const resetForm = useForm<z.infer<typeof resetSchema>>({
     resolver: zodResolver(resetSchema),
     defaultValues: { password: '', confirmPassword: '' }
   });
 
-  // Automatically detect token from URL (e.g. /auth/reset-password?token=... or /reset-password?token=...)
+  // Resend cooldown timer
   useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const urlToken = params.get('token');
-      if (urlToken) {
-        setResetToken(urlToken);
-        verifyForm.setValue('token', urlToken);
-        // Broadcast to other tabs (e.g. Tab A waiting on Step 2 in Photo 2)
-        broadcastAuthSync({ type: 'RESET_TOKEN_CLICKED', token: urlToken });
-
-        // Automatically validate the token
-        startTransition(async () => {
-          try {
-            const res = await authService.verifyResetToken(urlToken);
-            if (res.valid) {
-              if (res.contactInfo) setEmail(res.contactInfo);
-              setStep('reset');
-              toast.success('Mã token hợp lệ. Vui lòng tạo mật khẩu mới.');
-            } else {
-              setErrorMessage(res.message || 'Mã token không hợp lệ hoặc đã hết hạn.');
-              setStep('verify');
-            }
-          } catch {
-            setErrorMessage('Không thể xác minh token. Vui lòng kiểm tra lại.');
-            setStep('verify');
-          }
-        });
-      }
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => Math.max(0, prev - 1));
+      }, 1000);
     }
-  }, [location.search, verifyForm]);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  // Auto-redirect to sign-in countdown when password reset succeeded
+  useEffect(() => {
+    if (step !== 'success') return;
+    if (successCountdown <= 0) {
+      navigate({ to: '/auth/sign-in' });
+      return;
+    }
+    const timer = setTimeout(() => {
+      setSuccessCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [step, successCountdown, navigate]);
+
+  // Automatically validate token from URL on mount
+  useEffect(() => {
+    if (!resetToken) return;
+
+    // Broadcast to other tabs (e.g. Tab A waiting on Step 2)
+    broadcastAuthSync({ type: 'RESET_TOKEN_CLICKED', token: resetToken });
+    broadcastAuthSync({ type: 'CHECK_EXISTING_RESET_TAB' });
+
+    // Try closing this duplicate tab if the original tab is active
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'RESET_TAB_ALREADY_ACTIVE') {
+        try {
+          window.open('', '_self', '');
+          window.close();
+        } catch {
+          // Ignored if browser blocks window.close
+        }
+      }
+    });
+
+    // Automatically validate the token
+    startTransition(async () => {
+      try {
+        const res = await authService.verifyResetToken(resetToken);
+        if (res.valid) {
+          if (res.contactInfo) setEmail(res.contactInfo);
+          setStep('reset');
+          toast.success('Liên kết hợp lệ! Vui lòng tạo mật khẩu mới.');
+        } else {
+          setErrorMessage(res.message || 'Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn.');
+          setStep('request');
+        }
+      } catch {
+        setErrorMessage('Không thể xác minh liên kết. Vui lòng thử lại.');
+        setStep('request');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [resetToken]);
 
   // Real-time synchronization across tabs and devices
   useEffect(() => {
     const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'CHECK_EXISTING_RESET_TAB' && step === 'verify') {
+        broadcastAuthSync({ type: 'RESET_TAB_ALREADY_ACTIVE' });
+      }
       if (event.type === 'RESET_TOKEN_CLICKED' && event.token) {
         const token = event.token.trim();
         setResetToken(token);
-        verifyForm.setValue('token', token);
         startTransition(async () => {
           try {
             const res = await authService.verifyResetToken(token);
@@ -193,7 +224,7 @@ export function ResetPasswordForm() {
     });
 
     return () => unsubscribe();
-  }, [verifyForm]);
+  }, [step]);
 
   // Handlers
   const onRequestSubmit = (values: z.infer<typeof requestSchema>) => {
@@ -202,6 +233,7 @@ export function ResetPasswordForm() {
       try {
         await authService.initiateForgotPassword(values.email.trim());
         setEmail(values.email.trim());
+        setResendCooldown(60);
         setStep('verify');
         toast.success('Đã gửi email hướng dẫn đặt lại mật khẩu!');
       } catch (err: unknown) {
@@ -214,31 +246,6 @@ export function ResetPasswordForm() {
           const msg = 'Không thể gửi yêu cầu. Vui lòng thử lại sau.';
           setErrorMessage(msg);
           toast.error(msg);
-        }
-      }
-    });
-  };
-
-  const onVerifySubmit = (values: z.infer<typeof verifySchema>) => {
-    setErrorMessage(null);
-    const token = values.token.trim();
-    startTransition(async () => {
-      try {
-        const res = await authService.verifyResetToken(token);
-        if (res.valid) {
-          setResetToken(token);
-          if (res.contactInfo) setEmail(res.contactInfo);
-          setStep('reset');
-          toast.success('Mã token hợp lệ! Hãy nhập mật khẩu mới.');
-        } else {
-          setErrorMessage(res.message || 'Mã token không hợp lệ hoặc đã hết hạn.');
-        }
-      } catch (err: unknown) {
-        if (err instanceof ApiError) {
-          const payload = err.data as { message?: string } | null;
-          setErrorMessage(payload?.message || err.message || 'Mã token không hợp lệ');
-        } else {
-          setErrorMessage('Không thể kết nối đến máy chủ.');
         }
       }
     });
@@ -371,19 +378,20 @@ export function ResetPasswordForm() {
         </h1>
         <p className='text-slate-600 dark:text-slate-300 font-body-base text-body-base mt-1.5 leading-relaxed'>
           Chúng tôi đã gửi link đặt lại mật khẩu đến{' '}
-          <span className='font-medium text-slate-900 dark:text-white'>{email}</span>.
+          <span className='font-semibold text-slate-900 dark:text-white'>{email}</span>.
         </p>
       </div>
 
-      <div className='p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-left flex items-start gap-2.5'>
-        <div className='w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse mt-0.5 shrink-0' />
+      <div className='p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-left flex items-start gap-2.5 shadow-sm'>
+        <div className='w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-ping mt-1 shrink-0' />
         <div>
-          <strong>Tự động đồng bộ:</strong> Khi bạn bấm nút <em>"Đặt lại mật khẩu"</em> trong email, trang này sẽ tự động chuyển bước tiếp theo mà bạn <strong>không cần phải nhập token</strong>.
+          <strong>Tự động đồng bộ:</strong> Khi bạn bấm nút <em>"Đặt lại mật khẩu"</em> trong email, trang này sẽ <strong>tự động chuyển sang bước tạo mật khẩu mới</strong> mà bạn <strong>không cần phải nhập token</strong>.
         </div>
       </div>
 
-      <div className='p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 leading-relaxed text-left'>
-        💡 Nếu mở email trên thiết bị khác, bạn cũng có thể sao chép mã <strong>Token</strong> được gửi kèm và dán vào ô bên dưới:
+      <div className='p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 leading-relaxed text-left flex items-center gap-3'>
+        <div className='w-5 h-5 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin shrink-0' />
+        <span>Hệ thống đang chờ bạn mở liên kết từ email...</span>
       </div>
 
       {errorMessage && (
@@ -393,58 +401,30 @@ export function ResetPasswordForm() {
         </div>
       )}
 
-      <form onSubmit={verifyForm.handleSubmit(onVerifySubmit)} className='space-y-4'>
-        <div className='space-y-1.5'>
-          <label className='block text-xs font-medium text-slate-700 dark:text-slate-300'>
-            Mã Token đặt lại mật khẩu:
-          </label>
-          <input
-            type='text'
-            {...verifyForm.register('token')}
-            placeholder='Dán mã token vào đây...'
-            className={cn(
-              'w-full h-12 px-3 text-sm bg-surface-card dark:bg-slate-900 border rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-4 transition-all shadow-sm',
-              verifyForm.formState.errors.token
-                ? 'border-status-danger focus:border-status-danger focus:ring-status-danger/15'
-                : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:ring-indigo-600/20'
-            )}
-          />
-          {verifyForm.formState.errors.token && (
-            <p className='text-status-danger text-sm mt-1.5 font-medium'>
-              {verifyForm.formState.errors.token.message}
-            </p>
-          )}
-        </div>
-
+      <div className='flex flex-col items-center gap-3 pt-2 text-center text-sm text-slate-600 dark:text-slate-400'>
         <button
-          type='submit'
-          disabled={isPending}
-          className={cn(
-            'w-full h-11 mt-4 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-label-base text-label-base font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all focus:outline-none focus:ring-4 focus:ring-indigo-600/25 cursor-pointer',
-            isPending && 'opacity-70 cursor-not-allowed active:scale-100'
-          )}
+          type='button'
+          onClick={() => {
+            if (resendCooldown > 0) return;
+            onRequestSubmit({ email });
+          }}
+          disabled={resendCooldown > 0 || isPending}
+          className='text-indigo-600 dark:text-indigo-400 font-semibold hover:underline disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer'
         >
-          {isPending ? (
-            <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-          ) : (
-            <>
-              <span>Xác nhận Token</span>
-              <ArrowRight className='w-4 h-4 stroke-[2.5]' />
-            </>
-          )}
+          {resendCooldown > 0 ? `Gửi lại email sau (${resendCooldown}s)` : 'Chưa nhận được email? Gửi lại liên kết'}
         </button>
 
-        <p className='text-center text-sm text-slate-600 dark:text-slate-400 mt-4'>
-          Chưa nhận được email?{' '}
-          <button
-            type='button'
-            onClick={() => setStep('request')}
-            className='text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer'
-          >
-            Gửi lại yêu cầu
-          </button>
-        </p>
-      </form>
+        <button
+          type='button'
+          onClick={() => {
+            setErrorMessage(null);
+            setStep('request');
+          }}
+          className='text-xs text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 transition-colors cursor-pointer mt-1'
+        >
+          ← Dùng địa chỉ email khác
+        </button>
+      </div>
     </motion.div>
   );
 
@@ -580,10 +560,13 @@ export function ResetPasswordForm() {
       <p className='text-slate-600 dark:text-slate-300 font-body-base text-body-base mt-1.5 leading-relaxed'>
         {t('auth.resetPassword.successSubtitle')}
       </p>
+      <p className='text-xs font-semibold text-indigo-600 dark:text-indigo-400 animate-pulse'>
+        Tự động chuyển về trang Đăng nhập sau {successCountdown}s...
+      </p>
 
       <Link
         to='/auth/sign-in'
-        className='w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition-all focus:outline-none focus:ring-4 focus:ring-indigo-600/25 outline-none'
+        className='w-full h-11 mt-4 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition-all focus:outline-none focus:ring-4 focus:ring-indigo-600/25 outline-none'
       >
         <span>Đăng nhập lại ngay</span>
         <ArrowRight className='w-4 h-4 stroke-[2.5]' />
