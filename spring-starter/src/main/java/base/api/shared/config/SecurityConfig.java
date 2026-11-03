@@ -52,7 +52,8 @@ public class SecurityConfig {
     public static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/amenities",
             "/api/amenities/**",
-            "/api/workspaces/*/amenities"
+            "/api/workspaces/*/amenities",
+            "/api/workspaces/*/media"
     };
 
     private final JwtAuthenticationFilter jwtAuthFilter;
