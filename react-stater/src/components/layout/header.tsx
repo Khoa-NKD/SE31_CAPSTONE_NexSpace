@@ -5,6 +5,7 @@ import SearchInput from '../search-input';
 import { ThemeSelector } from '../themes/theme-selector';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
+import { UserNav } from './user-nav';
 import { Badge } from '../ui/badge';
 import { ShieldCheck, Activity } from 'lucide-react';
 
@@ -65,6 +66,11 @@ export default function Header() {
 
         {/* Notification Center */}
         <NotificationCenter />
+
+        {/* User Account Navigation */}
+        <div className='pl-1'>
+          <UserNav />
+        </div>
       </div>
     </header>
   );

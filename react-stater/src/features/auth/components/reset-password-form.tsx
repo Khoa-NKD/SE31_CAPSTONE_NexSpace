@@ -1,4 +1,4 @@
-import React, { useState, useTransition } from 'react';
+import React, { useState, useEffect, useTransition } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -10,29 +10,34 @@ import {
   CheckCircle2,
   ShieldCheck,
   KeyRound,
-  Building2
+  Building2,
+  AlertCircle
 } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
-import { Link } from '@tanstack/react-router';
+import { Link, useLocation } from '@tanstack/react-router';
+import { authService } from '../api/auth-service';
+import { ApiError } from '@/lib/api-client';
+import { toast } from 'sonner';
+import { broadcastAuthSync, subscribeAuthSync } from '../utils/auth-sync';
 
 // Schemas
 const requestSchema = z.object({
-  email: z.string().email('Please enter a valid email address')
+  email: z.string().email('Vui lòng nhập địa chỉ email hợp lệ')
 });
 
 const verifySchema = z.object({
-  code: z.string().length(6, 'Verification code must be 6 digits')
+  token: z.string().min(1, 'Vui lòng nhập hoặc dán mã Token từ email')
 });
 
 const resetSchema = z
   .object({
-    password: z.string().min(8, 'Password must be at least 8 characters'),
-    confirmPassword: z.string()
+    password: z.string().min(8, 'Mật khẩu phải có ít nhất 8 ký tự'),
+    confirmPassword: z.string().min(1, 'Vui lòng xác nhận mật khẩu')
   })
   .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords don't match",
+    message: 'Mật khẩu xác nhận không khớp',
     path: ['confirmPassword']
   });
 
@@ -100,13 +105,16 @@ function PasswordStrengthMeter({ password, t }: { password?: string; t: (k: stri
 
 export function ResetPasswordForm() {
   const { t } = useLanguage();
+  const location = useLocation();
   const [step, setStep] = useState<Step>('request');
   const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // State to hold email across steps
+  // State to hold email and token across steps
   const [email, setEmail] = useState('');
+  const [resetToken, setResetToken] = useState('');
 
   // Forms
   const requestForm = useForm<z.infer<typeof requestSchema>>({
@@ -116,7 +124,7 @@ export function ResetPasswordForm() {
 
   const verifyForm = useForm<z.infer<typeof verifySchema>>({
     resolver: zodResolver(verifySchema),
-    defaultValues: { code: '' }
+    defaultValues: { token: '' }
   });
 
   const resetForm = useForm<z.infer<typeof resetSchema>>({
@@ -124,29 +132,134 @@ export function ResetPasswordForm() {
     defaultValues: { password: '', confirmPassword: '' }
   });
 
+  // Automatically detect token from URL (e.g. /auth/reset-password?token=... or /reset-password?token=...)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlToken = params.get('token');
+      if (urlToken) {
+        setResetToken(urlToken);
+        verifyForm.setValue('token', urlToken);
+        // Broadcast to other tabs (e.g. Tab A waiting on Step 2 in Photo 2)
+        broadcastAuthSync({ type: 'RESET_TOKEN_CLICKED', token: urlToken });
+
+        // Automatically validate the token
+        startTransition(async () => {
+          try {
+            const res = await authService.verifyResetToken(urlToken);
+            if (res.valid) {
+              if (res.contactInfo) setEmail(res.contactInfo);
+              setStep('reset');
+              toast.success('Mã token hợp lệ. Vui lòng tạo mật khẩu mới.');
+            } else {
+              setErrorMessage(res.message || 'Mã token không hợp lệ hoặc đã hết hạn.');
+              setStep('verify');
+            }
+          } catch {
+            setErrorMessage('Không thể xác minh token. Vui lòng kiểm tra lại.');
+            setStep('verify');
+          }
+        });
+      }
+    }
+  }, [location.search, verifyForm]);
+
+  // Real-time synchronization across tabs and devices
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'RESET_TOKEN_CLICKED' && event.token) {
+        const token = event.token.trim();
+        setResetToken(token);
+        verifyForm.setValue('token', token);
+        startTransition(async () => {
+          try {
+            const res = await authService.verifyResetToken(token);
+            if (res.valid) {
+              if (res.contactInfo) setEmail(res.contactInfo);
+              setStep('reset');
+              toast.success('Đã tự động đồng bộ liên kết từ email. Hãy tạo mật khẩu mới.');
+            }
+          } catch {
+            // Silently ignore sync verify errors
+          }
+        });
+      } else if (event.type === 'RESET_PASSWORD_COMPLETED') {
+        setStep('success');
+        toast.success('Mật khẩu của bạn đã được đặt lại thành công!');
+      } else if (event.type === 'EMAIL_VERIFIED_SUCCESS') {
+        setStep('success');
+        toast.success('Xác thực tài khoản thành công!');
+      }
+    });
+
+    return () => unsubscribe();
+  }, [verifyForm]);
+
   // Handlers
   const onRequestSubmit = (values: z.infer<typeof requestSchema>) => {
-    startTransition(() => {
-      setTimeout(() => {
-        setEmail(values.email);
+    setErrorMessage(null);
+    startTransition(async () => {
+      try {
+        await authService.initiateForgotPassword(values.email.trim());
+        setEmail(values.email.trim());
         setStep('verify');
-      }, 1000);
+        toast.success('Đã gửi email hướng dẫn đặt lại mật khẩu!');
+      } catch (err: unknown) {
+        if (err instanceof ApiError) {
+          const payload = err.data as { message?: string } | null;
+          setErrorMessage(payload?.message || err.message);
+        } else {
+          setErrorMessage('Không thể gửi yêu cầu. Vui lòng thử lại sau.');
+        }
+      }
     });
   };
 
-  const onVerifySubmit = (_values: z.infer<typeof verifySchema>) => {
-    startTransition(() => {
-      setTimeout(() => {
-        setStep('reset');
-      }, 1000);
+  const onVerifySubmit = (values: z.infer<typeof verifySchema>) => {
+    setErrorMessage(null);
+    const token = values.token.trim();
+    startTransition(async () => {
+      try {
+        const res = await authService.verifyResetToken(token);
+        if (res.valid) {
+          setResetToken(token);
+          if (res.contactInfo) setEmail(res.contactInfo);
+          setStep('reset');
+          toast.success('Mã token hợp lệ! Hãy nhập mật khẩu mới.');
+        } else {
+          setErrorMessage(res.message || 'Mã token không hợp lệ hoặc đã hết hạn.');
+        }
+      } catch (err: unknown) {
+        if (err instanceof ApiError) {
+          const payload = err.data as { message?: string } | null;
+          setErrorMessage(payload?.message || err.message || 'Mã token không hợp lệ');
+        } else {
+          setErrorMessage('Không thể kết nối đến máy chủ.');
+        }
+      }
     });
   };
 
-  const onResetSubmit = (_values: z.infer<typeof resetSchema>) => {
-    startTransition(() => {
-      setTimeout(() => {
+  const onResetSubmit = (values: z.infer<typeof resetSchema>) => {
+    setErrorMessage(null);
+    startTransition(async () => {
+      try {
+        await authService.completeForgotPassword({
+          resetToken: resetToken.trim(),
+          newPassword: values.password,
+          confirmNewPassword: values.confirmPassword
+        });
+        toast.success('Đặt lại mật khẩu thành công!');
+        broadcastAuthSync({ type: 'RESET_PASSWORD_COMPLETED' });
         setStep('success');
-      }, 1000);
+      } catch (err: unknown) {
+        if (err instanceof ApiError) {
+          const payload = err.data as { message?: string } | null;
+          setErrorMessage(payload?.message || err.message || 'Đặt lại mật khẩu thất bại.');
+        } else {
+          setErrorMessage('Không thể đặt lại mật khẩu. Vui lòng thử lại sau.');
+        }
+      }
     });
   };
 
@@ -166,16 +279,11 @@ export function ResetPasswordForm() {
       transition={{ duration: 0.3 }}
       className='w-full mx-auto max-w-[420px] space-y-6'
     >
-      <div className='flex flex-col space-y-2 text-left'>
-        <div className='inline-flex lg:hidden items-center gap-2.5 mb-2'>
-          <div className='w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white shadow-md'>
-            <Building2 className='w-4 h-4' />
-          </div>
-          <span className='font-headline-sm text-headline-sm font-bold tracking-tight text-slate-900 dark:text-white'>
-            NexSpace
-          </span>
+      <div className='flex flex-col space-y-2 text-center items-center'>
+        <div className='w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mb-2'>
+          <KeyRound className='w-6 h-6 text-indigo-600 dark:text-indigo-400' />
         </div>
-        <h1 className='font-display-hero text-3xl font-bold tracking-tight text-slate-900 dark:text-white'>
+        <h1 className='font-display-hero text-2xl font-bold tracking-tight text-slate-900 dark:text-white'>
           {t('auth.resetPassword.title')}
         </h1>
         <p className='text-slate-600 dark:text-slate-300 font-body-base text-body-base mt-1.5 leading-relaxed'>
@@ -183,13 +291,17 @@ export function ResetPasswordForm() {
         </p>
       </div>
 
+      {errorMessage && (
+        <div className='rounded-lg bg-status-danger-subtle border border-error-container p-3 flex items-start gap-2.5 text-error text-xs'>
+          <AlertCircle className='w-4 h-4 shrink-0 mt-0.5' />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <form onSubmit={requestForm.handleSubmit(onRequestSubmit)} className='space-y-4'>
         <div className='space-y-1.5'>
-          <label
-            htmlFor='email'
-            className='block font-label-base text-label-base font-medium text-slate-900 dark:text-white'
-          >
-            {t('auth.resetPassword.email')}
+          <label className='block text-xs font-medium text-slate-700 dark:text-slate-300'>
+            {t('auth.resetPassword.emailLabel')}
           </label>
           <div className='relative'>
             <input
@@ -204,7 +316,6 @@ export function ResetPasswordForm() {
                   : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:ring-indigo-600/20'
               )}
             />
-            <Mail className='absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none stroke-[2]' />
           </div>
           {requestForm.formState.errors.email && (
             <p className='text-status-danger text-sm mt-1.5 font-medium'>
@@ -248,34 +359,51 @@ export function ResetPasswordForm() {
           <ShieldCheck className='w-6 h-6 text-indigo-600 dark:text-indigo-400' />
         </div>
         <h1 className='font-display-hero text-2xl font-bold tracking-tight text-slate-900 dark:text-white'>
-          {t('auth.resetPassword.verifyTitle')}
+          Kiểm tra email của bạn
         </h1>
         <p className='text-slate-600 dark:text-slate-300 font-body-base text-body-base mt-1.5 leading-relaxed'>
-          {t('auth.resetPassword.verifySubtitle')}{' '}
-          <span className='font-medium text-slate-900 dark:text-white'>{email}</span>
+          Chúng tôi đã gửi link đặt lại mật khẩu đến{' '}
+          <span className='font-medium text-slate-900 dark:text-white'>{email}</span>.
         </p>
       </div>
 
+      <div className='p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-left flex items-start gap-2.5'>
+        <div className='w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse mt-0.5 shrink-0' />
+        <div>
+          <strong>Tự động đồng bộ:</strong> Khi bạn bấm nút <em>"Đặt lại mật khẩu"</em> trong email, trang này sẽ tự động chuyển bước tiếp theo mà bạn <strong>không cần phải nhập token</strong>.
+        </div>
+      </div>
+
+      <div className='p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 leading-relaxed text-left'>
+        💡 Nếu mở email trên thiết bị khác, bạn cũng có thể sao chép mã <strong>Token</strong> được gửi kèm và dán vào ô bên dưới:
+      </div>
+
+      {errorMessage && (
+        <div className='rounded-lg bg-status-danger-subtle border border-error-container p-3 flex items-start gap-2.5 text-error text-xs'>
+          <AlertCircle className='w-4 h-4 shrink-0 mt-0.5' />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <form onSubmit={verifyForm.handleSubmit(onVerifySubmit)} className='space-y-4'>
         <div className='space-y-1.5'>
-          <div className='relative'>
-            <input
-              type='text'
-              inputMode='numeric'
-              maxLength={6}
-              {...verifyForm.register('code')}
-              placeholder='000000'
-              className={cn(
-                'w-full h-14 text-center tracking-[1em] text-2xl font-bold bg-surface-card dark:bg-slate-900 border rounded-lg text-slate-900 dark:text-white placeholder:text-slate-300 focus:outline-none focus:ring-4 transition-all shadow-sm',
-                verifyForm.formState.errors.code
-                  ? 'border-status-danger focus:border-status-danger focus:ring-status-danger/15'
-                  : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:ring-indigo-600/20'
-              )}
-            />
-          </div>
-          {verifyForm.formState.errors.code && (
-            <p className='text-status-danger text-sm mt-1.5 font-medium text-center'>
-              {verifyForm.formState.errors.code.message}
+          <label className='block text-xs font-medium text-slate-700 dark:text-slate-300'>
+            Mã Token đặt lại mật khẩu:
+          </label>
+          <input
+            type='text'
+            {...verifyForm.register('token')}
+            placeholder='Dán mã token vào đây...'
+            className={cn(
+              'w-full h-12 px-3 text-sm bg-surface-card dark:bg-slate-900 border rounded-lg text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-4 transition-all shadow-sm',
+              verifyForm.formState.errors.token
+                ? 'border-status-danger focus:border-status-danger focus:ring-status-danger/15'
+                : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:ring-indigo-600/20'
+            )}
+          />
+          {verifyForm.formState.errors.token && (
+            <p className='text-status-danger text-sm mt-1.5 font-medium'>
+              {verifyForm.formState.errors.token.message}
             </p>
           )}
         </div>
@@ -292,19 +420,20 @@ export function ResetPasswordForm() {
             <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
           ) : (
             <>
-              <span>{t('auth.resetPassword.verifyBtn')}</span>
+              <span>Xác nhận Token</span>
               <ArrowRight className='w-4 h-4 stroke-[2.5]' />
             </>
           )}
         </button>
 
-        <p className='text-center text-sm text-slate-600 dark:text-slate-400 mt-6'>
-          {t('auth.resetPassword.resendText')}{' '}
+        <p className='text-center text-sm text-slate-600 dark:text-slate-400 mt-4'>
+          Chưa nhận được email?{' '}
           <button
             type='button'
+            onClick={() => setStep('request')}
             className='text-indigo-600 dark:text-indigo-400 font-semibold hover:underline cursor-pointer'
           >
-            {t('auth.resetPassword.resendLink')}
+            Gửi lại yêu cầu
           </button>
         </p>
       </form>
@@ -320,7 +449,7 @@ export function ResetPasswordForm() {
       transition={{ duration: 0.3 }}
       className='w-full mx-auto max-w-[420px] space-y-6'
     >
-      <div className='flex flex-col space-y-2 text-left'>
+      <div className='flex flex-col space-y-2 text-center items-center'>
         <div className='w-12 h-12 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center mb-2'>
           <KeyRound className='w-6 h-6 text-indigo-600 dark:text-indigo-400' />
         </div>
@@ -332,12 +461,16 @@ export function ResetPasswordForm() {
         </p>
       </div>
 
+      {errorMessage && (
+        <div className='rounded-lg bg-status-danger-subtle border border-error-container p-3 flex items-start gap-2.5 text-error text-xs'>
+          <AlertCircle className='w-4 h-4 shrink-0 mt-0.5' />
+          <span>{errorMessage}</span>
+        </div>
+      )}
+
       <form onSubmit={resetForm.handleSubmit(onResetSubmit)} className='space-y-4'>
         <div className='space-y-1.5'>
-          <label
-            htmlFor='password'
-            className='block font-label-base text-label-base font-medium text-slate-900 dark:text-white'
-          >
+          <label className='block text-xs font-medium text-slate-700 dark:text-slate-300'>
             {t('auth.resetPassword.password')}
           </label>
           <div className='relative'>
@@ -361,7 +494,6 @@ export function ResetPasswordForm() {
               {showPassword ? <EyeOff className='w-5 h-5' /> : <Eye className='w-5 h-5' />}
             </button>
           </div>
-          {/* Password Strength Indicator */}
           <PasswordStrengthMeter password={pwd} t={t} />
           {resetForm.formState.errors.password && (
             <p className='text-status-danger text-sm mt-1.5 font-medium'>
@@ -371,10 +503,7 @@ export function ResetPasswordForm() {
         </div>
 
         <div className='space-y-1.5'>
-          <label
-            htmlFor='confirmPassword'
-            className='block font-label-base text-label-base font-medium text-slate-900 dark:text-white'
-          >
+          <label className='block text-xs font-medium text-slate-700 dark:text-slate-300'>
             {t('auth.resetPassword.confirmPassword')}
           </label>
           <div className='relative'>
@@ -446,9 +575,10 @@ export function ResetPasswordForm() {
 
       <Link
         to='/auth/sign-in'
-        className='w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center justify-center shadow-md transition-all focus:outline-none focus:ring-4 focus:ring-indigo-600/25 outline-none'
+        className='w-full h-11 mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition-all focus:outline-none focus:ring-4 focus:ring-indigo-600/25 outline-none'
       >
-        {t('auth.resetPassword.successBtn')}
+        <span>Đăng nhập lại ngay</span>
+        <ArrowRight className='w-4 h-4 stroke-[2.5]' />
       </Link>
     </motion.div>
   );
@@ -464,3 +594,5 @@ export function ResetPasswordForm() {
     </div>
   );
 }
+
+export default ResetPasswordForm;

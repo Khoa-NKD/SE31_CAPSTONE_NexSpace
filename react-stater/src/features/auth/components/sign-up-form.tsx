@@ -8,6 +8,8 @@ import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { Link } from '@tanstack/react-router';
+import { authService } from '../api/auth-service';
+import { ApiError } from '@/lib/api-client';
 
 const signUpSchema = z
   .object({
@@ -104,9 +106,23 @@ export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) 
       onSubmit: signUpSchema
     },
     onSubmit: ({ value }) => {
-      startTransition(() => {
-        toast.success('Account created successfully!');
-        onSuccess?.(value.email);
+      startTransition(async () => {
+        try {
+          await authService.register({
+            fullName: value.fullName.trim(),
+            email: value.email.trim(),
+            password: value.password
+          });
+          toast.success('Đăng ký tài khoản thành công! Vui lòng kiểm tra email để kích hoạt.');
+          onSuccess?.(value.email.trim());
+        } catch (err: unknown) {
+          if (err instanceof ApiError) {
+            const payload = err.data as { message?: string } | null;
+            toast.error(payload?.message || err.message || 'Đăng ký thất bại. Vui lòng thử lại.');
+          } else {
+            toast.error('Không thể kết nối đến máy chủ.');
+          }
+        }
       });
     }
   });

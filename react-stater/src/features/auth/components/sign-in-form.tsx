@@ -7,12 +7,16 @@ import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
+import { authService } from '../api/auth-service';
+import { useAuthStore } from '../store/auth-store';
+import { ApiError } from '@/lib/api-client';
+import { toast } from 'sonner';
 
 // Schema validation
 const signInSchema = z.object({
-  email: z.string().email('Please enter a valid email address'),
-  password: z.string().min(1, 'Password is required'),
+  email: z.string().min(1, 'Email hoặc tên đăng nhập là bắt buộc'),
+  password: z.string().min(1, 'Mật khẩu là bắt buộc'),
   rememberMe: z.boolean()
 });
 
@@ -24,6 +28,7 @@ interface SignInFormProps {
 
 export function SignInForm({ onSuccess }: SignInFormProps) {
   const { t } = useLanguage();
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
@@ -39,16 +44,50 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
 
   const onSubmit = (values: SignInValues) => {
     setGlobalError(null);
-    startTransition(() => {
-      // Simulate API call
-      setTimeout(() => {
-        if (values.email === 'error@company.com') {
-          setGlobalError(t('auth.signIn.errorDesc'));
+    startTransition(async () => {
+      try {
+        const response = await authService.login({
+          username: values.email.trim(),
+          password: values.password
+        });
+
+        // Save session in auth store
+        useAuthStore.getState().setAuth({
+          user: response.user,
+          accessToken: response.accessToken
+        });
+
+        toast.success(
+          `Đăng nhập thành công! Chào mừng ${response.user.fullName || response.user.firstName || response.user.userName}`
+        );
+
+        if (onSuccess) {
+          onSuccess();
         } else {
-          // Success
-          if (onSuccess) onSuccess();
+          // Role-aware destination navigation
+          const roles = response.user.roles || (response.user.role ? [response.user.role] : []);
+          const isOrganizer = roles.some((r: string) => r.toUpperCase() === 'ORGANIZER' || r.toUpperCase() === 'ROLE_ORGANIZER');
+          const isAdmin = roles.some((r: string) => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'ROLE_ADMIN');
+
+          if (isAdmin) {
+            router.navigate({ to: '/dashboard/overview' });
+          } else if (isOrganizer) {
+            router.navigate({ to: '/dashboard/organizer/workspaces' });
+          } else {
+            // Normal user goes directly to Landing Page as required
+            router.navigate({ to: '/' });
+          }
         }
-      }, 1000);
+      } catch (err: unknown) {
+        if (err instanceof ApiError) {
+          const payload = err.data as { message?: string; errors?: Record<string, string> } | null;
+          const msg =
+            payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
+          setGlobalError(msg);
+        } else {
+          setGlobalError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+        }
+      }
     });
   };
 
@@ -85,21 +124,23 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
         </div>
       )}
 
+      {/* Main Form */}
       <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
-        {/* Email Field */}
+        {/* Email or Username Input */}
         <div className='space-y-1.5'>
           <label
             htmlFor='email'
-            className='block font-label-base text-label-base font-medium text-slate-900 dark:text-white cursor-pointer'
+            className='font-label-base text-label-base text-slate-700 dark:text-slate-300 font-medium'
           >
             {t('auth.signIn.email')}
           </label>
           <div className='relative'>
             <input
               id='email'
-              type='email'
+              type='text'
+              autoComplete='username'
               {...form.register('email')}
-              placeholder={t('auth.signIn.emailPlaceholder')}
+              placeholder='Nhập email hoặc tên đăng nhập...'
               className={cn(
                 'w-full h-11 px-4 bg-surface-card dark:bg-slate-900 border rounded-lg font-body-base text-body-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-4 transition-all shadow-sm',
                 form.formState.errors.email
@@ -107,24 +148,37 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
                   : 'border-slate-300 dark:border-slate-700 focus:border-indigo-600 focus:ring-indigo-600/20'
               )}
             />
-            <Mail className='absolute right-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 pointer-events-none stroke-[2]' />
           </div>
+          {form.formState.errors.email && (
+            <p className='text-status-danger text-sm mt-1.5 font-medium'>
+              {form.formState.errors.email.message}
+            </p>
+          )}
         </div>
 
-        {/* Password Field */}
+        {/* Password Input */}
         <div className='space-y-1.5'>
-          <label
-            htmlFor='password'
-            className='block font-label-base text-label-base font-medium text-slate-900 dark:text-white cursor-pointer'
-          >
-            {t('auth.signIn.password')}
-          </label>
+          <div className='flex items-center justify-between'>
+            <label
+              htmlFor='password'
+              className='font-label-base text-label-base text-slate-700 dark:text-slate-300 font-medium'
+            >
+              {t('auth.signIn.password')}
+            </label>
+            <Link
+              to='/auth/reset-password'
+              className='font-label-base text-label-base text-indigo-600 dark:text-indigo-400 font-semibold hover:underline outline-none cursor-pointer'
+            >
+              {t('auth.signIn.forgotPassword')}
+            </Link>
+          </div>
           <div className='relative'>
             <input
               id='password'
               type={showPassword ? 'text' : 'password'}
+              autoComplete='current-password'
               {...form.register('password')}
-              placeholder={t('auth.signIn.passwordPlaceholder')}
+              placeholder='••••••••'
               className={cn(
                 'w-full h-11 px-4 pr-11 bg-surface-card dark:bg-slate-900 border rounded-lg font-body-base text-body-base text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-4 transition-all shadow-sm',
                 form.formState.errors.password
@@ -135,39 +189,39 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
             <button
               type='button'
               onClick={() => setShowPassword(!showPassword)}
-              className='absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none cursor-pointer'
-              aria-label='Toggle password visibility'
+              className='absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors focus:outline-none cursor-pointer'
+              aria-label={showPassword ? 'Hide password' : 'Show password'}
             >
               {showPassword ? <EyeOff className='w-5 h-5' /> : <Eye className='w-5 h-5' />}
             </button>
           </div>
+          {form.formState.errors.password && (
+            <p className='text-status-danger text-sm mt-1.5 font-medium'>
+              {form.formState.errors.password.message}
+            </p>
+          )}
         </div>
 
-        {/* Remember Me & Forgot Password */}
-        <div className='flex items-center justify-between pt-1'>
-          <label className='flex items-center gap-2.5 cursor-pointer select-none group'>
-            <Controller
-              name='rememberMe'
-              control={form.control}
-              render={({ field }) => (
-                <Checkbox
-                  id='rememberMe'
-                  checked={field.value}
-                  onCheckedChange={field.onChange}
-                  className='w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-indigo-600 data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600 focus-visible:ring-indigo-600/30 transition-colors cursor-pointer'
-                />
-              )}
-            />
-            <span className='font-body-sm text-body-sm text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors'>
-              {t('auth.signIn.rememberMe')}
-            </span>
-          </label>
-          <Link
-            to='/auth/reset-password'
-            className='font-label-base text-label-base text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-indigo-600/50 rounded-sm'
+        {/* Remember Me Checkbox */}
+        <div className='flex items-center space-x-2 pt-1'>
+          <Controller
+            control={form.control}
+            name='rememberMe'
+            render={({ field }) => (
+              <Checkbox
+                id='rememberMe'
+                checked={field.value}
+                onCheckedChange={field.onChange}
+                className='data-[state=checked]:bg-indigo-600 data-[state=checked]:border-indigo-600'
+              />
+            )}
+          />
+          <label
+            htmlFor='rememberMe'
+            className='font-body-base text-body-base text-slate-600 dark:text-slate-400 select-none cursor-pointer'
           >
-            {t('auth.signIn.forgotPassword')}
-          </Link>
+            {t('auth.signIn.rememberMe')}
+          </label>
         </div>
 
         {/* Submit Button */}
@@ -183,29 +237,40 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
             <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
           ) : (
             <>
-              <span>{t('auth.signIn.btn')}</span>
+              <span>{t('auth.signIn.submitBtn')}</span>
               <ArrowRight className='w-4 h-4 stroke-[2.5]' />
             </>
           )}
         </button>
       </form>
 
-      {/* Divider */}
+      {/* Social Divider */}
       <div className='relative my-6'>
         <div className='absolute inset-0 flex items-center'>
           <div className='w-full border-t border-slate-200 dark:border-slate-800' />
         </div>
-        <div className='relative flex justify-center text-xs'>
-          <span className='bg-white dark:bg-slate-950 px-3 font-label-sm text-label-sm text-slate-500 font-normal'>
-            {t('auth.signIn.orContinue')}
+        <div className='relative flex justify-center text-xs uppercase'>
+          <span className='bg-white dark:bg-slate-950 px-3 text-slate-500 dark:text-slate-400 font-medium'>
+            {t('auth.signIn.or')}
           </span>
         </div>
       </div>
 
-      {/* Google SSO */}
-      <div className={isPending ? 'opacity-50 pointer-events-none' : ''}>
-        <GoogleSignInButton />
-      </div>
+      {/* Google Sign In */}
+      <GoogleSignInButton />
+
+      {/* Footer link to Sign Up */}
+      <p className='text-center font-body-base text-body-base text-slate-600 dark:text-slate-400 mt-6'>
+        {t('auth.signIn.noAccount')}{' '}
+        <Link
+          to='/auth/sign-up'
+          className='font-semibold text-indigo-600 dark:text-indigo-400 hover:underline outline-none cursor-pointer'
+        >
+          {t('auth.signIn.signUpLink')}
+        </Link>
+      </p>
     </div>
   );
 }
+
+export default SignInForm;
