@@ -237,7 +237,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
             <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
           ) : (
             <>
-              <span>{t('auth.signIn.submitBtn')}</span>
+              <span>{t('auth.signIn.btn')}</span>
               <ArrowRight className='w-4 h-4 stroke-[2.5]' />
             </>
           )}
@@ -251,24 +251,13 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
         </div>
         <div className='relative flex justify-center text-xs uppercase'>
           <span className='bg-white dark:bg-slate-950 px-3 text-slate-500 dark:text-slate-400 font-medium'>
-            {t('auth.signIn.or')}
+            {t('auth.signIn.orContinue')}
           </span>
         </div>
       </div>
 
       {/* Google Sign In */}
       <GoogleSignInButton />
-
-      {/* Footer link to Sign Up */}
-      <p className='text-center font-body-base text-body-base text-slate-600 dark:text-slate-400 mt-6'>
-        {t('auth.signIn.noAccount')}{' '}
-        <Link
-          to='/auth/sign-up'
-          className='font-semibold text-indigo-600 dark:text-indigo-400 hover:underline outline-none cursor-pointer'
-        >
-          {t('auth.signIn.signUpLink')}
-        </Link>
-      </p>
     </div>
   );
 }
