@@ -19,4 +19,6 @@ public interface IUserService {
     Page<UserDto> getUserPage(PageRequestDTO pageRequest, UserRole role, UserStatus status);
 
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status);
+
+    UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason);
 }

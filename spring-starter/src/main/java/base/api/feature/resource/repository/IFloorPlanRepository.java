@@ -8,6 +8,5 @@ import java.util.List;
 
 @Repository
 public interface IFloorPlanRepository extends JpaRepository<FloorPlanModel, Long> {
-    List<FloorPlanModel> findByWorkspaceIdOrderByFloorOrderAsc(Long workspaceId);
+    List<FloorPlanModel> findByWorkspaceIdOrderByFloorNumberAsc(Long workspaceId);
 }
-

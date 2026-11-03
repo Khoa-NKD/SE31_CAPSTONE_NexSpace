@@ -8,6 +8,5 @@ import java.util.List;
 
 @Repository
 public interface IOrganizerDocumentRepository extends JpaRepository<OrganizerDocumentModel, Long> {
-    List<OrganizerDocumentModel> findByProfileId(Long profileId);
+    List<OrganizerDocumentModel> findByOrganizerProfileId(Long organizerProfileId);
 }
-

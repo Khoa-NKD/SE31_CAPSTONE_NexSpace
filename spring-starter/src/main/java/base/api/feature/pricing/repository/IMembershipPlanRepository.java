@@ -8,6 +8,5 @@ import java.util.List;
 
 @Repository
 public interface IMembershipPlanRepository extends JpaRepository<MembershipPlanModel, Long> {
-    List<MembershipPlanModel> findByOrganizerIdAndIsActiveTrue(Long organizerId);
+    List<MembershipPlanModel> findByOrganizerIdAndActiveTrue(Long organizerId);
 }
-

@@ -25,8 +25,8 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 /**
- * Ví dụ endpoint phân quyền theo role: /api/admin/** chỉ ADMIN (xem SecurityConfig),
- * đồng thời minh họa @PreAuthorize ở mức method.
+ * Quản lý tài khoản người dùng bởi Quản trị viên (chỉ ADMIN).
+ * Mọi thao tác khóa / mở khóa đều được bảo vệ và ghi vết qua Audit Log (BR-31).
  */
 @RestController
 @RequestMapping("/api/admin/users")
@@ -52,12 +52,12 @@ public class AdminUserController extends BaseAPIController {
         return success(userService.getById(id));
     }
 
-    @Operation(summary = "Khóa / mở khóa user")
+    @Operation(summary = "Khóa / mở khóa user", description = "Cập nhật trạng thái tài khoản và tự động ghi vết Audit Log theo BR-31")
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<UserDto>> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserStatusDto dto) {
-        return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus()),
+        return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus(), dto.getReason()),
                 "Cập nhật trạng thái thành công");
     }
 }
