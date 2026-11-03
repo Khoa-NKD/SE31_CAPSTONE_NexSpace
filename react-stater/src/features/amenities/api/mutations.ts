@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { amenityService } from './service';
 import { amenityQueries } from './queries';
-import type { CreateAmenityPayload, UpdateAmenityPayload } from './types';
+import type { CreateAmenityPayload, UpdateAmenityPayload, AssignWorkspaceAmenitiesPayload } from './types';
 
 export function useCreateAmenityMutation() {
   const queryClient = useQueryClient();
@@ -81,3 +81,23 @@ export function useDeleteAmenityMutation() {
     }
   });
 }
+
+export function useSyncWorkspaceAmenitiesMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      workspaceId,
+      payload
+    }: {
+      workspaceId: number | string;
+      payload: AssignWorkspaceAmenitiesPayload;
+    }) => amenityService.syncWorkspaceAmenities(workspaceId, payload),
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({
+        queryKey: [...amenityQueries.all, 'workspace', String(variables.workspaceId)]
+      });
+    }
+  });
+}
+

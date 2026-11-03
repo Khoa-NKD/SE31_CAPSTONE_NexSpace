@@ -4,7 +4,10 @@ import type {
   CreateAmenityPayload,
   UpdateAmenityPayload,
   AmenityFilterParams,
-  AmenityPageResponse
+  AmenityPageResponse,
+  WorkspaceAmenityDto,
+  AssignAmenityItemPayload,
+  AssignWorkspaceAmenitiesPayload
 } from './types';
 
 export const amenityService = {
@@ -57,5 +60,43 @@ export const amenityService = {
    */
   async deleteAmenity(id: number): Promise<void> {
     return apiClient.delete<void>(`/admin/amenities/${id}`);
+  },
+
+  /**
+   * Get all amenities assigned to a workspace
+   */
+  async getWorkspaceAmenities(workspaceId: number | string): Promise<WorkspaceAmenityDto[]> {
+    return apiClient.get<WorkspaceAmenityDto[]>(`/workspaces/${workspaceId}/amenities`);
+  },
+
+  /**
+   * Sync / bulk assign amenities to a workspace
+   */
+  async syncWorkspaceAmenities(
+    workspaceId: number | string,
+    payload: AssignWorkspaceAmenitiesPayload
+  ): Promise<WorkspaceAmenityDto[]> {
+    return apiClient.put<WorkspaceAmenityDto[]>(`/workspaces/${workspaceId}/amenities`, payload);
+  },
+
+  /**
+   * Add a single amenity to workspace
+   */
+  async addAmenityToWorkspace(
+    workspaceId: number | string,
+    payload: AssignAmenityItemPayload
+  ): Promise<WorkspaceAmenityDto> {
+    return apiClient.post<WorkspaceAmenityDto>(`/workspaces/${workspaceId}/amenities`, payload);
+  },
+
+  /**
+   * Remove an amenity from workspace
+   */
+  async removeAmenityFromWorkspace(
+    workspaceId: number | string,
+    amenityId: number | string
+  ): Promise<void> {
+    return apiClient.delete<void>(`/workspaces/${workspaceId}/amenities/${amenityId}`);
   }
 };
+

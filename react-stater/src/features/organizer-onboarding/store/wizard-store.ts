@@ -201,6 +201,7 @@ export interface WizardStore extends OnboardingDraftState {
   updateDaySchedule: (day: DayOfWeek, updates: Partial<DaySchedule>) => void;
   applyMondayToWeekdays: () => void;
   toggleAmenity: (amenityId: string) => void;
+  setAmenityAddonRate: (amenityId: string, rate: number) => void;
   setAmenities: (amenities: string[]) => void;
   selectCommonAmenities: (commonIds: string[]) => void;
   clearAmenities: () => void;
@@ -243,6 +244,7 @@ export const useWizardStore = create<WizardStore>()(
       location: INITIAL_LOCATION,
       operatingHours: INITIAL_OPERATING_HOURS,
       amenities: INITIAL_AMENITIES,
+      amenityAddonRates: {},
       media: INITIAL_MEDIA_GALLERY,
       floorPlan: INITIAL_FLOOR_PLAN,
       submissionStatus: 'draft',
@@ -319,6 +321,15 @@ export const useWizardStore = create<WizardStore>()(
           };
         }),
 
+      setAmenityAddonRate: (amenityId, rate) =>
+        set((state) => ({
+          isDraftSynced: false,
+          amenityAddonRates: {
+            ...state.amenityAddonRates,
+            [amenityId]: Math.max(0, rate)
+          }
+        })),
+
       setAmenities: (amenities) =>
         set(() => ({
           isDraftSynced: false,
@@ -337,7 +348,8 @@ export const useWizardStore = create<WizardStore>()(
       clearAmenities: () =>
         set(() => ({
           isDraftSynced: false,
-          amenities: []
+          amenities: [],
+          amenityAddonRates: {}
         })),
 
       setMediaGallery: (data) =>

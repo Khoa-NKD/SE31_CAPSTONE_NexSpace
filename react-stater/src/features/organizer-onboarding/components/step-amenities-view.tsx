@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
   Wifi,
@@ -41,8 +41,8 @@ import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { amenitiesSchema } from '../schemas/wizard-schemas';
 import type { AmenityItem } from '../types/wizard';
-import { useQuery } from '@tanstack/react-query';
-import { amenityQueries } from '@/features/amenities';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { amenityQueries, amenityService } from '@/features/amenities';
 
 const CATEGORY_METADATA = {
   technology: {
@@ -113,9 +113,15 @@ function renderAmenityIcon(iconName: string) {
 
 export function StepAmenitiesView() {
   const router = useRouter();
+  const queryClient = useQueryClient();
+
   const {
     amenities,
+    amenityAddonRates,
+    canonicalWorkspaceId,
     toggleAmenity,
+    setAmenityAddonRate,
+    setAmenities,
     selectCommonAmenities,
     clearAmenities,
     saveDraft
@@ -125,8 +131,10 @@ export function StepAmenitiesView() {
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
 
+  // Load platform-wide active catalog from Backend (GET /api/amenities)
   const { data: serverAmenities, isLoading } = useQuery(amenityQueries.available());
 
+  // Convert raw server amenities to typed items for onboarding catalog
   const activeCatalog: AmenityItem[] = useMemo(() => {
     if (!serverAmenities || serverAmenities.length === 0) {
       return [];
@@ -147,6 +155,60 @@ export function StepAmenitiesView() {
       };
     });
   }, [serverAmenities]);
+
+  // Clean up legacy string seed IDs once real numeric catalog is loaded
+  useEffect(() => {
+    if (!activeCatalog.length) return;
+    const hasLegacyIds = amenities.some((id) => isNaN(Number(id)));
+    if (hasLegacyIds) {
+      const validNumericIds = amenities.filter((id) => !isNaN(Number(id)));
+      if (validNumericIds.length === 0) {
+        // First load with legacy seed data: select the first 4 active items from server
+        const defaultIds = activeCatalog.slice(0, 4).map((a) => a.id);
+        setAmenities(defaultIds);
+      } else {
+        setAmenities(validNumericIds);
+      }
+    }
+  }, [activeCatalog, amenities, setAmenities]);
+
+  // -----------------------------------------------------------------------------------------------
+  // [NOTE CHO DEV SAU / FUTURE WORKSPACE INTEGRATION]:
+  // Hiện tại Spring Boot Backend chưa triển khai module CRUD Workspace (POST /api/workspaces).
+  // Do đó khi khởi tạo wizard tạo mới không gian, `canonicalWorkspaceId` ban đầu là undefined.
+  // ĐỂ TEST VÀ ĐỒNG BỘ TIỆN ÍCH LÊN DATABASE:
+  // - Code đang fallback mặc định về Workspace ID 1 (được seed sẵn trong DataInitializer.java thuộc về 'organizer').
+  // - KHI NÀO BACKEND TRIỂN KHAI XONG API WORKSPACE CRUD:
+  //   1. Chỉnh numericWorkspaceId: `canonicalWorkspaceId && !isNaN(Number(canonicalWorkspaceId)) ? Number(canonicalWorkspaceId) : undefined;`
+  //   2. Bỏ fallback '1' trong `syncAmenitiesToBackend`, `handleSaveDraft`, và `handleContinue`.
+  // -----------------------------------------------------------------------------------------------
+  const numericWorkspaceId =
+    canonicalWorkspaceId && !isNaN(Number(canonicalWorkspaceId))
+      ? Number(canonicalWorkspaceId)
+      : 1;
+
+  const { data: existingWorkspaceAmenities } = useQuery({
+    ...amenityQueries.workspaceAmenities(numericWorkspaceId),
+    enabled: !!numericWorkspaceId && numericWorkspaceId > 0
+  });
+
+  const hasHydratedRef = useRef(false);
+  useEffect(() => {
+    if (
+      !hasHydratedRef.current &&
+      existingWorkspaceAmenities &&
+      existingWorkspaceAmenities.length > 0
+    ) {
+      hasHydratedRef.current = true;
+      const ids = existingWorkspaceAmenities.map((wa) => String(wa.amenityId));
+      setAmenities(ids);
+      existingWorkspaceAmenities.forEach((wa) => {
+        if (wa.addonPricePerHour > 0) {
+          setAmenityAddonRate(String(wa.amenityId), wa.addonPricePerHour);
+        }
+      });
+    }
+  }, [existingWorkspaceAmenities, setAmenities, setAmenityAddonRate]);
 
   const filteredAmenities = useMemo(() => {
     if (!searchQuery.trim()) return activeCatalog;
@@ -188,9 +250,40 @@ export function StepAmenitiesView() {
     });
   };
 
+  const syncAmenitiesToBackend = async (targetWorkspaceId?: string | number) => {
+    const rawId = targetWorkspaceId || canonicalWorkspaceId || '1';
+    const wsId = Number(rawId);
+    if (isNaN(wsId) || wsId <= 0) return;
+
+    const validAmenities = amenities
+      .map((id) => {
+        const numId = Number(id);
+        if (isNaN(numId) || numId <= 0) return null;
+        return {
+          amenityId: numId,
+          addonPricePerHour: amenityAddonRates?.[id] || 0
+        };
+      })
+      .filter((item): item is { amenityId: number; addonPricePerHour: number } => item !== null);
+
+    try {
+      await amenityService.syncWorkspaceAmenities(wsId, { amenities: validAmenities });
+      queryClient.invalidateQueries({
+        queryKey: [...amenityQueries.all, 'workspace', String(wsId)]
+      });
+      toast.success('Workspace Amenities Synced', {
+        description: `Successfully synchronized ${validAmenities.length} amenities to workspace #${wsId}.`
+      });
+    } catch (err: unknown) {
+      console.warn('Could not sync workspace amenities to backend:', err);
+    }
+  };
+
   const handleSaveDraft = async () => {
     saveDraft();
-    await saveDraftToServer();
+    const updated = await saveDraftToServer();
+    const targetId = updated?.id || canonicalWorkspaceId || '1';
+    await syncAmenitiesToBackend(targetId);
   };
 
   const handleBack = () => {
@@ -215,7 +308,9 @@ export function StepAmenitiesView() {
 
     setValidationError(null);
     saveDraft();
-    await saveDraftToServer({ silent: true });
+    const updated = await saveDraftToServer({ silent: true });
+    const targetId = updated?.id || canonicalWorkspaceId || '1';
+    await syncAmenitiesToBackend(targetId);
 
     toast.success('Amenities Saved', {
       description: 'Proceeding to Media Gallery & Cover Photo.'
@@ -240,7 +335,7 @@ export function StepAmenitiesView() {
               Workspace Amenities &amp; Facilities
             </h1>
             <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              Select all features and equipment available to customers in this workspace location.
+              Select all features available in your workspace. Configure optional hourly add-on rates if applicable.
             </p>
           </div>
           <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
@@ -337,127 +432,175 @@ export function StepAmenitiesView() {
 
         {/* Amenities Categories */}
         {!isLoading && (
-        <div className='space-y-8'>
-          {(['technology', 'facilities', 'hospitality', 'security'] as const).map(
-            (catKey) => {
-              const items = groupedAmenities[catKey];
-              if (!items || items.length === 0) return null;
+          <div className='space-y-8'>
+            {(['technology', 'facilities', 'hospitality', 'security'] as const).map(
+              (catKey) => {
+                const items = groupedAmenities[catKey];
+                if (!items || items.length === 0) return null;
 
-              const meta = CATEGORY_METADATA[catKey];
-              const selectedInCat = items.filter((i) =>
-                amenities.includes(i.id)
-              ).length;
+                const meta = CATEGORY_METADATA[catKey];
+                const selectedInCat = items.filter((i) =>
+                  amenities.includes(i.id)
+                ).length;
 
-              return (
-                <section key={catKey} className='space-y-3.5'>
-                  {/* Category Header */}
-                  <div className='flex items-center justify-between border-b border-border pb-2.5'>
-                    <div className='flex items-center gap-2.5'>
-                      <h2 className='text-sm sm:text-base font-bold text-foreground'>
-                        {meta.label}
-                      </h2>
-                      <span className='text-xs text-muted-foreground'>
-                        ({selectedInCat}/{items.length} selected)
-                      </span>
+                return (
+                  <section key={catKey} className='space-y-3.5'>
+                    {/* Category Header */}
+                    <div className='flex items-center justify-between border-b border-border pb-2.5'>
+                      <div className='flex items-center gap-2.5'>
+                        <h2 className='text-sm sm:text-base font-bold text-foreground'>
+                          {meta.label}
+                        </h2>
+                        <span className='text-xs text-muted-foreground'>
+                          ({selectedInCat}/{items.length} selected)
+                        </span>
+                      </div>
+                      <Badge variant='outline' className='text-[10px] text-muted-foreground'>
+                        {meta.badge}
+                      </Badge>
                     </div>
-                    <Badge variant='outline' className='text-[10px] text-muted-foreground'>
-                      {meta.badge}
-                    </Badge>
-                  </div>
 
-                  {/* 4-column Responsive Grid */}
-                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5'>
-                    {items.map((item) => {
-                      const isSelected = amenities.includes(item.id);
+                    {/* 4-column Responsive Grid */}
+                    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5'>
+                      {items.map((item) => {
+                        const isSelected = amenities.includes(item.id);
+                        const addonRate = amenityAddonRates?.[item.id] || 0;
 
-                      return (
-                        <div
-                          key={item.id}
-                          role='checkbox'
-                          aria-checked={isSelected}
-                          tabIndex={0}
-                          onClick={() => {
-                            toggleAmenity(item.id);
-                            setValidationError(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === ' ' || e.key === 'Enter') {
-                              e.preventDefault();
+                        return (
+                          <div
+                            key={item.id}
+                            role='checkbox'
+                            aria-checked={isSelected}
+                            tabIndex={0}
+                            onClick={() => {
                               toggleAmenity(item.id);
                               setValidationError(null);
-                            }
-                          }}
-                          className={`relative group rounded-xl p-4 cursor-pointer transition-all border text-left flex flex-col justify-between select-none ${
-                            isSelected
-                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-600 dark:border-indigo-500 shadow-2xs ring-1 ring-indigo-600/30'
-                              : 'bg-card border-border hover:border-slate-400 dark:hover:border-slate-600 hover:bg-muted/40 shadow-2xs'
-                          }`}
-                        >
-                          <div>
-                            {/* Top Row: Icon + Checkbox */}
-                            <div className='flex items-start justify-between gap-2 mb-3'>
-                              <div
-                                className={`size-10 rounded-lg flex items-center justify-center transition-colors ${
-                                  isSelected
-                                    ? 'bg-indigo-600 text-white shadow-xs'
-                                    : 'bg-muted text-muted-foreground group-hover:text-foreground group-hover:bg-muted/80'
-                                }`}
-                              >
-                                {renderAmenityIcon(item.icon)}
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === ' ' || e.key === 'Enter') {
+                                e.preventDefault();
+                                toggleAmenity(item.id);
+                                setValidationError(null);
+                              }
+                            }}
+                            className={`relative group rounded-xl p-4 cursor-pointer transition-all border text-left flex flex-col justify-between select-none ${
+                              isSelected
+                                ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-600 dark:border-indigo-500 shadow-2xs ring-1 ring-indigo-600/30'
+                                : 'bg-card border-border hover:border-slate-400 dark:hover:border-slate-600 hover:bg-muted/40 shadow-2xs'
+                            }`}
+                          >
+                            <div>
+                              {/* Top Row: Icon + Checkbox */}
+                              <div className='flex items-start justify-between gap-2 mb-3'>
+                                <div
+                                  className={`size-10 rounded-lg flex items-center justify-center transition-colors ${
+                                    isSelected
+                                      ? 'bg-indigo-600 text-white shadow-xs'
+                                      : 'bg-muted text-muted-foreground group-hover:text-foreground group-hover:bg-muted/80'
+                                  }`}
+                                >
+                                  {renderAmenityIcon(item.icon)}
+                                </div>
+
+                                <div
+                                  className={`size-5 rounded flex items-center justify-center border transition-all ${
+                                    isSelected
+                                      ? 'bg-indigo-600 border-indigo-600 text-white'
+                                      : 'border-muted-foreground/40 bg-background group-hover:border-foreground/70'
+                                  }`}
+                                >
+                                  {isSelected && (
+                                    <Check className='size-3.5 stroke-[3]' />
+                                  )}
+                                </div>
                               </div>
 
-                              <div
-                                className={`size-5 rounded flex items-center justify-center border transition-all ${
+                              {/* Amenity Title */}
+                              <h3
+                                className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
                                   isSelected
-                                    ? 'bg-indigo-600 border-indigo-600 text-white'
-                                    : 'border-muted-foreground/40 bg-background group-hover:border-foreground/70'
+                                    ? 'text-indigo-950 dark:text-indigo-100 font-bold'
+                                    : 'text-foreground'
                                 }`}
                               >
-                                {isSelected && (
-                                  <Check className='size-3.5 stroke-[3]' />
-                                )}
-                              </div>
+                                {item.name}
+                              </h3>
+
+                              {/* Amenity Description */}
+                              <p className='text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-1'>
+                                {item.description}
+                              </p>
                             </div>
 
-                            {/* Amenity Title */}
-                            <h3
-                              className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
-                                isSelected
-                                  ? 'text-indigo-950 dark:text-indigo-100 font-bold'
-                                  : 'text-foreground'
-                              }`}
-                            >
-                              {item.name}
-                            </h3>
-
-                            {/* Amenity Description */}
-                            <p className='text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-1'>
-                              {item.description}
-                            </p>
-                          </div>
-
-                          {/* Common Tag if applicable */}
-                          {item.isCommon && (
-                            <div className='mt-3 pt-2 border-t border-border/40 flex items-center justify-between'>
-                              <span className='text-[10px] text-muted-foreground font-medium'>
-                                Popular Essential
-                              </span>
-                              {isSelected && (
-                                <span className='text-[10px] font-semibold text-indigo-600 dark:text-indigo-400'>
-                                  Included
-                                </span>
+                            {/* Pricing & Addon Config */}
+                            <div className='mt-3 pt-2.5 border-t border-border/40'>
+                              {isSelected ? (
+                                <div className='space-y-1.5'>
+                                  <div className='flex items-center justify-between text-[11px]'>
+                                    <span className='text-muted-foreground font-medium'>Phụ thu</span>
+                                    <span
+                                      className={`font-semibold ${
+                                        addonRate > 0
+                                          ? 'text-emerald-600 dark:text-emerald-400'
+                                          : 'text-indigo-600 dark:text-indigo-400'
+                                      }`}
+                                    >
+                                      {addonRate > 0
+                                        ? `+${addonRate.toLocaleString('vi-VN')} đ/h`
+                                        : 'Miễn phí'}
+                                    </span>
+                                  </div>
+                                  <div className='flex items-center gap-1.5'>
+                                    <Button
+                                      type='button'
+                                      size='sm'
+                                      variant={addonRate === 0 ? 'default' : 'outline'}
+                                      className={`h-7 text-[10px] px-2 py-0 ${
+                                        addonRate === 0
+                                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                          : 'border-border text-muted-foreground'
+                                      }`}
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setAmenityAddonRate(item.id, 0);
+                                      }}
+                                    >
+                                      Miễn phí
+                                    </Button>
+                                    <div className='relative flex-1'>
+                                      <Input
+                                        type='number'
+                                        min='0'
+                                        step='5000'
+                                        placeholder='VND/giờ...'
+                                        value={addonRate > 0 ? addonRate : ''}
+                                        onClick={(e) => e.stopPropagation()}
+                                        onKeyDown={(e) => e.stopPropagation()}
+                                        onChange={(e) => {
+                                          const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                          setAmenityAddonRate(item.id, val);
+                                        }}
+                                        className='h-7 text-[11px] px-2 text-right'
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
+                                  <span>{item.isCommon ? 'Popular Essential' : 'Tiện ích không gian'}</span>
+                                  <span className='text-indigo-600 dark:text-indigo-400 font-medium'>Chọn để bật</span>
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </section>
-              );
-            }
-          )}
-        </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </section>
+                );
+              }
+            )}
+          </div>
         )}
       </div>
 
