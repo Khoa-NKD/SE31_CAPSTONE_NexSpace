@@ -278,7 +278,7 @@ export interface UploadMediaResult {
 }
 
 /**
- * TanStack Query mutation hook for uploading media to the development mock server.
+ * TanStack Query mutation hook for uploading media to the media storage service.
  */
 export function useUploadMediaMutation() {
   return useMutation<UploadMediaResult, Error, UploadMediaVariables>({
@@ -287,6 +287,20 @@ export function useUploadMediaMutation() {
     onError: (err: unknown) => {
       const description = err instanceof Error ? err.message : 'Media upload failed';
       toast.error('Upload Failed', { description });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for deleting media from the storage service.
+ */
+export function useDeleteMediaMutation() {
+  return useMutation<void, Error, { publicId: string }>({
+    mutationFn: ({ publicId }) => workspaceService.deleteMedia(publicId),
+
+    onError: (err: unknown) => {
+      const description = err instanceof Error ? err.message : 'Media deletion failed';
+      toast.error('Delete Failed', { description });
     }
   });
 }
