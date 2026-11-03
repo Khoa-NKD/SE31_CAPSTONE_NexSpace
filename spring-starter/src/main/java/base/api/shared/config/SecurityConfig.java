@@ -50,7 +50,8 @@ public class SecurityConfig {
     /** Endpoint GET công khai, không yêu cầu xác thực JWT. */
     public static final String[] PUBLIC_GET_ENDPOINTS = {
             "/api/amenities",
-            "/api/amenities/**"
+            "/api/amenities/**",
+            "/api/workspaces/*/amenities"
     };
 
     private final JwtAuthenticationFilter jwtAuthFilter;

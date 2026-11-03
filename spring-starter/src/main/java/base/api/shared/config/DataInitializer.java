@@ -3,12 +3,16 @@ package base.api.shared.config;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.workspace.repository.IAmenityRepository;
+import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.AmenityModel;
+import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.AmenityCategory;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
+import base.api.shared.enums.WorkspaceCategory;
+import base.api.shared.enums.WorkspaceStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -18,6 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -34,12 +39,13 @@ public class DataInitializer implements ApplicationRunner {
     private final IRoleRepository roleRepository;
     private final IUserRepository userRepository;
     private final IAmenityRepository amenityRepository;
+    private final IWorkspaceRepository workspaceRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.seed.admin.enabled:false}")
     private boolean seedAdmin;
 
-    @Value("${app.seed.admin.email:}")
+    @Value("${app.seed.admin.email:admin@nexspace.vn}")
     private String adminEmail;
 
     @Value("${app.seed.admin.username:admin}")
@@ -47,6 +53,18 @@ public class DataInitializer implements ApplicationRunner {
 
     @Value("${app.seed.admin.password:}")
     private String adminPassword;
+
+    @Value("${app.seed.organizer.enabled:false}")
+    private boolean seedOrganizer;
+
+    @Value("${app.seed.organizer.email:organizer@nexspace.vn}")
+    private String organizerEmail;
+
+    @Value("${app.seed.organizer.username:organizer}")
+    private String organizerUserName;
+
+    @Value("${app.seed.organizer.password:}")
+    private String organizerPassword;
 
     @Override
     @Transactional
@@ -59,7 +77,48 @@ public class DataInitializer implements ApplicationRunner {
         }
 
         seedDefaultAmenities();
+        seedAdminAccount();
+        seedOrganizerAccount();
+        seedDefaultWorkspace();
+    }
 
+    /**
+     * [NOTE CHO DEV SAU / SEED DỮ LIỆU ĐỂ TEST FEATURE GÁN TIỆN ÍCH]:
+     * Không gian làm việc ID 1 ("NexSpace Saigon Central Hub") được seed sẵn cho tài khoản Organizer ('organizer')
+     * nhằm mục đích phục vụ kiểm thử và đồng bộ cho tính năng "Gán tiện ích cho Không gian" (Workspace Amenities Mapping).
+     * Khi hệ thống triển khai module Quản lý / Đăng ký không gian đầy đủ (Workspace CRUD), không gian này
+     * có thể giữ lại làm dữ liệu mẫu (demo fixture) hoặc tùy chỉnh theo yêu cầu của sprint sau.
+     */
+    private void seedDefaultWorkspace() {
+        if (workspaceRepository.count() > 0) {
+            return;
+        }
+
+        UserModel organizer = userRepository.findByLogin(organizerUserName)
+                .or(() -> userRepository.findByLogin(organizerEmail))
+                .orElse(null);
+
+        if (organizer == null) {
+            return;
+        }
+
+        WorkspaceModel ws = new WorkspaceModel();
+        ws.setName("NexSpace Saigon Central Hub");
+        ws.setOrganizer(organizer);
+        ws.setStatus(WorkspaceStatus.ACTIVE);
+        ws.setCategory(WorkspaceCategory.COWORKING_HUB);
+        ws.setDescription("Modern coworking space situated in District 1, Ho Chi Minh City.");
+        ws.setAddress("72 Le Thanh Ton Boulevard");
+        ws.setDistrict("District 1");
+        ws.setCity("Ho Chi Minh City");
+        ws.setAreaSqm(new BigDecimal("1250.00"));
+        ws.setSupportPhone("0901234567");
+
+        workspaceRepository.save(ws);
+        log.info("Seeded default workspace 'NexSpace Saigon Central Hub' for organizer '{}'", organizer.getUserName());
+    }
+
+    private void seedAdminAccount() {
         if (!seedAdmin) {
             return;
         }
@@ -67,20 +126,51 @@ public class DataInitializer implements ApplicationRunner {
             log.warn("app.seed.admin.enabled=true nhưng thiếu email/password — bỏ qua seed admin");
             return;
         }
-        if (userRepository.existsByEmailIgnoreCase(adminEmail) || userRepository.existsByUserNameIgnoreCase(adminUserName)) {
+        seedUser(adminUserName, adminEmail, adminPassword, "System", "Admin", null, UserRole.ADMIN);
+    }
+
+    private void seedOrganizerAccount() {
+        if (!seedOrganizer) {
             return;
         }
+        if (organizerEmail.isBlank() || organizerPassword.isBlank()) {
+            log.warn("app.seed.organizer.enabled=true nhưng thiếu email/password — bỏ qua seed organizer");
+            return;
+        }
+        seedUser(organizerUserName, organizerEmail, organizerPassword, "Alex", "Nguyen", "0901234567", UserRole.ORGANIZER);
+    }
 
-        UserModel admin = new UserModel();
-        admin.setUserName(adminUserName.toLowerCase());
-        admin.setEmail(adminEmail.toLowerCase());
-        admin.setPassword(passwordEncoder.encode(adminPassword));
-        admin.setFirstName("Admin");
-        admin.setVerified(true);
-        admin.setStatus(UserStatus.ACTIVE);
-        admin.setRoleEntity(roleRepository.findByName(UserRole.ADMIN.name()).orElseThrow());
-        userRepository.save(admin);
-        log.info("Seeded admin account '{}'", adminUserName);
+    private void seedUser(
+            String userName,
+            String email,
+            String rawPassword,
+            String firstName,
+            String lastName,
+            String phone,
+            UserRole role
+    ) {
+        UserModel user = userRepository.findByUserNameIgnoreCase(userName)
+                .or(() -> userRepository.findByEmailIgnoreCase(email))
+                .orElseGet(UserModel::new);
+
+        user.setUserName(userName.toLowerCase());
+        user.setEmail(email.toLowerCase());
+        user.setPassword(passwordEncoder.encode(rawPassword));
+        if (user.getFirstName() == null || user.getFirstName().isBlank()) {
+            user.setFirstName(firstName);
+        }
+        if (user.getLastName() == null || user.getLastName().isBlank()) {
+            user.setLastName(lastName);
+        }
+        if (phone != null && (user.getPhone() == null || user.getPhone().isBlank())) {
+            user.setPhone(phone);
+        }
+        user.setVerified(true);
+        user.setStatus(UserStatus.ACTIVE);
+        user.setRoleEntity(roleRepository.findByName(role.name()).orElseThrow());
+
+        userRepository.save(user);
+        log.info("Seeded account '{}' ({}) with role {}", userName, email, role);
     }
 
     private void seedDefaultAmenities() {
