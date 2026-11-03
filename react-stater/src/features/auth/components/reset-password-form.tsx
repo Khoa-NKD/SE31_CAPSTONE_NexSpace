@@ -207,9 +207,13 @@ export function ResetPasswordForm() {
       } catch (err: unknown) {
         if (err instanceof ApiError) {
           const payload = err.data as { message?: string } | null;
-          setErrorMessage(payload?.message || err.message);
+          const msg = payload?.message || err.message || 'Không thể gửi yêu cầu.';
+          setErrorMessage(msg);
+          toast.error(msg);
         } else {
-          setErrorMessage('Không thể gửi yêu cầu. Vui lòng thử lại sau.');
+          const msg = 'Không thể gửi yêu cầu. Vui lòng thử lại sau.';
+          setErrorMessage(msg);
+          toast.error(msg);
         }
       }
     });
@@ -255,9 +259,13 @@ export function ResetPasswordForm() {
       } catch (err: unknown) {
         if (err instanceof ApiError) {
           const payload = err.data as { message?: string } | null;
-          setErrorMessage(payload?.message || err.message || 'Đặt lại mật khẩu thất bại.');
+          const msg = payload?.message || err.message || 'Đặt lại mật khẩu thất bại.';
+          setErrorMessage(msg);
+          toast.error(msg);
         } else {
-          setErrorMessage('Không thể đặt lại mật khẩu. Vui lòng thử lại sau.');
+          const msg = 'Không thể đặt lại mật khẩu. Vui lòng thử lại sau.';
+          setErrorMessage(msg);
+          toast.error(msg);
         }
       }
     });

@@ -84,8 +84,11 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
           const msg =
             payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
           setGlobalError(msg);
+          toast.error(msg);
         } else {
-          setGlobalError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+          const msg = 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
+          setGlobalError(msg);
+          toast.error(msg);
         }
       }
     });
