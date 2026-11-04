@@ -25,6 +25,11 @@ function OrganizerApplicationPage() {
           <Link to='/organizer/documents' className='text-primary underline'>
             Manage verification documents for an existing application
           </Link>
+          <p>
+            <Link to='/organizer/status' className='text-primary underline'>
+              View application status and review feedback
+            </Link>
+          </p>
         </header>
         <div className='rounded-xl border bg-card p-5 shadow-sm sm:p-8'>
           <ApplicationForm />

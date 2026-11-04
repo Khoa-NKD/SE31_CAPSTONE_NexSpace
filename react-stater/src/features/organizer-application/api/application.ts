@@ -54,6 +54,8 @@ export interface ApplicationReceipt {
 export interface ApplicationDetails extends Omit<ApplicationReceipt, 'status' | 'submittedAt'> {
   status: 'DRAFT' | 'PENDING_REVIEW' | 'APPROVED' | 'REJECTED' | 'REVISION_REQUESTED';
   submittedAt?: string;
+  reviewedAt?: string | null;
+  reviewFeedback?: string | null;
   legalName?: string;
   businessType?: ApplicationInput['businessType'];
   taxId?: string;
