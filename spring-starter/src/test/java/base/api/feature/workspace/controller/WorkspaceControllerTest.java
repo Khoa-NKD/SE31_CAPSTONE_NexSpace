@@ -2,6 +2,7 @@ package base.api.feature.workspace.controller;
 
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.entity.RoleModel;
@@ -10,6 +11,7 @@ import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import base.api.shared.enums.WorkspaceCategory;
+import base.api.shared.enums.WorkspaceLifecycleAction;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.GlobalExceptionHandler;
 import base.api.shared.security.AuthUser;
@@ -33,6 +35,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -175,5 +178,58 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.data.supportPhone").value("0999888777"));
 
         verify(workspaceService).updateWorkspace(eq(5L), eq(1L), any(UpdateWorkspaceDto.class));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/workspaces/{id} - Xóa mềm không gian làm việc thành công trả về HTTP 200")
+    void deleteWorkspace_success() throws Exception {
+        WorkspaceDetailDto responseDto = WorkspaceDetailDto.builder()
+                .id(1L)
+                .name("NexSpace Central")
+                .status(WorkspaceStatus.ARCHIVED)
+                .operatingStatus("Archived")
+                .organizerId(5L)
+                .build();
+
+        when(workspaceService.archiveWorkspace(eq(5L), eq(1L))).thenReturn(responseDto);
+
+        mockMvc.perform(delete("/api/v1/workspaces/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.statusCode").value(200))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"))
+                .andExpect(jsonPath("$.data.operatingStatus").value("Archived"));
+
+        verify(workspaceService).archiveWorkspace(eq(5L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/workspaces/{id}/lifecycle - Cập nhật vòng đời thành công")
+    void updateLifecycle_success() throws Exception {
+        WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.ARCHIVE)
+                .reason("Chủ sở hữu ngừng kinh doanh")
+                .build();
+
+        WorkspaceDetailDto responseDto = WorkspaceDetailDto.builder()
+                .id(1L)
+                .name("NexSpace Central")
+                .status(WorkspaceStatus.ARCHIVED)
+                .operatingStatus("Archived")
+                .organizerId(5L)
+                .build();
+
+        when(workspaceService.updateLifecycle(eq(5L), eq(1L), any(WorkspaceLifecycleDto.class)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(patch("/api/v1/workspaces/1/lifecycle")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.status").value("ARCHIVED"));
+
+        verify(workspaceService).updateLifecycle(eq(5L), eq(1L), any(WorkspaceLifecycleDto.class));
     }
 }

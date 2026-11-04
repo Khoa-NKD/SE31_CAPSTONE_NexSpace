@@ -2,6 +2,7 @@ package base.api.feature.workspace.controller;
 
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.base.BaseAPIController;
@@ -13,6 +14,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -61,6 +63,40 @@ public class WorkspaceController extends BaseAPIController {
         Long workspaceId = parseWorkspaceId(id);
         WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, workspaceId, dto);
         return success(updated, "Cập nhật không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Xóa mềm không gian làm việc (DELETE)", description = "Lưu trữ / ẩn không gian làm việc mà không xóa dữ liệu lịch sử")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> deleteWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto archived = workspaceService.archiveWorkspace(organizerId, workspaceId);
+        return success(archived, "Lưu trữ không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Lưu trữ không gian làm việc (POST /archive)", description = "Lưu trữ / xóa mềm không gian làm việc")
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> postArchiveWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto archived = workspaceService.archiveWorkspace(organizerId, workspaceId);
+        return success(archived, "Lưu trữ không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Quản lý vòng đời vận hành (PATCH /lifecycle)", description = "Chuyển đổi trạng thái vận hành: archive, pause, resume, maintenance")
+    @PatchMapping("/{id}/lifecycle")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> updateLifecycle(
+            @PathVariable String id,
+            @Valid @RequestBody WorkspaceLifecycleDto dto) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto result = workspaceService.updateLifecycle(organizerId, workspaceId, dto);
+        return success(result, "Cập nhật vòng đời không gian làm việc thành công");
     }
 
     private Long parseWorkspaceId(String id) {

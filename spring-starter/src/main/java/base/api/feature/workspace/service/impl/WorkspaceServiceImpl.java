@@ -3,6 +3,7 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
@@ -11,6 +12,7 @@ import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -89,5 +91,64 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         WorkspaceModel updated = workspaceRepository.save(workspace);
         return WorkspaceMapper.toDetailDto(updated);
+    }
+
+    @Override
+    public WorkspaceDetailDto archiveWorkspace(Long organizerId, Long workspaceId) {
+        WorkspaceModel workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId));
+
+        // Strict Ownership Defense
+        if (workspace.getOrganizer() == null || !workspace.getOrganizer().getId().equals(organizerId)) {
+            throw new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId);
+        }
+
+        if (workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
+            return WorkspaceMapper.toDetailDto(workspace);
+        }
+
+        workspace.setStatus(WorkspaceStatus.ARCHIVED);
+        WorkspaceModel archived = workspaceRepository.save(workspace);
+        return WorkspaceMapper.toDetailDto(archived);
+    }
+
+    @Override
+    public WorkspaceDetailDto updateLifecycle(Long organizerId, Long workspaceId, WorkspaceLifecycleDto dto) {
+        WorkspaceModel workspace = workspaceRepository.findById(workspaceId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId));
+
+        // Strict Ownership Defense
+        if (workspace.getOrganizer() == null || !workspace.getOrganizer().getId().equals(organizerId)) {
+            throw new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId);
+        }
+
+        if (dto.getAction() == null) {
+            throw new BadRequestException("Hành động vòng đời không hợp lệ");
+        }
+
+        switch (dto.getAction()) {
+            case ARCHIVE -> workspace.setStatus(WorkspaceStatus.ARCHIVED);
+            case PAUSE -> {
+                if (workspace.getStatus() != WorkspaceStatus.ACTIVE) {
+                    throw new ConflictException("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE)");
+                }
+                workspace.setStatus(WorkspaceStatus.INACTIVE);
+            }
+            case RESUME -> {
+                if (workspace.getStatus() != WorkspaceStatus.INACTIVE) {
+                    throw new ConflictException("Chỉ có thể mở lại không gian đang tạm ngưng (INACTIVE)");
+                }
+                workspace.setStatus(WorkspaceStatus.ACTIVE);
+            }
+            case MAINTENANCE -> {
+                if (workspace.getStatus() != WorkspaceStatus.ACTIVE && workspace.getStatus() != WorkspaceStatus.INACTIVE) {
+                    throw new ConflictException("Không thể bảo trì không gian có trạng thái: " + workspace.getStatus());
+                }
+                workspace.setStatus(WorkspaceStatus.INACTIVE);
+            }
+        }
+
+        WorkspaceModel saved = workspaceRepository.save(workspace);
+        return WorkspaceMapper.toDetailDto(saved);
     }
 }
