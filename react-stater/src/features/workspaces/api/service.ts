@@ -16,7 +16,15 @@ import type {
   WorkspaceMediaDto,
   AddWorkspaceMediaPayload,
   ReorderWorkspaceMediaPayload,
-  SyncWorkspaceMediaPayload
+  SyncWorkspaceMediaPayload,
+  WorkspaceAssetDto,
+  CreateWorkspaceAssetPayload,
+  UpdateWorkspaceAssetPayload,
+  MaintenanceLogDto,
+  CreateMaintenanceLogPayload,
+  UpdateMaintenanceLogPayload,
+  WorkspaceAssetFilterParams,
+  PaginatedAssetResponse
 } from './types';
 
 /**
@@ -397,4 +405,99 @@ export const workspaceService = {
   ): Promise<void> {
     return apiClient.delete(`/workspaces/${workspaceId}/media/${mediaId}`);
   },
+
+  /**
+   * Fetches paginated assets for a workspace with status and search filters.
+   */
+  async getWorkspaceAssets(
+    workspaceId: number | string,
+    params?: WorkspaceAssetFilterParams
+  ): Promise<PaginatedAssetResponse> {
+    const queryParams: Record<string, string | number | boolean> = {};
+    if (params?.all !== undefined) queryParams.all = params.all;
+    if (params?.status) queryParams.status = params.status;
+    if (params?.search) queryParams.search = params.search;
+    if (params?.page !== undefined) queryParams.page = params.page;
+    if (params?.size !== undefined) queryParams.size = params.size;
+    if (params?.sortBy) queryParams.sortBy = params.sortBy;
+    if (params?.sortDir) queryParams.sortDir = params.sortDir;
+
+    return apiClient.get(`/workspaces/${workspaceId}/assets`, {
+      params: queryParams
+    });
+  },
+
+  /**
+   * Fetches a single asset by ID.
+   */
+  async getWorkspaceAssetById(
+    workspaceId: number | string,
+    assetId: number | string
+  ): Promise<WorkspaceAssetDto> {
+    return apiClient.get(`/workspaces/${workspaceId}/assets/${assetId}`);
+  },
+
+  /**
+   * Creates a new workspace asset.
+   */
+  async createWorkspaceAsset(
+    workspaceId: number | string,
+    payload: CreateWorkspaceAssetPayload
+  ): Promise<WorkspaceAssetDto> {
+    return apiClient.post(`/workspaces/${workspaceId}/assets`, payload);
+  },
+
+  /**
+   * Updates an existing workspace asset.
+   */
+  async updateWorkspaceAsset(
+    workspaceId: number | string,
+    assetId: number | string,
+    payload: UpdateWorkspaceAssetPayload
+  ): Promise<WorkspaceAssetDto> {
+    return apiClient.put(`/workspaces/${workspaceId}/assets/${assetId}`, payload);
+  },
+
+  /**
+   * Deletes a workspace asset.
+   */
+  async deleteWorkspaceAsset(
+    workspaceId: number | string,
+    assetId: number | string
+  ): Promise<void> {
+    return apiClient.delete(`/workspaces/${workspaceId}/assets/${assetId}`);
+  },
+
+  /**
+   * Fetches maintenance logs for a specific asset.
+   */
+  async getMaintenanceLogs(
+    workspaceId: number | string,
+    assetId: number | string
+  ): Promise<MaintenanceLogDto[]> {
+    return apiClient.get(`/workspaces/${workspaceId}/assets/${assetId}/maintenance`);
+  },
+
+  /**
+   * Creates a maintenance / repair log for an asset.
+   */
+  async createMaintenanceLog(
+    workspaceId: number | string,
+    assetId: number | string,
+    payload: CreateMaintenanceLogPayload
+  ): Promise<MaintenanceLogDto> {
+    return apiClient.post(`/workspaces/${workspaceId}/assets/${assetId}/maintenance`, payload);
+  },
+
+  /**
+   * Updates progress or completion of a maintenance log.
+   */
+  async updateMaintenanceLog(
+    workspaceId: number | string,
+    assetId: number | string,
+    logId: number | string,
+    payload: UpdateMaintenanceLogPayload
+  ): Promise<MaintenanceLogDto> {
+    return apiClient.patch(`/workspaces/${workspaceId}/assets/${assetId}/maintenance/${logId}`, payload);
+  }
 };

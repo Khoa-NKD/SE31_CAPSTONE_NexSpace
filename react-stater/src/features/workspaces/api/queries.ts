@@ -1,6 +1,10 @@
 import { queryOptions, useQuery } from '@tanstack/react-query';
 import { workspaceService } from './service';
-import type { WorkspaceFilterParams, PublicWorkspaceFilterParams } from './types';
+import type {
+  WorkspaceFilterParams,
+  PublicWorkspaceFilterParams,
+  WorkspaceAssetFilterParams
+} from './types';
 
 export const workspaceQueryKeys = {
   all: ['workspaces'] as const,
@@ -11,6 +15,12 @@ export const workspaceQueryKeys = {
   details: () => [...workspaceQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
   media: (id: string | number) => [...workspaceQueryKeys.all, 'media', String(id)] as const,
+  assets: (workspaceId: string | number, params?: WorkspaceAssetFilterParams) =>
+    [...workspaceQueryKeys.all, 'assets', String(workspaceId), params] as const,
+  assetDetail: (workspaceId: string | number, assetId: string | number) =>
+    [...workspaceQueryKeys.all, 'asset-detail', String(workspaceId), String(assetId)] as const,
+  maintenanceLogs: (workspaceId: string | number, assetId: string | number) =>
+    [...workspaceQueryKeys.all, 'maintenance-logs', String(workspaceId), String(assetId)] as const,
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
@@ -124,5 +134,80 @@ export const workspaceMediaQueryOptions = (workspaceId: number | string | null |
  */
 export function useWorkspaceMediaQuery(workspaceId: number | string | null | undefined) {
   return useQuery(workspaceMediaQueryOptions(workspaceId));
+}
+
+/**
+ * TanStack Query options for fetching assets for a workspace.
+ */
+export const workspaceAssetsQueryOptions = (
+  workspaceId: number | string | null | undefined,
+  params?: WorkspaceAssetFilterParams
+) =>
+  queryOptions({
+    queryKey: workspaceId ? workspaceQueryKeys.assets(workspaceId, params) : [...workspaceQueryKeys.all, 'assets', 'none'],
+    queryFn: () => (workspaceId ? workspaceService.getWorkspaceAssets(workspaceId, params) : { listObjects: [], pageNumber: 1, pageSize: 20, totalRecords: 0, totalPages: 0, hasNext: false, hasPrevious: false }),
+    enabled: Boolean(workspaceId)
+  });
+
+/**
+ * Hook for querying workspace assets.
+ */
+export function useWorkspaceAssetsQuery(
+  workspaceId: number | string | null | undefined,
+  params?: WorkspaceAssetFilterParams
+) {
+  return useQuery(workspaceAssetsQueryOptions(workspaceId, params));
+}
+
+/**
+ * TanStack Query options for fetching a single workspace asset.
+ */
+export const workspaceAssetDetailQueryOptions = (
+  workspaceId: number | string | null | undefined,
+  assetId: number | string | null | undefined
+) =>
+  queryOptions({
+    queryKey:
+      workspaceId && assetId
+        ? workspaceQueryKeys.assetDetail(workspaceId, assetId)
+        : [...workspaceQueryKeys.all, 'asset-detail', 'none'],
+    queryFn: () => (workspaceId && assetId ? workspaceService.getWorkspaceAssetById(workspaceId, assetId) : null),
+    enabled: Boolean(workspaceId && assetId)
+  });
+
+/**
+ * Hook for querying single workspace asset details.
+ */
+export function useWorkspaceAssetDetailQuery(
+  workspaceId: number | string | null | undefined,
+  assetId: number | string | null | undefined
+) {
+  return useQuery(workspaceAssetDetailQueryOptions(workspaceId, assetId));
+}
+
+/**
+ * TanStack Query options for fetching maintenance logs of an asset.
+ */
+export const assetMaintenanceLogsQueryOptions = (
+  workspaceId: number | string | null | undefined,
+  assetId: number | string | null | undefined
+) =>
+  queryOptions({
+    queryKey:
+      workspaceId && assetId
+        ? workspaceQueryKeys.maintenanceLogs(workspaceId, assetId)
+        : [...workspaceQueryKeys.all, 'maintenance-logs', 'none'],
+    queryFn: () => (workspaceId && assetId ? workspaceService.getMaintenanceLogs(workspaceId, assetId) : []),
+    enabled: Boolean(workspaceId && assetId)
+  });
+
+/**
+ * Hook for querying maintenance logs of an asset.
+ */
+export function useAssetMaintenanceLogsQuery(
+  workspaceId: number | string | null | undefined,
+  assetId: number | string | null | undefined
+) {
+  return useQuery(assetMaintenanceLogsQueryOptions(workspaceId, assetId));
 }
 

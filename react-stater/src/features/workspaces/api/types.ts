@@ -428,3 +428,124 @@ export interface SyncWorkspaceMediaPayload {
   items: AddWorkspaceMediaPayload[];
 }
 
+// ==========================================
+// Workspace Assets & Maintenance Log Types
+// ==========================================
+
+export type AssetStatus = 'IN_USE' | 'UNDER_MAINTENANCE' | 'BROKEN' | 'RETIRED';
+
+export type MaintenanceType = 'INSPECTION' | 'REPAIR' | 'REPLACEMENT' | 'CLEANING';
+
+export type MaintenanceStatus = 'SCHEDULED' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
+
+export interface WorkspaceAssetDto {
+  id: number;
+  workspaceId: number;
+  assetCode: string;
+  name: string;
+  quantity: number;
+  status: AssetStatus;
+  resourceId?: number | null;
+  resourceName?: string | null;
+  amenityId?: number | null;
+  amenityName?: string | null;
+  purchaseDate?: string | null;
+  purchasePrice?: number | null;
+  warrantyUntil?: string | null;
+  nextMaintenanceDate?: string | null;
+  note?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateWorkspaceAssetPayload {
+  assetCode: string;
+  name: string;
+  quantity?: number;
+  status?: AssetStatus;
+  resourceId?: number | null;
+  amenityId?: number | null;
+  purchaseDate?: string | null;
+  purchasePrice?: number | null;
+  warrantyUntil?: string | null;
+  nextMaintenanceDate?: string | null;
+  note?: string | null;
+}
+
+export interface UpdateWorkspaceAssetPayload {
+  assetCode: string;
+  name: string;
+  quantity: number;
+  status?: AssetStatus;
+  resourceId?: number | null;
+  amenityId?: number | null;
+  purchaseDate?: string | null;
+  purchasePrice?: number | null;
+  warrantyUntil?: string | null;
+  nextMaintenanceDate?: string | null;
+  note?: string | null;
+}
+
+export interface MaintenanceLogDto {
+  id: number;
+  assetId: number;
+  assetCode?: string;
+  assetName?: string;
+  maintenanceType: MaintenanceType;
+  status: MaintenanceStatus;
+  description: string;
+  reportedById?: number | null;
+  reportedByName?: string | null;
+  performedBy?: string | null;
+  cost?: number | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  resultNote?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateMaintenanceLogPayload {
+  maintenanceType: MaintenanceType;
+  status?: MaintenanceStatus;
+  description: string;
+  performedBy?: string | null;
+  cost?: number | null;
+  scheduledAt?: string | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  resultNote?: string | null;
+}
+
+export interface UpdateMaintenanceLogPayload {
+  status?: MaintenanceStatus;
+  performedBy?: string | null;
+  cost?: number | null;
+  startedAt?: string | null;
+  completedAt?: string | null;
+  resultNote?: string | null;
+}
+
+export interface WorkspaceAssetFilterParams {
+  status?: AssetStatus;
+  search?: string;
+  all?: boolean;
+  page?: number;
+  size?: number;
+  sortBy?: string;
+  sortDir?: 'asc' | 'desc';
+}
+
+export interface PaginatedAssetResponse {
+  listObjects: WorkspaceAssetDto[];
+  content?: WorkspaceAssetDto[];
+  pageNumber: number;
+  pageSize: number;
+  totalRecords: number;
+  totalPages: number;
+  hasNext: boolean;
+  hasPrevious: boolean;
+}
+
+
