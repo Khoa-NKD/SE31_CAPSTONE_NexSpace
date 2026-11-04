@@ -61,4 +61,30 @@ public interface IWorkspaceService {
      * @return Trang danh sách WorkspaceDto
      */
     Page<WorkspaceDto> getMyWorkspaces(Long organizerId, WorkspaceStatus status, PageRequestDTO pageRequest);
+
+    /**
+     * Xem chi tiết không gian làm việc cho Organizer hoặc Admin.
+     * Áp dụng Strict Ownership Defense (ném NotFoundException nếu không sở hữu).
+     *
+     * @param organizerId ID của Organizer từ authenticated JWT (null nếu là Admin)
+     * @param workspaceId ID không gian làm việc
+     * @return WorkspaceDetailDto chi tiết không gian
+     */
+    WorkspaceDetailDto getWorkspaceDetail(Long organizerId, Long workspaceId);
+
+    /**
+     * Xem chi tiết không gian làm việc công khai (chỉ xem được workspace ACTIVE).
+     *
+     * @param workspaceId ID không gian làm việc
+     * @return WorkspaceDetailDto chi tiết không gian
+     */
+    WorkspaceDetailDto getPublicWorkspaceDetail(Long workspaceId);
+
+    /**
+     * Xem danh sách không gian làm việc công khai (chỉ hiển thị workspace ACTIVE).
+     *
+     * @param pageRequest Tham số phân trang, tìm kiếm, sắp xếp
+     * @return Trang danh sách WorkspaceDto công khai
+     */
+    Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest);
 }

@@ -19,6 +19,10 @@ public class PageResponseDTO<T> {
     private boolean hasNext;
     private boolean hasPrevious;
 
+    public List<T> getContent() {
+        return listObjects;
+    }
+
     public static <T> PageResponseDTO<T> from(Page<T> page) {
         return new PageResponseDTO<>(
                 page.getContent(),

@@ -30,5 +30,20 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             Pageable pageable);
 
     Optional<WorkspaceModel> findByIdAndOrganizerId(Long id, Long organizerId);
+
+    Optional<WorkspaceModel> findByIdAndStatus(Long id, WorkspaceStatus status);
+
+    @Query("""
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<WorkspaceModel> searchPublic(
+            @Param("status") WorkspaceStatus status,
+            @Param("search") String search,
+            Pageable pageable);
 }
 

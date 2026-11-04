@@ -278,4 +278,58 @@ class WorkspaceServiceImplTest {
         assertThat(result.getContent().get(0).getName()).isEqualTo("Old Name");
         assertThat(result.getContent().get(0).getOrganizerId()).isEqualTo(10L);
     }
+
+    @Test
+    @DisplayName("Xem chi tiết workspace cho Organizer thành công")
+    void getWorkspaceDetail_organizer_success() {
+        when(workspaceRepository.findByIdAndOrganizerId(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+
+        WorkspaceDetailDto result = service.getWorkspaceDetail(10L, 100L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(100L);
+        assertThat(result.getName()).isEqualTo("Old Name");
+        assertThat(result.getOrganizerId()).isEqualTo(10L);
+    }
+
+    @Test
+    @DisplayName("Xem chi tiết workspace: Strict Ownership Defense (ném 404 khi không sở hữu)")
+    void getWorkspaceDetail_notOwner_throwsNotFoundException() {
+        when(workspaceRepository.findByIdAndOrganizerId(100L, 999L)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getWorkspaceDetail(999L, 100L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Không tìm thấy không gian làm việc hoặc bạn không có quyền truy cập");
+    }
+
+    @Test
+    @DisplayName("Xem chi tiết public thành công khi workspace ACTIVE")
+    void getPublicWorkspaceDetail_active_success() {
+        WorkspaceModel activeWorkspace = new WorkspaceModel();
+        activeWorkspace.setId(200L);
+        activeWorkspace.setName("Public Active Workspace");
+        activeWorkspace.setStatus(WorkspaceStatus.ACTIVE);
+        activeWorkspace.setCategory(WorkspaceCategory.COWORKING_HUB);
+        activeWorkspace.setAddress("123 Le Loi");
+        activeWorkspace.setOrganizer(organizer);
+
+        when(workspaceRepository.findByIdAndStatus(200L, WorkspaceStatus.ACTIVE)).thenReturn(Optional.of(activeWorkspace));
+
+        WorkspaceDetailDto result = service.getPublicWorkspaceDetail(200L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(200L);
+        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(result.isListingVisible()).isTrue();
+    }
+
+    @Test
+    @DisplayName("Xem chi tiết public thất bại khi workspace chưa ACTIVE (ném 404)")
+    void getPublicWorkspaceDetail_notActive_throwsNotFoundException() {
+        when(workspaceRepository.findByIdAndStatus(100L, WorkspaceStatus.ACTIVE)).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.getPublicWorkspaceDetail(100L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt");
+    }
 }
