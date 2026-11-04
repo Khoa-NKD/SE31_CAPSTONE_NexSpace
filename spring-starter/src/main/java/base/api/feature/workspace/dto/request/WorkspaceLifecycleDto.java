@@ -24,3 +24,4 @@ public class WorkspaceLifecycleDto {
 
     private Integer expectedVersion;
 }
+
