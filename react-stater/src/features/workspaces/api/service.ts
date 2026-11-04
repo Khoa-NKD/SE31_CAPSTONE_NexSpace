@@ -85,6 +85,7 @@ export const LEGACY_WORKSPACE_ID_MAP: Record<string, string> = {
 export function resolveWorkspaceId(aliasOrId: string): string {
   if (!aliasOrId) return aliasOrId;
   const normalized = aliasOrId.toLowerCase().trim();
+  if (/^\d+$/.test(normalized)) return normalized;
   return LEGACY_WORKSPACE_ID_MAP[normalized] || aliasOrId;
 }
 
