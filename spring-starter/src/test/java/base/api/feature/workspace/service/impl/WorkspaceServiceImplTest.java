@@ -2,6 +2,7 @@ package base.api.feature.workspace.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.entity.RoleModel;
@@ -11,6 +12,7 @@ import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.WorkspaceCategory;
 import base.api.shared.enums.WorkspaceStatus;
+import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -33,6 +35,8 @@ class WorkspaceServiceImplTest {
     private WorkspaceServiceImpl service;
 
     private UserModel organizer;
+    private UserModel otherOrganizer;
+    private WorkspaceModel existingWorkspace;
 
     @BeforeEach
     void setUp() {
@@ -50,6 +54,22 @@ class WorkspaceServiceImplTest {
         organizer.setLastName("Nguyen");
         organizer.setEmail("organizer@nexspace.vn");
         organizer.setRoleEntity(role);
+
+        otherOrganizer = new UserModel();
+        otherOrganizer.setId(20L);
+        otherOrganizer.setUserName("other_organizer");
+        otherOrganizer.setRoleEntity(role);
+
+        existingWorkspace = new WorkspaceModel();
+        existingWorkspace.setId(100L);
+        existingWorkspace.setName("Old Name");
+        existingWorkspace.setCategory(WorkspaceCategory.COWORKING_HUB);
+        existingWorkspace.setDescription("Old Description");
+        existingWorkspace.setAddress("Old Address");
+        existingWorkspace.setDistrict("Quận 1");
+        existingWorkspace.setCity("Hồ Chí Minh");
+        existingWorkspace.setStatus(WorkspaceStatus.DRAFT);
+        existingWorkspace.setOrganizer(organizer);
     }
 
     @Test
@@ -107,5 +127,67 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.createWorkspace(99L, dto))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Organizer không tồn tại");
+    }
+
+    @Test
+    @DisplayName("Cập nhật coworking space thành công bởi chính chủ sở hữu")
+    void updateWorkspace_success() {
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
+                .name("NexSpace Innovation Hub")
+                .category(WorkspaceCategory.CREATIVE_STUDIO)
+                .description("Mô tả mới nâng cấp")
+                .address("456 Nguyễn Huệ")
+                .district("Quận 1")
+                .city("Hồ Chí Minh")
+                .areaSqm(new BigDecimal("750.00"))
+                .supportPhone("0988776655")
+                .bookingConfirmationMode(BookingConfirmationMode.MANUAL_APPROVAL)
+                .build();
+
+        WorkspaceDetailDto result = service.updateWorkspace(10L, 100L, dto);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getName()).isEqualTo("NexSpace Innovation Hub");
+        assertThat(result.getCategory()).isEqualTo(WorkspaceCategory.CREATIVE_STUDIO);
+        assertThat(result.getDescription()).isEqualTo("Mô tả mới nâng cấp");
+        assertThat(result.getAddress()).isEqualTo("456 Nguyễn Huệ");
+        assertThat(result.getAreaSqm()).isEqualByComparingTo(new BigDecimal("750.00"));
+        assertThat(result.getSupportPhone()).isEqualTo("0988776655");
+        assertThat(result.getBookingConfirmationMode()).isEqualTo(BookingConfirmationMode.MANUAL_APPROVAL);
+
+        verify(workspaceRepository).save(existingWorkspace);
+    }
+
+    @Test
+    @DisplayName("Strict Ownership Defense: Cập nhật thất bại ném 404 khi không phải chủ sở hữu")
+    void updateWorkspace_notOwner_throwsNotFoundException() {
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+
+        UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
+                .name("Hacked Name")
+                .build();
+
+        // otherOrganizer ID = 20L khác 10L
+        assertThatThrownBy(() -> service.updateWorkspace(20L, 100L, dto))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Không tìm thấy không gian làm việc với ID: 100");
+    }
+
+    @Test
+    @DisplayName("Cập nhật thất bại khi workspace đã bị lưu trữ (ARCHIVED)")
+    void updateWorkspace_archived_throwsBadRequestException() {
+        existingWorkspace.setStatus(WorkspaceStatus.ARCHIVED);
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+
+        UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
+                .name("New Name")
+                .build();
+
+        assertThatThrownBy(() -> service.updateWorkspace(10L, 100L, dto))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể cập nhật không gian làm việc đã bị lưu trữ");
     }
 }
