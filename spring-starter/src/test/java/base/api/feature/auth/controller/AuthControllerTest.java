@@ -176,11 +176,11 @@ class AuthControllerTest {
     @Test
     @DisplayName("GET /api/auth/verify-email - Click link trong email redirect 302 về Client")
     void verifyEmail_Redirects302() throws Exception {
-        doNothing().when(authService).verifyEmail("email-token-123");
+        when(authService.verifyEmail("email-token-123")).thenReturn("tester@nexspace.vn");
 
         mockMvc.perform(get("/api/auth/verify-email").param("token", "email-token-123"))
                 .andExpect(status().isFound())
-                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173/email/verify-success"));
+                .andExpect(header().string(HttpHeaders.LOCATION, "http://localhost:5173/auth/sign-up?verified=true&email=tester%40nexspace.vn"));
     }
 
     @Test

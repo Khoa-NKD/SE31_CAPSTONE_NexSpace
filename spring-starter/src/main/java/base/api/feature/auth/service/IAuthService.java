@@ -15,7 +15,7 @@ public interface IAuthService {
 
     UserDto register(RegisterDto dto);
 
-    void verifyEmail(String token);
+    String verifyEmail(String token);
 
     void verifyEmailDirect(String token);
 

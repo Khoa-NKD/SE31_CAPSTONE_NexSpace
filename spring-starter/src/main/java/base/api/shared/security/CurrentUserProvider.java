@@ -23,4 +23,11 @@ public class CurrentUserProvider {
                 .map(AuthUser::getId)
                 .orElseThrow(() -> new UnauthorizedException("Chưa đăng nhập"));
     }
+
+    public boolean isAdmin() {
+        return getCurrentUser()
+                .map(user -> user.getAuthorities().stream()
+                        .anyMatch(a -> a.getAuthority().equals("ROLE_ADMIN")))
+                .orElse(false);
+    }
 }

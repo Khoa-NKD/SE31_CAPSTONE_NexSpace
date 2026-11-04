@@ -181,8 +181,8 @@ public class AuthServiceImpl implements IAuthService {
 
     @Override
     @Transactional
-    public void verifyEmail(String token) {
-        verifyEmailInternal(token);
+    public String verifyEmail(String token) {
+        return verifyEmailInternal(token);
     }
 
     @Override
@@ -191,13 +191,19 @@ public class AuthServiceImpl implements IAuthService {
         verifyEmailInternal(token);
     }
 
-    private void verifyEmailInternal(String token) {
+    private String verifyEmailInternal(String token) {
         if (token == null || token.isBlank()) {
             throw new BadRequestException("Token không hợp lệ");
         }
         EmailVerificationTokenModel tokenModel = emailVerificationTokenRepository.findByToken(token.trim())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+
         if (tokenModel.isUsed() || tokenModel.isExpired()) {
+            // Nếu user đã được xác thực trước đó và token đã sử dụng, trả về email an toàn
+            Optional<UserModel> userOpt = userRepository.findById(tokenModel.getUserId());
+            if (userOpt.isPresent() && userOpt.get().isVerified() && tokenModel.isUsed()) {
+                return userOpt.get().getEmail();
+            }
             throw new BadRequestException("Token đã được sử dụng hoặc đã hết hạn");
         }
 
@@ -206,6 +212,7 @@ public class AuthServiceImpl implements IAuthService {
         user.setVerified(true);
         user.setEmailVerifiedAt(LocalDateTime.now());
         tokenModel.setUsed(true);
+        return user.getEmail();
     }
 
     @Override
@@ -299,6 +306,9 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+        if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
+            throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+        }
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);

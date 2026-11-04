@@ -451,6 +451,28 @@ class AuthServiceImplTest {
                 .hasMessageContaining("Mật khẩu xác nhận không khớp");
     }
 
+    @Test
+    @DisplayName("Đặt lại mật khẩu thất bại khi mật khẩu mới trùng mật khẩu hiện tại")
+    void completeForgotPassword_SameAsOldPassword_ThrowsBadRequest() {
+        CompleteForgotPasswordDto dto = new CompleteForgotPasswordDto();
+        dto.setResetToken("valid-token");
+        dto.setNewPassword("Password@123");
+        dto.setConfirmNewPassword("Password@123");
+
+        PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
+        tokenModel.setToken("valid-token");
+        tokenModel.setUserId(activeUser.getId());
+        tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        tokenModel.setUsed(false);
+
+        when(passwordResetTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(tokenModel));
+        when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        assertThatThrownBy(() -> authService.completeForgotPassword(dto))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+    }
+
     // ──────────────────────────────────────────────────────────────────────────
     // 6. XÁC MINH EMAIL (VERIFY EMAIL & RESEND)
     // ──────────────────────────────────────────────────────────────────────────
