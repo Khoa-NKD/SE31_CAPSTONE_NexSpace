@@ -1,11 +1,12 @@
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
-import { routerWithQueryClient } from '@tanstack/react-router-with-query';
+import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
 import { getQueryClient } from '@/lib/query-client';
 import { routeTree } from './routeTree.gen';
 
 export const getRouter = createRouter;
 
 export function createRouter() {
+  // Server renders must not share a user's query state with another request.
   const queryClient = getQueryClient();
 
   const router = createTanStackRouter({
@@ -30,7 +31,8 @@ export function createRouter() {
     )
   });
 
-  return routerWithQueryClient(router, queryClient);
+  setupRouterSsrQueryIntegration({ router, queryClient });
+  return router;
 }
 
 declare module '@tanstack/react-router' {

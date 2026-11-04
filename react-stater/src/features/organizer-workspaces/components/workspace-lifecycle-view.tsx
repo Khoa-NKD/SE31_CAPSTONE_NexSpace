@@ -58,15 +58,17 @@ import {
   useUpdateWorkspaceMutation
 } from '@/features/workspaces/api';
 import { mapCanonicalToOrganizerWorkspace } from '../utils/workspace-mapper';
+import { WorkspaceAssetsManager } from '@/features/organizer-assets/components/workspace-assets-manager';
 
 // Mock organizer identity: Sarah Jenkins / LoftSpaces Hospitality Group
 const CURRENT_ORGANIZER_ID = 'USR-9432';
 
 interface WorkspaceLifecycleViewProps {
   workspaceId?: string;
+  initialTab?: 'overview' | 'bookings' | 'settings' | 'audit' | 'assets';
 }
 
-export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewProps) {
+export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }: WorkspaceLifecycleViewProps) {
   const router = useRouter();
   const {
     workspaces,
@@ -124,7 +126,7 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
   const isArchived = activeWorkspace?.status === 'ARCHIVED';
   const canToggleVisibility = !isDetailError && !isDraftOrPending && !isSuspended && activeWorkspace?.status === 'ACTIVE' && Boolean(canonicalWorkspace);
 
-  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'settings' | 'audit'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'settings' | 'audit' | 'assets'>(initialTab);
 
   // Confirmation dialogs
   const [isPauseModalOpen, setIsPauseModalOpen] = useState(false);
@@ -688,6 +690,19 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
               <History className='size-4' />
               <span>Audit Logs &amp; Governance</span>
             </button>
+
+            <button
+              type='button'
+              onClick={() => setActiveTab('assets')}
+              className={`pb-3 text-xs sm:text-sm font-bold flex items-center gap-2 border-b-2 transition-colors whitespace-nowrap ${
+                activeTab === 'assets'
+                  ? 'text-indigo-600 dark:text-indigo-400 border-indigo-600 dark:border-indigo-400'
+                  : 'text-muted-foreground border-transparent hover:text-foreground'
+              }`}
+            >
+              <Wrench className='size-4' />
+              <span>Cơ sở vật chất &amp; Bảo trì</span>
+            </button>
           </div>
 
           {/* Tab 1: Overview & Traffic */}
@@ -1060,6 +1075,21 @@ export function WorkspaceLifecycleView({ workspaceId }: WorkspaceLifecycleViewPr
                   </div>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Tab 5: Workspace Assets & Maintenance */}
+          {activeTab === 'assets' && (
+            <div className='p-6'>
+              <WorkspaceAssetsManager
+                workspaceId={
+                  workspaceId && !isNaN(Number(workspaceId))
+                    ? Number(workspaceId)
+                    : activeWorkspace?.id && !isNaN(Number(activeWorkspace.id))
+                      ? Number(activeWorkspace.id)
+                      : 1
+                }
+              />
             </div>
           )}
         </section>

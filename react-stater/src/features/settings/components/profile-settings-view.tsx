@@ -112,6 +112,10 @@ export function ProfileSettingsView() {
       toast.error('Mật khẩu mới phải có tối thiểu 8 ký tự!');
       return;
     }
+    if (newPassword === oldPassword) {
+      toast.error('Mật khẩu mới không được trùng với mật khẩu hiện tại!');
+      return;
+    }
 
     startChangePassword(async () => {
       try {

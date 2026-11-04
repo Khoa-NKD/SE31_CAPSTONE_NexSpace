@@ -9,14 +9,18 @@ build
 .output
 .vercel
 .vinxi
+.vite
+.tanstack
 *.tsbuildinfo
 
 # TanStack Router generated
 src/routeTree.gen.ts
 
-# Environment variables
+# Environment variables & Secrets
 .env
 .env*.local
+.gist-url
+.config-url
 
 # IDEs and editors
 .vscode/*
