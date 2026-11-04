@@ -290,3 +290,27 @@ export function useUploadMediaMutation() {
     }
   });
 }
+
+
+/**
+ * TanStack Query mutation hook for soft-deleting / archiving a workspace.
+ */
+export function useDeleteWorkspaceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CanonicalWorkspace, Error, string>({
+    mutationFn: (id: string) => workspaceService.deleteWorkspace(id),
+
+    onSuccess: (archived) => {
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+      toast.success('Workspace Archived', {
+        description: `Successfully archived "${archived.name}".`
+      });
+    },
+
+    onError: (err: unknown) => {
+      const msg = err instanceof ApiError ? err.message : 'Could not archive workspace.';
+      toast.error('Archive Failed', { description: msg });
+    }
+  });
+}
