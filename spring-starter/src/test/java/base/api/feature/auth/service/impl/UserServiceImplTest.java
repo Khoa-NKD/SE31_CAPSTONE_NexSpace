@@ -1,11 +1,16 @@
 package base.api.feature.auth.service.impl;
 
 import base.api.feature.auth.dto.request.ChangePasswordDto;
+import base.api.feature.auth.dto.request.UpdateProfileDto;
+import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.governance.service.IAuditService;
+import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
+import base.api.feature.workspace.service.IMediaStorageService;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.enums.AuditActorType;
+import base.api.shared.enums.UserGender;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
@@ -13,9 +18,12 @@ import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.io.IOException;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
 
@@ -32,6 +40,7 @@ class UserServiceImplTest {
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
     private IUserRepository userRepository;
     private IAuditService auditService;
+    private IMediaStorageService mediaStorageService;
     private UserServiceImpl service;
     private UserModel user;
     private UserModel admin;
@@ -40,7 +49,8 @@ class UserServiceImplTest {
     void setUp() {
         userRepository = mock(IUserRepository.class);
         auditService = mock(IAuditService.class);
-        service = new UserServiceImpl(userRepository, passwordEncoder, auditService);
+        mediaStorageService = mock(IMediaStorageService.class);
+        service = new UserServiceImpl(userRepository, passwordEncoder, auditService, mediaStorageService);
 
         user = new UserModel();
         user.setId(1L);
@@ -67,6 +77,263 @@ class UserServiceImplTest {
         dto.setNewPassword(newPw);
         dto.setConfirmNewPassword(confirm);
         return dto;
+    }
+
+    @Test
+    @DisplayName("Cập nhật thông tin hồ sơ thành công")
+    void updateProfileUpdatesAllFieldsSuccessfully() {
+        UpdateProfileDto dto = UpdateProfileDto.builder()
+                .firstName("John")
+                .lastName("Doe")
+                .phone("0912345678")
+                .birthDate(LocalDate.now().minusYears(20))
+                .gender(UserGender.MALE)
+                .avatar("https://res.cloudinary.com/demo/image/upload/sample.jpg")
+                .build();
+
+        UserDto result = service.updateProfile(1L, dto);
+
+        assertThat(result.getFirstName()).isEqualTo("John");
+        assertThat(result.getLastName()).isEqualTo("Doe");
+        assertThat(result.getPhone()).isEqualTo("0912345678");
+        assertThat(result.getGender()).isEqualTo(UserGender.MALE);
+        assertThat(result.getAvatar()).isEqualTo("https://res.cloudinary.com/demo/image/upload/sample.jpg");
+    }
+
+    @Test
+    @DisplayName("Cập nhật thông tin hồ sơ với họ và tên tiếng Việt có dấu và dấu cách")
+    void updateProfileSupportsVietnameseNamesWithSpaces() {
+        UpdateProfileDto dto = UpdateProfileDto.builder()
+                .firstName("Anh Tuấn")
+                .lastName("Nguyễn Đăng")
+                .phone("0912345678")
+                .build();
+
+        UserDto result = service.updateProfile(1L, dto);
+
+        assertThat(result.getFirstName()).isEqualTo("Anh Tuấn");
+        assertThat(result.getLastName()).isEqualTo("Nguyễn Đăng");
+    }
+
+    @Test
+    @DisplayName("Cập nhật hồ sơ thành công cho người dùng với ngày sinh trong quá khứ")
+    void updateProfileAllowsValidBirthDate() {
+        UpdateProfileDto dto = UpdateProfileDto.builder()
+                .firstName("Tuấn")
+                .birthDate(LocalDate.now().minusYears(16))
+                .build();
+
+        UserDto result = service.updateProfile(1L, dto);
+
+        assertThat(result.getFirstName()).isEqualTo("Tuấn");
+        assertThat(result.getBirthDate()).isEqualTo(LocalDate.now().minusYears(16));
+    }
+
+    @Test
+    @DisplayName("Cập nhật hồ sơ với chuỗi avatar rỗng sẽ xóa avatar cũ của người dùng")
+    void updateProfileWithEmptyAvatarDeletesOldAvatar() {
+        user.setAvatar("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/old.jpg");
+
+        UpdateProfileDto dto = UpdateProfileDto.builder()
+                .firstName("Tuấn")
+                .avatar("")
+                .build();
+
+        UserDto result = service.updateProfile(1L, dto);
+
+        assertThat(result.getAvatar()).isNull();
+        verify(mediaStorageService).deleteImage(eq("nexspace/avatars/old"), eq(1L));
+    }
+
+    @Test
+    @DisplayName("Cập nhật hồ sơ cá nhân kèm tải ảnh từ máy tính (ảnh local) qua multipart thành công")
+    void updateProfileWithMultipartUsingLocalFileSuccess() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1, 2, 3});
+        MediaUploadResponseDto uploadResponse = MediaUploadResponseDto.builder()
+                .url("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/uploaded.png")
+                .publicId("nexspace/avatars/uploaded")
+                .build();
+        when(mediaStorageService.uploadImage(any(), eq("nexspace/avatars"), eq(1L))).thenReturn(uploadResponse);
+
+        base.api.feature.auth.dto.request.UpdateProfileMultipartDto dto = base.api.feature.auth.dto.request.UpdateProfileMultipartDto.builder()
+                .firstName("Phong")
+                .file(file)
+                .build();
+
+        UserDto result = service.updateProfileWithMultipart(1L, dto);
+
+        assertThat(result.getFirstName()).isEqualTo("Phong");
+        assertThat(result.getAvatar()).isEqualTo("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/uploaded.png");
+    }
+
+    @Test
+    @DisplayName("Cập nhật hồ sơ cá nhân kèm link ảnh trên mạng qua multipart thành công")
+    void updateProfileWithMultipartUsingWebUrlSuccess() {
+        base.api.feature.auth.dto.request.UpdateProfileMultipartDto dto = base.api.feature.auth.dto.request.UpdateProfileMultipartDto.builder()
+                .firstName("Phong")
+                .avatar("https://images.unsplash.com/photo-sample.jpg")
+                .build();
+
+        UserDto result = service.updateProfileWithMultipart(1L, dto);
+
+        assertThat(result.getFirstName()).isEqualTo("Phong");
+        assertThat(result.getAvatar()).isEqualTo("https://images.unsplash.com/photo-sample.jpg");
+    }
+
+    @Test
+    @DisplayName("Cách 1: Cập nhật ảnh đại diện bằng đường dẫn mạng (URL) thành công")
+    void updateAvatarUrlSuccess() {
+        String webUrl = "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500";
+
+        UserDto result = service.updateAvatarUrl(1L, webUrl);
+
+        assertThat(result.getAvatar()).isEqualTo(webUrl);
+        verify(auditService).log(
+                eq(user),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_AVATAR_UPDATED"),
+                eq("UserModel"),
+                eq(1L),
+                eq(null),
+                eq(webUrl),
+                eq("Cập nhật ảnh đại diện bằng đường dẫn mạng"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Cập nhật ảnh đại diện bằng link mạng thất bại khi không bắt đầu bằng http:// hoặc https://")
+    void updateAvatarUrlRejectsInvalidProtocol() {
+        assertThatThrownBy(() -> service.updateAvatarUrl(1L, "ftp://example.com/avatar.png"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("phải bắt đầu bằng http:// hoặc https://");
+    }
+
+    @Test
+    @DisplayName("Cập nhật ảnh đại diện bằng link rỗng sẽ tự động chuyển thành xóa ảnh đại diện")
+    void updateAvatarUrlWithBlankDeletesAvatar() {
+        user.setAvatar("https://images.unsplash.com/old-avatar.jpg");
+
+        UserDto result = service.updateAvatarUrl(1L, "   ");
+
+        assertThat(result.getAvatar()).isNull();
+    }
+
+    @Test
+    @DisplayName("Cách 2: Tải lên ảnh đại diện từ máy tính (local file) thành công")
+    void uploadAvatarSuccess() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1, 2, 3});
+
+        MediaUploadResponseDto uploadResponse = MediaUploadResponseDto.builder()
+                .url("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/new-avatar.png")
+                .publicId("nexspace/avatars/new-avatar")
+                .build();
+
+        when(mediaStorageService.uploadImage(any(), eq("nexspace/avatars"), eq(1L))).thenReturn(uploadResponse);
+
+        UserDto result = service.uploadAvatar(1L, file);
+
+        assertThat(result.getAvatar()).isEqualTo("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/new-avatar.png");
+        verify(auditService).log(
+                eq(user),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_AVATAR_UPDATED"),
+                eq("UserModel"),
+                eq(1L),
+                eq(null),
+                eq("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/new-avatar.png"),
+                eq("Tải lên ảnh đại diện từ máy tính"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Tải lên ảnh đại diện thất bại khi file rỗng")
+    void uploadAvatarRejectsEmptyFile() {
+        MockMultipartFile emptyFile = new MockMultipartFile("file", "empty.jpg", "image/jpeg", new byte[0]);
+
+        assertThatThrownBy(() -> service.uploadAvatar(1L, emptyFile))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Vui lòng chọn file ảnh để tải lên");
+    }
+
+    @Test
+    @DisplayName("Tải lên ảnh đại diện thất bại khi dung lượng file vượt quá 5MB")
+    void uploadAvatarRejectsFileSizeOverLimit() {
+        byte[] largeBytes = new byte[5 * 1024 * 1024 + 1];
+        MockMultipartFile largeFile = new MockMultipartFile("file", "large.jpg", "image/jpeg", largeBytes);
+
+        assertThatThrownBy(() -> service.uploadAvatar(1L, largeFile))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Dung lượng file vượt quá giới hạn");
+    }
+
+    @Test
+    @DisplayName("Tải lên ảnh đại diện thất bại khi định dạng không phải ảnh")
+    void uploadAvatarRejectsInvalidMimeType() {
+        MockMultipartFile pdfFile = new MockMultipartFile("file", "doc.pdf", "application/pdf", new byte[]{1, 2, 3});
+
+        assertThatThrownBy(() -> service.uploadAvatar(1L, pdfFile))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Định dạng file không hợp lệ");
+    }
+
+    @Test
+    @DisplayName("Xóa ảnh đại diện thành công và dọn dẹp storage")
+    void deleteAvatarSuccess() {
+        user.setAvatar("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/avatar.jpg");
+
+        UserDto result = service.deleteAvatar(1L);
+
+        assertThat(result.getAvatar()).isNull();
+        verify(mediaStorageService).deleteImage(eq("nexspace/avatars/avatar"), eq(1L));
+        verify(auditService).log(
+                eq(user),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_AVATAR_DELETED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("https://res.cloudinary.com/demo/image/upload/v1/nexspace/avatars/avatar.jpg"),
+                eq(null),
+                eq("Xóa ảnh đại diện"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Cập nhật avatar bằng DTO multipart kèm file ảnh tải từ máy tính")
+    void updateAvatarMultipartWithFileSuccess() {
+        MockMultipartFile file = new MockMultipartFile("file", "avatar.png", "image/png", new byte[]{1, 2, 3});
+        when(mediaStorageService.uploadImage(any(), eq("nexspace/avatars"), eq(1L)))
+                .thenReturn(MediaUploadResponseDto.builder()
+                        .url("https://res.cloudinary.com/new.png")
+                        .publicId("nexspace/avatars/new")
+                        .build());
+
+        base.api.feature.auth.dto.request.UpdateAvatarMultipartDto dto =
+                base.api.feature.auth.dto.request.UpdateAvatarMultipartDto.builder()
+                        .file(file)
+                        .build();
+
+        UserDto result = service.updateAvatar(1L, dto);
+
+        assertThat(result.getAvatar()).isEqualTo("https://res.cloudinary.com/new.png");
+    }
+
+    @Test
+    @DisplayName("Cập nhật avatar bằng DTO multipart kèm link ảnh mạng")
+    void updateAvatarMultipartWithUrlSuccess() {
+        base.api.feature.auth.dto.request.UpdateAvatarMultipartDto dto =
+                base.api.feature.auth.dto.request.UpdateAvatarMultipartDto.builder()
+                        .avatarUrl("https://images.unsplash.com/sample.jpg")
+                        .build();
+
+        UserDto result = service.updateAvatar(1L, dto);
+
+        assertThat(result.getAvatar()).isEqualTo("https://images.unsplash.com/sample.jpg");
     }
 
     @Test
