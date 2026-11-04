@@ -25,6 +25,12 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(base.api.feature.organizer.service.PrivateDocumentUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handlePrivateDocumentUnavailable(
+            base.api.feature.organizer.service.PrivateDocumentUnavailableException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.BAD_GATEWAY);
+    }
+
     @ExceptionHandler(base.api.feature.organizer.service.OrganizerApplicationValidationException.class)
     public ResponseEntity<ApiResponse<Void>> handleApplicationValidation(
             base.api.feature.organizer.service.OrganizerApplicationValidationException ex) {

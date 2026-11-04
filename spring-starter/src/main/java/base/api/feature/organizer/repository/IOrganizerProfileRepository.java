@@ -28,6 +28,15 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
 
     Page<OrganizerProfileModel> findByStatus(OrganizerProfileStatus status, Pageable pageable);
 
+    /** Match the submitted-list scope and fetch the applicant/role in one query. */
+    @Query("""
+            SELECT p FROM OrganizerProfileModel p
+            JOIN FETCH p.organizer u JOIN FETCH u.roleEntity
+            WHERE p.id = :applicationId AND p.submittedAt IS NOT NULL
+              AND p.status <> base.api.shared.enums.OrganizerProfileStatus.DRAFT
+            """)
+    Optional<OrganizerProfileModel> findSubmittedApplicationDetails(@Param("applicationId") Long applicationId);
+
     /** Constructor projection avoids loading user roles/documents or triggering per-row lazy reads. */
     @Query(value = """
             SELECT new base.api.feature.organizer.dto.response.AdminOrganizerApplicationResponse(

@@ -1,6 +1,7 @@
 package base.api.feature.organizer.service;
 
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.NotFoundException;
 import base.api.feature.workspace.service.impl.CloudinaryStorageServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -40,6 +41,42 @@ public class PrivateOrganizerDocumentStorage {
     }
 
     public record StoredDocument(String key, String originalName) {}
+    public record DocumentContent(byte[] bytes, String contentType) {}
+
+    /** Read only internally stored references; never accept a URL or filesystem path from an HTTP request. */
+    public DocumentContent read(String key) {
+        if (key == null) throw new PrivateDocumentUnavailableException();
+        byte[] bytes;
+        if (key.startsWith(CloudinaryStorageServiceImpl.PRIVATE_DOCUMENT_REFERENCE_PREFIX)) {
+            if (cloudinaryStorage == null) throw new PrivateDocumentUnavailableException();
+            bytes = cloudinaryStorage.readPrivateDocument(key);
+        } else {
+            if (!key.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.(jpg|jpeg|png|pdf)")) {
+                throw new PrivateDocumentUnavailableException();
+            }
+            try {
+                if (directory.isBlank() || !Path.of(directory).isAbsolute()) throw new PrivateDocumentUnavailableException();
+                Path configured = Path.of(directory).normalize();
+                rejectPublicDirectory(configured);
+                if (!Files.exists(configured, LinkOption.NOFOLLOW_LINKS)) throw new NotFoundException("Verification document file not found");
+                if (Files.isSymbolicLink(configured)) throw new PrivateDocumentUnavailableException();
+                Path root = configured.toRealPath();
+                rejectPublicDirectory(root);
+                Path target = root.resolve(key);
+                if (!Files.isRegularFile(target, LinkOption.NOFOLLOW_LINKS)) throw new NotFoundException("Verification document file not found");
+                try (var input = Files.newInputStream(target, LinkOption.NOFOLLOW_LINKS)) {
+                    bytes = input.readNBytes((int) MAX_BYTES + 1);
+                }
+            } catch (IOException ex) {
+                throw new PrivateDocumentUnavailableException();
+            }
+        }
+        if (bytes == null || bytes.length == 0 || bytes.length > MAX_BYTES) throw new PrivateDocumentUnavailableException();
+        for (var type : new String[][]{{"jpg", "image/jpeg"}, {"png", "image/png"}, {"pdf", "application/pdf"}}) {
+            if (matchesType(type[0], type[1], bytes)) return new DocumentContent(bytes, type[1]);
+        }
+        throw new PrivateDocumentUnavailableException();
+    }
 
     public StoredDocument store(MultipartFile file) {
         String name = file.getOriginalFilename();
