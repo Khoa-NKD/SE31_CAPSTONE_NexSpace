@@ -9,10 +9,22 @@ import java.time.LocalDateTime;
 public record OrganizerApplicationDetailsResponse(
         Long id, OrganizerProfileStatus status, LocalDateTime submittedAt,
         String legalName, BusinessType businessType, String taxId, String representativeName,
-        String address, String contactPhone, String contactEmail) {
+        String address, String contactPhone, String contactEmail,
+        LocalDateTime reviewedAt, String reviewFeedback) {
+    /** Preserve existing internal callers while adding optional owner-facing review metadata. */
+    public OrganizerApplicationDetailsResponse(Long id, OrganizerProfileStatus status, LocalDateTime submittedAt,
+            String legalName, BusinessType businessType, String taxId, String representativeName,
+            String address, String contactPhone, String contactEmail) {
+        this(id, status, submittedAt, legalName, businessType, taxId, representativeName, address,
+                contactPhone, contactEmail, null, null);
+    }
+
     public static OrganizerApplicationDetailsResponse from(OrganizerProfileModel profile) {
+        boolean feedbackVisible = profile.getStatus() == OrganizerProfileStatus.REJECTED
+                || profile.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED;
         return new OrganizerApplicationDetailsResponse(profile.getId(), profile.getStatus(), profile.getSubmittedAt(),
                 profile.getLegalName(), profile.getBusinessType(), profile.getTaxId(), profile.getRepresentativeName(),
-                profile.getAddress(), profile.getContactPhone(), profile.getContactEmail());
+                profile.getAddress(), profile.getContactPhone(), profile.getContactEmail(),
+                profile.getReviewedAt(), feedbackVisible ? profile.getReviewFeedback() : null);
     }
 }
