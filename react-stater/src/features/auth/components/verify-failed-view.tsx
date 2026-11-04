@@ -1,5 +1,5 @@
-import React, { useState, useTransition } from 'react';
-import { Link } from '@tanstack/react-router';
+import React, { useState, useEffect, useTransition } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { ChevronDown, Check, ArrowLeft, XCircle, ShieldAlert, ArrowRight, RotateCw, Mail } from 'lucide-react';
 import {
@@ -14,12 +14,34 @@ import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 import { authService } from '../api/auth-service';
 import { toast } from 'sonner';
+import { subscribeAuthSync } from '../utils/auth-sync';
 
 export default function VerifyFailedViewPage() {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage } = useLanguage();
+  const navigate = useNavigate();
   const [emailInput, setEmailInput] = useState('');
   const [isResending, startResend] = useTransition();
   const [resendCooldown, setResendCooldown] = useState(0);
+
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'EMAIL_VERIFIED_SUCCESS') {
+        toast.success('Tài khoản của bạn đã được xác thực thành công!');
+        navigate({ to: '/auth/sign-in' });
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
+
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (resendCooldown > 0) {
+      timer = setInterval(() => {
+        setResendCooldown((prev) => Math.max(0, prev - 1));
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
 
   const handleResend = (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,10 +127,10 @@ export default function VerifyFailedViewPage() {
                 "
               </div>
               <p className='font-headline-sm text-headline-sm lg:text-headline-md font-semibold text-white tracking-tight -mt-4 leading-snug'>
-                Time-limited links protect your account against credential harvesting.
+                Security is our foundational pillar.
               </p>
               <p className='font-body-base text-body-base text-slate-300'>
-                You can easily request a fresh verification link anytime.
+                Expired or invalid links protect your personal and corporate assets from intrusion.
               </p>
             </div>
           </div>
@@ -129,7 +151,7 @@ export default function VerifyFailedViewPage() {
             className='inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none cursor-pointer'
           >
             <ArrowLeft className='h-4 w-4' />
-            {language === 'vi' ? 'Quay về đăng nhập' : 'Back to Sign In'}
+            {language === 'vi' ? 'Quay lại đăng nhập' : 'Back to Sign In'}
           </Link>
 
           {/* Micro-Utility Capsule */}
@@ -191,68 +213,75 @@ export default function VerifyFailedViewPage() {
         {/* Center Card Content */}
         <main className='flex flex-1 flex-col items-center justify-center py-10'>
           <div className='w-full max-w-[440px] text-center space-y-6'>
-            {/* Warning Icon */}
-            <div className='w-20 h-20 rounded-full bg-red-50 dark:bg-red-950/70 border border-red-500/30 text-red-600 dark:text-red-400 flex items-center justify-center mx-auto shadow-lg'>
-              <XCircle className='w-10 h-10 stroke-[2.5]' />
+            {/* Error Icon */}
+            <div className='relative mx-auto w-20 h-20'>
+              <div className='relative w-20 h-20 rounded-full bg-rose-100 dark:bg-rose-950/70 border border-rose-500/30 text-rose-600 dark:text-rose-400 flex items-center justify-center shadow-lg'>
+                <XCircle className='w-10 h-10 stroke-[2.5]' />
+              </div>
             </div>
 
             <div className='space-y-2'>
               <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white'>
-                {language === 'vi' ? 'Xác thực không thành công' : 'Verification Unsuccessful'}
+                {language === 'vi' ? 'Liên kết không hợp lệ' : 'Invalid or Expired Link'}
               </h1>
               <p className='text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto'>
                 {language === 'vi'
-                  ? 'Đường dẫn xác thực của bạn không hợp lệ hoặc đã hết hạn (sau 24 giờ). Vui lòng nhập email để nhận liên kết xác thực mới.'
-                  : 'Your verification link is invalid or has expired (after 24 hours). Please enter your email to request a new link.'}
+                  ? 'Liên kết xác thực tài khoản này đã hết hạn hoặc đã được sử dụng trước đó. Vui lòng yêu cầu gửi lại liên kết mới bên dưới.'
+                  : 'This activation link has expired or has already been used. Please request a new link below.'}
               </p>
             </div>
 
-            {/* Resend Verification Inline Form */}
-            <form onSubmit={handleResend} className='space-y-3 pt-2 text-left'>
+            {/* Resend Form */}
+            <form onSubmit={handleResend} className='pt-2 space-y-3.5 text-left'>
               <div>
                 <label className='block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5'>
-                  {language === 'vi' ? 'Địa chỉ email của bạn:' : 'Your Email Address:'}
+                  {language === 'vi' ? 'Địa chỉ email tài khoản của bạn:' : 'Your account email:'}
                 </label>
                 <div className='relative'>
+                  <Mail className='w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2' />
                   <input
                     type='email'
                     value={emailInput}
                     onChange={(e) => setEmailInput(e.target.value)}
-                    placeholder='your-email@company.com'
-                    className='w-full h-11 px-3.5 pl-10 bg-surface-card dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600'
+                    placeholder='you@example.com'
+                    required
+                    className='w-full h-11 pl-10 pr-4 bg-surface-card dark:bg-slate-900 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600'
                   />
-                  <Mail className='w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none' />
                 </div>
               </div>
 
               <button
                 type='submit'
-                disabled={isResending || resendCooldown > 0}
-                className='w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md transition-all cursor-pointer'
+                disabled={resendCooldown > 0 || isResending}
+                className={cn(
+                  'w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-indigo-600/25 cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed',
+                  isResending && 'cursor-wait'
+                )}
               >
                 {isResending ? (
                   <RotateCw className='w-4 h-4 animate-spin' />
                 ) : (
-                  <>
-                    <span>{resendCooldown > 0 ? `Đã gửi (Chờ ${resendCooldown}s)` : 'Gửi lại link xác thực'}</span>
-                    <ArrowRight className='w-4 h-4 stroke-[2.5]' />
-                  </>
+                  <ArrowRight className='w-4 h-4 stroke-[2.5]' />
                 )}
+                <span>
+                  {resendCooldown > 0
+                    ? `Gửi lại sau (${resendCooldown}s)`
+                    : language === 'vi'
+                      ? 'Gửi lại link xác thực mới'
+                      : 'Resend Verification Link'}
+                </span>
               </button>
-            </form>
 
-            <div className='pt-2'>
               <Link
-                to='/auth/sign-in'
-                className='text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline'
+                to='/auth/sign-up'
+                className='w-full h-10 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium rounded-lg flex items-center justify-center transition-all'
               >
-                {language === 'vi' ? 'Đã kích hoạt? Đăng nhập ngay' : 'Already verified? Sign in here'}
+                <span>{language === 'vi' ? 'Quay về trang Đăng ký' : 'Back to Sign Up'}</span>
               </Link>
-            </div>
+            </form>
           </div>
         </main>
       </motion.div>
     </div>
   );
 }
-

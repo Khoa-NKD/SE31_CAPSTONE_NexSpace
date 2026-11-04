@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
   CloudUpload,
@@ -34,21 +34,30 @@ import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { mediaGallerySchema } from '../schemas/wizard-schemas';
 import type { MediaItem } from '../types/wizard';
-import { useUploadMediaMutation } from '@/features/workspaces/api';
+import { useUploadMediaMutation, workspaceService, workspaceQueryKeys } from '@/features/workspaces/api';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
 
-export function StepMediaGalleryView() {
+export interface StepMediaGalleryViewProps {
+  routeWorkspaceId?: string;
+  routeMode?: 'create' | 'edit';
+}
+
+export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaGalleryViewProps = {}) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const uploadMediaMutation = useUploadMediaMutation();
   const fileRefMap = useRef<Map<string, File>>(new Map());
 
   const {
+    canonicalWorkspaceId,
     basicInfo,
     location,
     operatingHours,
     amenities,
     media,
+    setMediaGallery,
     addMediaItem,
     updateMediaItem,
     removeMediaItem,
@@ -57,6 +66,62 @@ export function StepMediaGalleryView() {
     saveDraft
   } = useWizardStore();
   const { saveDraftToServer, isSaving } = useWizardDraftSync();
+
+  // Mode resolution:
+  // If routeMode === 'create', strictly create mode (empty gallery, no server fetch).
+  // If routeWorkspaceId exists, or if routeMode === 'edit' (with canonicalWorkspaceId), it is edit mode.
+  const isExplicitCreate = routeMode === 'create';
+  const hasRouteWsId = Boolean(routeWorkspaceId);
+  const isEditMode = !isExplicitCreate && (hasRouteWsId || (routeMode === 'edit' && Boolean(canonicalWorkspaceId)));
+  const activeWorkspaceId = isExplicitCreate ? undefined : (routeWorkspaceId || (routeMode === 'edit' ? canonicalWorkspaceId : undefined));
+  const numericWsId = activeWorkspaceId ? Number(activeWorkspaceId.replace(/\D/g, '')) : undefined;
+
+  // Fetch existing media from backend if in edit mode
+  const {
+    data: backendMediaList,
+    isLoading: isLoadingBackendMedia
+  } = useQuery({
+    queryKey: workspaceQueryKeys.media(numericWsId || 0),
+    queryFn: () => workspaceService.getWorkspaceMedia(numericWsId!),
+    enabled: isEditMode && Boolean(numericWsId),
+    staleTime: 10 * 1000
+  });
+
+  const hasHydratedBackendRef = useRef(false);
+
+  useEffect(() => {
+    if (!isEditMode || !backendMediaList || hasHydratedBackendRef.current) return;
+    hasHydratedBackendRef.current = true;
+
+    const mappedItems: MediaItem[] = backendMediaList.map((m) => ({
+      id: String(m.id),
+      url: m.url,
+      name: `Photo #${m.id}`,
+      caption: '',
+      dimension: 'Standard High-Res',
+      isCover: Boolean(m.cover ?? m.isCover),
+      uploadStatus: 'uploaded' as const
+    }));
+
+    const coverItem = mappedItems.find((i) => i.isCover) || mappedItems[0];
+
+    setMediaGallery({
+      items: mappedItems,
+      coverPhotoId: coverItem?.id || ''
+    });
+  }, [isEditMode, backendMediaList, setMediaGallery]);
+
+  // In create mode: clear any legacy mock photos so the gallery starts completely empty
+  useEffect(() => {
+    if (!isEditMode) {
+      const hasMockPhotos = media.items.some(
+        (item) => item.id.startsWith('media-') && item.url.includes('unsplash.com')
+      );
+      if (hasMockPhotos) {
+        setMediaGallery({ items: [], coverPhotoId: '' });
+      }
+    }
+  }, [isEditMode, media.items, setMediaGallery]);
 
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
@@ -81,10 +146,12 @@ export function StepMediaGalleryView() {
         uploadError: undefined
       });
       toast.success('Photo Uploaded', {
-        description: `${file.name} saved to local development storage.`
+        description: `${file.name} successfully uploaded to media storage.`
       });
-      // Synchronize newly durable media to server canonical draft
-      await saveDraftToServer({ silent: true });
+      // In edit mode: Synchronize newly durable media to server
+      if (activeWorkspaceId) {
+        await syncMediaToBackend(activeWorkspaceId);
+      }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Media upload failed';
       updateMediaItem(id, {
@@ -119,7 +186,7 @@ export function StepMediaGalleryView() {
     }
 
     const acceptedTypes = ['image/png', 'image/jpeg', 'image/webp'];
-    const maxSizeBytes = 10 * 1024 * 1024; // 10MB
+    const maxSizeBytes = 5 * 1024 * 1024; // 5MB limit (BR-37)
 
     const filesToUpload: { id: string; file: File }[] = [];
     let addedCount = 0;
@@ -133,7 +200,7 @@ export function StepMediaGalleryView() {
 
       if (file.size > maxSizeBytes) {
         toast.error('File Too Large', {
-          description: `${file.name} exceeds 10MB limit.`
+          description: `${file.name} exceeds 5MB limit (BR-37). Please select an image under 5MB.`
         });
         return;
       }
@@ -193,6 +260,11 @@ export function StepMediaGalleryView() {
     toast.info('Photo Removed', {
       description: `${name} has been removed from the gallery.`
     });
+    if (activeWorkspaceId) {
+      setTimeout(() => {
+        void syncMediaToBackend(activeWorkspaceId);
+      }, 50);
+    }
   };
 
   const handleSetCover = (id: string, name: string) => {
@@ -200,21 +272,77 @@ export function StepMediaGalleryView() {
     toast.success('Cover Photo Updated', {
       description: `${name} designated as primary cover photo.`
     });
+    if (activeWorkspaceId) {
+      setTimeout(() => {
+        void syncMediaToBackend(activeWorkspaceId);
+      }, 50);
+    }
   };
 
   const handleMove = (index: number, direction: 'left' | 'right') => {
     const toIndex = direction === 'left' ? index - 1 : index + 1;
     reorderMediaItems(index, toIndex);
+    if (activeWorkspaceId) {
+      setTimeout(() => {
+        void syncMediaToBackend(activeWorkspaceId);
+      }, 50);
+    }
+  };
+
+  // -----------------------------------------------------------------------------------------------
+  // Synchronizes media gallery photos to backend
+  // In edit mode: syncs directly to the workspace being edited.
+  // In create mode: syncs once draft record is initialized.
+  // -----------------------------------------------------------------------------------------------
+  const syncMediaToBackend = async (workspaceIdStr?: string) => {
+    const rawId = workspaceIdStr || activeWorkspaceId;
+    if (!rawId) return;
+    const numericMatch = rawId.match(/\d+/);
+    const wsId = numericMatch ? Number(numericMatch[0]) : undefined;
+    if (!wsId || Number.isNaN(wsId)) return;
+
+    try {
+      const currentMedia = useWizardStore.getState().media;
+      const durableItems = currentMedia.items.filter((item) => isDurableMediaUrl(item.url));
+
+      const items = durableItems.map((item, index) => ({
+        url: item.url,
+        isCover: item.id === currentMedia.coverPhotoId || item.isCover || (index === 0 && !currentMedia.coverPhotoId),
+        displayOrder: index,
+        mediaType: 'IMAGE' as const
+      }));
+
+      await workspaceService.syncWorkspaceMedia(wsId, { items });
+      queryClient.invalidateQueries({
+        queryKey: workspaceQueryKeys.media(wsId)
+      });
+      toast.success('Gallery Photos Synced', {
+        description: `Successfully synchronized ${items.length} photos to workspace #${wsId}.`
+      });
+    } catch (err: unknown) {
+      console.warn('Could not sync workspace gallery photos to backend:', err);
+    }
   };
 
   const handleSaveDraft = async () => {
     saveDraft();
-    await saveDraftToServer();
+    if (activeWorkspaceId) {
+      await syncMediaToBackend(activeWorkspaceId);
+    } else {
+      const updated = await saveDraftToServer();
+      const targetId = updated?.id || canonicalWorkspaceId;
+      if (targetId) {
+        await syncMediaToBackend(targetId);
+      }
+    }
   };
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities' });
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/amenities',
+      search: (prev) => prev
+    });
   };
 
   const handleCompleteReview = async (e: React.FormEvent) => {
@@ -256,7 +384,15 @@ export function StepMediaGalleryView() {
 
     setValidationError(null);
     saveDraft();
-    await saveDraftToServer({ silent: true });
+    if (activeWorkspaceId) {
+      await syncMediaToBackend(activeWorkspaceId);
+    } else {
+      const updated = await saveDraftToServer({ silent: true });
+      const targetId = updated?.id || canonicalWorkspaceId;
+      if (targetId) {
+        await syncMediaToBackend(targetId);
+      }
+    }
     setIsCompletionModalOpen(true);
   };
 
@@ -352,7 +488,7 @@ export function StepMediaGalleryView() {
                 Click to upload or drag and drop high-resolution photos
               </h3>
               <p className='text-xs text-muted-foreground max-w-lg mb-5'>
-                PNG, JPG or WebP up to 10MB each (Minimum 1920×1080px recommended). High-quality photos increase booking conversion by 45%.
+                PNG, JPG or WebP up to 5MB each (BR-37). Minimum 1920×1080px recommended. High-quality photos increase booking conversion.
               </p>
 
               {/* Requirement Tracker Bar */}
@@ -408,6 +544,15 @@ export function StepMediaGalleryView() {
                   <span className='px-2 py-0.5 rounded-full bg-muted text-muted-foreground text-xs font-semibold'>
                     {uploadedCount} / {maxPhotos}
                   </span>
+                  {isEditMode && numericWsId ? (
+                    <Badge variant='outline' className='border-indigo-200 bg-indigo-50/50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px]'>
+                      Chỉnh sửa không gian #{numericWsId}
+                    </Badge>
+                  ) : (
+                    <Badge variant='outline' className='border-border bg-muted/40 text-muted-foreground text-[11px]'>
+                      Tạo mới không gian
+                    </Badge>
+                  )}
                 </div>
                 <p className='text-xs text-muted-foreground mt-0.5'>
                   The first photo or starred photo serves as the primary marketplace cover.
@@ -420,203 +565,232 @@ export function StepMediaGalleryView() {
               </div>
             </div>
 
-            {/* Photo Grid */}
-            <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
-              {media.items.map((item, index) => {
-                const isCover = item.id === media.coverPhotoId || item.isCover;
+            {/* Content: Loading State vs Empty State vs Grid */}
+            {isLoadingBackendMedia ? (
+              <div className='flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl'>
+                <Loader2 className='size-8 animate-spin text-indigo-600 mb-3' />
+                <p className='text-sm font-medium'>Đang tải ảnh không gian hiện có...</p>
+                <p className='text-xs text-muted-foreground mt-1'>Đang kết nối backend cho không gian #{numericWsId}</p>
+              </div>
+            ) : media.items.length === 0 ? (
+              <div className='flex flex-col items-center justify-center py-10 text-center border-2 border-dashed border-border rounded-xl p-6 bg-muted/10'>
+                <div className='size-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-3'>
+                  <FolderOpen className='size-6' />
+                </div>
+                <h4 className='text-sm sm:text-base font-semibold text-foreground mb-1'>Chưa có ảnh nào trong thư viện</h4>
+                <p className='text-xs text-muted-foreground max-w-sm mb-4 leading-relaxed'>
+                  {isEditMode
+                    ? 'Không gian này hiện chưa có ảnh tải lên. Bạn có thể kéo thả vào khung ở trên hoặc bấm nút dưới đây để thêm ảnh.'
+                    : 'Không gian tạo mới chưa có ảnh nào. Hãy thêm ảnh chất lượng cao để hiển thị trên marketplace.'}
+                </p>
+                <Button
+                  type='button'
+                  size='sm'
+                  onClick={() => fileInputRef.current?.click()}
+                  className='bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5 shadow-2xs font-medium'
+                >
+                  <Plus className='size-4' />
+                  <span>Thêm ảnh ngay</span>
+                </Button>
+              </div>
+            ) : (
+              <div className='grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4'>
+                {media.items.map((item, index) => {
+                  const isCover = item.id === media.coverPhotoId || item.isCover;
 
-                return (
-                  <div
-                    key={item.id}
-                    className={`relative group rounded-xl overflow-hidden aspect-[16/10] bg-slate-900 shadow-2xs flex flex-col justify-between transition-all ${
-                      isCover
-                        ? 'border-2 border-indigo-600 ring-2 ring-indigo-600/30 shadow-md'
-                        : 'border border-border hover:border-slate-400 dark:hover:border-slate-600'
-                    }`}
-                  >
-                    {/* Image Preview */}
-                    <img
-                      src={item.url}
-                      alt={item.caption || item.name}
-                      className='absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105'
-                      loading='lazy'
-                    />
+                  return (
+                    <div
+                      key={item.id}
+                      className={`relative group rounded-xl overflow-hidden aspect-[16/10] bg-slate-900 shadow-2xs flex flex-col justify-between transition-all ${
+                        isCover
+                          ? 'border-2 border-indigo-600 ring-2 ring-indigo-600/30 shadow-md'
+                          : 'border border-border hover:border-slate-400 dark:hover:border-slate-600'
+                      }`}
+                    >
+                      {/* Image Preview */}
+                      <img
+                        src={item.url}
+                        alt={item.caption || item.name}
+                        className='absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105'
+                        loading='lazy'
+                      />
 
-                    {/* Gradient Overlay */}
-                    <div className='absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-slate-950/50 pointer-events-none' />
+                      {/* Gradient Overlay */}
+                      <div className='absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-slate-950/50 pointer-events-none' />
 
-                    {/* Top Badges */}
-                    <div className='relative z-10 p-3 flex items-start justify-between'>
-                      <div className='flex flex-col gap-1 items-start'>
-                        {isCover && (
-                          <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
-                            <Star className='size-3 fill-white' />
-                            <span>COVER PHOTO</span>
-                          </span>
-                        )}
-                        {item.uploadStatus === 'uploading' && (
-                          <span className='inline-flex items-center gap-1 bg-sky-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
-                            <Loader2 className='size-3 animate-spin' />
-                            <span>Uploading...</span>
-                          </span>
-                        )}
-                        {item.uploadStatus === 'error' && (
-                          <span
-                            className='inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'
-                            title={item.uploadError}
-                          >
-                            <AlertCircle className='size-3' />
-                            <span>Upload Failed</span>
-                          </span>
-                        )}
-                        {item.url.startsWith('/api/v1/media/') && (
-                          <span className='inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
-                            <Check className='size-3' />
-                            <span>Local Media Persisted</span>
-                          </span>
-                        )}
-                        {item.url.startsWith('blob:') && item.uploadStatus !== 'uploading' && item.uploadStatus !== 'error' && (
-                          <span className='inline-flex items-center gap-1 bg-amber-500/95 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
-                            <AlertCircle className='size-3' />
-                            <span>Local Preview (Unsynced)</span>
-                          </span>
-                        )}
+                      {/* Top Badges */}
+                      <div className='relative z-10 p-3 flex items-start justify-between'>
+                        <div className='flex flex-col gap-1 items-start'>
+                          {isCover && (
+                            <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
+                              <Star className='size-3 fill-white' />
+                              <span>COVER PHOTO</span>
+                            </span>
+                          )}
+                          {item.uploadStatus === 'uploading' && (
+                            <span className='inline-flex items-center gap-1 bg-sky-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                              <Loader2 className='size-3 animate-spin' />
+                              <span>Uploading...</span>
+                            </span>
+                          )}
+                          {item.uploadStatus === 'error' && (
+                            <span
+                              className='inline-flex items-center gap-1 bg-red-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'
+                              title={item.uploadError}
+                            >
+                              <AlertCircle className='size-3' />
+                              <span>Upload Failed</span>
+                            </span>
+                          )}
+                          {item.url.startsWith('/api/v1/media/') && (
+                            <span className='inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                              <Check className='size-3' />
+                              <span>Local Media Persisted</span>
+                            </span>
+                          )}
+                          {item.url.startsWith('blob:') && item.uploadStatus !== 'uploading' && item.uploadStatus !== 'error' && (
+                            <span className='inline-flex items-center gap-1 bg-amber-500/95 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
+                              <AlertCircle className='size-3' />
+                              <span>Local Preview (Unsynced)</span>
+                            </span>
+                          )}
+                        </div>
+
+                        <span className='size-6 rounded-full bg-slate-900/75 backdrop-blur-md text-white flex items-center justify-center text-xs font-bold border border-white/20'>
+                          {index + 1}
+                        </span>
                       </div>
 
-                      <span className='size-6 rounded-full bg-slate-900/75 backdrop-blur-md text-white flex items-center justify-center text-xs font-bold border border-white/20'>
-                        {index + 1}
-                      </span>
-                    </div>
+                      {/* Action Overlay */}
+                      <div className='absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2'>
+                        {/* Retry Upload Button */}
+                        {item.uploadStatus === 'error' && (
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant='secondary'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRetryUpload(item.id);
+                            }}
+                            className='h-8 px-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow'
+                            title='Retry uploading this image'
+                          >
+                            <span>Retry</span>
+                          </Button>
+                        )}
 
-                    {/* Action Overlay */}
-                    <div className='absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2'>
-                      {/* Retry Upload Button */}
-                      {item.uploadStatus === 'error' && (
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='secondary'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRetryUpload(item.id);
-                          }}
-                          className='h-8 px-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow'
-                          title='Retry uploading this image'
-                        >
-                          <span>Retry</span>
-                        </Button>
-                      )}
+                        {/* Set Cover Button */}
+                        {!isCover ? (
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant='secondary'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSetCover(item.id, item.name);
+                            }}
+                            className='h-8 px-2.5 bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold shadow'
+                            title='Set as primary cover photo'
+                          >
+                            <Star className='size-3.5 mr-1 text-amber-500' />
+                            <span>Set Cover</span>
+                          </Button>
+                        ) : (
+                          <Badge className='h-8 px-2.5 bg-indigo-600 text-white text-xs font-semibold gap-1'>
+                            <Check className='size-3.5' />
+                            <span>Primary Active</span>
+                          </Badge>
+                        )}
 
-                      {/* Set Cover Button */}
-                      {!isCover ? (
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='secondary'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleSetCover(item.id, item.name);
-                          }}
-                          className='h-8 px-2.5 bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold shadow'
-                          title='Set as primary cover photo'
-                        >
-                          <Star className='size-3.5 mr-1 text-amber-500' />
-                          <span>Set Cover</span>
-                        </Button>
-                      ) : (
-                        <Badge className='h-8 px-2.5 bg-indigo-600 text-white text-xs font-semibold gap-1'>
-                          <Check className='size-3.5' />
-                          <span>Primary Active</span>
-                        </Badge>
-                      )}
+                        {/* Reorder Left */}
+                        {index > 0 && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='secondary'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMove(index, 'left');
+                            }}
+                            className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
+                            title='Move Earlier'
+                          >
+                            <ChevronLeft className='size-4' />
+                          </Button>
+                        )}
 
-                      {/* Reorder Left */}
-                      {index > 0 && (
+                        {/* Reorder Right */}
+                        {index < media.items.length - 1 && (
+                          <Button
+                            type='button'
+                            size='icon'
+                            variant='secondary'
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleMove(index, 'right');
+                            }}
+                            className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
+                            title='Move Later'
+                          >
+                            <ChevronRight className='size-4' />
+                          </Button>
+                        )}
+
+                        {/* Delete Button */}
                         <Button
                           type='button'
                           size='icon'
-                          variant='secondary'
+                          variant='destructive'
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleMove(index, 'left');
+                            handleDeletePhoto(item.id, item.name);
                           }}
-                          className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
-                          title='Move Earlier'
+                          className='size-8 bg-red-600 hover:bg-red-700 text-white shadow'
+                          title='Delete photo'
                         >
-                          <ChevronLeft className='size-4' />
+                          <Trash2 className='size-4' />
                         </Button>
-                      )}
+                      </div>
 
-                      {/* Reorder Right */}
-                      {index < media.items.length - 1 && (
-                        <Button
-                          type='button'
-                          size='icon'
-                          variant='secondary'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleMove(index, 'right');
-                          }}
-                          className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
-                          title='Move Later'
-                        >
-                          <ChevronRight className='size-4' />
-                        </Button>
-                      )}
-
-                      {/* Delete Button */}
-                      <Button
-                        type='button'
-                        size='icon'
-                        variant='destructive'
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeletePhoto(item.id, item.name);
-                        }}
-                        className='size-8 bg-red-600 hover:bg-red-700 text-white shadow'
-                        title='Delete photo'
-                      >
-                        <Trash2 className='size-4' />
-                      </Button>
+                      {/* Bottom Metadata Tag */}
+                      <div className='relative z-10 p-3'>
+                        <span className='inline-block px-2.5 py-1 rounded bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-medium border border-white/10 truncate max-w-full'>
+                          {item.dimension ? `${item.dimension} • ` : ''}
+                          {item.caption || item.name}
+                        </span>
+                      </div>
                     </div>
+                  );
+                })}
 
-                    {/* Bottom Metadata Tag */}
-                    <div className='relative z-10 p-3'>
-                      <span className='inline-block px-2.5 py-1 rounded bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-medium border border-white/10 truncate max-w-full'>
-                        {item.dimension ? `${item.dimension} • ` : ''}
-                        {item.caption || item.name}
-                      </span>
+                {/* Add More Slot */}
+                {uploadedCount < maxPhotos && (
+                  <div
+                    onClick={() => fileInputRef.current?.click()}
+                    className='border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 text-center hover:border-indigo-500 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all cursor-pointer aspect-[16/10] group'
+                    role='button'
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === ' ' || e.key === 'Enter') {
+                        fileInputRef.current?.click();
+                      }
+                    }}
+                    aria-label='Add more photos'
+                  >
+                    <div className='size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950 transition-colors mb-2'>
+                      <Plus className='size-5' />
                     </div>
+                    <span className='text-xs sm:text-sm font-semibold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors'>
+                      + Add more photos
+                    </span>
+                    <span className='text-[11px] text-muted-foreground mt-0.5'>
+                      Up to {maxPhotos} photos total
+                    </span>
                   </div>
-                );
-              })}
-
-              {/* Add More Slot */}
-              {uploadedCount < maxPhotos && (
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className='border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 text-center hover:border-indigo-500 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all cursor-pointer aspect-[16/10] group'
-                  role='button'
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === ' ' || e.key === 'Enter') {
-                      fileInputRef.current?.click();
-                    }
-                  }}
-                  aria-label='Add more photos'
-                >
-                  <div className='size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950 transition-colors mb-2'>
-                    <Plus className='size-5' />
-                  </div>
-                  <span className='text-xs sm:text-sm font-semibold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors'>
-                    + Add more photos
-                  </span>
-                  <span className='text-[11px] text-muted-foreground mt-0.5'>
-                    Up to {maxPhotos} photos total
-                  </span>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* CARD 3: Photography Tips Callout */}

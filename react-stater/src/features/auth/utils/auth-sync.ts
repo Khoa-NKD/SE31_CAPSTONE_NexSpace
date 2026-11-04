@@ -1,3 +1,4 @@
+/* eslint-disable unicorn/require-post-message-target-origin */
 /**
  * Cross-tab & multi-window Realtime Authentication Synchronization Utility
  *
@@ -5,10 +6,15 @@
  * - Email verified (via link in Gmail)
  * - Password reset token received / validated
  * - Password reset completed
+ * - Active tab discovery to prevent duplicate tabs when clicking external links
  */
 
 export type AuthSyncEvent =
   | { type: 'EMAIL_VERIFIED_SUCCESS'; email?: string }
+  | { type: 'CHECK_EXISTING_SIGNUP_TAB' }
+  | { type: 'SIGNUP_TAB_ALREADY_ACTIVE' }
+  | { type: 'CHECK_EXISTING_RESET_TAB' }
+  | { type: 'RESET_TAB_ALREADY_ACTIVE' }
   | { type: 'RESET_TOKEN_CLICKED'; token: string; email?: string }
   | { type: 'RESET_PASSWORD_COMPLETED' };
 
@@ -62,14 +68,16 @@ export function broadcastAuthSync(event: AuthSyncEvent) {
 export function subscribeAuthSync(handler: (event: AuthSyncEvent) => void): () => void {
   let channel: BroadcastChannel | null = null;
 
+  const messageListener = (e: MessageEvent) => {
+    if (e.data && e.data.type) {
+      handler(e.data as AuthSyncEvent);
+    }
+  };
+
   if (typeof BroadcastChannel !== 'undefined') {
     try {
       channel = new BroadcastChannel(CHANNEL_NAME);
-      channel.onmessage = (e) => {
-        if (e.data && e.data.type) {
-          handler(e.data as AuthSyncEvent);
-        }
-      };
+      channel.addEventListener('message', messageListener);
     } catch {
       // Fallback to storage event
     }
@@ -94,6 +102,7 @@ export function subscribeAuthSync(handler: (event: AuthSyncEvent) => void): () =
 
   return () => {
     if (channel) {
+      channel.removeEventListener('message', messageListener);
       channel.close();
     }
     if (typeof window !== 'undefined') {

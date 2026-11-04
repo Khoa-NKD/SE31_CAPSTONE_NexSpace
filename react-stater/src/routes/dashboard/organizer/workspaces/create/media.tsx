@@ -1,11 +1,19 @@
 import React from 'react';
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
 import PageContainer from '@/components/layout/page-container';
 import { StepMediaGalleryView } from '@/features/organizer-onboarding/components/step-media-gallery-view';
+
+const mediaSearchSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  workspaceId: z.union([z.string(), z.number()]).optional(),
+  mode: z.enum(['create', 'edit']).optional()
+});
 
 export const Route = createFileRoute(
   '/dashboard/organizer/workspaces/create/media'
 )({
+  validateSearch: (search: Record<string, unknown>) => mediaSearchSchema.parse(search),
   head: () => ({
     meta: [
       { title: 'O09 — Create Workspace: Media Gallery & Cover Photo | NexSpace Organizer Hub' },
@@ -19,9 +27,12 @@ export const Route = createFileRoute(
 });
 
 function CreateWorkspaceMediaPage() {
+  const search = Route.useSearch();
+  const rawId = search.id ?? search.workspaceId;
+  const targetId = rawId != null ? String(rawId) : undefined;
   return (
     <PageContainer>
-      <StepMediaGalleryView />
+      <StepMediaGalleryView routeWorkspaceId={targetId} routeMode={search.mode} />
     </PageContainer>
   );
 }
