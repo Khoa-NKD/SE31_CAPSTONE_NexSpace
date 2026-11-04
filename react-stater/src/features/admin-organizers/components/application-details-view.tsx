@@ -25,6 +25,7 @@ import {
 } from '../api/application-details';
 import type { AdminApplicationFilters } from '../api/applications';
 import { DocumentActions } from './document-actions';
+import { AdminReviewActions } from '@/features/organizer-lifecycle/components/admin-review-actions';
 
 const emptySubscribe = () => () => {};
 
@@ -113,6 +114,7 @@ export function ApplicationDetailsView({
           Refresh details
         </Button>
       </div>
+      <AdminReviewActions key={applicationId} applicationId={applicationId} />
       <section
         aria-labelledby='application-summary-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4'

@@ -250,6 +250,9 @@ export function ApplicationsListView({
                         >
                           {applicationStatusPresentation(application.status).label}
                         </Badge>
+                        {application.suspended && (
+                          <Badge variant='destructive'>Operations suspended</Badge>
+                        )}
                       </TableCell>
                       <TableCell>
                         <time dateTime={application.reviewedAt || undefined}>
