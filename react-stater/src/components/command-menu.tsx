@@ -16,6 +16,8 @@ import { useFilteredNavGroups } from '@/hooks/use-nav';
 import { useThemeConfig } from '@/components/themes/active-theme';
 import { THEMES } from '@/components/themes/theme.config';
 import { useWorkspacesStore } from '@/features/organizer-workspaces/store/workspaces-store';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 
 type CommandMenuContextValue = {
   open: boolean;
@@ -126,7 +128,9 @@ const ORGANIZER_QUICK_ACTIONS: PaletteItem[] = [
 export default function CommandMenu({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { pathname } = useLocation();
-  const isOrganizer = pathname.startsWith('/dashboard/organizer');
+  const user = useAuthStore((state) => state.user);
+  const userRole = getUserRole(user);
+  const isOrganizer = userRole === 'ORGANIZER' || pathname.startsWith('/dashboard/organizer');
 
   const [open, setOpen] = React.useState(false);
   const toggle = React.useCallback(() => setOpen((prev) => !prev), []);

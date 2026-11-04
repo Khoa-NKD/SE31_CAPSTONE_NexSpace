@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Link } from '@tanstack/react-router';
+import { Link, useSearch } from '@tanstack/react-router';
 import { InteractiveGridPattern } from './interactive-grid';
 import SignUpForm from './sign-up-form';
 import { NexSpaceLogo } from '@/components/brand/logo';
@@ -15,17 +15,71 @@ import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { useLanguage } from '../../landing/context/language-context';
 import { EmailVerificationModal } from './email-verification-modal';
 import { motion } from 'motion/react';
+import { broadcastAuthSync, subscribeAuthSync } from '../utils/auth-sync';
+import { toast } from 'sonner';
 
 function SignUpContent() {
   const { language, setLanguage, t } = useLanguage();
-  const [verificationEmail, setVerificationEmail] = useState<string | null>(null);
+  const search = useSearch({ strict: false }) as { verified?: boolean | string; email?: string } | undefined;
+
+  const verifiedParam = search?.verified ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('verified') : undefined);
+  const isVerifiedFromUrl = verifiedParam === true || verifiedParam === 'true';
+  const emailParam = search?.email ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('email') : undefined);
+
+  const [manualEmail, setManualEmail] = useState<string | null>(null);
+  const [isModalDismissed, setIsModalDismissed] = useState(false);
+
+  // Derive verification email without setState in effect
+  const verificationEmail = isModalDismissed
+    ? null
+    : isVerifiedFromUrl
+      ? (emailParam || (typeof window !== 'undefined' ? localStorage.getItem('nexspace_pending_verification_email') : null) || 'tài khoản của bạn')
+      : manualEmail;
+
+  useEffect(() => {
+    if (verifiedParam === false || verifiedParam === 'false') {
+      toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
+    }
+  }, [verifiedParam]);
+
+  useEffect(() => {
+    if (!isVerifiedFromUrl) return;
+
+    // 1. Notify the original sign up tab
+    broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS' });
+
+    // 2. Inquire if another sign-up tab is already active
+    broadcastAuthSync({ type: 'CHECK_EXISTING_SIGNUP_TAB' });
+
+    // 3. If another tab is active, attempt to close this tab so user stays on original tab
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'SIGNUP_TAB_ALREADY_ACTIVE') {
+        try {
+          window.open('', '_self', '');
+          window.close();
+        } catch {
+          // Ignored if browser blocks window.close
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isVerifiedFromUrl]);
 
   const handleSuccess = (email: string) => {
-    setVerificationEmail(email);
+    setManualEmail(email);
+    setIsModalDismissed(false);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('nexspace_pending_verification_email', email);
+    }
   };
 
   const closeVerificationModal = () => {
-    setVerificationEmail(null);
+    setManualEmail(null);
+    setIsModalDismissed(true);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('nexspace_pending_verification_email');
+    }
   };
 
   return (
@@ -34,6 +88,7 @@ function SignUpContent() {
         isOpen={!!verificationEmail}
         onClose={closeVerificationModal}
         email={verificationEmail || ''}
+        initialVerified={isVerifiedFromUrl}
       />
       {/* Left Side: Form Section */}
       <motion.div
@@ -68,117 +123,109 @@ function SignUpContent() {
                   <ChevronDown className='h-3 w-3 opacity-60' />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44 p-1.5 shadow-lg z-50 rounded-xl'>
+              <DropdownMenuContent align='end' className='w-36'>
                 <DropdownMenuItem
                   onClick={() => setLanguage('vi')}
-                  className={`flex cursor-pointer items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium ${
-                    language === 'vi'
-                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                      : 'text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none'>🇻🇳</span>
-                    <span>Tiếng Việt (VI)</span>
-                  </div>
-                  {language === 'vi' && (
-                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
+                  className={cn(
+                    'flex items-center justify-between text-xs cursor-pointer',
+                    language === 'vi' && 'font-bold text-primary'
                   )}
+                >
+                  <span className='flex items-center gap-2'>🇻🇳 Tiếng Việt</span>
+                  {language === 'vi' && <Check className='h-3.5 w-3.5' />}
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setLanguage('en')}
-                  className={`flex cursor-pointer items-center justify-between rounded-md px-2.5 py-2 text-xs font-medium ${
-                    language === 'en'
-                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                      : 'text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none'>🇺🇸</span>
-                    <span>English (EN)</span>
-                  </div>
-                  {language === 'en' && (
-                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
+                  className={cn(
+                    'flex items-center justify-between text-xs cursor-pointer',
+                    language === 'en' && 'font-bold text-primary'
                   )}
+                >
+                  <span className='flex items-center gap-2'>🇺🇸 English</span>
+                  {language === 'en' && <Check className='h-3.5 w-3.5' />}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </header>
 
-        {/* Form Container perfectly centered vertically using flex-1 */}
-        <main className='flex flex-1 flex-col items-center justify-center py-10'>
-          <div className='mx-auto flex w-full max-w-[420px] flex-col justify-center space-y-6'>
-            <div className='flex flex-col space-y-2 text-left'>
-              <h1 className='font-display-hero text-3xl font-bold tracking-tight text-foreground'>
-                {t('auth.signUp.title')}
-              </h1>
-              <p className='text-muted-foreground text-sm leading-relaxed'>
-                {t('auth.signUp.subtitle')}
-              </p>
-            </div>
-
+        {/* Center Area: Form */}
+        <div className='flex flex-1 items-center justify-center py-6'>
+          <div className='mx-auto flex w-full flex-col justify-center space-y-6 max-w-[420px]'>
+            {/* Form Component Container */}
             <SignUpForm onSuccess={handleSuccess} />
 
-            <p className='text-center text-sm text-muted-foreground mt-4'>
-              {t('auth.signUp.alreadyHaveAccount')}{' '}
+            <p className='text-center text-xs text-muted-foreground'>
+              {t('auth.signUp.termsPrompt')}{' '}
               <Link
-                to='/auth/sign-in'
-                className='text-indigo-600 font-semibold hover:underline underline-offset-4 cursor-pointer transition-colors'
+                to='/terms-of-service'
+                className='font-medium text-foreground underline-offset-4 hover:underline cursor-pointer'
               >
-                {t('auth.signUp.signIn')}
+                {t('auth.signUp.termsLink')}
+              </Link>{' '}
+              {t('auth.signUp.and')}{' '}
+              <Link
+                to='/privacy-policy'
+                className='font-medium text-foreground underline-offset-4 hover:underline cursor-pointer'
+              >
+                {t('auth.signUp.privacyLink')}
               </Link>
             </p>
           </div>
-        </main>
+        </div>
+
+        {/* Footer info: NexSpace Minimal */}
+        <footer className='text-xs text-muted-foreground flex justify-between items-center w-full'>
+          <span>{t('auth.copyright')}</span>
+          <span className='font-mono text-[11px] text-muted-foreground/60'>
+            {t('auth.enterpriseAuth')}
+          </span>
+        </footer>
       </motion.div>
 
-      {/* Right Side: Branding & Visuals (Hidden on small screens) */}
+      {/* Right Side: Architectural Visual Motif & Brand Value */}
       <motion.div
-        initial={{ opacity: 0, x: 20 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.5, ease: 'easeOut' }}
-        className='relative hidden h-full flex-col lg:flex overflow-hidden'
+        initial={{ opacity: 0, x: 20, filter: 'blur(4px)' }}
+        animate={{ opacity: 1, x: 0, filter: 'blur(0px)' }}
+        transition={{ duration: 0.6, ease: 'easeOut', delay: 0.2 }}
+        className='relative hidden h-full flex-col bg-slate-900 p-10 text-white lg:flex dark:border-l dark:border-border/40 overflow-hidden'
       >
-        {/* Background Image */}
+        <div className='absolute inset-0 bg-slate-950/60 z-10 backdrop-blur-[0.5px]' />
         <img
-          src='/images/register-bg.jpg'
-          alt='Premium Workspace'
-          className='absolute inset-0 h-full w-full object-cover object-center motion-safe:transition-transform motion-safe:duration-1000'
+          src='https://lh3.googleusercontent.com/aida-public/AB6AXuCl4gF0jK0Fes5_FTSU4HUixywxC48EjhF5h9tIDRp3e372ESWNcR1f3ylN2GHs6xEwxcjwl_IYJ4-LPmSkKG4GAhE6If4amR4LlU4H-VyjYEpo32skeg6ZbvOhMY5yJFyS-cGkQebWtMwEhPAg-uDSkSygLkCB5mFSlD39rUScTTChB7BBnMOZiTsU7x3VzvDksxU-6Dq4OlMmlvJwTXuL5trZVjYAMH6JhLDgVh8M1KdF-G7B5ozqGQ'
+          alt='Premium Workspace Coworking Space'
+          className='absolute inset-0 h-full w-full object-cover object-center filter saturate-110 motion-safe:transition-transform motion-safe:duration-1000 hover:scale-105'
           fetchPriority='high'
           decoding='async'
         />
-
-        {/* Overlays for depth and readability */}
-        <div className='absolute inset-0 bg-slate-900/60 mix-blend-multiply' />
-        <div className='absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/20 to-transparent' />
-        <div className='absolute inset-0 bg-indigo-900/20' />
-
         <InteractiveGridPattern
-          className={cn(
-            'mask-[radial-gradient(800px_circle_at_center,white,transparent)]',
-            'inset-x-0 inset-y-0 h-full skew-y-12 opacity-30 mix-blend-overlay'
-          )}
+          className='absolute inset-0 opacity-15 mix-blend-overlay z-10'
+          width={36}
+          height={36}
         />
 
-        <div className='relative z-20 flex h-full flex-col justify-between p-12 xl:p-16 text-white'>
-          <Link
-            to='/'
-            className='inline-flex items-center text-lg font-medium outline-none transition-transform active:scale-95 w-max cursor-pointer'
-            aria-label='Return to homepage'
-          >
-            <NexSpaceLogo variant='horizontal' inverted className='h-10 w-auto' />
-          </Link>
+        {/* Subtle dynamic glow */}
+        <div className='absolute top-1/4 right-1/4 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none z-10' />
 
-          <div className='mt-auto max-w-lg'>
-            <blockquote className='space-y-6 relative z-10'>
-              <p className='text-2xl font-medium leading-relaxed font-display-hero text-white/95 drop-shadow-lg'>
-                "NexSpace completely transformed how our team discovers and books flexible offices
-                globally. The experience is seamless."
+        {/* Content Layer */}
+        <div className='relative z-20 flex items-center gap-2'>
+          <NexSpaceLogo variant='horizontal' inverted className='h-8 w-auto' />
+        </div>
+
+        <div className='relative z-20 mt-auto max-w-lg'>
+          <div className='space-y-4'>
+            <div className='inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs text-white/90 font-medium'>
+              <span className='w-2 h-2 rounded-full bg-emerald-400 animate-pulse' />
+              {t('auth.signUp.liveWorkspacesBadge')}
+            </div>
+            <blockquote className='space-y-2'>
+              <p className='text-xl font-medium tracking-tight leading-snug font-serif text-slate-100'>
+                {t('auth.signUp.quote')}
               </p>
-              <footer className='text-indigo-200 text-base font-medium flex items-center gap-3'>
-                <div className='h-px w-8 bg-indigo-400/50'></div>
-                Sarah Jenkins, VP of Operations
+              <footer className='text-sm text-slate-300 font-sans pt-2 flex items-center gap-2'>
+                <span className='font-semibold text-white'>Nguyen Hoang Nam</span>
+                <span className='text-slate-500'>—</span>
+                <span className='text-xs text-slate-300'>{t('auth.signUp.authorRole')}</span>
               </footer>
             </blockquote>
           </div>
@@ -188,6 +235,8 @@ function SignUpContent() {
   );
 }
 
-export default function SignUpViewPage() {
+export function SignUpViewPage() {
   return <SignUpContent />;
 }
+
+export default SignUpViewPage;

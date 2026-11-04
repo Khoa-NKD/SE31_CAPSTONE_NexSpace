@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { setAuthHeaderProvider } from '@/lib/api-client';
+import { setAuthHeaderProvider } from '../../../lib/api-client.ts';
 import type { UserDto } from '../api/types';
 
 const AUTH_STORAGE_KEY = 'nexspace_auth_session_v1';

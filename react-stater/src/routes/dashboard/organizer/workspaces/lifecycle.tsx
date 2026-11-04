@@ -5,7 +5,8 @@ import PageContainer from '@/components/layout/page-container';
 import { WorkspaceLifecycleView } from '@/features/organizer-workspaces/components/workspace-lifecycle-view';
 
 const lifecycleSearchSchema = z.object({
-  id: z.string().optional()
+  id: z.union([z.string(), z.number()]).optional(),
+  tab: z.enum(['overview', 'bookings', 'settings', 'audit', 'assets']).optional()
 });
 
 export const Route = createFileRoute(
@@ -26,10 +27,11 @@ export const Route = createFileRoute(
 });
 
 function WorkspaceLifecyclePage() {
-  const { id } = Route.useSearch();
+  const { id, tab } = Route.useSearch();
+  const safeId = id !== undefined && id !== null ? String(id) : undefined;
   return (
     <PageContainer>
-      <WorkspaceLifecycleView workspaceId={id} />
+      <WorkspaceLifecycleView workspaceId={safeId} initialTab={tab} />
     </PageContainer>
   );
 }

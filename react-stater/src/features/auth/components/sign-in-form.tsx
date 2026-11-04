@@ -1,8 +1,8 @@
-import React, { useState, useTransition } from 'react';
+import React, { useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Mail, ArrowRight, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Link, useRouter } from '@tanstack/react-router';
 import { authService } from '../api/auth-service';
 import { useAuthStore } from '../store/auth-store';
+import { getUserRole, checkRouteAccess } from '../utils/role-guard';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
 
@@ -29,7 +30,8 @@ interface SignInFormProps {
 export function SignInForm({ onSuccess }: SignInFormProps) {
   const { t } = useLanguage();
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const submitting = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
@@ -42,53 +44,70 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
     }
   });
 
-  const onSubmit = (values: SignInValues) => {
+  const onSubmit = async (values: SignInValues) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setIsPending(true);
     setGlobalError(null);
-    startTransition(async () => {
-      try {
-        const response = await authService.login({
-          username: values.email.trim(),
-          password: values.password
-        });
+    try {
+      const response = await authService.login({
+        username: values.email.trim(),
+        password: values.password
+      });
 
-        // Save session in auth store
-        useAuthStore.getState().setAuth({
-          user: response.user,
-          accessToken: response.accessToken
-        });
+      // Save session in auth store
+      useAuthStore.getState().setAuth({
+        user: response.user,
+        accessToken: response.accessToken
+      });
 
-        toast.success(
-          `Đăng nhập thành công! Chào mừng ${response.user.fullName || response.user.firstName || response.user.userName}`
-        );
+      toast.success(
+        `Đăng nhập thành công! Chào mừng ${response.user.fullName || response.user.firstName || response.user.userName}`
+      );
 
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          // Role-aware destination navigation
-          const roles = response.user.roles || (response.user.role ? [response.user.role] : []);
-          const isOrganizer = roles.some((r: string) => r.toUpperCase() === 'ORGANIZER' || r.toUpperCase() === 'ROLE_ORGANIZER');
-          const isAdmin = roles.some((r: string) => r.toUpperCase() === 'ADMIN' || r.toUpperCase() === 'ROLE_ADMIN');
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Preserve role-aware navigation and authorized return destinations.
+        const role = getUserRole(response.user);
+        let targetUrl = '';
 
-          if (isAdmin) {
-            router.navigate({ to: '/dashboard/overview' });
-          } else if (isOrganizer) {
-            router.navigate({ to: '/dashboard/organizer/workspaces' });
-          } else {
-            // Normal user goes directly to Landing Page as required
-            router.navigate({ to: '/' });
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const redirectParam = params.get('redirect');
+          if (redirectParam && checkRouteAccess(redirectParam, true, response.user).allowed) {
+            targetUrl = redirectParam;
           }
         }
-      } catch (err: unknown) {
-        if (err instanceof ApiError) {
-          const payload = err.data as { message?: string; errors?: Record<string, string> } | null;
-          const msg =
-            payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
-          setGlobalError(msg);
-        } else {
-          setGlobalError('Không thể kết nối đến máy chủ. Vui lòng thử lại sau.');
+
+        if (!targetUrl) {
+          if (role === 'ADMIN') {
+            targetUrl = '/dashboard/overview';
+          } else if (role === 'ORGANIZER') {
+            targetUrl = '/dashboard/organizer/workspaces';
+          } else {
+            targetUrl = '/';
+          }
         }
+
+        router.navigate({ to: targetUrl });
       }
-    });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        const payload = err.data as { message?: string; errors?: Record<string, string> } | null;
+        const msg =
+          payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
+        setGlobalError(msg);
+        toast.error(msg);
+      } else {
+        const msg = 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
+        setGlobalError(msg);
+        toast.error(msg);
+      }
+    } finally {
+      submitting.current = false;
+      setIsPending(false);
+    }
   };
 
   const hasErrors = Object.keys(form.formState.errors).length > 0;
@@ -125,7 +144,12 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       )}
 
       {/* Main Form */}
-      <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+      <form
+        onSubmit={(event) => {
+          void form.handleSubmit(onSubmit)(event);
+        }}
+        className='space-y-4'
+      >
         {/* Email or Username Input */}
         <div className='space-y-1.5'>
           <label
@@ -237,7 +261,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
             <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
           ) : (
             <>
-              <span>{t('auth.signIn.submitBtn')}</span>
+              <span>{t('auth.signIn.btn')}</span>
               <ArrowRight className='w-4 h-4 stroke-[2.5]' />
             </>
           )}
@@ -251,24 +275,13 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
         </div>
         <div className='relative flex justify-center text-xs uppercase'>
           <span className='bg-white dark:bg-slate-950 px-3 text-slate-500 dark:text-slate-400 font-medium'>
-            {t('auth.signIn.or')}
+            {t('auth.signIn.orContinue')}
           </span>
         </div>
       </div>
 
       {/* Google Sign In */}
       <GoogleSignInButton />
-
-      {/* Footer link to Sign Up */}
-      <p className='text-center font-body-base text-body-base text-slate-600 dark:text-slate-400 mt-6'>
-        {t('auth.signIn.noAccount')}{' '}
-        <Link
-          to='/auth/sign-up'
-          className='font-semibold text-indigo-600 dark:text-indigo-400 hover:underline outline-none cursor-pointer'
-        >
-          {t('auth.signIn.signUpLink')}
-        </Link>
-      </p>
     </div>
   );
 }

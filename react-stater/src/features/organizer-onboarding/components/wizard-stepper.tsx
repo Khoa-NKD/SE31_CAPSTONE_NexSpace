@@ -76,6 +76,7 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
                 {isCompleted ? (
                   <Link
                     to={step.route}
+                    search={(prev) => prev}
                     className='cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full'
                     aria-label={`Go to Step ${step.number}: ${step.title}`}
                   >

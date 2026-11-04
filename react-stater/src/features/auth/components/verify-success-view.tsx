@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { ChevronDown, Check, ArrowLeft, CheckCircle2, ShieldCheck, ArrowRight, Building2 } from 'lucide-react';
 import {
@@ -15,12 +15,38 @@ import { motion } from 'motion/react';
 import { broadcastAuthSync } from '../utils/auth-sync';
 
 export default function VerifySuccessViewPage() {
-  const { language, setLanguage, t } = useLanguage();
+  const { language, setLanguage } = useLanguage();
+  const navigate = useNavigate();
 
   useEffect(() => {
-    // Notify any waiting tabs (e.g., registration modal or reset-password waiting step)
+    // 1. Notify the original waiting sign-up tab via BroadcastChannel & localStorage
     broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS' });
-  }, []);
+
+    // 2. Try closing this tab immediately so the browser focuses back on the original sign-up tab
+    try {
+      window.open('', '_self', '');
+      window.close();
+    } catch {
+      // Ignored if browser blocks window.close
+    }
+
+    // 3. Fallback: If browser prevents auto-closing, redirect back to the original Sign Up page
+    const timer = setTimeout(() => {
+      navigate({ to: '/auth/sign-up', search: { verified: 'true' } });
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [navigate]);
+
+  const handleReturnToSignUp = () => {
+    try {
+      window.open('', '_self', '');
+      window.close();
+    } catch {
+      // Ignore
+    }
+    navigate({ to: '/auth/sign-up', search: { verified: 'true' } });
+  };
 
   return (
     <div className='relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-white dark:bg-slate-950 md:grid lg:max-w-none lg:grid-cols-2 lg:px-0'>
@@ -107,13 +133,14 @@ export default function VerifySuccessViewPage() {
       >
         {/* Static Header Navigation */}
         <header className='flex items-center justify-between w-full'>
-          <Link
-            to='/auth/sign-in'
+          <button
+            type='button'
+            onClick={handleReturnToSignUp}
             className='inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none cursor-pointer'
           >
             <ArrowLeft className='h-4 w-4' />
-            {language === 'vi' ? 'Đến trang đăng nhập' : 'Go to Sign In'}
-          </Link>
+            {language === 'vi' ? 'Quay lại trang Đăng ký' : 'Back to Sign Up'}
+          </button>
 
           {/* Micro-Utility Capsule */}
           <div className='flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 p-0.5 shadow-sm backdrop-blur-md'>
@@ -188,25 +215,26 @@ export default function VerifySuccessViewPage() {
               </h1>
               <p className='text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto'>
                 {language === 'vi'
-                  ? 'Địa chỉ email của bạn đã được chứng thực thành công. Tài khoản NexSpace đã sẵn sàng hoạt động với đầy đủ quyền hạn.'
-                  : 'Your email address has been verified successfully. Your NexSpace account is now fully active.'}
+                  ? 'Tài khoản của bạn đã được kích hoạt. Đang tự động trở về trang Đăng ký ban đầu...'
+                  : 'Your account has been activated. Returning to the original Sign Up page...'}
               </p>
             </div>
 
             <div className='pt-4 space-y-3'>
-              <Link
-                to='/auth/sign-in'
+              <button
+                type='button'
+                onClick={handleReturnToSignUp}
                 className='w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-indigo-600/25 cursor-pointer'
               >
-                <span>{language === 'vi' ? 'Đăng nhập vào hệ thống ngay' : 'Sign In Now'}</span>
+                <span>{language === 'vi' ? 'Quay về trang Đăng ký ngay' : 'Return to Sign Up'}</span>
                 <ArrowRight className='w-4 h-4 stroke-[2.5]' />
-              </Link>
+              </button>
 
               <Link
-                to='/'
+                to='/auth/sign-in'
                 className='w-full h-10 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium rounded-lg flex items-center justify-center transition-all'
               >
-                <span>{language === 'vi' ? 'Về trang chủ NexSpace' : 'Back to Home'}</span>
+                <span>{language === 'vi' ? 'Chuyển thẳng sang Đăng nhập' : 'Go to Sign In'}</span>
               </Link>
             </div>
           </div>
@@ -215,4 +243,3 @@ export default function VerifySuccessViewPage() {
     </div>
   );
 }
-
