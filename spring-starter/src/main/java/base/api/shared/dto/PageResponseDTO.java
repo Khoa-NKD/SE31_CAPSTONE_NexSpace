@@ -30,4 +30,20 @@ public class PageResponseDTO<T> {
                 page.hasPrevious()
         );
     }
+
+    public List<T> getContent() {
+        return listObjects;
+    }
+
+    public int getPage() {
+        return pageNumber;
+    }
+
+    public int getSize() {
+        return pageSize;
+    }
+
+    public long getTotalElements() {
+        return totalRecords;
+    }
 }

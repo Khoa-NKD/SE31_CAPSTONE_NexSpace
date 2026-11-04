@@ -35,7 +35,7 @@ final class AuthEmailTemplates {
                                  String buttonText, String buttonUrl, String note) {
         String button = buttonUrl == null ? "" :
                 "<p style='text-align:center;margin:28px 0'>"
-                        + "<a href='" + HtmlUtils.htmlEscape(buttonUrl) + "' style='background:#2563eb;color:#fff;"
+                        + "<a href='" + HtmlUtils.htmlEscape(buttonUrl) + "' target='_self' style='background:#2563eb;color:#fff;"
                         + "padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600'>"
                         + buttonText + "</a></p>";
         return "<html><body style='font-family:Arial,sans-serif;line-height:1.6;color:#333'>"

@@ -41,3 +41,7 @@ build/
 
 ### Logs ###
 *.log
+
+### Uploads ###
+uploads/
+

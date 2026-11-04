@@ -44,7 +44,16 @@ public class SecurityConfig {
             "/api/auth/forgot-password/complete",
             "/swagger-ui/**",
             "/swagger-ui.html",
-            "/v3/api-docs/**"
+            "/v3/api-docs/**",
+            "/uploads/**"
+    };
+
+    /** Endpoint GET công khai, không yêu cầu xác thực JWT. */
+    public static final String[] PUBLIC_GET_ENDPOINTS = {
+            "/api/amenities",
+            "/api/amenities/**",
+            "/api/workspaces/*/amenities",
+            "/api/workspaces/*/media"
     };
 
     private final JwtAuthenticationFilter jwtAuthFilter;
@@ -61,6 +70,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(PUBLIC_ENDPOINTS).permitAll()
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
                 .exceptionHandling(ex -> ex

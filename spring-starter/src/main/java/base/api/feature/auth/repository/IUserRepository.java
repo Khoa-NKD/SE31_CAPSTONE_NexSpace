@@ -14,6 +14,11 @@ import java.util.Optional;
 @Repository
 public interface IUserRepository extends JpaRepository<UserModel, Long> {
 
+    /** Serialize application creation for the same authenticated account. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT u FROM UserModel u WHERE u.id = :id")
+    Optional<UserModel> findByIdForApplication(@Param("id") Long id);
+
     Optional<UserModel> findByUserNameIgnoreCase(String userName);
 
     Optional<UserModel> findByEmailIgnoreCase(String email);

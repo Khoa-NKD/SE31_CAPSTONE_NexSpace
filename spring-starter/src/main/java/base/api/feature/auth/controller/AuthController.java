@@ -76,16 +76,16 @@ public class AuthController extends BaseAPIController {
     }
 
     @Operation(summary = "Xác thực email (Redirect)", description = "**Public.** Link trong email. "
-            + "Redirect về {client-url}/email/verify-success hoặc /email/verify-failed.")
+            + "Redirect về {client-url}/auth/sign-up?verified=true&email=... để tự trở về trang sign up và chuyển sang login.")
     @SecurityRequirements
     @GetMapping("/verify-email")
     public ResponseEntity<Void> verifyEmail(@Parameter(description = "Token trong email") @RequestParam String token) {
         String target;
         try {
-            authService.verifyEmail(token);
-            target = clientUrl + "/email/verify-success";
+            String email = authService.verifyEmail(token);
+            target = clientUrl + "/auth/sign-up?verified=true&email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8);
         } catch (RuntimeException ex) {
-            target = clientUrl + "/email/verify-failed";
+            target = clientUrl + "/auth/sign-up?verified=false";
         }
         return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, target).build();
     }
