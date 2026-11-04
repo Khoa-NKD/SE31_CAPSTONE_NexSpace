@@ -343,6 +343,30 @@ export const workspaceService = {
   },
 
   /**
+   * Fetches operating hours configuration for a workspace.
+   */
+  async getOperatingHours(id: string): Promise<WorkspaceOperatingHour[]> {
+    const resolvedId = resolveWorkspaceId(id);
+    return apiClient.get<WorkspaceOperatingHour[]>(`/workspaces/${encodeURIComponent(resolvedId)}/operating-hours`);
+  },
+
+  /**
+   * Updates / replaces operating hours configuration for a workspace.
+   */
+  async updateOperatingHours(id: string, hours: WorkspaceOperatingHour[]): Promise<WorkspaceOperatingHour[]> {
+    const resolvedId = resolveWorkspaceId(id);
+    return apiClient.put<WorkspaceOperatingHour[]>(`/workspaces/${encodeURIComponent(resolvedId)}/operating-hours`, hours);
+  },
+
+  /**
+   * Public marketplace query: fetches operating hours for an active workspace.
+   */
+  async getPublicOperatingHours(id: string): Promise<WorkspaceOperatingHour[]> {
+    const resolvedId = resolveWorkspaceId(id);
+    return apiClient.get<WorkspaceOperatingHour[]>(`/public/workspaces/${encodeURIComponent(resolvedId)}/operating-hours`);
+    },
+
+  /**
    * Uploads a local binary image (JPEG/PNG/WebP) to the development-only mock media service.
    * Returns durable relative media URL (/api/v1/media/<filename>).
    */

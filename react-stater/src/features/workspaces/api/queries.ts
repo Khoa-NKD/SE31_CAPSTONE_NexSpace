@@ -107,3 +107,11 @@ export const adminWorkspaceKpisQueryOptions = (options?: { adminId?: string }) =
 export function useAdminWorkspaceKpisQuery(options?: { adminId?: string }) {
   return useQuery(adminWorkspaceKpisQueryOptions(options));
 }
+
+export function useOperatingHoursQuery(id: string | null) {
+  return useQuery({
+    queryKey: ['workspaces', 'operating-hours', id],
+    queryFn: () => (id ? workspaceService.getOperatingHours(id) : []),
+    enabled: Boolean(id)
+  });
+}

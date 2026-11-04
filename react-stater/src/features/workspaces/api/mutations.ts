@@ -4,6 +4,7 @@ import { workspaceService } from './service';
 import { workspaceQueryKeys } from './queries';
 import type {
   CanonicalWorkspace,
+  WorkspaceOperatingHour,
   CreateWorkspaceDto,
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
@@ -311,6 +312,34 @@ export function useDeleteWorkspaceMutation() {
     onError: (err: unknown) => {
       const msg = err instanceof ApiError ? err.message : 'Could not archive workspace.';
       toast.error('Archive Failed', { description: msg });
+    }
+  });
+}
+
+/**
+ * TanStack Query mutation hook for updating workspace operating hours.
+ */
+export function useUpdateOperatingHoursMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceOperatingHour[],
+    Error,
+    { workspaceId: string; hours: WorkspaceOperatingHour[] }
+  >({
+    mutationFn: ({ workspaceId, hours }) => workspaceService.updateOperatingHours(workspaceId, hours),
+
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', 'operating-hours', variables.workspaceId] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(variables.workspaceId) });
+      toast.success('Operating Hours Saved', {
+        description: 'Successfully updated weekly operating hours schedule.'
+      });
+    },
+
+    onError: (err: unknown) => {
+      const msg = err instanceof ApiError ? err.message : 'Could not save operating hours.';
+      toast.error('Save Failed', { description: msg });
     }
   });
 }
