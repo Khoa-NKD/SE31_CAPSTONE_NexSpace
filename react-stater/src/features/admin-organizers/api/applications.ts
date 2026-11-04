@@ -23,6 +23,7 @@ export const adminApplicationSearchSchema = z.object({
 export type AdminApplicationFilters = z.infer<typeof adminApplicationSearchSchema>;
 
 export interface AdminOrganizerApplication {
+  suspended?: boolean;
   id: number;
   legalName: string | null;
   businessType: ApplicationInput['businessType'] | null;

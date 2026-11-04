@@ -6,6 +6,7 @@ import { ApiError } from '@/lib/api-client';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { OwnerLifecycleStatus } from '@/features/organizer-lifecycle/components/owner-lifecycle-status';
 import {
   applicationStatusPresentation,
   applicationStatusQueryOptions,
@@ -104,6 +105,7 @@ export function ApplicationStatusView() {
       </CardHeader>
       <CardContent className='min-w-0 space-y-6'>
         <p>{presentation.description}</p>
+        <OwnerLifecycleStatus key={user.id} actorId={user.id} />
         <dl className='grid min-w-0 gap-4 text-sm sm:grid-cols-2'>
           <div>
             <dt className='text-muted-foreground'>Legal business name</dt>
@@ -154,8 +156,8 @@ export function ApplicationStatusView() {
             </Link>
           )}
           {application.status === 'REVISION_REQUESTED' && (
-            <Link to='/organizer/documents' className='text-primary underline'>
-              View permitted document actions
+            <Link to='/organizer/apply' className='text-primary underline'>
+              Review requested corrections
             </Link>
           )}
           {application.status === 'APPROVED' && user.role === 'ORGANIZER' && (

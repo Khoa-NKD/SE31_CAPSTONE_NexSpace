@@ -19,6 +19,22 @@ import {
 import type { ApplicationInput, ApplicationDetails } from '../api/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import {
+  ownerLifecycle,
+  correctionSchema,
+  saveCorrection,
+  resubmit,
+  invalidateLifecycle,
+  type LifecycleContext
+} from '@/features/organizer-lifecycle/api/lifecycle';
+import { CorrectionDocuments } from '@/features/organizer-lifecycle/components/correction-documents';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 
 const fields = [
   ['legalName', 'Legal business name', 255],
@@ -62,6 +78,8 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [lifecycle, setLifecycle] = useState<LifecycleContext | null>(null);
+  const [confirmResubmit, setConfirmResubmit] = useState(false);
   const operation = useRef(false);
   const queryClient = useQueryClient();
   const form = useForm<ApplicationInput>({ defaultValues: formValues(null) });
@@ -74,7 +92,12 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         if (controller.signal.aborted) return;
         setUser(account);
         const application = await currentApplication(controller.signal);
+        const permissions =
+          application && ['REJECTED', 'REVISION_REQUESTED'].includes(application.status)
+            ? await ownerLifecycle(controller.signal)
+            : null;
         if (controller.signal.aborted) return;
+        setLifecycle(permissions);
         setDetails(application);
         form.reset(formValues(application, account.email));
       })
@@ -117,33 +140,54 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         setFeedback('Draft created. Save your details and upload your business license below.');
       } else {
         // Both actions persist the visible snapshot; only explicit submission changes status.
-        const parsed = applicationDraftSchema.safeParse(form.getValues());
+        const correcting = details && ['REJECTED', 'REVISION_REQUESTED'].includes(details.status);
+        const parsed = (correcting ? correctionSchema : applicationDraftSchema).safeParse(
+          form.getValues()
+        );
         if (!parsed.success) {
           for (const issue of parsed.error.issues)
             form.setError(issue.path[0] as keyof ApplicationInput, { message: issue.message });
           setError('Correct the highlighted fields before saving or submitting.');
           return;
         }
-        const saved = await saveApplicationDraft(parsed.data);
+        let revision = lifecycle?.revision;
+        if (correcting) {
+          if (!lifecycle?.canCorrect)
+            throw new Error('Reload the application before correcting it.');
+          const corrected = await saveCorrection(lifecycle.revision, parsed.data);
+          setLifecycle(corrected);
+          revision = corrected.revision;
+        }
+        const saved = correcting
+          ? await currentApplication()
+          : await saveApplicationDraft(parsed.data);
+        if (!saved) throw new Error('Application no longer exists. Reload this page.');
         setDetails(saved);
         form.reset(formValues(saved));
         if (action === 'submit') {
-          const receipt = await submitApplicationDraft();
+          const receipt = correcting ? await resubmit(revision!) : await submitApplicationDraft();
           setDetails({ ...saved, ...receipt });
+          setConfirmResubmit(false);
           setFeedback(
             'Application submitted. Your account permissions change only after approval.'
           );
         } else
-          setFeedback('Draft saved. You can return later; it has not been submitted for review.');
+          setFeedback(
+            correcting
+              ? 'Corrections saved. The application has not been resubmitted.'
+              : 'Draft saved. You can return later; it has not been submitted for review.'
+          );
       }
       if (user)
         await queryClient.invalidateQueries({
           queryKey: verificationDocumentKeys.detail(user.id),
           exact: true
         });
+      await invalidateLifecycle(queryClient);
     } catch (failure) {
       if (failure instanceof ApiError) {
-        for (const [field, message] of Object.entries(failure.validationErrors ?? {})) {
+        for (const [path, message] of Object.entries(failure.validationErrors ?? {})) {
+          const field = path.replace(/^application\./, '');
           if (field === 'businessType' || fields.some(([name]) => name === field))
             form.setError(field as keyof ApplicationInput, { message });
         }
@@ -152,6 +196,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           // Refresh status without replacing unsaved text; another tab may have submitted.
           try {
             setDetails(await currentApplication());
+            setLifecycle(await ownerLifecycle());
           } catch {
             /* Keep the actionable original error. */
           }
@@ -199,7 +244,8 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
       </p>
     );
 
-  const editable = details?.status === 'DRAFT';
+  const correcting = !!details && ['REJECTED', 'REVISION_REQUESTED'].includes(details.status);
+  const editable = details?.status === 'DRAFT' || (correcting && !!lifecycle?.canCorrect);
   return (
     <div className='space-y-6'>
       <p className='text-sm text-muted-foreground'>Signed in as {user.email}.</p>
@@ -220,6 +266,12 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
       )}
       {details && (
         <>
+          {correcting && (
+            <p className='whitespace-pre-wrap break-words'>
+              Review feedback: {details.reviewFeedback || 'No feedback recorded.'} Save corrections
+              and replace documents as needed, then explicitly resubmit.
+            </p>
+          )}
           <form
             noValidate
             className='space-y-5'
@@ -281,24 +333,31 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             {editable && (
               <div className='flex flex-wrap gap-3'>
                 <Button type='submit' disabled={busy}>
-                  {busy ? 'Saving…' : 'Save draft'}
+                  {busy ? 'Saving…' : correcting ? 'Save corrections' : 'Save draft'}
                 </Button>
-                <Button type='button' disabled={busy} onClick={() => void run('submit')}>
-                  Submit for review
+                <Button
+                  type='button'
+                  disabled={busy}
+                  onClick={() => (correcting ? setConfirmResubmit(true) : void run('submit'))}
+                >
+                  {correcting ? 'Resubmit for review' : 'Submit for review'}
                 </Button>
               </div>
             )}
             {editable && (
               <p className='text-sm text-muted-foreground'>
-                Drafts may be incomplete. All business fields and a current business license are
-                required for submission. Uploading does not submit the application.
+                {correcting
+                  ? 'Review all corrections before resubmitting.'
+                  : 'Drafts may be incomplete.'}{' '}
+                All business fields and a current business license are required for submission.
+                Uploading does not submit the application.
               </p>
             )}
           </form>
           {!editable && (
             <p>
-              This application is read-only here. Upload is available only for DRAFT or
-              REVISION_REQUESTED profiles.
+              This application is read-only here. Corrections are available only when requested or
+              rejected. Pending and approved applications cannot be edited here.
             </p>
           )}
         </>
@@ -313,7 +372,45 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           {error}
         </p>
       )}
-      {details && <VerificationDocumentsView />}
+      {correcting && lifecycle ? (
+        <CorrectionDocuments
+          actorId={user.id}
+          context={lifecycle}
+          disabled={busy}
+          onUpdated={setLifecycle}
+          onBusyChange={(value) => {
+            operation.current = value;
+            setBusy(value);
+          }}
+        />
+      ) : (
+        details && <VerificationDocumentsView />
+      )}
+      <Dialog
+        open={confirmResubmit}
+        onOpenChange={(value) => {
+          if (!busy) setConfirmResubmit(value);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Resubmit your application?</DialogTitle>
+            <DialogDescription>
+              The visible business details will be saved and the current documents sent for review.
+              Editing and uploads will be locked until a review outcome permits corrections.
+            </DialogDescription>
+          </DialogHeader>
+          <div className='flex justify-end gap-3'>
+            <Button variant='outline' disabled={busy} onClick={() => setConfirmResubmit(false)}>
+              Cancel
+            </Button>
+            <Button disabled={busy} onClick={() => void run('submit')}>
+              {busy ? 'Submitting…' : 'Confirm resubmission'}
+            </Button>
+          </div>
+          {error && <p role='alert'>{error}</p>}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

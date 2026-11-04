@@ -10,6 +10,7 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { checkRouteAccess } from '@/features/auth/utils/role-guard';
 import { toast } from 'sonner';
 import { ShieldAlert, Loader2 } from 'lucide-react';
+import { OrganizerOperationalBoundary } from '@/features/organizer-lifecycle/components/organizer-operational-boundary';
 
 const emptySubscribe = () => () => {};
 
@@ -43,7 +44,11 @@ function DashboardLayout() {
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
-  const mounted = useSyncExternalStore(emptySubscribe, () => true, () => false);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   const access = checkRouteAccess(pathname, isAuthenticated, user);
 
@@ -85,7 +90,9 @@ function DashboardLayout() {
         <SidebarInset id='main-content' tabIndex={-1}>
           <Header />
           <InfobarProvider defaultOpen={false}>
-            <Outlet />
+            <OrganizerOperationalBoundary>
+              <Outlet />
+            </OrganizerOperationalBoundary>
             <InfoSidebar side='right' />
           </InfobarProvider>
         </SidebarInset>
