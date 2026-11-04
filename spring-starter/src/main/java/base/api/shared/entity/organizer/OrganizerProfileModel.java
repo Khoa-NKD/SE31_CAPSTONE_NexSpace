@@ -76,6 +76,11 @@ public class OrganizerProfileModel extends BaseModel {
     @Column(nullable = false, length = 30)
     private OrganizerProfileStatus status = OrganizerProfileStatus.DRAFT;
 
+    /** Operational restriction is independent of application review and the account role. */
+    @org.hibernate.annotations.ColumnDefault("0")
+    @Column(name = "is_suspended", nullable = false)
+    private boolean suspended;
+
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;
 
