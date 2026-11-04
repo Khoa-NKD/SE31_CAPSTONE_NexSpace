@@ -42,6 +42,8 @@ public class SecurityConfig {
             "/api/auth/forgot-password/initiate",
             "/api/auth/forgot-password/verify-token",
             "/api/auth/forgot-password/complete",
+            "/api/v1/public/**",
+            "/api/public/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",

@@ -175,4 +175,38 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         Page<WorkspaceModel> page = workspaceRepository.searchByOrganizer(organizerId, status, search, pageable);
         return page.map(WorkspaceMapper::toDto);
     }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WorkspaceDetailDto getWorkspaceDetail(Long organizerId, Long workspaceId) {
+        WorkspaceModel workspace;
+        if (organizerId != null) {
+            workspace = workspaceRepository.findByIdAndOrganizerId(workspaceId, organizerId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc bạn không có quyền truy cập"));
+        } else {
+            workspace = workspaceRepository.findById(workspaceId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc"));
+        }
+        return WorkspaceMapper.toDetailDto(workspace);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WorkspaceDetailDto getPublicWorkspaceDetail(Long workspaceId) {
+        WorkspaceModel workspace = workspaceRepository.findByIdAndStatus(workspaceId, WorkspaceStatus.ACTIVE)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt"));
+        return WorkspaceMapper.toDetailDto(workspace);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest != null
+                ? pageRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
+                : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
+
+        Page<WorkspaceModel> page = workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
+        return page.map(WorkspaceMapper::toDto);
+    }
 }

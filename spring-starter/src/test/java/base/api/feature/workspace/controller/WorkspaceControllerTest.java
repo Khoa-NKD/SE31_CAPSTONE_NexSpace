@@ -265,4 +265,49 @@ class WorkspaceControllerTest {
 
         verify(workspaceService).updateLifecycle(eq(5L), eq(1L), any(WorkspaceLifecycleDto.class));
     }
+
+    @Test
+    @DisplayName("GET /api/v1/workspaces/{id} - Lấy chi tiết không gian thành công")
+    void getWorkspaceDetail_success() throws Exception {
+        WorkspaceDetailDto responseDto = WorkspaceDetailDto.builder()
+                .id(1L)
+                .name("NexSpace Central")
+                .category(WorkspaceCategory.COWORKING_HUB)
+                .address("72 Lê Thánh Tôn")
+                .status(WorkspaceStatus.ACTIVE)
+                .organizerId(5L)
+                .build();
+
+        when(workspaceService.getWorkspaceDetail(eq(5L), eq(1L)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(get("/api/v1/workspaces/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.name").value("NexSpace Central"));
+
+        verify(workspaceService).getWorkspaceDetail(eq(5L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/workspaces/{id} - Hỗ trợ alias mã WS-xxx")
+    void getWorkspaceDetail_aliasCode_success() throws Exception {
+        WorkspaceDetailDto responseDto = WorkspaceDetailDto.builder()
+                .id(101L)
+                .name("NexSpace Code Hub")
+                .status(WorkspaceStatus.ACTIVE)
+                .organizerId(5L)
+                .build();
+
+        when(workspaceService.getWorkspaceDetail(eq(5L), eq(101L)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(get("/api/v1/workspaces/WS-101"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(101));
+
+        verify(workspaceService).getWorkspaceDetail(eq(5L), eq(101L));
+    }
 }

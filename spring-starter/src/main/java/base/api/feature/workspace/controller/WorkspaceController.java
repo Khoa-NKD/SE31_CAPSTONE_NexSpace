@@ -59,6 +59,16 @@ public class WorkspaceController extends BaseAPIController {
         return getMyWorkspaces(status, pageRequest);
     }
 
+    @Operation(summary = "Xem chi tiết không gian làm việc (Organizer/Admin)", description = "Lấy thông tin chi tiết đầy đủ của không gian làm việc theo ID")
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> getWorkspaceDetail(@PathVariable String id) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto detail = workspaceService.getWorkspaceDetail(organizerId, workspaceId);
+        return success(detail);
+    }
+
     @Operation(summary = "Tạo không gian làm việc mới", description = "Tạo không gian làm việc mới ở trạng thái DRAFT cho Organizer hiện tại")
     @PostMapping
     @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
@@ -125,6 +135,12 @@ public class WorkspaceController extends BaseAPIController {
         Long workspaceId = parseWorkspaceId(id);
         WorkspaceDetailDto result = workspaceService.updateLifecycle(organizerId, workspaceId, dto);
         return success(result, "Cập nhật vòng đời không gian làm việc thành công");
+    }
+
+    private boolean isAdmin() {
+        return currentUserProvider.getCurrentUser()
+                .map(u -> u.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())))
+                .orElse(false);
     }
 
     private Long parseWorkspaceId(String id) {
