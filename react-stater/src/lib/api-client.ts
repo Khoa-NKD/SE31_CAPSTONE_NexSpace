@@ -7,20 +7,21 @@ export class ApiError extends Error {
   public validationErrors?: Record<string, string>;
 
   constructor(status: number, statusText: string, data: unknown) {
-    const errorPayload = data as { message?: string; validationErrors?: Record<string, string> } | null;
+    const errorPayload = data as { message?: string; validationErrors?: Record<string, string>; errors?: Record<string, string> } | null;
     const msg = errorPayload?.message || `HTTP ${status} ${statusText}`;
     super(msg);
     this.name = 'ApiError';
     this.status = status;
     this.statusText = statusText;
     this.data = data;
-    this.validationErrors = errorPayload?.validationErrors;
+    this.validationErrors = errorPayload?.validationErrors ?? errorPayload?.errors;
   }
 }
 
 export type QueryParamValue = string | number | boolean | undefined | null | Array<string | number | boolean>;
 
 export interface RequestOptions extends Omit<RequestInit, 'body'> {
+  baseUrl?: string;
   params?: Record<string, QueryParamValue>;
   signal?: AbortSignal;
   unwrapEnvelope?: boolean; // Default true: unwraps { success, data } envelope
@@ -83,9 +84,8 @@ export async function request<T>(
   body?: unknown,
   options: RequestOptions = {}
 ): Promise<T> {
-  const { params, headers: customHeaders, unwrapEnvelope = true, signal, ...restOptions } = options;
+  const { params, headers: customHeaders, unwrapEnvelope = true, signal, baseUrl = getApiBaseUrl(), ...restOptions } = options;
 
-  const baseUrl = getApiBaseUrl();
   const cleanEndpoint = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
   const queryString = buildQueryString(params);
   const fullUrl = `${baseUrl}${cleanEndpoint}${queryString}`;
@@ -101,7 +101,7 @@ export async function request<T>(
   }
 
   // Inject authentication header if a provider is configured
-  if (authHeaderProvider) {
+  if (authHeaderProvider && !headers['Authorization']) {
     try {
       const authHeader = await authHeaderProvider();
       if (authHeader) {

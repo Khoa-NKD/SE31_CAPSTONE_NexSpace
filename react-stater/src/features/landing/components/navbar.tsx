@@ -50,7 +50,7 @@ export function Navbar() {
     {
       title: t('solutions.landlords.title'),
       description: t('solutions.landlords.desc'),
-      href: '#list-space'
+      href: '/organizer/apply'
     }
   ];
 
@@ -111,7 +111,7 @@ export function Navbar() {
           {/* Zone 1: Secondary Access Text Links */}
           {/* 1. Partner Action: List Your Space (Sleek text link with Host indicator) */}
           <a
-            href='#list-space'
+            href='/organizer/apply'
             className='group hidden cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-indigo-600 xl:inline-flex dark:hover:text-indigo-400'
           >
             <Building2 className='h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 group-hover:scale-110 group-hover:text-indigo-600 dark:group-hover:text-indigo-400' />
@@ -305,7 +305,7 @@ export function Navbar() {
 
                   <div className='my-2 flex flex-col gap-2.5 border-t border-border/60 pt-4'>
                     <a
-                      href='#list-space'
+                      href='/organizer/apply'
                       onClick={() => setMobileMenuOpen(false)}
                       className='flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200/90 bg-indigo-50/80 py-2.5 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-800/80 dark:bg-indigo-950/60 dark:text-indigo-300'
                     >
