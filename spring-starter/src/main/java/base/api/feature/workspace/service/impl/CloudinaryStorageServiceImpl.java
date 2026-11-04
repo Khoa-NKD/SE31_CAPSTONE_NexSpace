@@ -26,6 +26,9 @@ import java.util.UUID;
 @Service
 public class CloudinaryStorageServiceImpl implements IMediaStorageService {
 
+    public static final String PRIVATE_DOCUMENT_REFERENCE_PREFIX = "cloudinary:authenticated:";
+    private static final String PRIVATE_DOCUMENT_FOLDER = "nexspace/organizer-verification";
+
     public static final long MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024; // 5MB (BR-37)
     public static final List<String> ALLOWED_MIME_TYPES = Arrays.asList(
             "image/jpeg",
@@ -103,17 +106,82 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         }
     }
 
-    private boolean isCloudinaryConfigured() {
+    public boolean isCloudinaryConfigured() {
         return StringUtils.hasText(cloudName) && StringUtils.hasText(apiKey) && StringUtils.hasText(apiSecret);
     }
 
-    private Cloudinary createCloudinaryClient() {
+    protected Cloudinary createCloudinaryClient() {
         return new Cloudinary(ObjectUtils.asMap(
                 "cloud_name", cloudName.trim(),
                 "api_key", apiKey.trim(),
                 "api_secret", apiSecret.trim(),
                 "secure", true
         ));
+    }
+
+    /**
+     * Private document path: never uses the public media DTO, upload preset or delivery URL.
+     * The organizer storage facade validates filename, extension, MIME and signature before calling this method.
+     */
+    public String uploadPrivateDocument(byte[] content, String generatedKey) {
+        if (!isCloudinaryConfigured() || content == null || content.length == 0
+                || content.length > MAX_FILE_SIZE_BYTES || generatedKey == null
+                || !generatedKey.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.(jpg|jpeg|png|pdf)")) {
+            throw new IllegalStateException("Private document storage is unavailable or invalid");
+        }
+        boolean raw = generatedKey.endsWith(".pdf");
+        String resourceType = raw ? "raw" : "image";
+        String publicId = PRIVATE_DOCUMENT_FOLDER + "/"
+                + (raw ? generatedKey : generatedKey.substring(0, generatedKey.lastIndexOf('.')));
+        try {
+            var uploader = createCloudinaryClient().uploader();
+            Map<?, ?> result = uploader.upload(content, ObjectUtils.asMap(
+                    "public_id", publicId, "resource_type", resourceType, "type", "authenticated",
+                    "overwrite", false, "use_filename", false, "unique_filename", false));
+            if ("true".equalsIgnoreCase(String.valueOf(result.get("existing")))) {
+                throw new IllegalStateException("Private document ID already exists");
+            }
+            if (!publicId.equals(result.get("public_id")) || !resourceType.equals(result.get("resource_type"))
+                    || !"authenticated".equals(result.get("type"))) {
+                // Only compensate the new ID generated for this request, never a returned foreign asset ID.
+                if (publicId.equals(result.get("public_id"))
+                        && List.of("image", "raw", "video").contains(result.get("resource_type"))
+                        && List.of("upload", "private", "authenticated").contains(result.get("type"))) {
+                    try {
+                        uploader.destroy(publicId, ObjectUtils.asMap("resource_type", result.get("resource_type"),
+                                "type", result.get("type"), "invalidate", true));
+                    } catch (Exception ignored) {
+                        log.error("Could not compensate a document upload with unexpected access settings");
+                    }
+                }
+                throw new IllegalStateException("Unexpected private document storage response");
+            }
+            return PRIVATE_DOCUMENT_REFERENCE_PREFIX + resourceType + ":" + publicId;
+        } catch (Exception ex) {
+            // Provider errors can contain credentials, identifiers or signed URLs. Do not propagate them.
+            throw new IllegalStateException("Could not store verification document");
+        }
+    }
+
+    /** Compensation for a newly uploaded document; not exposed as an HTTP delete operation. */
+    public void deletePrivateDocument(String reference) {
+        String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
+        if (!isCloudinaryConfigured() || reference == null
+                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:" + PRIVATE_DOCUMENT_FOLDER
+                + "/" + uuid + "|raw:" + PRIVATE_DOCUMENT_FOLDER + "/" + uuid + "\\.pdf)")) {
+            throw new IllegalStateException("Invalid or unavailable private document reference");
+        }
+        String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());
+        int separator = value.indexOf(':');
+        try {
+            Map<?, ?> result = createCloudinaryClient().uploader().destroy(value.substring(separator + 1),
+                    ObjectUtils.asMap("resource_type", value.substring(0, separator), "type", "authenticated", "invalidate", true));
+            if (!"ok".equals(result.get("result")) && !"not found".equals(result.get("result"))) {
+                throw new IllegalStateException("Document cleanup was not confirmed");
+            }
+        } catch (Exception ex) {
+            throw new IllegalStateException("Could not clean up verification document");
+        }
     }
 
     private MediaUploadResponseDto uploadToCloudinary(MultipartFile file, String folder, Long actorId) {
