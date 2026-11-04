@@ -1,6 +1,7 @@
 package base.api.feature.workspace.controller;
 
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.entity.RoleModel;
@@ -32,6 +33,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -135,5 +137,43 @@ class WorkspaceControllerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.success").value(false))
                 .andExpect(jsonPath("$.statusCode").value(400));
+    }
+
+    @Test
+    @DisplayName("PATCH /api/v1/workspaces/{id} - Cập nhật không gian làm việc thành công trả về HTTP 200")
+    void updateWorkspace_success() throws Exception {
+        UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
+                .name("NexSpace Updated Hub")
+                .description("Mô tả mới")
+                .supportPhone("0999888777")
+                .build();
+
+        WorkspaceDetailDto responseDto = WorkspaceDetailDto.builder()
+                .id(1L)
+                .name("NexSpace Updated Hub")
+                .category(WorkspaceCategory.COWORKING_HUB)
+                .description("Mô tả mới")
+                .supportPhone("0999888777")
+                .status(WorkspaceStatus.DRAFT)
+                .organizerId(5L)
+                .organizerName("organizer_test")
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
+
+        when(workspaceService.updateWorkspace(eq(5L), eq(1L), any(UpdateWorkspaceDto.class)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(patch("/api/v1/workspaces/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.statusCode").value(200))
+                .andExpect(jsonPath("$.data.id").value(1))
+                .andExpect(jsonPath("$.data.name").value("NexSpace Updated Hub"))
+                .andExpect(jsonPath("$.data.supportPhone").value("0999888777"));
+
+        verify(workspaceService).updateWorkspace(eq(5L), eq(1L), any(UpdateWorkspaceDto.class));
     }
 }
