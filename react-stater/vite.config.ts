@@ -22,6 +22,7 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
           const springRequest =
             url.startsWith('/api/auth/') ||
             url.startsWith('/api/organizer/') ||
+            url.startsWith('/api/admin/organizer-applications') ||
             url.startsWith('/api/v1/') ||
             url.startsWith('/api/workspaces') ||
             url.startsWith('/api/public/');
