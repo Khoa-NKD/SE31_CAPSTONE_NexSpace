@@ -24,23 +24,10 @@ export const navGroups: NavGroup[] = [
         label: 'Live'
       },
       {
-        title: 'Organizer Verification',
-        url: '/dashboard/admin/organizers',
+        title: 'Organizer applications',
+        url: '/dashboard/admin/organizers/queue',
         icon: 'badgeCheck',
-        label: '17',
-        isActive: false,
-        items: [
-          {
-            title: 'Overview',
-            url: '/dashboard/admin/organizers',
-            icon: 'badgeCheck'
-          },
-          {
-            title: 'Verification Queue',
-            url: '/dashboard/admin/organizers/queue',
-            icon: 'clock'
-          }
-        ]
+        isActive: false
       },
       {
         title: 'Workspaces',
