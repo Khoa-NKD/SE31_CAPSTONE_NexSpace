@@ -90,9 +90,15 @@ export const workspaceService = {
       if (params.district) queryParams.district = params.district;
       if (params.category) queryParams.category = params.category;
       if (params.page !== undefined) queryParams.page = params.page;
-      if (params.limit !== undefined) queryParams.limit = params.limit;
+      if (params.limit !== undefined) {
+        queryParams.limit = params.limit;
+        queryParams.size = params.limit;
+      }
       if (params.sortBy) queryParams.sortBy = params.sortBy;
-      if (params.sortOrder) queryParams.sortOrder = params.sortOrder;
+      if (params.sortOrder) {
+        queryParams.sortOrder = params.sortOrder;
+        queryParams.sortDir = params.sortOrder;
+      }
     }
 
     return apiClient.get<PublicWorkspaceListResponse>('/public/workspaces', {
@@ -126,9 +132,15 @@ export const workspaceService = {
       if (params.moderationStatus) queryParams.moderationStatus = params.moderationStatus;
       if (params.isPublic !== undefined) queryParams.isPublic = params.isPublic;
       if (params.page !== undefined) queryParams.page = params.page;
-      if (params.limit !== undefined) queryParams.limit = params.limit;
+      if (params.limit !== undefined) {
+        queryParams.limit = params.limit;
+        queryParams.size = params.limit;
+      }
       if (params.sortBy) queryParams.sortBy = params.sortBy;
-      if (params.sortOrder) queryParams.sortOrder = params.sortOrder;
+      if (params.sortOrder) {
+        queryParams.sortOrder = params.sortOrder;
+        queryParams.sortDir = params.sortOrder;
+      }
     }
 
     const headers: Record<string, string> = {};
