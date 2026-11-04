@@ -4,7 +4,9 @@ import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.service.IWorkspaceService;
+import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.enums.BookingConfirmationMode;
@@ -20,6 +22,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.http.MediaType;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -29,6 +32,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,6 +40,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -69,6 +74,34 @@ class WorkspaceControllerTest {
         AuthUser principal = new AuthUser(organizer);
         var auth = UsernamePasswordAuthenticationToken.authenticated(principal, null, principal.getAuthorities());
         SecurityContextHolder.getContext().setAuthentication(auth);
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/workspaces - Lấy danh sách workspace của Organizer thành công")
+    void getMyWorkspaces_success() throws Exception {
+        WorkspaceDto item = WorkspaceDto.builder()
+                .id(1L)
+                .name("NexSpace Central")
+                .category(WorkspaceCategory.COWORKING_HUB)
+                .status(WorkspaceStatus.DRAFT)
+                .reviewStatus("Draft")
+                .operatingStatus("Inactive")
+                .organizerId(5L)
+                .build();
+
+        when(workspaceService.getMyWorkspaces(eq(5L), eq(null), any(PageRequestDTO.class)))
+                .thenReturn(new PageImpl<>(List.of(item)));
+
+        mockMvc.perform(get("/api/v1/workspaces")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.listObjects[0].id").value(1))
+                .andExpect(jsonPath("$.data.listObjects[0].name").value("NexSpace Central"))
+                .andExpect(jsonPath("$.data.listObjects[0].status").value("DRAFT"));
+
+        verify(workspaceService).getMyWorkspaces(eq(5L), eq(null), any(PageRequestDTO.class));
     }
 
     @Test

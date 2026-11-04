@@ -5,7 +5,9 @@ import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
+import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
@@ -20,13 +22,18 @@ import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -250,5 +257,25 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.updateLifecycle(10L, 100L, dto))
                 .isInstanceOf(ConflictException.class)
                 .hasMessageContaining("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE)");
+    }
+
+    @Test
+    @DisplayName("Lấy danh sách không gian của Organizer thành công có phân trang")
+    void getMyWorkspaces_success() {
+        Page<WorkspaceModel> mockPage = new PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchByOrganizer(eq(10L), eq(WorkspaceStatus.DRAFT), eq("Old"), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setPage(1);
+        pageRequest.setSize(10);
+        pageRequest.setSearch("Old");
+
+        Page<WorkspaceDto> result = service.getMyWorkspaces(10L, WorkspaceStatus.DRAFT, pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getName()).isEqualTo("Old Name");
+        assertThat(result.getContent().get(0).getOrganizerId()).isEqualTo(10L);
     }
 }

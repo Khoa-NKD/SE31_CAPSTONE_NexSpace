@@ -34,6 +34,14 @@ public class PageRequestDTO {
     @Schema(description = "Chiều sắp xếp: asc | desc", example = "desc", defaultValue = "desc")
     private String sortDir = "desc";
 
+    public void setLimit(int limit) {
+        this.size = limit;
+    }
+
+    public void setSortOrder(String sortOrder) {
+        this.sortDir = sortOrder;
+    }
+
     public Pageable toPageable() {
         return PageRequest.of(Math.max(0, page - 1), normalizedSize());
     }

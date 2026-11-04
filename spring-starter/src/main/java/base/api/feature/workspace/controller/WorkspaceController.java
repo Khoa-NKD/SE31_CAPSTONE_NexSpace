@@ -4,23 +4,31 @@ import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
+import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.dto.PageResponseDTO;
+import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -30,6 +38,26 @@ import org.springframework.web.bind.annotation.RestController;
 public class WorkspaceController extends BaseAPIController {
 
     private final IWorkspaceService workspaceService;
+
+    @Operation(summary = "Lấy danh sách không gian của Organizer", description = "Lấy danh sách không gian làm việc của Organizer hiện tại có phân trang, lọc theo trạng thái và tìm kiếm")
+    @GetMapping
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getMyWorkspaces(
+            @RequestParam(required = false) WorkspaceStatus status,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        Long organizerId = getCurrentUserId();
+        Page<WorkspaceDto> page = workspaceService.getMyWorkspaces(organizerId, status, pageRequest);
+        return successPage(page);
+    }
+
+    @Operation(summary = "Lấy danh sách không gian của Organizer (alias /mine)")
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getMyWorkspacesMine(
+            @RequestParam(required = false) WorkspaceStatus status,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        return getMyWorkspaces(status, pageRequest);
+    }
 
     @Operation(summary = "Tạo không gian làm việc mới", description = "Tạo không gian làm việc mới ở trạng thái DRAFT cho Organizer hiện tại")
     @PostMapping

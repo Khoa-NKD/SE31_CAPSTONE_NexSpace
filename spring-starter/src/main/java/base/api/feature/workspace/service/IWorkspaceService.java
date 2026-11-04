@@ -4,6 +4,10 @@ import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
+import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.enums.WorkspaceStatus;
+import org.springframework.data.domain.Page;
 
 public interface IWorkspaceService {
 
@@ -47,4 +51,14 @@ public interface IWorkspaceService {
      * @return WorkspaceDetailDto chi tiết không gian sau cập nhật
      */
     WorkspaceDetailDto updateLifecycle(Long organizerId, Long workspaceId, WorkspaceLifecycleDto dto);
+
+    /**
+     * Lấy danh sách không gian làm việc của Organizer có phân trang, tìm kiếm và lọc trạng thái.
+     *
+     * @param organizerId ID của Organizer từ authenticated JWT
+     * @param status Bộ lọc trạng thái (nếu có)
+     * @param pageRequest Tham số phân trang và sắp xếp
+     * @return Trang danh sách WorkspaceDto
+     */
+    Page<WorkspaceDto> getMyWorkspaces(Long organizerId, WorkspaceStatus status, PageRequestDTO pageRequest);
 }

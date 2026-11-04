@@ -5,9 +5,11 @@ import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.feature.workspace.service.IWorkspaceService;
+import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.WorkspaceStatus;
@@ -15,13 +17,23 @@ import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
 @Transactional
 public class WorkspaceServiceImpl implements IWorkspaceService {
+
+    private static final Set<String> SORTABLE_FIELDS = Set.of(
+            "id", "name", "createdAt", "updatedAt", "status", "city", "district", "category"
+    );
 
     private final IWorkspaceRepository workspaceRepository;
     private final IUserRepository userRepository;
@@ -150,5 +162,17 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
         return WorkspaceMapper.toDetailDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<WorkspaceDto> getMyWorkspaces(Long organizerId, WorkspaceStatus status, PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest != null
+                ? pageRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
+                : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
+        String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
+
+        Page<WorkspaceModel> page = workspaceRepository.searchByOrganizer(organizerId, status, search, pageable);
+        return page.map(WorkspaceMapper::toDto);
     }
 }

@@ -18,7 +18,10 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             SELECT w FROM WorkspaceModel w
             WHERE w.organizer.id = :organizerId
               AND (:status IS NULL OR w.status = :status)
-              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%')))
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%')))
             """)
     Page<WorkspaceModel> searchByOrganizer(
             @Param("organizerId") Long organizerId,
