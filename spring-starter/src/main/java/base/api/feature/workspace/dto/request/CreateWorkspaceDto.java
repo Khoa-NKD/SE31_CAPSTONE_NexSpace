@@ -57,4 +57,6 @@ public class CreateWorkspaceDto {
 
     @Builder.Default
     private BookingConfirmationMode bookingConfirmationMode = BookingConfirmationMode.INSTANT;
+
+    private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
 }

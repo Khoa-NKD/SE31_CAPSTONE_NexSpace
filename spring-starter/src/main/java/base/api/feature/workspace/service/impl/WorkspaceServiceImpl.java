@@ -6,12 +6,15 @@ import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
+import base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
+import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
+import base.api.shared.entity.workspace.WorkspaceOperatingHourModel;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
@@ -24,6 +27,10 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 @Service
@@ -37,6 +44,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
     private final IWorkspaceRepository workspaceRepository;
     private final IUserRepository userRepository;
+    private final IWorkspaceOperatingHourRepository operatingHourRepository;
 
     @Override
     public WorkspaceDetailDto createWorkspace(Long organizerId, CreateWorkspaceDto dto) {
@@ -47,7 +55,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         workspace.setStatus(WorkspaceStatus.DRAFT);
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
-        return WorkspaceMapper.toDetailDto(saved);
+        List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
+        return WorkspaceMapper.toDetailDto(saved, hours);
     }
 
     @Override
@@ -161,7 +170,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
-        return WorkspaceMapper.toDetailDto(saved);
+        List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
+        return WorkspaceMapper.toDetailDto(saved, hours);
     }
 
     @Override
@@ -187,7 +197,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             workspace = workspaceRepository.findById(workspaceId)
                     .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc"));
         }
-        return WorkspaceMapper.toDetailDto(workspace);
+        List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
+        return WorkspaceMapper.toDetailDto(workspace, hours);
     }
 
     @Override
@@ -195,7 +206,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     public WorkspaceDetailDto getPublicWorkspaceDetail(Long workspaceId) {
         WorkspaceModel workspace = workspaceRepository.findByIdAndStatus(workspaceId, WorkspaceStatus.ACTIVE)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt"));
-        return WorkspaceMapper.toDetailDto(workspace);
+        List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
+        return WorkspaceMapper.toDetailDto(workspace, hours);
     }
 
     @Override
@@ -208,5 +220,89 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         Page<WorkspaceModel> page = workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
         return page.map(WorkspaceMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WorkspaceOperatingHourDto> getOperatingHours(Long organizerId, Long workspaceId) {
+        if (organizerId != null) {
+            workspaceRepository.findByIdAndOrganizerId(workspaceId, organizerId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc bạn không có quyền truy cập"));
+        } else {
+            workspaceRepository.findById(workspaceId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc"));
+        }
+        return operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId)
+                .stream()
+                .map(WorkspaceMapper::toOperatingHourDto)
+                .toList();
+    }
+
+    @Override
+    public List<WorkspaceOperatingHourDto> updateOperatingHours(
+            Long organizerId,
+            Long workspaceId,
+            List<WorkspaceOperatingHourDto> dtos) {
+        WorkspaceModel workspace;
+        if (organizerId != null) {
+            workspace = workspaceRepository.findByIdAndOrganizerId(workspaceId, organizerId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc bạn không có quyền truy cập"));
+        } else {
+            workspace = workspaceRepository.findById(workspaceId)
+                    .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc"));
+        }
+
+        if (workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
+            throw new BadRequestException("Không thể cấu hình giờ hoạt động cho không gian đã lưu trữ");
+        }
+
+        List<WorkspaceOperatingHourModel> savedHours = saveOperatingHoursInternal(workspace, dtos);
+        return savedHours.stream().map(WorkspaceMapper::toOperatingHourDto).toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<WorkspaceOperatingHourDto> getPublicOperatingHours(Long workspaceId) {
+        workspaceRepository.findByIdAndStatus(workspaceId, WorkspaceStatus.ACTIVE)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt"));
+
+        return operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId)
+                .stream()
+                .map(WorkspaceMapper::toOperatingHourDto)
+                .toList();
+    }
+
+    private List<WorkspaceOperatingHourModel> saveOperatingHoursInternal(
+            WorkspaceModel workspace,
+            List<WorkspaceOperatingHourDto> dtos) {
+        if (dtos == null || dtos.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        Set<Integer> seenDays = new HashSet<>();
+        List<WorkspaceOperatingHourModel> models = new ArrayList<>();
+
+        for (WorkspaceOperatingHourDto dto : dtos) {
+            if (dto.getDayOfWeek() == null || dto.getDayOfWeek() < 1 || dto.getDayOfWeek() > 7) {
+                throw new BadRequestException("Thứ trong tuần phải từ 1 (Thứ Hai) đến 7 (Chủ Nhật)");
+            }
+            if (!seenDays.add(dto.getDayOfWeek())) {
+                throw new BadRequestException("Trùng lặp cấu hình cho thứ " + dto.getDayOfWeek());
+            }
+
+            if (!dto.isClosed() && !dto.is24Hours()) {
+                if (dto.getOpenTime() == null || dto.getCloseTime() == null) {
+                    throw new BadRequestException("Vui lòng nhập đầy đủ giờ mở cửa và đóng cửa cho thứ " + dto.getDayOfWeek());
+                }
+                if (!dto.getCloseTime().isAfter(dto.getOpenTime())) {
+                    throw new BadRequestException("Giờ đóng cửa (" + dto.getCloseTime() + ") phải sau giờ mở cửa (" + dto.getOpenTime() + ") cho thứ " + dto.getDayOfWeek());
+                }
+            }
+
+            models.add(WorkspaceMapper.toOperatingHourModel(dto, workspace));
+        }
+
+        operatingHourRepository.saveAll(models);
+        return operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
     }
 }

@@ -3,10 +3,16 @@ package base.api.feature.workspace.mapper;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
+import base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
+import base.api.shared.entity.workspace.WorkspaceOperatingHourModel;
 import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.WorkspaceStatus;
+
+import java.time.LocalTime;
+import java.util.Collections;
+import java.util.List;
 
 public final class WorkspaceMapper {
 
@@ -119,6 +125,10 @@ public final class WorkspaceMapper {
     }
 
     public static WorkspaceDetailDto toDetailDto(WorkspaceModel workspace) {
+        return toDetailDto(workspace, Collections.emptyList());
+    }
+
+    public static WorkspaceDetailDto toDetailDto(WorkspaceModel workspace, List<WorkspaceOperatingHourModel> operatingHours) {
         if (workspace == null) {
             return null;
         }
@@ -171,6 +181,10 @@ public final class WorkspaceMapper {
             }
         }
 
+        List<WorkspaceOperatingHourDto> hourDtos = operatingHours != null
+                ? operatingHours.stream().map(WorkspaceMapper::toOperatingHourDto).toList()
+                : Collections.emptyList();
+
         return WorkspaceDetailDto.builder()
                 .id(workspace.getId())
                 .name(workspace.getName())
@@ -195,8 +209,56 @@ public final class WorkspaceMapper {
                 .submittedAt(workspace.getSubmittedAt())
                 .organizerId(organizerId)
                 .organizerName(organizerName)
+                .operatingHours(hourDtos)
                 .createdAt(workspace.getCreatedAt())
                 .updatedAt(workspace.getUpdatedAt())
                 .build();
+    }
+
+    public static WorkspaceOperatingHourDto toOperatingHourDto(WorkspaceOperatingHourModel model) {
+        if (model == null) {
+            return null;
+        }
+        boolean isClosed = model.isClosed();
+        boolean is24Hours = !isClosed
+                && model.getOpenTime() != null
+                && model.getCloseTime() != null
+                && model.getOpenTime().equals(LocalTime.MIN)
+                && (model.getCloseTime().equals(LocalTime.of(23, 59)) || model.getCloseTime().equals(LocalTime.of(23, 59, 59)));
+
+        return WorkspaceOperatingHourDto.builder()
+                .id(model.getId() != null && model.getId().getDayOfWeek() != null ? String.valueOf(model.getId().getDayOfWeek()) : null)
+                .dayOfWeek(model.getId() != null ? model.getId().getDayOfWeek() : null)
+                .openTime(model.getOpenTime())
+                .closeTime(model.getCloseTime())
+                .isClosed(isClosed)
+                .is24Hours(is24Hours)
+                .closesNextDay(false)
+                .build();
+    }
+
+    public static WorkspaceOperatingHourModel toOperatingHourModel(WorkspaceOperatingHourDto dto, WorkspaceModel workspace) {
+        if (dto == null) {
+            return null;
+        }
+        WorkspaceOperatingHourModel model = new WorkspaceOperatingHourModel();
+        WorkspaceOperatingHourModel.Key key = new WorkspaceOperatingHourModel.Key(workspace.getId(), dto.getDayOfWeek());
+        model.setId(key);
+        model.setWorkspace(workspace);
+
+        if (dto.isClosed()) {
+            model.setClosed(true);
+            model.setOpenTime(null);
+            model.setCloseTime(null);
+        } else if (dto.is24Hours()) {
+            model.setClosed(false);
+            model.setOpenTime(LocalTime.of(0, 0));
+            model.setCloseTime(LocalTime.of(23, 59));
+        } else {
+            model.setClosed(false);
+            model.setOpenTime(dto.getOpenTime());
+            model.setCloseTime(dto.getCloseTime());
+        }
+        return model;
     }
 }

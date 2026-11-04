@@ -87,4 +87,36 @@ public interface IWorkspaceService {
      * @return Trang danh sách WorkspaceDto công khai
      */
     Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest);
+
+    /**
+     * Lấy cấu hình giờ hoạt động cho workspace.
+     * Áp dụng Strict Ownership Defense (ném NotFoundException nếu không sở hữu).
+     *
+     * @param organizerId ID của Organizer từ authenticated JWT (null nếu là Admin)
+     * @param workspaceId ID không gian làm việc
+     * @return Danh sách giờ hoạt động theo từng ngày trong tuần (1-7)
+     */
+    java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> getOperatingHours(Long organizerId, Long workspaceId);
+
+    /**
+     * Cập nhật / lưu cấu hình giờ hoạt động cho workspace.
+     * Áp dụng Strict Ownership Defense.
+     *
+     * @param organizerId ID của Organizer từ authenticated JWT
+     * @param workspaceId ID không gian làm việc
+     * @param dtos Danh sách giờ hoạt động cần cập nhật
+     * @return Danh sách giờ hoạt động sau khi cập nhật
+     */
+    java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> updateOperatingHours(
+            Long organizerId,
+            Long workspaceId,
+            java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> dtos);
+
+    /**
+     * Khách hàng xem giờ hoạt động công khai của workspace ACTIVE.
+     *
+     * @param workspaceId ID không gian làm việc
+     * @return Danh sách giờ hoạt động
+     */
+    java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> getPublicOperatingHours(Long workspaceId);
 }

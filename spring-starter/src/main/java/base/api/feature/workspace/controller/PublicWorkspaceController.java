@@ -42,6 +42,15 @@ public class PublicWorkspaceController extends BaseAPIController {
         return successPage(page);
     }
 
+    @Operation(summary = "Xem giờ hoạt động công khai", description = "Khách hàng xem cấu hình giờ mở cửa của workspace ACTIVE")
+    @GetMapping("/{id}/operating-hours")
+    public ResponseEntity<ApiResponse<java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto>>> getPublicOperatingHours(
+            @PathVariable String id) {
+        Long workspaceId = parseWorkspaceId(id);
+        java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> hours = workspaceService.getPublicOperatingHours(workspaceId);
+        return success(hours);
+    }
+
     private Long parseWorkspaceId(String id) {
         if (id == null || id.isBlank()) {
             throw new BadRequestException("ID không gian không hợp lệ");
@@ -57,3 +66,4 @@ public class PublicWorkspaceController extends BaseAPIController {
         }
     }
 }
+
