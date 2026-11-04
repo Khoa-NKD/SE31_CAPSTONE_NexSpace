@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -207,6 +208,7 @@ export function ApplicationsListView({
                     <TableHead>Submitted at</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Reviewed at</TableHead>
+                    <TableHead>Details</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -253,6 +255,18 @@ export function ApplicationsListView({
                         <time dateTime={application.reviewedAt || undefined}>
                           {applicationTimestamp(application.reviewedAt)}
                         </time>
+                      </TableCell>
+                      <TableCell>
+                        <Button variant='outline' size='sm' asChild>
+                          <Link
+                            to='/dashboard/admin/organizers/$applicationId'
+                            params={{ applicationId: String(application.id) }}
+                            search={{ ...filters, appId: undefined }}
+                            aria-label={`View application #${application.id}`}
+                          >
+                            View details
+                          </Link>
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
