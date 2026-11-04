@@ -253,6 +253,24 @@ export const workspaceService = {
   },
 
   /**
+   * Soft-deletes / archives a workspace without deleting historical data.
+   */
+  async deleteWorkspace(
+    id: string,
+    options?: { organizerId?: string }
+  ): Promise<CanonicalWorkspace> {
+    const resolvedId = resolveWorkspaceId(id);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Organizer',
+      'x-organizer-id': options?.organizerId || 'USR-9432'
+    };
+    return apiClient.delete<CanonicalWorkspace>(
+      '/workspaces/' + encodeURIComponent(resolvedId),
+      { headers }
+    );
+  },
+
+  /**
    * Dedicated Organizer command endpoint for submitting a complete Draft workspace for Admin review.
    */
   async submitWorkspace(
