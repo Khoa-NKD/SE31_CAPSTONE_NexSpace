@@ -1,35 +1,24 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useMutation } from '@tanstack/react-query';
+import { useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
 import { ApiError } from '@/lib/api-client';
 import { currentUser } from '@/features/auth/api/session';
 import type { SessionUser } from '@/features/auth/api/session';
-import { BUSINESS_TYPES, submitApplication } from '../api/application';
-import type { ApplicationInput } from '../api/application';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { VerificationDocumentsView } from '@/features/organizer-verification-documents/components/verification-documents-view';
+import { verificationDocumentKeys } from '@/features/organizer-verification-documents/api/documents';
+import {
+  BUSINESS_TYPES,
+  applicationDraftSchema,
+  currentApplication,
+  startApplicationDraft,
+  saveApplicationDraft,
+  submitApplicationDraft
+} from '../api/application';
+import type { ApplicationInput, ApplicationDetails } from '../api/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-
-const schema = z.object({
-  legalName: z.string().trim().min(1, 'Legal name is required').max(255),
-  businessType: z.enum([
-    'JOINT_STOCK',
-    'LIMITED_LIABILITY',
-    'SOLE_PROPRIETOR',
-    'HOUSEHOLD_BUSINESS',
-    'OTHER'
-  ]),
-  taxId: z.string().trim().min(1, 'Tax ID is required').max(50),
-  representativeName: z.string().trim().min(1, 'Representative is required').max(100),
-  address: z.string().trim().min(1, 'Address is required').max(500),
-  contactPhone: z
-    .string()
-    .trim()
-    .regex(/^[+0-9() .-]{8,20}$/, 'Enter a valid phone number (8–20 characters)'),
-  contactEmail: z.string().trim().email('Enter a valid email address').max(255)
-});
 
 const fields = [
   ['legalName', 'Legal business name', 255],
@@ -40,42 +29,62 @@ const fields = [
   ['contactEmail', 'Contact email', 255]
 ] as const;
 
+function formValues(details: ApplicationDetails | null, email = ''): ApplicationInput {
+  return {
+    legalName: details?.legalName ?? '',
+    businessType: details?.businessType ?? 'LIMITED_LIABILITY',
+    taxId: details?.taxId ?? '',
+    representativeName: details?.representativeName ?? '',
+    address: details?.address ?? '',
+    contactPhone: details?.contactPhone ?? '',
+    contactEmail: details?.contactEmail ?? email
+  };
+}
+
+/** Remount owner-specific form state when the shared session changes. */
 export function ApplicationForm() {
+  const actorId = useAuthStore((state) => state.user?.id);
+  const [attempt, setAttempt] = useState(0);
+  return (
+    <OwnedApplicationForm
+      key={`${actorId ?? 'anonymous'}:${attempt}`}
+      onRetry={() => setAttempt((value) => value + 1)}
+    />
+  );
+}
+
+function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const [user, setUser] = useState<SessionUser | null>(null);
+  const [details, setDetails] = useState<ApplicationDetails | null>(null);
   const [checking, setChecking] = useState(true);
   const [accessError, setAccessError] = useState('');
-  const [license, setLicense] = useState<File | null>(null);
-  const [fileError, setFileError] = useState('');
-  const [submitError, setSubmitError] = useState('');
-  const submitting = useRef(false);
-  const fileInput = useRef<HTMLInputElement>(null);
-  const form = useForm<ApplicationInput>({
-    resolver: zodResolver(schema),
-    defaultValues: {
-      legalName: '',
-      businessType: 'LIMITED_LIABILITY',
-      taxId: '',
-      representativeName: '',
-      address: '',
-      contactPhone: '',
-      contactEmail: ''
-    }
-  });
-  const mutation = useMutation({
-    mutationFn: ({ input, file }: { input: ApplicationInput; file: File }) =>
-      submitApplication(input, file)
-  });
+  const [loadError, setLoadError] = useState('');
+  const [feedback, setFeedback] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const operation = useRef(false);
+  const queryClient = useQueryClient();
+  const form = useForm<ApplicationInput>({ defaultValues: formValues(null) });
+  const isDirty = form.formState.isDirty;
 
   useEffect(() => {
     const controller = new AbortController();
-    currentUser(controller.signal)
-      .then((account) => {
+    void currentUser(controller.signal)
+      .then(async (account) => {
+        if (controller.signal.aborted) return;
         setUser(account);
-        form.setValue('contactEmail', account.email);
+        const application = await currentApplication(controller.signal);
+        if (controller.signal.aborted) return;
+        setDetails(application);
+        form.reset(formValues(application, account.email));
       })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted)
-          setAccessError(error instanceof Error ? error.message : 'Could not verify your account.');
+      .catch((failure: unknown) => {
+        if (controller.signal.aborted) return;
+        const message =
+          failure instanceof Error ? failure.message : 'Could not load your application.';
+        if (failure instanceof ApiError && [401, 403].includes(failure.status))
+          setAccessError(message);
+        else setLoadError(message);
       })
       .finally(() => {
         if (!controller.signal.aborted) setChecking(false);
@@ -83,175 +92,228 @@ export function ApplicationForm() {
     return () => controller.abort();
   }, [form]);
 
-  const onSubmit = async (input: ApplicationInput) => {
-    if (submitting.current || mutation.isSuccess) return;
-    if (!license) {
-      setFileError('A business license is required.');
-      return;
-    }
-    submitting.current = true;
-    setSubmitError('');
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = '';
+    };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
+
+  const run = async (action: 'start' | 'save' | 'submit') => {
+    if (operation.current) return;
+    operation.current = true;
+    setBusy(true);
+    setError('');
+    setFeedback('');
+    form.clearErrors();
     try {
-      await mutation.mutateAsync({ input, file: license });
-      form.reset();
-      setLicense(null);
-      if (fileInput.current) fileInput.current.value = '';
-    } catch (error) {
-      if (error instanceof ApiError) {
-        for (const [field, message] of Object.entries(error.validationErrors ?? {})) {
-          if (field in schema.shape) form.setError(field as keyof ApplicationInput, { message });
+      if (action === 'start') {
+        const draft = await startApplicationDraft();
+        setDetails(draft);
+        form.reset(formValues(draft, user?.email));
+        setFeedback('Draft created. Save your details and upload your business license below.');
+      } else {
+        // Both actions persist the visible snapshot; only explicit submission changes status.
+        const parsed = applicationDraftSchema.safeParse(form.getValues());
+        if (!parsed.success) {
+          for (const issue of parsed.error.issues)
+            form.setError(issue.path[0] as keyof ApplicationInput, { message: issue.message });
+          setError('Correct the highlighted fields before saving or submitting.');
+          return;
         }
-        if (error.status === 401 || error.status === 403) setAccessError(error.message);
+        const saved = await saveApplicationDraft(parsed.data);
+        setDetails(saved);
+        form.reset(formValues(saved));
+        if (action === 'submit') {
+          const receipt = await submitApplicationDraft();
+          setDetails({ ...saved, ...receipt });
+          setFeedback(
+            'Application submitted. Your account permissions change only after approval.'
+          );
+        } else
+          setFeedback('Draft saved. You can return later; it has not been submitted for review.');
       }
-      setSubmitError(
-        error instanceof Error ? error.message : 'Submission failed. Please try again.'
+      if (user)
+        await queryClient.invalidateQueries({
+          queryKey: verificationDocumentKeys.detail(user.id),
+          exact: true
+        });
+    } catch (failure) {
+      if (failure instanceof ApiError) {
+        for (const [field, message] of Object.entries(failure.validationErrors ?? {})) {
+          if (field === 'businessType' || fields.some(([name]) => name === field))
+            form.setError(field as keyof ApplicationInput, { message });
+        }
+        if ([401, 403].includes(failure.status)) setAccessError(failure.message);
+        if (failure.status === 409) {
+          // Refresh status without replacing unsaved text; another tab may have submitted.
+          try {
+            setDetails(await currentApplication());
+          } catch {
+            /* Keep the actionable original error. */
+          }
+        }
+      }
+      const fieldErrors =
+        failure instanceof ApiError ? Object.values(failure.validationErrors ?? {}) : [];
+      setError(
+        [
+          failure instanceof Error ? failure.message : 'Request failed. Please try again.',
+          ...fieldErrors
+        ].join(' ')
       );
     } finally {
-      submitting.current = false;
+      operation.current = false;
+      setBusy(false);
     }
   };
 
-  if (checking) return <p role='status'>Checking your account…</p>;
+  if (checking) return <p role='status'>Loading your application…</p>;
+  if (loadError)
+    return (
+      <div role='alert' className='space-y-3'>
+        <p>{loadError}</p>
+        <Button onClick={onRetry}>Try again</Button>
+      </div>
+    );
   if (accessError || !user)
     return (
-      <div className='space-y-4' role='alert'>
+      <div role='alert' className='space-y-3'>
         <p>{accessError || 'Please sign in to apply.'}</p>
-        <Link to='/auth/sign-in' className='text-indigo-600 underline'>
+        <Link to='/auth/sign-in' className='text-primary underline'>
           Sign in
         </Link>
       </div>
     );
-  if (!user.verified || user.status !== 'ACTIVE' || !['USER', 'ORGANIZER'].includes(user.role ?? '')) {
+  if (
+    !user.verified ||
+    user.status !== 'ACTIVE' ||
+    !['USER', 'ORGANIZER'].includes(user.role ?? '')
+  )
     return (
       <p role='alert'>
         An active, email-verified Customer or Organizer account is required to apply.
       </p>
     );
-  }
-  if (mutation.isSuccess)
-    return (
-      <div
-        role='status'
-        className='space-y-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-6'
-      >
-        <h2 className='text-xl font-semibold'>Application submitted</h2>
-        <p>Application #{mutation.data.id} is pending administrator review.</p>
-        <p>Your account permissions will change only after approval.</p>
-        <Link to='/' className='text-indigo-600 underline'>
-          Return home
-        </Link>
-      </div>
-    );
 
+  const editable = details?.status === 'DRAFT';
   return (
-    <form
-      onSubmit={(event) => {
-        void form.handleSubmit(onSubmit)(event);
-      }}
-      noValidate
-      className='space-y-6'
-    >
-      <p className='text-sm text-muted-foreground'>
-        Signed in as {user.email}. All fields are required.
-      </p>
-      <fieldset
-        disabled={mutation.isPending}
-        className='grid gap-5 sm:grid-cols-2 disabled:opacity-70'
-      >
-        <legend className='sr-only'>Business application</legend>
-        <div className='space-y-2 sm:col-span-2'>
-          <label htmlFor='businessType' className='text-sm font-medium'>
-            Business type
-          </label>
-          <select
-            id='businessType'
-            {...form.register('businessType')}
-            aria-invalid={!!form.formState.errors.businessType}
-            className='h-10 w-full rounded-md border border-input bg-background px-3'
+    <div className='space-y-6'>
+      <p className='text-sm text-muted-foreground'>Signed in as {user.email}.</p>
+      {details ? (
+        <p role='status'>
+          Application #{details.id} · {details.status}
+        </p>
+      ) : (
+        <>
+          <p>
+            Start a draft, save your business details and upload a business license. Submit only
+            when ready for review.
+          </p>
+          <Button disabled={busy} onClick={() => void run('start')}>
+            {busy ? 'Starting…' : 'Start draft application'}
+          </Button>
+        </>
+      )}
+      {details && (
+        <>
+          <form
+            noValidate
+            className='space-y-5'
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (editable) void run('save');
+            }}
           >
-            {BUSINESS_TYPES.map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-          {form.formState.errors.businessType && (
-            <p role='alert' className='text-sm text-red-600'>
-              {form.formState.errors.businessType.message}
-            </p>
-          )}
-        </div>
-        {fields.map(([name, label, maxLength]) => (
-          <div key={name} className={`space-y-2 ${name === 'address' ? 'sm:col-span-2' : ''}`}>
-            <label htmlFor={name} className='text-sm font-medium'>
-              {label}
-            </label>
-            <Input
-              id={name}
-              type={name === 'contactEmail' ? 'email' : name === 'contactPhone' ? 'tel' : 'text'}
-              maxLength={maxLength}
-              {...form.register(name)}
-              aria-required='true'
-              aria-invalid={!!form.formState.errors[name]}
-              aria-describedby={form.formState.errors[name] ? `${name}-error` : undefined}
-            />
-            {form.formState.errors[name] && (
-              <p id={`${name}-error`} role='alert' className='text-sm text-red-600'>
-                {form.formState.errors[name]?.message}
+            <fieldset
+              disabled={!editable || busy}
+              className='grid gap-5 sm:grid-cols-2 disabled:opacity-70'
+            >
+              <legend className='sr-only'>Business application</legend>
+              <div className='space-y-2 sm:col-span-2'>
+                <label htmlFor='businessType' className='text-sm font-medium'>
+                  Business type
+                </label>
+                <select
+                  id='businessType'
+                  {...form.register('businessType')}
+                  className='h-10 w-full rounded-md border border-input bg-background px-3'
+                >
+                  {BUSINESS_TYPES.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+                {form.formState.errors.businessType && (
+                  <p role='alert'>{form.formState.errors.businessType.message}</p>
+                )}
+              </div>
+              {fields.map(([name, label, maxLength]) => (
+                <div
+                  key={name}
+                  className={`space-y-2 ${name === 'address' ? 'sm:col-span-2' : ''}`}
+                >
+                  <label htmlFor={name} className='text-sm font-medium'>
+                    {label}
+                  </label>
+                  <Input
+                    id={name}
+                    type={
+                      name === 'contactEmail' ? 'email' : name === 'contactPhone' ? 'tel' : 'text'
+                    }
+                    maxLength={maxLength}
+                    {...form.register(name)}
+                    aria-invalid={!!form.formState.errors[name]}
+                    aria-describedby={form.formState.errors[name] ? `${name}-error` : undefined}
+                  />
+                  {form.formState.errors[name] && (
+                    <p id={`${name}-error`} role='alert' className='text-sm text-red-600'>
+                      {form.formState.errors[name]?.message}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </fieldset>
+            {editable && (
+              <div className='flex flex-wrap gap-3'>
+                <Button type='submit' disabled={busy}>
+                  {busy ? 'Saving…' : 'Save draft'}
+                </Button>
+                <Button type='button' disabled={busy} onClick={() => void run('submit')}>
+                  Submit for review
+                </Button>
+              </div>
+            )}
+            {editable && (
+              <p className='text-sm text-muted-foreground'>
+                Drafts may be incomplete. All business fields and a current business license are
+                required for submission. Uploading does not submit the application.
               </p>
             )}
-          </div>
-        ))}
-        <div className='space-y-2 sm:col-span-2'>
-          <label htmlFor='businessLicense' className='text-sm font-medium'>
-            Business license
-          </label>
-          <Input
-            ref={fileInput}
-            id='businessLicense'
-            type='file'
-            accept='.jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf'
-            aria-required='true'
-            aria-invalid={!!fileError}
-            aria-describedby='license-help license-error'
-            onChange={(event) => {
-              const file = event.target.files?.[0] ?? null;
-              setLicense(null);
-              setFileError('');
-              if (!file) return;
-              if (
-                !/\.(jpe?g|png|pdf)$/i.test(file.name) ||
-                !['image/jpeg', 'image/png', 'application/pdf'].includes(file.type) ||
-                !file.size ||
-                file.size > 5 * 1024 * 1024
-              ) {
-                setFileError('Choose a JPG, PNG or PDF file between 1 byte and 5 MB.');
-                event.target.value = '';
-                return;
-              }
-              setLicense(file);
-            }}
-          />
-          <p id='license-help' className='text-sm text-muted-foreground'>
-            JPG, PNG or PDF, up to 5 MB. Verification documents are stored privately.
-          </p>
-          <p
-            id='license-error'
-            role={fileError ? 'alert' : undefined}
-            className='text-sm text-red-600'
-          >
-            {fileError}
-          </p>
-        </div>
-      </fieldset>
-      {submitError && (
-        <p role='alert' className='rounded-md border border-red-500/30 p-3 text-sm text-red-600'>
-          {submitError}
+          </form>
+          {!editable && (
+            <p>
+              This application is read-only here. Upload is available only for DRAFT or
+              REVISION_REQUESTED profiles.
+            </p>
+          )}
+        </>
+      )}
+      {feedback && (
+        <p role='status' className='text-sm text-emerald-700'>
+          {feedback}
         </p>
       )}
-      <Button type='submit' disabled={mutation.isPending} className='w-full sm:w-auto'>
-        {mutation.isPending ? 'Submitting…' : 'Submit application'}
-      </Button>
-    </form>
+      {error && (
+        <p role='alert' className='text-sm text-red-600'>
+          {error}
+        </p>
+      )}
+      {details && <VerificationDocumentsView />}
+    </div>
   );
 }

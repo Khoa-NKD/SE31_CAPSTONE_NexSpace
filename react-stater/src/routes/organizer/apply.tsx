@@ -1,4 +1,4 @@
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, Link } from '@tanstack/react-router';
 import { Navbar } from '@/features/landing/components/navbar';
 import { ApplicationForm } from '@/features/organizer-application/components/application-form';
 
@@ -22,6 +22,9 @@ function OrganizerApplicationPage() {
           <p className='text-muted-foreground'>
             Submit your business details and verification document for administrator review.
           </p>
+          <Link to='/organizer/documents' className='text-primary underline'>
+            Manage verification documents for an existing application
+          </Link>
         </header>
         <div className='rounded-xl border bg-card p-5 shadow-sm sm:p-8'>
           <ApplicationForm />

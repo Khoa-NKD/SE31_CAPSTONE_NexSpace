@@ -9,7 +9,12 @@ import {
 } from '../../src/features/auth/api/session.ts';
 import {
   applicationPayload,
-  submitApplication
+  submitApplication,
+  applicationDraftSchema,
+  currentApplication,
+  startApplicationDraft,
+  saveApplicationDraft,
+  submitApplicationDraft
 } from '../../src/features/organizer-application/api/application.ts';
 import { useAuthStore } from '../../src/features/auth/store/auth-store.ts';
 import { authService } from '../../src/features/auth/api/auth-service.ts';
@@ -253,4 +258,108 @@ test('SSR cannot consume browser credentials or start a browser login', async ()
     (error: unknown) => error instanceof ApiError && error.status === 401
   );
   await assert.rejects(signIn('user', 'test-password', false), /browser session/);
+});
+
+const partialDraft = {
+  legalName: '',
+  businessType: 'LIMITED_LIABILITY' as const,
+  taxId: '',
+  representativeName: '',
+  address: '',
+  contactPhone: '',
+  contactEmail: ''
+};
+
+test('draft validation allows incomplete snapshots, trims values and rejects invalid supplied fields', () => {
+  assert.equal(applicationDraftSchema.safeParse(partialDraft).success, true);
+  assert.equal(
+    applicationDraftSchema.parse({
+      ...partialDraft,
+      legalName: ' Company ',
+      contactEmail: ' hello@example.test '
+    }).contactEmail,
+    'hello@example.test'
+  );
+  for (const invalid of [
+    { contactEmail: 'invalid' },
+    { contactPhone: 'abc' },
+    { legalName: 'x'.repeat(256) },
+    { address: 'x'.repeat(501) },
+    { businessType: 'INDIVIDUAL' }
+  ])
+    assert.equal(applicationDraftSchema.safeParse({ ...partialDraft, ...invalid }).success, false);
+});
+
+async function draftSession() {
+  browser();
+  globalThis.fetch = async () =>
+    Response.json({
+      success: true,
+      data: {
+        accessToken: 'draft-token',
+        user: { id: 7, role: 'USER', status: 'ACTIVE', verified: true }
+      }
+    });
+  await signIn('applicant', 'test-password', false);
+}
+
+test('draft flow reads, explicitly creates, saves a snapshot and submits without reuploading a file', async () => {
+  await draftSession();
+  const requests: string[] = [];
+  globalThis.fetch = async (url, options) => {
+    requests.push(`${options?.method} ${url}`);
+    assert.ok(options);
+    assert.equal((options.headers as Record<string, string>).Authorization, 'Bearer draft-token');
+    if (options?.method === 'PUT')
+      assert.deepEqual(JSON.parse(options.body as string), partialDraft);
+    if (String(url).endsWith('/submit')) assert.equal(options?.body, undefined);
+    return Response.json({
+      success: true,
+      data: { id: 42, status: String(url).endsWith('/submit') ? 'PENDING_REVIEW' : 'DRAFT' }
+    });
+  };
+  assert.equal((await currentApplication())?.id, 42);
+  assert.equal((await startApplicationDraft()).status, 'DRAFT');
+  assert.equal((await saveApplicationDraft(partialDraft)).status, 'DRAFT');
+  assert.equal((await submitApplicationDraft()).status, 'PENDING_REVIEW');
+  assert.deepEqual(requests, [
+    'GET /api/organizer/applications/current',
+    'POST /api/organizer/applications/draft',
+    'PUT /api/organizer/applications/draft',
+    'POST /api/organizer/applications/submit'
+  ]);
+});
+
+test('missing application is empty state, while access and server errors propagate', async () => {
+  await draftSession();
+  globalThis.fetch = async () => Response.json({ message: 'Not found' }, { status: 404 });
+  assert.equal(await currentApplication(), null);
+  for (const status of [403, 500]) {
+    globalThis.fetch = async () =>
+      Response.json({ message: 'Cannot load application' }, { status });
+    await assert.rejects(
+      currentApplication(),
+      (error: unknown) => error instanceof ApiError && error.status === status
+    );
+  }
+});
+
+test('draft submit preserves missing-document errors and duplicate status for the form', async () => {
+  await draftSession();
+  globalThis.fetch = async () =>
+    Response.json(
+      { message: 'Incomplete', errors: { businessLicense: 'Upload a business license' } },
+      { status: 400 }
+    );
+  await assert.rejects(
+    submitApplicationDraft(),
+    (error: unknown) =>
+      error instanceof ApiError &&
+      error.validationErrors?.businessLicense === 'Upload a business license'
+  );
+  globalThis.fetch = async () => Response.json({ message: 'Already submitted' }, { status: 409 });
+  await assert.rejects(
+    submitApplicationDraft(),
+    (error: unknown) => error instanceof ApiError && error.status === 409
+  );
 });
