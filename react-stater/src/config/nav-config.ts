@@ -219,6 +219,12 @@ export const organizerNavGroups: NavGroup[] = [
     label: 'Organizer Console',
     items: [
       {
+        title: 'Business Profile',
+        url: '/dashboard/organizer/business-profile',
+        icon: 'user',
+        isActive: false
+      },
+      {
         title: 'My Workspaces',
         url: '/dashboard/organizer/workspaces',
         icon: 'workspace',
