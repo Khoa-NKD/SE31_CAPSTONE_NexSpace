@@ -9,6 +9,9 @@ import { WorkspaceInfo } from './workspace-info';
 import { WorkspaceBookingCard } from './workspace-booking-card';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 
+/**
+ * Task 5: View Workspace Detail View (Public & Owner inspection)
+ */
 export function WorkspaceDetailPage() {
   const params = useParams({ strict: false }) as { workspaceId?: string };
   const workspaceId = params.workspaceId;
