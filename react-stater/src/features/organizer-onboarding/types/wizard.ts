@@ -123,6 +123,7 @@ export interface OnboardingDraftState {
   lastSavedAt: string | null;
   isDraftSynced: boolean;
   canonicalWorkspaceId?: string;
+  isEditMode?: boolean;
   clientDraftKey?: string;
   serverVersion?: number;
   isSavingToServer?: boolean;
@@ -131,6 +132,7 @@ export interface OnboardingDraftState {
   location: LocationValues;
   operatingHours: OperatingHoursValues;
   amenities: string[];
+  amenityAddonRates?: Record<string, number>;
   media: MediaGalleryValues;
   floorPlan: FloorPlanValues;
   floorPlanHandoff?: FloorPlanHandoffContract;

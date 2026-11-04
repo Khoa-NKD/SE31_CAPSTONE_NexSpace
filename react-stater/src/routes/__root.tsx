@@ -22,19 +22,38 @@ const META_THEME_COLORS = {
 const getActiveTheme = createServerFn({ method: 'GET' })
   .validator((d: { pathname?: string } | undefined) => d)
   .handler(async ({ data }) => {
-    const { getCookie, getRequestUrl } = await import('@tanstack/react-start/server');
     let pathname = data?.pathname;
-    if (!pathname && typeof getRequestUrl === 'function') {
-      try {
-        const reqUrl = getRequestUrl();
+    let cookieValue: string | null = null;
+    const isAdmin = pathname ? pathname.startsWith('/dashboard') : false;
+    const cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
+
+    // 1. Try server-side resolution via TanStack Start server helpers
+    try {
+      const serverModule = await import('@tanstack/react-start/server');
+      if (!pathname && typeof serverModule?.getRequestUrl === 'function') {
+        const reqUrl = serverModule.getRequestUrl();
         if (reqUrl) {
           pathname = new URL(reqUrl).pathname;
         }
+      }
+      if (typeof serverModule?.getCookie === 'function') {
+        const val = serverModule.getCookie(cookieName);
+        if (val) cookieValue = val;
+      }
+    } catch {
+      // Ignore server-only import failures in browser/client environment
+    }
+
+    // 2. Client-side browser fallback (during client hydration or SPA navigation)
+    if (!cookieValue && typeof document !== 'undefined') {
+      try {
+        const match = document.cookie.match(new RegExp('(^|;\\s*)' + cookieName + '=([^;]*)'));
+        if (match?.[2]) {
+          cookieValue = decodeURIComponent(match[2]);
+        }
       } catch {}
     }
-    const isAdmin = pathname ? pathname.startsWith('/dashboard') : false;
-    const cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
-    const cookieValue = getCookie(cookieName);
+
     if (cookieValue) {
       const isValid = THEMES.some((t) => t.value === cookieValue);
       if (isValid) return cookieValue;

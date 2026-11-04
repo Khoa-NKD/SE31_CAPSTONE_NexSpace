@@ -16,8 +16,10 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { navGroups, organizerNavGroups } from '@/config/nav-config';
+import { navGroups, customerNavGroups, organizerExtendedNavGroups } from '@/config/nav-config';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 import { Link } from '@tanstack/react-router';
 import { useLocation, useRouter } from '@tanstack/react-router';
 import * as React from 'react';
@@ -43,8 +45,21 @@ import { toast } from 'sonner';
 export default function AppSidebar() {
   const { pathname } = useLocation();
   const router = useRouter();
-  const isOrganizer = pathname.startsWith('/dashboard/organizer');
-  const activeNavGroups = isOrganizer ? organizerNavGroups : navGroups;
+  const user = useAuthStore((state) => state.user);
+  const userRole = getUserRole(user);
+  const isOrganizer = userRole === 'ORGANIZER';
+  const isAdmin = userRole === 'ADMIN';
+
+  const activeNavGroups = React.useMemo(() => {
+    if (isAdmin) {
+      return navGroups;
+    }
+    if (isOrganizer) {
+      return organizerExtendedNavGroups;
+    }
+    return customerNavGroups;
+  }, [isAdmin, isOrganizer]);
+
   const filteredGroups = useFilteredNavGroups(activeNavGroups);
   const [incidentModalOpen, setIncidentModalOpen] = React.useState(false);
 
@@ -64,7 +79,13 @@ export default function AppSidebar() {
               <SidebarMenuButton size='lg' asChild className='hover:bg-[#1E293B]'>
                 <Link
                   to={isOrganizer ? '/dashboard/organizer/workspaces' : '/dashboard/overview'}
-                  aria-label={isOrganizer ? 'NexSpace Organizer Hub' : 'Nex Space Admin Console — Dashboard'}
+                  aria-label={
+                    isOrganizer
+                      ? 'NexSpace Organizer Hub'
+                      : isAdmin
+                      ? 'Nex Space Admin Console'
+                      : 'NexSpace User Workspace'
+                  }
                 >
                   <div className='flex items-center gap-2'>
                     <NexSpaceLogo
@@ -85,7 +106,7 @@ export default function AppSidebar() {
           </SidebarMenu>
 
           {/* Quick Incident CTA Button (Admin Only) */}
-          {!isOrganizer && (
+          {isAdmin && (
             <div className='px-2 pt-2'>
               <button
                 type='button'

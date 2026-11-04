@@ -6,14 +6,22 @@ node_modules/
 # Build outputs
 dist/
 build/
+target/
+*.jar
+*.war
 .output/
 .vercel/
 .vinxi/
+.vite/
+.tanstack/
 *.tsbuildinfo
 
-# Environment variables
+# Environment variables & Secrets
 .env
 .env*.local
+application-local.properties
+.gist-url
+.config-url
 
 # IDEs and editors
 .vscode/*
@@ -27,9 +35,10 @@ build/
 *~
 .DS_Store
 
-# Logs
+# Logs & Dumps
 logs
 *.log
+*.dumpstream
 
 # Agent Skills
 .agent/
@@ -37,6 +46,3 @@ logs
 
 # Custom rules
 SCREEN_ARCHITECTURE_STANDARDS.md
-
-# Secret Sync
-.gist-url

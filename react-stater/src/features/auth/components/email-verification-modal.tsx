@@ -1,35 +1,52 @@
-import React, { useState, useEffect, useTransition } from 'react';
+import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { Mail, ArrowRight, CheckCircle2, RotateCw } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
-import { cn } from '@/lib/utils';
 import { authService } from '../api/auth-service';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
-import { subscribeAuthSync } from '../utils/auth-sync';
+import { broadcastAuthSync, subscribeAuthSync } from '../utils/auth-sync';
 
 interface EmailVerificationModalProps {
   isOpen: boolean;
   onClose: () => void;
   email: string;
+  initialVerified?: boolean;
 }
 
-export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerificationModalProps) {
+export function EmailVerificationModal({
+  isOpen,
+  onClose,
+  email,
+  initialVerified = false
+}: EmailVerificationModalProps) {
   const { t } = useLanguage();
   const navigate = useNavigate();
-  const [tokenInput, setTokenInput] = useState('');
-  const [isVerifying, startVerify] = useTransition();
   const [isResending, startResend] = useTransition();
   const [resendCooldown, setResendCooldown] = useState(60);
-  const [isVerified, setIsVerified] = useState(false);
+  const [isVerified, setIsVerified] = useState(initialVerified);
+  const [countdown, setCountdown] = useState(3);
+
+  const effectiveVerified = isVerified || initialVerified;
+
+  const handleGoToSignIn = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('nexspace_pending_verification_email');
+    }
+    onClose();
+    navigate({ to: '/auth/sign-in' });
+  }, [onClose, navigate]);
 
   // Subscribe to real-time sync & fallback polling
   useEffect(() => {
-    if (!isOpen || isVerified) return;
+    if (!isOpen || effectiveVerified) return;
 
     // 1. Zero-latency BroadcastChannel & Storage Event listener
     const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'CHECK_EXISTING_SIGNUP_TAB') {
+        broadcastAuthSync({ type: 'SIGNUP_TAB_ALREADY_ACTIVE' });
+      }
       if (event.type === 'EMAIL_VERIFIED_SUCCESS') {
         setIsVerified(true);
         toast.success('Xác thực tài khoản thành công!');
@@ -49,14 +66,27 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
       } catch {
         // Silently skip
       }
-    }, 2500);
+    }, 2000);
 
     return () => {
       isCancelled = true;
       unsubscribe();
       clearInterval(interval);
     };
-  }, [isOpen, email, isVerified]);
+  }, [isOpen, email, effectiveVerified]);
+
+  // Auto-redirect to sign-in countdown when verified
+  useEffect(() => {
+    if (!effectiveVerified) return;
+    if (countdown <= 0) {
+      handleGoToSignIn();
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCountdown((prev) => prev - 1);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [effectiveVerified, countdown, handleGoToSignIn]);
 
   useEffect(() => {
     let timer: NodeJS.Timeout;
@@ -67,32 +97,6 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
     }
     return () => clearInterval(timer);
   }, [isOpen, resendCooldown]);
-
-  const handleGoToSignIn = () => {
-    onClose();
-    navigate({ to: '/auth/sign-in' });
-  };
-
-  const handleVerifyDirect = (e: React.FormEvent) => {
-    e.preventDefault();
-    const token = tokenInput.trim();
-    if (!token) return;
-
-    startVerify(async () => {
-      try {
-        await authService.verifyEmailDirect(token);
-        toast.success('Xác thực tài khoản thành công! Bạn có thể đăng nhập ngay.');
-        setIsVerified(true);
-      } catch (err: unknown) {
-        if (err instanceof ApiError) {
-          const payload = err.data as { message?: string } | null;
-          toast.error(payload?.message || err.message || 'Mã xác thực không hợp lệ hoặc đã hết hạn.');
-        } else {
-          toast.error('Không thể xác thực. Vui lòng kiểm tra lại mã.');
-        }
-      }
-    });
-  };
 
   const handleResend = () => {
     if (resendCooldown > 0 || isResending) return;
@@ -119,7 +123,7 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
         <DialogTitle className='sr-only'>{t('auth.verify.title')}</DialogTitle>
         <DialogDescription className='sr-only'>{t('auth.verify.subtitle')}</DialogDescription>
 
-        {isVerified ? (
+        {effectiveVerified ? (
           <div className='flex flex-col items-center relative z-10 w-full py-4 text-center space-y-5'>
             {/* Animated Glow Checkmark */}
             <div className='relative w-20 h-20'>
@@ -134,7 +138,10 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
                 Xác thực email thành công!
               </h1>
               <p className='text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto'>
-                Tài khoản <span className='font-semibold text-slate-900 dark:text-white'>{email}</span> đã được kích hoạt thành công. Bạn không cần nhập token nữa và có thể đăng nhập ngay bây giờ.
+                Tài khoản <span className='font-semibold text-slate-900 dark:text-white'>{email}</span> đã được kích hoạt thành công.
+              </p>
+              <p className='text-xs font-medium text-indigo-600 dark:text-indigo-400 animate-pulse'>
+                Tự động chuyển hướng về trang Đăng nhập sau {countdown}s...
               </p>
             </div>
 
@@ -167,51 +174,16 @@ export function EmailVerificationModal({ isOpen, onClose, email }: EmailVerifica
               </span>
             </p>
 
-            {/* Live Synchronizing Pulse Banner */}
-            <div className='mt-4 p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-left w-full flex items-start gap-2.5'>
-              <div className='w-2.5 h-2.5 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-pulse mt-0.5 shrink-0' />
-              <div>
-                <strong>Tự động đồng bộ:</strong> Khi bạn bấm nút <em>"Xác thực email"</em> trong hòm thư Gmail, màn hình này sẽ tự động chuyển sang trạng thái thành công mà không cần dán mã.
+            {/* Live Listening & Action Pulse Banner */}
+            <div className='mt-5 p-4 rounded-2xl bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/60 text-xs text-indigo-950 dark:text-indigo-200 leading-relaxed text-left w-full space-y-2'>
+              <div className='flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-semibold'>
+                <div className='w-2 h-2 rounded-full bg-indigo-600 dark:bg-indigo-400 animate-ping shrink-0' />
+                <span>Đang chờ bạn mở liên kết từ email...</span>
               </div>
+              <p className='text-slate-600 dark:text-slate-300'>
+                Vui lòng mở hộp thư Gmail và nhấn nút <strong>"Xác thực email"</strong>. Màn hình này sẽ tự động nhận diện và hoàn tất kích hoạt mà không cần nhập bất kỳ mã token nào.
+              </p>
             </div>
-
-            {/* Direct Token Verification Form */}
-            <form className='mt-5 w-full space-y-4' onSubmit={handleVerifyDirect}>
-              <div>
-                <label
-                  htmlFor='tokenInput'
-                  className='block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1.5'
-                >
-                  Mã xác thực thủ công (Token dự phòng):
-                </label>
-                <input
-                  id='tokenInput'
-                  type='text'
-                  value={tokenInput}
-                  onChange={(e) => setTokenInput(e.target.value)}
-                  placeholder='Dán mã token hoặc UUID vào đây...'
-                  className='w-full h-11 px-3.5 bg-surface-card dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm text-slate-900 dark:text-white placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-600'
-                />
-              </div>
-
-              <button
-                type='submit'
-                disabled={!tokenInput.trim() || isVerifying}
-                className={cn(
-                  'w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed text-white font-label-base text-[14px] font-semibold rounded-lg shadow-md hover:shadow-lg active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer',
-                  isVerifying && 'opacity-70 cursor-wait'
-                )}
-              >
-                {isVerifying ? (
-                  <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
-                ) : (
-                  <>
-                    <CheckCircle2 className='h-4 w-4 stroke-[2]' />
-                    <span>Xác thực ngay</span>
-                  </>
-                )}
-              </button>
-            </form>
 
             {/* Secondary Resend Trigger */}
             <div className='mt-6 text-center w-full'>

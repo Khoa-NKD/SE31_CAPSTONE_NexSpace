@@ -72,41 +72,8 @@ export const INITIAL_AMENITIES: string[] = [
 ];
 
 export const INITIAL_MEDIA_GALLERY: MediaGalleryValues = {
-  coverPhotoId: 'media-1',
-  items: [
-    {
-      id: 'media-1',
-      url: 'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=1200&q=80',
-      name: 'Main Open Coworking Floor',
-      dimension: '2560 × 1440',
-      caption: 'Main Open Coworking',
-      isCover: true
-    },
-    {
-      id: 'media-2',
-      url: 'https://images.unsplash.com/photo-1517502884422-41eaead166d4?auto=format&fit=crop&w=1200&q=80',
-      name: 'Executive Glass Boardroom',
-      dimension: '1920 × 1080',
-      caption: 'Executive Glass Boardroom',
-      isCover: false
-    },
-    {
-      id: 'media-3',
-      url: 'https://images.unsplash.com/photo-1527192491265-7e15c55b1ed2?auto=format&fit=crop&w=1200&q=80',
-      name: 'Dedicated Desk Zone',
-      dimension: '1920 × 1080',
-      caption: 'Dedicated Desk Zone',
-      isCover: false
-    },
-    {
-      id: 'media-4',
-      url: 'https://images.unsplash.com/photo-1554118811-1e0d58224f24?auto=format&fit=crop&w=1200&q=80',
-      name: 'Specialty Espresso Pantry',
-      dimension: '1920 × 1080',
-      caption: 'Specialty Espresso Pantry',
-      isCover: false
-    }
-  ]
+  coverPhotoId: '',
+  items: []
 };
 
 export const INITIAL_FLOORS: FloorItem[] = [
@@ -201,10 +168,13 @@ export interface WizardStore extends OnboardingDraftState {
   updateDaySchedule: (day: DayOfWeek, updates: Partial<DaySchedule>) => void;
   applyMondayToWeekdays: () => void;
   toggleAmenity: (amenityId: string) => void;
+  setAmenityAddonRate: (amenityId: string, rate: number) => void;
   setAmenities: (amenities: string[]) => void;
   selectCommonAmenities: (commonIds: string[]) => void;
   clearAmenities: () => void;
   setMediaGallery: (data: Partial<MediaGalleryValues>) => void;
+  clearMedia: () => void;
+  setIsEditMode: (isEdit: boolean) => void;
   addMediaItem: (item: MediaItem) => void;
   updateMediaItem: (id: string, updates: Partial<MediaItem>) => void;
   removeMediaItem: (id: string) => void;
@@ -237,12 +207,14 @@ export const useWizardStore = create<WizardStore>()(
       lastSavedAt: new Date().toISOString(),
       isDraftSynced: true,
       canonicalWorkspaceId: undefined,
+      isEditMode: false,
       clientDraftKey: undefined,
       serverVersion: undefined,
       basicInfo: INITIAL_BASIC_INFO,
       location: INITIAL_LOCATION,
       operatingHours: INITIAL_OPERATING_HOURS,
       amenities: INITIAL_AMENITIES,
+      amenityAddonRates: {},
       media: INITIAL_MEDIA_GALLERY,
       floorPlan: INITIAL_FLOOR_PLAN,
       submissionStatus: 'draft',
@@ -319,6 +291,15 @@ export const useWizardStore = create<WizardStore>()(
           };
         }),
 
+      setAmenityAddonRate: (amenityId, rate) =>
+        set((state) => ({
+          isDraftSynced: false,
+          amenityAddonRates: {
+            ...state.amenityAddonRates,
+            [amenityId]: Math.max(0, rate)
+          }
+        })),
+
       setAmenities: (amenities) =>
         set(() => ({
           isDraftSynced: false,
@@ -337,13 +318,25 @@ export const useWizardStore = create<WizardStore>()(
       clearAmenities: () =>
         set(() => ({
           isDraftSynced: false,
-          amenities: []
+          amenities: [],
+          amenityAddonRates: {}
         })),
 
       setMediaGallery: (data) =>
         set((state) => ({
           isDraftSynced: false,
           media: { ...state.media, ...data }
+        })),
+
+      clearMedia: () =>
+        set(() => ({
+          isDraftSynced: false,
+          media: { coverPhotoId: '', items: [] }
+        })),
+
+      setIsEditMode: (isEdit) =>
+        set(() => ({
+          isEditMode: isEdit
         })),
 
       addMediaItem: (item) =>
@@ -561,6 +554,7 @@ export const useWizardStore = create<WizardStore>()(
             ...state,
             ...hydrated,
             canonicalWorkspaceId: workspace.id,
+            isEditMode: true,
             serverVersion: workspace.version,
             isDraftSynced: true,
             syncError: null
@@ -578,6 +572,7 @@ export const useWizardStore = create<WizardStore>()(
           lastSavedAt: new Date().toISOString(),
           isDraftSynced: true,
           canonicalWorkspaceId: undefined,
+          isEditMode: false,
           clientDraftKey: undefined,
           serverVersion: undefined,
           syncError: null,
@@ -585,7 +580,7 @@ export const useWizardStore = create<WizardStore>()(
           location: INITIAL_LOCATION,
           operatingHours: INITIAL_OPERATING_HOURS,
           amenities: INITIAL_AMENITIES,
-          media: INITIAL_MEDIA_GALLERY,
+          media: { coverPhotoId: '', items: [] },
           floorPlan: INITIAL_FLOOR_PLAN,
           submissionStatus: 'draft'
         }))
@@ -597,10 +592,19 @@ export const useWizardStore = create<WizardStore>()(
       merge: (persistedState: unknown, currentState: WizardStore) => {
         const p = persistedState as Partial<WizardStore> | undefined;
         if (!p) return currentState;
+        // Filter out legacy unsplash mock photos if present
+        const persistedItems = (p.media?.items || []).filter(
+          (item) => !item.id?.startsWith('media-') || !item.url?.includes('unsplash.com')
+        );
+        const coverId =
+          persistedItems.find((i) => i.id === p.media?.coverPhotoId)?.id ||
+          persistedItems[0]?.id ||
+          '';
         return {
           ...currentState,
           ...p,
           canonicalWorkspaceId: p.canonicalWorkspaceId ?? currentState.canonicalWorkspaceId,
+          isEditMode: p.isEditMode ?? currentState.isEditMode,
           clientDraftKey: p.clientDraftKey ?? currentState.clientDraftKey,
           serverVersion: p.serverVersion ?? currentState.serverVersion,
           isDraftSynced: p.isDraftSynced ?? currentState.isDraftSynced,
@@ -615,9 +619,8 @@ export const useWizardStore = create<WizardStore>()(
           },
           amenities: Array.isArray(p.amenities) ? p.amenities : currentState.amenities,
           media: {
-            ...currentState.media,
-            ...p.media,
-            items: p.media?.items?.length ? p.media.items : currentState.media.items
+            coverPhotoId: coverId,
+            items: persistedItems
           },
           floorPlan: {
             ...currentState.floorPlan,
