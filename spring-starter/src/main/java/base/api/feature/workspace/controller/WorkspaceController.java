@@ -6,6 +6,7 @@ import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
+import base.api.shared.exception.BadRequestException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -42,10 +43,11 @@ public class WorkspaceController extends BaseAPIController {
     @PatchMapping("/{id}")
     @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<WorkspaceDetailDto>> updateWorkspace(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateWorkspaceDto dto) {
         Long organizerId = getCurrentUserId();
-        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, id, dto);
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, workspaceId, dto);
         return success(updated, "Cập nhật không gian làm việc thành công");
     }
 
@@ -53,10 +55,26 @@ public class WorkspaceController extends BaseAPIController {
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<WorkspaceDetailDto>> putWorkspace(
-            @PathVariable Long id,
+            @PathVariable String id,
             @Valid @RequestBody UpdateWorkspaceDto dto) {
         Long organizerId = getCurrentUserId();
-        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, id, dto);
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, workspaceId, dto);
         return success(updated, "Cập nhật không gian làm việc thành công");
+    }
+
+    private Long parseWorkspaceId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new BadRequestException("ID không gian không hợp lệ");
+        }
+        String cleaned = id.trim();
+        if (cleaned.toUpperCase().startsWith("WS-")) {
+            cleaned = cleaned.substring(3);
+        }
+        try {
+            return Long.parseLong(cleaned);
+        } catch (NumberFormatException e) {
+            throw new BadRequestException("ID không gian không hợp lệ: " + id);
+        }
     }
 }
