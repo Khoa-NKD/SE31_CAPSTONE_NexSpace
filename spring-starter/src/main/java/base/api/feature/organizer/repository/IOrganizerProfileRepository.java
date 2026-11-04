@@ -1,6 +1,7 @@
 package base.api.feature.organizer.repository;
 
 import base.api.shared.entity.organizer.OrganizerProfileModel;
+import base.api.feature.organizer.dto.response.AdminOrganizerApplicationResponse;
 import base.api.shared.enums.OrganizerProfileStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -26,5 +27,28 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
     Optional<OrganizerProfileModel> findByTaxIdAndStatus(String taxId, OrganizerProfileStatus status);
 
     Page<OrganizerProfileModel> findByStatus(OrganizerProfileStatus status, Pageable pageable);
+
+    /** Constructor projection avoids loading user roles/documents or triggering per-row lazy reads. */
+    @Query(value = """
+            SELECT new base.api.feature.organizer.dto.response.AdminOrganizerApplicationResponse(
+                p.id, p.legalName, p.businessType, u.id, u.userName, u.email, p.status, p.submittedAt, p.reviewedAt)
+            FROM OrganizerProfileModel p JOIN p.organizer u
+            WHERE p.submittedAt IS NOT NULL
+              AND p.status <> base.api.shared.enums.OrganizerProfileStatus.DRAFT
+              AND (:status IS NULL OR p.status = :status)
+              AND (:pattern IS NULL OR LOWER(p.legalName) LIKE :pattern ESCAPE '!'
+                   OR LOWER(u.userName) LIKE :pattern ESCAPE '!'
+                   OR LOWER(u.email) LIKE :pattern ESCAPE '!')
+            """, countQuery = """
+            SELECT COUNT(p) FROM OrganizerProfileModel p JOIN p.organizer u
+            WHERE p.submittedAt IS NOT NULL
+              AND p.status <> base.api.shared.enums.OrganizerProfileStatus.DRAFT
+              AND (:status IS NULL OR p.status = :status)
+              AND (:pattern IS NULL OR LOWER(p.legalName) LIKE :pattern ESCAPE '!'
+                   OR LOWER(u.userName) LIKE :pattern ESCAPE '!'
+                   OR LOWER(u.email) LIKE :pattern ESCAPE '!')
+            """)
+    Page<AdminOrganizerApplicationResponse> findSubmittedApplications(
+            @Param("status") OrganizerProfileStatus status, @Param("pattern") String pattern, Pageable pageable);
 }
 
