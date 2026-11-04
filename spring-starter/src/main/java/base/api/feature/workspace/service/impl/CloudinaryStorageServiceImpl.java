@@ -3,6 +3,8 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.NotFoundException;
+import base.api.feature.organizer.service.PrivateDocumentUnavailableException;
 import com.cloudinary.Cloudinary;
 import com.cloudinary.utils.ObjectUtils;
 import lombok.extern.slf4j.Slf4j;
@@ -108,6 +110,55 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
 
     public boolean isCloudinaryConfigured() {
         return StringUtils.hasText(cloudName) && StringUtils.hasText(apiKey) && StringUtils.hasText(apiSecret);
+    }
+
+    /** Server-only signed delivery. Neither the signed URL nor upstream errors are exposed to callers. */
+    public byte[] readPrivateDocument(String reference) {
+        String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
+        if (!isCloudinaryConfigured() || reference == null
+                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:" + PRIVATE_DOCUMENT_FOLDER
+                + "/" + uuid + "|raw:" + PRIVATE_DOCUMENT_FOLDER + "/" + uuid + "\\.pdf)")) {
+            throw new PrivateDocumentUnavailableException();
+        }
+        String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());
+        int separator = value.indexOf(':');
+        try {
+            String signed = createCloudinaryClient().url().secure(true).signed(true)
+                    .resourceType(value.substring(0, separator)).type("authenticated")
+                    .generate(value.substring(separator + 1));
+            var uri = java.net.URI.create(signed);
+            if (!"https".equals(uri.getScheme()) || !"res.cloudinary.com".equals(uri.getHost())
+                    || uri.getUserInfo() != null || uri.getPort() != -1) {
+                throw new PrivateDocumentUnavailableException();
+            }
+            return downloadPrivateDocument(uri);
+        } catch (NotFoundException | PrivateDocumentUnavailableException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new PrivateDocumentUnavailableException();
+        }
+    }
+
+    /** Bounded, timeout-controlled transport; redirects cannot turn stored references into arbitrary requests. */
+    protected byte[] downloadPrivateDocument(java.net.URI uri) {
+        java.net.HttpURLConnection connection = null;
+        try {
+            connection = (java.net.HttpURLConnection) uri.toURL().openConnection();
+            connection.setInstanceFollowRedirects(false);
+            connection.setConnectTimeout(5000);
+            connection.setReadTimeout(20000);
+            if (connection.getResponseCode() == 404) throw new NotFoundException("Verification document file not found");
+            if (connection.getResponseCode() != 200) throw new PrivateDocumentUnavailableException();
+            try (var input = connection.getInputStream()) {
+                byte[] bytes = input.readNBytes((int) MAX_FILE_SIZE_BYTES + 1);
+                if (bytes.length == 0 || bytes.length > MAX_FILE_SIZE_BYTES) throw new PrivateDocumentUnavailableException();
+                return bytes;
+            }
+        } catch (IOException ex) {
+            throw new PrivateDocumentUnavailableException();
+        } finally {
+            if (connection != null) connection.disconnect();
+        }
     }
 
     protected Cloudinary createCloudinaryClient() {

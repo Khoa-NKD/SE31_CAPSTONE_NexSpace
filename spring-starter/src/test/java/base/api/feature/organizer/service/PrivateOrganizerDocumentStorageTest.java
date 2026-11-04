@@ -15,6 +15,37 @@ import static org.assertj.core.api.Assertions.*;
 class PrivateOrganizerDocumentStorageTest {
     @TempDir Path directory;
 
+    @Test
+    void readsExistingFileAndDoesNotCreateMissingDirectory() throws Exception {
+        var storage = new PrivateOrganizerDocumentStorage(directory.toString());
+        var stored = storage.store(OrganizerApplicationServiceTest.license());
+        var result = storage.read(stored.key());
+        assertThat(result.contentType()).isEqualTo("application/pdf");
+        assertThat(result.bytes()).isEqualTo(OrganizerApplicationServiceTest.license().getBytes());
+        Path missing = directory.resolve("missing");
+        assertThatThrownBy(() -> new PrivateOrganizerDocumentStorage(missing.toString()).read(stored.key()))
+                .isInstanceOf(base.api.shared.exception.NotFoundException.class);
+        assertThat(missing).doesNotExist();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings={"../license.pdf", "https://example.test/license.pdf", "C:\\private\\license.pdf", "license.pdf", "cloudinary:authenticated:image:foreign/file"})
+    void refusesUntrustedReadReferences(String key) {
+        assertThatThrownBy(() -> new PrivateOrganizerDocumentStorage(directory.toString()).read(key))
+                .isInstanceOf(PrivateDocumentUnavailableException.class);
+    }
+
+    @Test
+    void missingCorruptAndOversizedFilesAreNotDelivered() throws Exception {
+        var storage = new PrivateOrganizerDocumentStorage(directory.toString());
+        String key = "11111111-1111-1111-1111-111111111111.pdf";
+        assertThatThrownBy(() -> storage.read(key)).isInstanceOf(base.api.shared.exception.NotFoundException.class);
+        Files.writeString(directory.resolve(key), "<html>not a PDF</html>");
+        assertThatThrownBy(() -> storage.read(key)).isInstanceOf(PrivateDocumentUnavailableException.class);
+        Files.write(directory.resolve(key), new byte[(int) PrivateOrganizerDocumentStorage.MAX_BYTES + 1]);
+        assertThatThrownBy(() -> storage.read(key)).isInstanceOf(PrivateDocumentUnavailableException.class);
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"../license.pdf", "C:\\license.pdf", "license\n.pdf", "bad:name.pdf", ""})
     void rejectsUnsafeNames(String name) throws Exception {

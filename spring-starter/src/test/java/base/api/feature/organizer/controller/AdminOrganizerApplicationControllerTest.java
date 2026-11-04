@@ -3,13 +3,17 @@ package base.api.feature.organizer.controller;
 import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.feature.auth.service.impl.CustomUserDetailsService;
 import base.api.feature.organizer.dto.response.AdminOrganizerApplicationResponse;
+import base.api.feature.organizer.dto.response.AdminOrganizerApplicationDetailsResponse;
+import base.api.feature.organizer.dto.response.AdminOrganizerDocumentResponse;
 import base.api.feature.organizer.service.AdminOrganizerApplicationService;
+import base.api.feature.organizer.service.AdminOrganizerApplicationDetailsService;
 import base.api.shared.config.*;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.enums.*;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.NotFoundException;
 import base.api.shared.security.AuthUser;
 import base.api.shared.security.CurrentUserProvider;
 import org.junit.jupiter.api.Test;
@@ -37,6 +41,7 @@ class AdminOrganizerApplicationControllerTest {
     static final String URL = "/api/admin/organizer-applications";
     @Autowired MockMvc mvc;
     @MockitoBean AdminOrganizerApplicationService service;
+    @MockitoBean AdminOrganizerApplicationDetailsService detailsService;
     @MockitoBean JwtUtil jwtUtil;
     @MockitoBean CustomUserDetailsService userDetails;
     @MockitoBean ITokenRevocationService revocations;
@@ -44,6 +49,57 @@ class AdminOrganizerApplicationControllerTest {
     AuthUser principal(String role) {
         var account = new UserModel(); account.setId(1L); account.setUserName("fixture.admin"); account.setRoleEntity(new RoleModel(role, null));
         return new AuthUser(account);
+    }
+
+    @Test
+    void detailsRequiresAdminAndDoesNotExposePrivateFields() throws Exception {
+        mvc.perform(get(URL + "/7")).andExpect(status().isUnauthorized());
+        for (String role : List.of("USER", "ORGANIZER"))
+            mvc.perform(get(URL + "/7").with(user(principal(role)))).andExpect(status().isForbidden());
+        verifyNoInteractions(detailsService);
+        var date = LocalDateTime.of(2026, 11, 5, 8, 0);
+        var document = new AdminOrganizerDocumentResponse(9L, OrganizerDocumentType.BUSINESS_LICENSE,
+                "license.pdf", OrganizerDocumentStatus.VERIFIED, date, true, "Checked");
+        var dto = new AdminOrganizerApplicationDetailsResponse(7L, "Company", BusinessType.LIMITED_LIABILITY,
+                "0400000123", "Representative", "12 Test Street", "contact@example.test", "0900000123",
+                new AdminOrganizerApplicationDetailsResponse.Applicant(42L, "applicant", "applicant@example.test", "Test Applicant"),
+                OrganizerProfileStatus.APPROVED, date, date, "Accepted", List.of(document));
+        when(detailsService.getDetails(1L, 7L)).thenReturn(dto);
+        when(jwtUtil.extractUserId("fixture-admin-token")).thenReturn(1L);
+        when(userDetails.loadUserById(1L)).thenReturn(principal("ADMIN"));
+        mvc.perform(get(URL + "/7").header("Authorization", "Bearer fixture-admin-token"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.statusCode").value(200))
+                .andExpect(jsonPath("$.data.applicant.id").value(42))
+                .andExpect(jsonPath("$.data.taxId").value("0400000123"))
+                .andExpect(jsonPath("$.data.reviewFeedback").value("Accepted"))
+                .andExpect(jsonPath("$.data.documents[0].current").value(true))
+                .andExpect(jsonPath("$.data.documents[0].status").value("VERIFIED"))
+                .andExpect(jsonPath("$.data.documents[0].fileUrl").doesNotExist())
+                .andExpect(jsonPath("$.data.documents[0].storageKey").doesNotExist())
+                .andExpect(jsonPath("$.data.bankAccountNumber").doesNotExist())
+                .andExpect(jsonPath("$.data.applicant.password").doesNotExist())
+                .andExpect(jsonPath("$.data.applicant.twoFactorSecret").doesNotExist())
+                .andExpect(jsonPath("$.data.registrationReason").doesNotExist())
+                .andExpect(jsonPath("$.data.history").doesNotExist());
+        verify(detailsService).getDetails(1L, 7L);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"abc", "1.5", "9223372036854775808"})
+    void detailsRejectsMalformedLongId(String id) throws Exception {
+        mvc.perform(get(URL + "/" + id).with(user(principal("ADMIN"))))
+                .andExpect(status().isBadRequest());
+        verifyNoInteractions(detailsService);
+    }
+
+    @Test
+    void detailsPreservesErrorsAndHasNoWriteOperation() throws Exception {
+        when(detailsService.getDetails(1L, 7L)).thenThrow(new NotFoundException("Submitted organizer application not found"));
+        mvc.perform(get(URL + "/7").with(user(principal("ADMIN"))))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.statusCode").value(404));
+        when(detailsService.getDetails(1L, 0L)).thenThrow(new BadRequestException("Invalid application ID"));
+        mvc.perform(get(URL + "/0").with(user(principal("ADMIN")))).andExpect(status().isBadRequest());
+        mvc.perform(post(URL + "/7").with(user(principal("ADMIN")))).andExpect(status().isMethodNotAllowed());
     }
 
     @Test
