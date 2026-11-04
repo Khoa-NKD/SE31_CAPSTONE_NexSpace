@@ -18,8 +18,12 @@ function mockApiProxyPlugin(): Plugin {
       server.middlewares.use((req, res, next) => {
         const url = req.url || '';
         if (url.startsWith('/api/') || url === '/api') {
-          const targetPort = process.env.MOCK_SERVER_PORT || '4000';
-          const targetUrl = new URL(url, process.env.VITE_API_PROXY_TARGET || `http://localhost:${targetPort}`);
+          const springRequest = url.startsWith('/api/auth/') || url.startsWith('/api/organizer/');
+          const targetPort = springRequest ? '8080' : process.env.MOCK_SERVER_PORT || '4000';
+          const targetBase = springRequest
+            ? process.env.VITE_SPRING_API_PROXY_TARGET || 'http://localhost:8080'
+            : process.env.VITE_API_PROXY_TARGET || `http://localhost:${targetPort}`;
+          const targetUrl = new URL(url, targetBase);
           const proxyReq = http.request(
             {
               hostname: targetUrl.hostname,
@@ -42,7 +46,7 @@ function mockApiProxyPlugin(): Plugin {
               JSON.stringify({
                 success: false,
                 error: 'BadGateway',
-                message: `Failed to proxy to Mock REST Server on port ${targetPort}: ${err.message}`
+                message: `API server unavailable: ${err.message}`
               })
             );
           });

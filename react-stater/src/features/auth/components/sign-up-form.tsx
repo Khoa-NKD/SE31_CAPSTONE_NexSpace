@@ -13,9 +13,16 @@ import { ApiError } from '@/lib/api-client';
 
 const signUpSchema = z
   .object({
-    fullName: z.string().min(2, { message: 'Full name is required' }),
-    email: z.string().email({ message: 'Enter a valid email address' }),
-    password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
+    userName: z
+      .string()
+      .trim()
+      .min(3)
+      .max(100)
+      .regex(/^[a-zA-Z0-9._-]+$/, 'Use letters, numbers, dots, underscores or hyphens'),
+    firstName: z.string().trim().min(1, 'First name is required').max(100),
+    lastName: z.string().trim().max(100),
+    email: z.string().trim().email({ message: 'Enter a valid email address' }).max(255),
+    password: z.string().min(6, { message: 'Password must be at least 6 characters' }).max(100),
     confirmPassword: z.string(),
     agreeTerms: z.boolean().refine((val) => val === true, {
       message: 'You must agree to the terms and policies'
@@ -91,11 +98,13 @@ import { useLanguage } from '../../landing/context/language-context';
 
 export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) => void }) {
   const [loading, startTransition] = useTransition();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   const form = useAppForm({
     defaultValues: {
-      fullName: '',
+      userName: '',
+      firstName: '',
+      lastName: '',
       email: '',
       password: '',
       confirmPassword: '',
@@ -108,17 +117,10 @@ export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) 
     onSubmit: ({ value }) => {
       startTransition(async () => {
         try {
-          const rawName = value.fullName.trim();
-          const spaceIdx = rawName.indexOf(' ');
-          const firstName = spaceIdx > 0 ? rawName.slice(0, spaceIdx) : rawName;
-          const lastName = spaceIdx > 0 ? rawName.slice(spaceIdx + 1) : rawName;
-          const cleanEmailPrefix = value.email.split('@')[0].replace(/[^a-zA-Z0-9._-]/g, '');
-          const userName = (cleanEmailPrefix.length >= 3 ? cleanEmailPrefix : (cleanEmailPrefix + 'user')).padEnd(3, '0') + '_' + Date.now().toString().slice(-4);
-
           await authService.register({
-            userName,
-            firstName,
-            lastName,
+            userName: value.userName.trim(),
+            firstName: value.firstName.trim(),
+            lastName: value.lastName.trim(),
             email: value.email.trim(),
             password: value.password
           });
@@ -147,11 +149,32 @@ export default function SignUpForm({ onSuccess }: { onSuccess?: (email: string) 
       >
         <FieldGroup>
           <form.AppField
-            name='fullName'
+            name='userName'
             children={(field) => (
               <field.TextField
-                label={t('auth.signUp.fullName')}
-                placeholder={t('auth.signUp.fullName.ph')}
+                label={language === 'vi' ? 'Tên đăng nhập' : 'Username'}
+                placeholder='example.user'
+                disabled={loading}
+              />
+            )}
+          />
+
+          <form.AppField
+            name='firstName'
+            children={(field) => (
+              <field.TextField
+                label={language === 'vi' ? 'Họ' : 'First name'}
+                placeholder={language === 'vi' ? 'Nhập họ' : 'Enter first name'}
+                disabled={loading}
+              />
+            )}
+          />
+          <form.AppField
+            name='lastName'
+            children={(field) => (
+              <field.TextField
+                label={language === 'vi' ? 'Tên (không bắt buộc)' : 'Last name (optional)'}
+                placeholder={language === 'vi' ? 'Nhập tên' : 'Enter last name'}
                 disabled={loading}
               />
             )}

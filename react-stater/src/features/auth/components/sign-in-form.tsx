@@ -1,4 +1,4 @@
-import React, { useState, useTransition } from 'react';
+import React, { useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -30,7 +30,8 @@ interface SignInFormProps {
 export function SignInForm({ onSuccess }: SignInFormProps) {
   const { t } = useLanguage();
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [isPending, setIsPending] = useState(false);
+  const submitting = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
 
@@ -43,66 +44,70 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
     }
   });
 
-  const onSubmit = (values: SignInValues) => {
+  const onSubmit = async (values: SignInValues) => {
+    if (submitting.current) return;
+    submitting.current = true;
+    setIsPending(true);
     setGlobalError(null);
-    startTransition(async () => {
-      try {
-        const response = await authService.login({
-          username: values.email.trim(),
-          password: values.password
-        });
+    try {
+      const response = await authService.login({
+        username: values.email.trim(),
+        password: values.password
+      });
 
-        // Save session in auth store
-        useAuthStore.getState().setAuth({
-          user: response.user,
-          accessToken: response.accessToken
-        });
+      // Save session in auth store
+      useAuthStore.getState().setAuth({
+        user: response.user,
+        accessToken: response.accessToken
+      });
 
-        toast.success(
-          `Đăng nhập thành công! Chào mừng ${response.user.fullName || response.user.firstName || response.user.userName}`
-        );
+      toast.success(
+        `Đăng nhập thành công! Chào mừng ${response.user.fullName || response.user.firstName || response.user.userName}`
+      );
 
-        if (onSuccess) {
-          onSuccess();
-        } else {
-          // Role-aware destination navigation with redirect query support
-          const role = getUserRole(response.user);
-          let targetUrl = '';
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        // Preserve role-aware navigation and authorized return destinations.
+        const role = getUserRole(response.user);
+        let targetUrl = '';
 
-          if (typeof window !== 'undefined') {
-            const params = new URLSearchParams(window.location.search);
-            const redirectParam = params.get('redirect');
-            if (redirectParam && checkRouteAccess(redirectParam, true, response.user).allowed) {
-              targetUrl = redirectParam;
-            }
+        if (typeof window !== 'undefined') {
+          const params = new URLSearchParams(window.location.search);
+          const redirectParam = params.get('redirect');
+          if (redirectParam && checkRouteAccess(redirectParam, true, response.user).allowed) {
+            targetUrl = redirectParam;
           }
+        }
 
-          if (!targetUrl) {
-            if (role === 'ADMIN') {
-              targetUrl = '/dashboard/overview';
-            } else if (role === 'ORGANIZER') {
-              targetUrl = '/dashboard/organizer/workspaces';
-            } else {
-              targetUrl = '/';
-            }
+        if (!targetUrl) {
+          if (role === 'ADMIN') {
+            targetUrl = '/dashboard/overview';
+          } else if (role === 'ORGANIZER') {
+            targetUrl = '/dashboard/organizer/workspaces';
+          } else {
+            targetUrl = '/';
           }
+        }
 
-          router.navigate({ to: targetUrl });
-        }
-      } catch (err: unknown) {
-        if (err instanceof ApiError) {
-          const payload = err.data as { message?: string; errors?: Record<string, string> } | null;
-          const msg =
-            payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
-          setGlobalError(msg);
-          toast.error(msg);
-        } else {
-          const msg = 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
-          setGlobalError(msg);
-          toast.error(msg);
-        }
+        router.navigate({ to: targetUrl });
       }
-    });
+    } catch (err: unknown) {
+      if (err instanceof ApiError) {
+        const payload = err.data as { message?: string; errors?: Record<string, string> } | null;
+        const msg =
+          payload?.message || err.message || 'Tên đăng nhập hoặc mật khẩu không chính xác';
+        setGlobalError(msg);
+        toast.error(msg);
+      } else {
+        const msg = 'Không thể kết nối đến máy chủ. Vui lòng thử lại sau.';
+        setGlobalError(msg);
+        toast.error(msg);
+      }
+    } finally {
+      submitting.current = false;
+      setIsPending(false);
+    }
   };
 
   const hasErrors = Object.keys(form.formState.errors).length > 0;
@@ -139,7 +144,12 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       )}
 
       {/* Main Form */}
-      <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
+      <form
+        onSubmit={(event) => {
+          void form.handleSubmit(onSubmit)(event);
+        }}
+        className='space-y-4'
+      >
         {/* Email or Username Input */}
         <div className='space-y-1.5'>
           <label
