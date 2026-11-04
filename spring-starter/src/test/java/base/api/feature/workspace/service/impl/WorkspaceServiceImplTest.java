@@ -3,6 +3,7 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.entity.RoleModel;
@@ -11,8 +12,10 @@ import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.WorkspaceCategory;
+import base.api.shared.enums.WorkspaceLifecycleAction;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -189,5 +192,63 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.updateWorkspace(10L, 100L, dto))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Không thể cập nhật không gian làm việc đã bị lưu trữ");
+    }
+
+    @Test
+    @DisplayName("Xóa mềm coworking space (ARCHIVED) thành công")
+    void archiveWorkspace_success() {
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkspaceDetailDto result = service.archiveWorkspace(10L, 100L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ARCHIVED);
+        assertThat(result.getOperatingStatus()).isEqualTo("Archived");
+        assertThat(existingWorkspace.getStatus()).isEqualTo(WorkspaceStatus.ARCHIVED);
+
+        verify(workspaceRepository).save(existingWorkspace);
+    }
+
+    @Test
+    @DisplayName("Strict Ownership Defense: Xóa mềm thất bại ném 404 khi không sở hữu")
+    void archiveWorkspace_notOwner_throwsNotFoundException() {
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+
+        assertThatThrownBy(() -> service.archiveWorkspace(20L, 100L))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Không tìm thấy không gian làm việc với ID: 100");
+    }
+
+    @Test
+    @DisplayName("Cập nhật vòng đời: Archive chuyển sang trạng thái ARCHIVED")
+    void updateLifecycle_archive_success() {
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.ARCHIVE)
+                .reason("Ngừng kinh doanh địa điểm")
+                .build();
+
+        WorkspaceDetailDto result = service.updateLifecycle(10L, 100L, dto);
+
+        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ARCHIVED);
+        assertThat(result.getOperatingStatus()).isEqualTo("Archived");
+    }
+
+    @Test
+    @DisplayName("Cập nhật vòng đời: Tạm dừng thất bại khi workspace chưa ACTIVE (ném 409 Conflict)")
+    void updateLifecycle_pause_conflict_whenNotActive() {
+        // Trạng thái hiện tại là DRAFT, không thể pause
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+
+        WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.PAUSE)
+                .build();
+
+        assertThatThrownBy(() -> service.updateLifecycle(10L, 100L, dto))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE)");
     }
 }
