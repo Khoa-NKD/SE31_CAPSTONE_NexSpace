@@ -211,3 +211,20 @@ export function useAssetMaintenanceLogsQuery(
   return useQuery(assetMaintenanceLogsQueryOptions(workspaceId, assetId));
 }
 
+
+/**
+ * TanStack Query options for fetching operating hours.
+ */
+export const operatingHoursQueryOptions = (workspaceId: string | number | null | undefined) =>
+  queryOptions({
+    queryKey: ['workspaces', 'operating-hours', String(workspaceId)],
+    queryFn: () => (workspaceId ? workspaceService.getOperatingHours(workspaceId) : []),
+    enabled: Boolean(workspaceId)
+  });
+
+/**
+ * Hook for querying workspace operating hours.
+ */
+export function useOperatingHoursQuery(workspaceId: string | number | null | undefined) {
+  return useQuery(operatingHoursQueryOptions(workspaceId));
+}

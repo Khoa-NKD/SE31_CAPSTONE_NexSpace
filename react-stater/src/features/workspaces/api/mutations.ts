@@ -19,7 +19,8 @@ import type {
   UpdateWorkspaceAssetPayload,
   MaintenanceLogDto,
   CreateMaintenanceLogPayload,
-  UpdateMaintenanceLogPayload
+  UpdateMaintenanceLogPayload,
+  WorkspaceOperatingHour
 } from './types';
 import { ApiError } from '@/lib/api-client';
 
@@ -314,6 +315,15 @@ export function useDeleteWorkspaceMutation() {
       queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
       toast.success('Workspace Archived', {
         description: `Successfully archived "${archived.name}".`
+      });
+    },
+
+    onError: (err: unknown) => {
+      const msg = err instanceof ApiError ? err.message : 'Could not archive workspace.';
+      toast.error('Archive Failed', { description: msg });
+    }
+  });
+}
 
 /**
  * TanStack Query mutation hook for deleting media from the storage service.
@@ -352,18 +362,10 @@ export function useAddWorkspaceMediaMutation() {
       });
       toast.success('Photo Added', {
         description: 'Photo has been added to the workspace gallery.'
-
       });
     },
 
     onError: (err: unknown) => {
-<<<<<<< HEAD
-      const msg = err instanceof ApiError ? err.message : 'Could not archive workspace.';
-      toast.error('Archive Failed', { description: msg });
-    }
-  });
-}
-=======
       const description = err instanceof Error ? err.message : 'Failed to add photo';
       toast.error('Add Photo Failed', { description });
     }
@@ -683,4 +685,32 @@ export function useUpdateMaintenanceLogMutation() {
   });
 }
 
->>>>>>> origin/feature/frontend
+
+
+/**
+ * TanStack Query mutation hook for updating workspace operating hours.
+ */
+export function useUpdateOperatingHoursMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    WorkspaceOperatingHour[],
+    Error,
+    { workspaceId: string; hours: WorkspaceOperatingHour[] }
+  >({
+    mutationFn: ({ workspaceId, hours }) => workspaceService.updateOperatingHours(workspaceId, hours),
+
+    onSuccess: (_, variables) => {
+      queryClient.invalidateQueries({ queryKey: ['workspaces', 'operating-hours', variables.workspaceId] });
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(variables.workspaceId) });
+      toast.success('Operating Hours Saved', {
+        description: 'Successfully updated weekly operating hours schedule.'
+      });
+    },
+
+    onError: (err: unknown) => {
+      const msg = err instanceof ApiError ? err.message : 'Could not save operating hours.';
+      toast.error('Save Failed', { description: msg });
+    }
+  });
+}

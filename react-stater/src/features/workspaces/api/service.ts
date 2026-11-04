@@ -24,7 +24,8 @@ import type {
   CreateMaintenanceLogPayload,
   UpdateMaintenanceLogPayload,
   WorkspaceAssetFilterParams,
-  PaginatedAssetResponse
+  PaginatedAssetResponse,
+  WorkspaceOperatingHour
 } from './types';
 
 /**
@@ -530,5 +531,29 @@ export const workspaceService = {
     payload: UpdateMaintenanceLogPayload
   ): Promise<MaintenanceLogDto> {
     return apiClient.patch(`/workspaces/${workspaceId}/assets/${assetId}/maintenance/${logId}`, payload);
+  },
+
+  /**
+   * Retrieves operating hours for a workspace.
+   */
+  async getOperatingHours(workspaceId: string | number): Promise<WorkspaceOperatingHour[]> {
+    return apiClient.get<WorkspaceOperatingHour[]>(`/workspaces/${workspaceId}/operating-hours`);
+  },
+
+  /**
+   * Updates operating hours for a workspace (all 7 days).
+   */
+  async updateOperatingHours(
+    workspaceId: string | number,
+    hours: WorkspaceOperatingHour[]
+  ): Promise<WorkspaceOperatingHour[]> {
+    return apiClient.put<WorkspaceOperatingHour[]>(`/workspaces/${workspaceId}/operating-hours`, hours);
+  },
+
+  /**
+   * Retrieves public operating hours for an active workspace.
+   */
+  async getPublicOperatingHours(workspaceId: string | number): Promise<WorkspaceOperatingHour[]> {
+    return apiClient.get<WorkspaceOperatingHour[]>(`/public/workspaces/${workspaceId}/operating-hours`);
   }
 };
