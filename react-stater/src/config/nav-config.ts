@@ -219,6 +219,12 @@ export const organizerNavGroups: NavGroup[] = [
     label: 'Organizer Console',
     items: [
       {
+        title: 'Application Status',
+        url: '/organizer/status',
+        icon: 'forms',
+        isActive: false
+      },
+      {
         title: 'Verification Documents',
         url: '/organizer/documents',
         icon: 'forms',
