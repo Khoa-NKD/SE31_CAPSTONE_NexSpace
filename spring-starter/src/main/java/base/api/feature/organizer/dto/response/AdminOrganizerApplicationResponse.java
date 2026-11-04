@@ -8,5 +8,10 @@ import java.time.LocalDateTime;
 public record AdminOrganizerApplicationResponse(
         Long id, String legalName, BusinessType businessType,
         Long applicantId, String applicantUserName, String applicantEmail,
-        OrganizerProfileStatus status, LocalDateTime submittedAt, LocalDateTime reviewedAt) {
+        OrganizerProfileStatus status, LocalDateTime submittedAt, LocalDateTime reviewedAt, boolean suspended) {
+    public AdminOrganizerApplicationResponse(Long id, String legalName, BusinessType businessType,
+            Long applicantId, String applicantUserName, String applicantEmail,
+            OrganizerProfileStatus status, LocalDateTime submittedAt, LocalDateTime reviewedAt) {
+        this(id, legalName, businessType, applicantId, applicantUserName, applicantEmail, status, submittedAt, reviewedAt, false);
+    }
 }

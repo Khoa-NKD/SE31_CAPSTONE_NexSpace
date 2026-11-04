@@ -8,6 +8,8 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface IAuditLogRepository extends JpaRepository<AuditLogModel, Long> {
+    java.util.Optional<AuditLogModel> findFirstByModuleAndEntityTypeAndEntityIdOrderByIdDesc(String module, String entityType, Long entityId);
+    java.util.Optional<AuditLogModel> findFirstByModuleAndActionAndEntityTypeAndEntityIdOrderByIdDesc(String module, String action, String entityType, Long entityId);
     Page<AuditLogModel> findByEntityTypeAndEntityId(String entityType, Long entityId, Pageable pageable);
     Page<AuditLogModel> findByUserId(Long userId, Pageable pageable);
     Page<AuditLogModel> findByModule(String module, Pageable pageable);

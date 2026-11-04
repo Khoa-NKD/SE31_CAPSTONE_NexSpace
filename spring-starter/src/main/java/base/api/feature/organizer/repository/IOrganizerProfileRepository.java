@@ -19,6 +19,16 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
 
     Optional<OrganizerProfileModel> findByOrganizerId(Long organizerId);
 
+    boolean existsByOrganizerIdAndSuspendedTrue(Long organizerId);
+    boolean existsByTaxIdAndStatusAndIdNot(String taxId, OrganizerProfileStatus status, Long id);
+
+    @Query("SELECT p.organizer.id FROM OrganizerProfileModel p WHERE p.id = :id")
+    Optional<Long> findApplicantId(@Param("id") Long id);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT p FROM OrganizerProfileModel p WHERE p.id = :id")
+    Optional<OrganizerProfileModel> findByIdForLifecycleUpdate(@Param("id") Long id);
+
     /** Lock the owned profile so approval-state checks and updates share one transaction boundary. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT p FROM OrganizerProfileModel p WHERE p.organizer.id = :organizerId")
@@ -40,7 +50,7 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
     /** Constructor projection avoids loading user roles/documents or triggering per-row lazy reads. */
     @Query(value = """
             SELECT new base.api.feature.organizer.dto.response.AdminOrganizerApplicationResponse(
-                p.id, p.legalName, p.businessType, u.id, u.userName, u.email, p.status, p.submittedAt, p.reviewedAt)
+                p.id, p.legalName, p.businessType, u.id, u.userName, u.email, p.status, p.submittedAt, p.reviewedAt, p.suspended)
             FROM OrganizerProfileModel p JOIN p.organizer u
             WHERE p.submittedAt IS NOT NULL
               AND p.status <> base.api.shared.enums.OrganizerProfileStatus.DRAFT

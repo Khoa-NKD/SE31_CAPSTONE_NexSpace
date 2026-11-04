@@ -39,6 +39,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(value = OrganizerBusinessProfileController.class, properties = "spring.profiles.active=test")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, CurrentUserProvider.class})
 class OrganizerBusinessProfileControllerTest {
+    @org.springframework.test.context.bean.override.mockito.MockitoBean
+    base.api.feature.organizer.repository.IOrganizerProfileRepository operationalProfiles;
     private static final String URL = "/api/organizer/business-profile";
     private static final String BODY = """
             {"address":" 123 Example Street ","contactEmail":" contact@example.test ","contactPhone":" 0901234567 "}
@@ -60,6 +62,14 @@ class OrganizerBusinessProfileControllerTest {
     private OrganizerBusinessProfileResponse response() {
         return new OrganizerBusinessProfileResponse(42L, "Example Company", BusinessType.LIMITED_LIABILITY,
                 "TEST-TAX-123", "Test Representative", "123 Example Street", "contact@example.test", "0901234567");
+    }
+
+    @Test
+    void suspendedOrganizerCannotReadOrWriteBusinessManagement() throws Exception {
+        when(operationalProfiles.existsByOrganizerIdAndSuspendedTrue(7L)).thenReturn(true);
+        mvc.perform(get(URL).with(user(principal("ORGANIZER")))).andExpect(status().isForbidden());
+        mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
+        verifyNoInteractions(service);
     }
 
     @Test
