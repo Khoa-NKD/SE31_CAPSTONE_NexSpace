@@ -54,7 +54,7 @@ export function useWizardDraftSync() {
             });
             updatedRecord = await workspaceService.createWorkspace(createDto);
 
-            currentState.setCanonicalWorkspace(updatedRecord.id, updatedRecord.version);
+            currentState.setCanonicalWorkspace(String(updatedRecord.id), updatedRecord.version ?? 1);
             currentState.saveDraft();
             setLastSavedTime(updatedRecord.updatedAt);
 
