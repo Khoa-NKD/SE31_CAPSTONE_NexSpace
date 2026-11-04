@@ -25,9 +25,9 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
   }
 
   return {
-    id: cw.id,
+    id: String(cw.id),
     name: cw.name,
-    address: cw.streetAddress,
+    address: cw.streetAddress || (cw as unknown as { address?: string }).address || '',
     district: cw.district,
     city: cw.city,
     status,
