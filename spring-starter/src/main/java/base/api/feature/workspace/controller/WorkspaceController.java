@@ -137,6 +137,29 @@ public class WorkspaceController extends BaseAPIController {
         return success(result, "Cập nhật vòng đời không gian làm việc thành công");
     }
 
+    @Operation(summary = "Lấy giờ hoạt động của workspace", description = "Xem cấu hình 7 ngày trong tuần của workspace")
+    @GetMapping("/{id}/operating-hours")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto>>> getOperatingHours(
+            @PathVariable String id) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> hours = workspaceService.getOperatingHours(organizerId, workspaceId);
+        return success(hours);
+    }
+
+    @Operation(summary = "Cập nhật giờ hoạt động của workspace", description = "Lưu cấu hình 7 ngày trong tuần của workspace")
+    @PutMapping("/{id}/operating-hours")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto>>> updateOperatingHours(
+            @PathVariable String id,
+            @Valid @RequestBody java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> dtos) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> updated = workspaceService.updateOperatingHours(organizerId, workspaceId, dtos);
+        return success(updated, "Cập nhật giờ hoạt động thành công");
+    }
+
     private boolean isAdmin() {
         return currentUserProvider.getCurrentUser()
                 .map(u -> u.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())))

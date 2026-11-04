@@ -56,6 +56,7 @@ class WorkspaceControllerTest {
     void setUp() {
         workspaceService = mock(IWorkspaceService.class);
         objectMapper = new ObjectMapper();
+        objectMapper.registerModule(new com.fasterxml.jackson.datatype.jsr310.JavaTimeModule());
 
         WorkspaceController controller = new WorkspaceController(workspaceService);
         ReflectionTestUtils.setField(controller, "currentUserProvider", new CurrentUserProvider());
@@ -309,5 +310,48 @@ class WorkspaceControllerTest {
                 .andExpect(jsonPath("$.data.id").value(101));
 
         verify(workspaceService).getWorkspaceDetail(eq(5L), eq(101L));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/workspaces/{id}/operating-hours - Lấy giờ hoạt động thành công")
+    void getOperatingHours_success() throws Exception {
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto dto = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(1)
+                .openTime(java.time.LocalTime.of(8, 0))
+                .closeTime(java.time.LocalTime.of(22, 0))
+                .isClosed(false)
+                .build();
+
+        when(workspaceService.getOperatingHours(eq(5L), eq(1L))).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/workspaces/1/operating-hours"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].dayOfWeek").value(1))
+                .andExpect(jsonPath("$.data[0].openTime").value("08:00"));
+
+        verify(workspaceService).getOperatingHours(eq(5L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/workspaces/{id}/operating-hours - Cập nhật giờ hoạt động thành công")
+    void updateOperatingHours_success() throws Exception {
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto dto = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(1)
+                .openTime(java.time.LocalTime.of(9, 0))
+                .closeTime(java.time.LocalTime.of(18, 0))
+                .isClosed(false)
+                .build();
+
+        when(workspaceService.updateOperatingHours(eq(5L), eq(1L), any())).thenReturn(List.of(dto));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/v1/workspaces/1/operating-hours")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(List.of(dto))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].dayOfWeek").value(1));
+
+        verify(workspaceService).updateOperatingHours(eq(5L), eq(1L), any());
     }
 }

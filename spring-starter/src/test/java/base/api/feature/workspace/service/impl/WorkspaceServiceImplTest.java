@@ -11,6 +11,7 @@ import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
+import base.api.shared.entity.workspace.WorkspaceOperatingHourModel;
 import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.WorkspaceCategory;
@@ -42,6 +43,7 @@ class WorkspaceServiceImplTest {
 
     private IWorkspaceRepository workspaceRepository;
     private IUserRepository userRepository;
+    private base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository operatingHourRepository;
     private WorkspaceServiceImpl service;
 
     private UserModel organizer;
@@ -52,7 +54,8 @@ class WorkspaceServiceImplTest {
     void setUp() {
         workspaceRepository = mock(IWorkspaceRepository.class);
         userRepository = mock(IUserRepository.class);
-        service = new WorkspaceServiceImpl(workspaceRepository, userRepository);
+        operatingHourRepository = mock(base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository.class);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository);
 
         RoleModel role = new RoleModel();
         role.setName(UserRole.ORGANIZER.name());
@@ -331,5 +334,76 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.getPublicWorkspaceDetail(100L))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt");
+    }
+
+    @Test
+    @DisplayName("Cập nhật giờ hoạt động thành công")
+    void updateOperatingHours_success() {
+        when(workspaceRepository.findByIdAndOrganizerId(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto mon = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(1)
+                .openTime(java.time.LocalTime.of(8, 0))
+                .closeTime(java.time.LocalTime.of(21, 0))
+                .isClosed(false)
+                .build();
+
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto sun = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(7)
+                .isClosed(true)
+                .build();
+
+        List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> dtos = List.of(mon, sun);
+
+        WorkspaceOperatingHourModel modelMon = new WorkspaceOperatingHourModel();
+        modelMon.setId(new WorkspaceOperatingHourModel.Key(100L, 1));
+        modelMon.setOpenTime(java.time.LocalTime.of(8, 0));
+        modelMon.setCloseTime(java.time.LocalTime.of(21, 0));
+        modelMon.setClosed(false);
+
+        when(operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(100L)).thenReturn(List.of(modelMon));
+
+        List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> result = service.updateOperatingHours(10L, 100L, dtos);
+
+        assertThat(result).hasSize(1);
+        assertThat(result.get(0).getDayOfWeek()).isEqualTo(1);
+        assertThat(result.get(0).getOpenTime()).isEqualTo(java.time.LocalTime.of(8, 0));
+        verify(operatingHourRepository).saveAll(any());
+    }
+
+    @Test
+    @DisplayName("Cập nhật giờ hoạt động thất bại khi giờ đóng cửa trước giờ mở cửa (ném BadRequest)")
+    void updateOperatingHours_invalidTimes_throwsBadRequest() {
+        when(workspaceRepository.findByIdAndOrganizerId(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto invalid = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(2)
+                .openTime(java.time.LocalTime.of(20, 0))
+                .closeTime(java.time.LocalTime.of(8, 0))
+                .isClosed(false)
+                .build();
+
+        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(invalid)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Giờ đóng cửa (08:00) phải sau giờ mở cửa (20:00)");
+    }
+
+    @Test
+    @DisplayName("Cập nhật giờ hoạt động thất bại khi trùng lặp thứ trong tuần (ném BadRequest)")
+    void updateOperatingHours_duplicateDay_throwsBadRequest() {
+        when(workspaceRepository.findByIdAndOrganizerId(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto day1 = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(3)
+                .is24Hours(true)
+                .build();
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto day2 = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(3)
+                .isClosed(true)
+                .build();
+
+        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(day1, day2)))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Trùng lặp cấu hình cho thứ 3");
     }
 }

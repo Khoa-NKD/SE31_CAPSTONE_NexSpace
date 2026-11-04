@@ -108,4 +108,27 @@ class PublicWorkspaceControllerTest {
 
         verify(workspaceService).getPublicWorkspaces(any(PageRequestDTO.class));
     }
+
+    @Test
+    @DisplayName("GET /api/v1/public/workspaces/{id}/operating-hours - Xem giờ mở cửa công khai thành công")
+    void getPublicOperatingHours_success() throws Exception {
+        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto dto = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                .dayOfWeek(1)
+                .openTime(java.time.LocalTime.of(7, 30))
+                .closeTime(java.time.LocalTime.of(22, 30))
+                .isClosed(false)
+                .build();
+
+        when(workspaceService.getPublicOperatingHours(1L)).thenReturn(List.of(dto));
+
+        mockMvc.perform(get("/api/v1/public/workspaces/1/operating-hours")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data[0].dayOfWeek").value(1))
+                .andExpect(jsonPath("$.data[0].openTime").value("07:30"));
+
+        verify(workspaceService).getPublicOperatingHours(1L);
+    }
 }
+

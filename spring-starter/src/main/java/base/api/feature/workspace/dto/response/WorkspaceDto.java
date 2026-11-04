@@ -36,3 +36,4 @@ public class WorkspaceDto {
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }
+

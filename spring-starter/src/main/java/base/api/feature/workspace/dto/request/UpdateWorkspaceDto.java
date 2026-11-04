@@ -52,5 +52,7 @@ public class UpdateWorkspaceDto {
     private String entryInstructions;
 
     private BookingConfirmationMode bookingConfirmationMode;
+
+    private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
 }
 
