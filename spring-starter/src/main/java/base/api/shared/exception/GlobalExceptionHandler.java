@@ -25,6 +25,13 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(base.api.feature.organizer.service.OrganizerApplicationValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleApplicationValidation(
+            base.api.feature.organizer.service.OrganizerApplicationValidationException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
+                .success(false).statusCode(400).message(ex.getMessage()).errors(ex.getErrors()).build());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex, WebRequest req) {
         Map<String, String> errors = ex.getBindingResult().getFieldErrors().stream()
@@ -65,7 +72,8 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     public ResponseEntity<ApiResponse<Void>> handleUploadSize(Exception ex, WebRequest req, HttpServletRequest request) {
         // Preserve each feature's existing upload error contract.
-        if (request.getRequestURI().equals(request.getContextPath() + "/api/organizer/applications")) {
+        if (request.getRequestURI().equals(request.getContextPath() + "/api/organizer/applications")
+                || request.getRequestURI().equals(request.getContextPath() + "/api/organizer/verification-documents")) {
             return build("Document exceeds the upload size limit (5 MB per file)", req, HttpStatus.PAYLOAD_TOO_LARGE);
         }
         return build("Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB).", req, HttpStatus.BAD_REQUEST);

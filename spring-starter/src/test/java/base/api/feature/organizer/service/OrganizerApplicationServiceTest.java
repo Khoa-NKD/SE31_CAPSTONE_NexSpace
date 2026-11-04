@@ -54,7 +54,8 @@ class OrganizerApplicationServiceTest {
         documents = mock(IOrganizerDocumentRepository.class);
         service = new OrganizerApplicationService(users, profiles, documents,
                 new PrivateOrganizerDocumentStorage(directory.toString()),
-                Clock.fixed(Instant.parse("2026-11-03T01:00:00Z"), ZoneOffset.UTC));
+                Clock.fixed(Instant.parse("2026-11-03T01:00:00Z"), ZoneOffset.UTC),
+                jakarta.validation.Validation.buildDefaultValidatorFactory().getValidator());
         user = new UserModel();
         user.setId(7L);
         user.setVerified(true);
@@ -97,11 +98,12 @@ class OrganizerApplicationServiceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(OrganizerProfileStatus.class)
-    void rejectsEveryExistingProfileWithoutReplacingFiles(OrganizerProfileStatus existingStatus) {
+    @EnumSource(value = OrganizerProfileStatus.class, names = "DRAFT", mode = EnumSource.Mode.EXCLUDE)
+    void rejectsSubmittedProfilesWithoutReplacingFiles(OrganizerProfileStatus existingStatus) {
         var existing = new OrganizerProfileModel();
+        existing.setOrganizer(user);
         existing.setStatus(existingStatus);
-        when(profiles.findByOrganizerId(7L)).thenReturn(Optional.of(existing));
+        when(profiles.findByOrganizerIdForUpdate(7L)).thenReturn(Optional.of(existing));
         assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, REQUEST, license())))
                 .isInstanceOf(ConflictException.class);
         verifyNoInteractions(documents);
@@ -146,5 +148,165 @@ class OrganizerApplicationServiceTest {
         assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, REQUEST, license())))
                 .hasMessage("Simulated database failure");
         try (var files = Files.list(directory)) { assertThat(files).isEmpty(); }
+    }
+
+    OrganizerProfileModel draft() {
+        var profile = new OrganizerProfileModel();
+        profile.setId(42L);
+        profile.setOrganizer(user);
+        when(profiles.findByOrganizerIdForUpdate(7L)).thenReturn(Optional.of(profile));
+        return profile;
+    }
+
+    base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest draftRequest() {
+        return new base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest(REQUEST.legalName(), REQUEST.businessType(),
+                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail());
+    }
+
+    OrganizerDocumentModel currentLicense() {
+        var document = new OrganizerDocumentModel();
+        document.setFileUrl("existing-private-reference.pdf");
+        document.setDocumentType(OrganizerDocumentType.BUSINESS_LICENSE);
+        when(documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(42L, OrganizerDocumentType.BUSINESS_LICENSE))
+                .thenReturn(Optional.of(document));
+        return document;
+    }
+
+    @Test
+    void startsEmptyDraftAndRepeatedStartReturnsTheSameProfileWithoutSubmitting() {
+        when(profiles.saveAndFlush(any())).thenAnswer(invocation -> {
+            OrganizerProfileModel profile = invocation.getArgument(0); profile.setId(42L); return profile;
+        });
+        var created = transaction.execute(status -> service.startDraft(7L));
+        assertThat(created.id()).isEqualTo(42L);
+        assertThat(created.status()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        assertThat(created.submittedAt()).isNull();
+        var profile = draft();
+        var repeated = transaction.execute(status -> service.startDraft(7L));
+        assertThat(repeated.id()).isEqualTo(profile.getId());
+        verify(profiles, times(1)).saveAndFlush(any());
+        verifyNoInteractions(documents);
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    void partialDraftCanBeSavedAndBlankFieldsClearedWithoutSubmitting() {
+        var profile = draft();
+        profile.setLegalName("Old name");
+        var partial = new base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest(" ", null, null, null, " Address ", "", "");
+        var saved = transaction.execute(status -> service.saveDraft(7L, partial));
+        assertThat(saved.legalName()).isNull();
+        assertThat(saved.address()).isEqualTo("Address");
+        assertThat(saved.contactEmail()).isNull();
+        assertThat(saved.status()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        assertThat(saved.submittedAt()).isNull();
+        verifyNoInteractions(documents);
+    }
+
+    @Test
+    void invalidSuppliedDraftFieldsAreRejectedBeforeChangingExistingValues() {
+        var profile = draft();
+        profile.setLegalName("Keep this");
+        var invalid = new base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest("Changed", null, null, null, "x".repeat(501), "abc", "bad-email");
+        assertThatThrownBy(() -> transaction.execute(status -> service.saveDraft(7L, invalid)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, ex ->
+                        assertThat(ex.getErrors()).containsKeys("address", "contactPhone", "contactEmail"));
+        assertThat(profile.getLegalName()).isEqualTo("Keep this");
+        verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void finalSubmissionRejectsIncompletePersistedDraftWithFieldErrorsAndKeepsDraft() {
+        var profile = draft();
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, ex ->
+                        assertThat(ex.getErrors()).containsKeys("legalName", "businessType", "taxId", "representativeName", "address", "contactPhone", "contactEmail", "businessLicense"));
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        assertThat(profile.getSubmittedAt()).isNull();
+        verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void completeDraftIsSubmittedUsingExistingLicenseExactlyOnceWithoutReupload() {
+        var profile = draft();
+        transaction.execute(status -> service.saveDraft(7L, draftRequest()));
+        currentLicense();
+        var result = transaction.execute(status -> service.submitDraft(7L));
+        assertThat(result.id()).isEqualTo(42L);
+        assertThat(result.status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+        assertThat(result.submittedAt()).isEqualTo(LocalDateTime.of(2026, 11, 3, 1, 0));
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L))).isInstanceOf(ConflictException.class);
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+        verify(documents, never()).saveAndFlush(any());
+        assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    void rejectedCurrentLicenseCannotBeUsedForSubmission() {
+        var profile = draft();
+        transaction.execute(status -> service.saveDraft(7L, draftRequest()));
+        currentLicense().setStatus(OrganizerDocumentStatus.REJECTED);
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, ex -> assertThat(ex.getErrors()).containsKey("businessLicense"));
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
+    }
+
+    @Test
+    void legacyMultipartCanReuseDraftLicenseButCannotReplaceIt() {
+        var profile = draft();
+        currentLicense();
+        assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, REQUEST, license())))
+                .isInstanceOf(ConflictException.class);
+        var result = transaction.execute(status -> service.submit(7L, REQUEST, null));
+        assertThat(result.id()).isEqualTo(42L);
+        assertThat(profile.getLegalName()).isEqualTo("Example Company");
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+        verify(documents, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void legacyMultipartCanAddLicenseToAnExistingDraft() {
+        var profile = draft();
+        var result = transaction.execute(status -> service.submit(7L, REQUEST, license()));
+        assertThat(result.id()).isEqualTo(profile.getId());
+        verify(documents).saveAndFlush(any());
+    }
+
+    @Test
+    void legacyMissingLicenseIsStillRejectedBeforeCreatingProfile() {
+        assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, REQUEST, null)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, ex -> assertThat(ex.getErrors()).containsKey("businessLicense"));
+        verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OrganizerProfileStatus.class, names = "DRAFT", mode = EnumSource.Mode.EXCLUDE)
+    void draftCommandsRejectAllNonDraftStates(OrganizerProfileStatus state) {
+        var profile = draft(); profile.setStatus(state);
+        assertThatThrownBy(() -> transaction.execute(status -> service.startDraft(7L))).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> transaction.execute(status -> service.saveDraft(7L, draftRequest()))).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L))).isInstanceOf(ConflictException.class);
+        assertThat(profile.getStatus()).isEqualTo(state);
+        verifyNoInteractions(documents);
+        verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void rejectsForeignProfileAndMissingDraft() {
+        var profile = draft();
+        var other = new UserModel(); other.setId(999L); profile.setOrganizer(other);
+        assertThatThrownBy(() -> transaction.execute(status -> service.saveDraft(7L, draftRequest()))).isInstanceOf(ForbiddenException.class);
+        when(profiles.findByOrganizerIdForUpdate(7L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L))).isInstanceOf(base.api.shared.exception.NotFoundException.class);
+    }
+
+    @Test
+    void draftSubmissionStillRejectsApprovedTaxId() {
+        var profile = draft();
+        transaction.execute(status -> service.saveDraft(7L, draftRequest()));
+        currentLicense();
+        when(profiles.findByTaxIdAndStatus(REQUEST.taxId(), OrganizerProfileStatus.APPROVED)).thenReturn(Optional.of(new OrganizerProfileModel()));
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L))).isInstanceOf(ConflictException.class);
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
     }
 }

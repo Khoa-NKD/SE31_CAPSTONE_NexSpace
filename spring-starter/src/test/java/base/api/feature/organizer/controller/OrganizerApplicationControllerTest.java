@@ -28,6 +28,9 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(value = OrganizerApplicationController.class, properties = "spring.profiles.active=test")
@@ -86,11 +89,9 @@ class OrganizerApplicationControllerTest {
     }
 
     @Test
-    void returnsFieldErrorsAndRejectsMissingDocumentAndUnknownType() throws Exception {
+    void returnsFieldErrorsAndRejectsUnknownType() throws Exception {
         mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS.replace("Company", " "))).file(license()).with(user(principal("USER"))))
                 .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.legalName").exists());
-        mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS)).with(user(principal("USER"))))
-                .andExpect(status().isBadRequest());
         mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS.replace("LIMITED_LIABILITY", "INDIVIDUAL"))).file(license()).with(user(principal("USER"))))
                 .andExpect(status().isBadRequest());
         verifyNoInteractions(service);
@@ -101,5 +102,71 @@ class OrganizerApplicationControllerTest {
         when(service.submit(eq(7L), any(), any())).thenThrow(new ConflictException("Application already exists"));
         mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS)).file(license()).with(user(principal("ORGANIZER"))))
                 .andExpect(status().isConflict()).andExpect(jsonPath("$.success").value(false));
+    }
+
+    @Test
+    void draftRoutesRequireAuthenticationAndRejectAdministrator() throws Exception {
+        for (var builder : java.util.List.of(get("/api/organizer/applications/current"),
+                post("/api/organizer/applications/draft"), post("/api/organizer/applications/submit"),
+                put("/api/organizer/applications/draft").contentType("application/json").content("{}"))) {
+            mvc.perform(builder).andExpect(status().isUnauthorized());
+            mvc.perform(builder.with(user(principal("ADMIN")))).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void partialDraftUsesPrincipalAndReturnsNoStorageReferences() throws Exception {
+        when(service.saveDraft(eq(7L), any())).thenReturn(new base.api.feature.organizer.dto.response.OrganizerApplicationDetailsResponse(
+                42L, OrganizerProfileStatus.DRAFT, null, "Company", null, null, null, null, null, null));
+        mvc.perform(put("/api/organizer/applications/draft").with(user(principal("USER")))
+                        .contentType("application/json").content("{\"legalName\":\" Company \"}"))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("DRAFT"))
+                .andExpect(jsonPath("$.data.legalName").value("Company"))
+                .andExpect(jsonPath("$.data.fileUrl").doesNotExist());
+        verify(service).saveDraft(eq(7L), argThat(request -> request.legalName().equals("Company") && request.contactEmail() == null));
+    }
+
+    @Test
+    void draftRejectsInvalidFormatsUnknownEnumsAndSystemFields() throws Exception {
+        for (var json : java.util.List.of("{\"contactEmail\":\"invalid\"}", "{\"contactPhone\":\"abc\"}",
+                "{\"businessType\":\"INDIVIDUAL\"}", "{\"status\":\"APPROVED\"}", "{\"organizerId\":999}",
+                "{\"fileUrl\":\"https://foreign.test/file.pdf\"}", "{\"address\":\"" + "x".repeat(501) + "\"}")) {
+            mvc.perform(put("/api/organizer/applications/draft").with(user(principal("USER")))
+                            .contentType("application/json").content(json)).andExpect(status().isBadRequest());
+        }
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void persistedDraftSubmissionReturnsFieldErrorsWithoutRequiringMultipart() throws Exception {
+        when(service.submitDraft(7L)).thenThrow(new base.api.feature.organizer.service.OrganizerApplicationValidationException(
+                java.util.Map.of("businessLicense", "Business license is required", "legalName", "Legal name is required")));
+        mvc.perform(post("/api/organizer/applications/submit").with(user(principal("USER"))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.statusCode").value(400))
+                .andExpect(jsonPath("$.errors.businessLicense").exists()).andExpect(jsonPath("$.errors.legalName").exists());
+    }
+
+    @Test
+    void legacyMissingLicenseStillReturns400FromServiceValidation() throws Exception {
+        when(service.submit(eq(7L), any(), isNull())).thenThrow(new base.api.feature.organizer.service.OrganizerApplicationValidationException(
+                java.util.Map.of("businessLicense", "Business license is required")));
+        mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS)).with(user(principal("USER"))))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.businessLicense").exists());
+    }
+
+    @Test
+    void startReadAndSubmitUseAuthenticatedActorAndExistingEnvelope() throws Exception {
+        var draft = new base.api.feature.organizer.dto.response.OrganizerApplicationDetailsResponse(
+                42L, OrganizerProfileStatus.DRAFT, null, null, null, null, null, null, null, null);
+        when(service.startDraft(7L)).thenReturn(draft);
+        when(service.current(7L)).thenReturn(draft);
+        when(service.submitDraft(7L)).thenReturn(new OrganizerApplicationResponse(42L, OrganizerProfileStatus.PENDING_REVIEW, LocalDateTime.of(2026, 11, 4, 1, 0)));
+        mvc.perform(post("/api/organizer/applications/draft").with(user(principal("USER"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.id").value(42));
+        mvc.perform(get("/api/organizer/applications/current").with(user(principal("USER"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("DRAFT"));
+        mvc.perform(post("/api/organizer/applications/submit").with(user(principal("USER"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("PENDING_REVIEW"));
     }
 }
