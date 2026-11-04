@@ -1,6 +1,7 @@
 package base.api.shared.exception;
 
 import base.api.shared.dto.ApiResponse;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,6 +24,13 @@ import java.util.stream.Collectors;
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    @ExceptionHandler(base.api.feature.organizer.service.OrganizerApplicationValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleApplicationValidation(
+            base.api.feature.organizer.service.OrganizerApplicationValidationException ex) {
+        return ResponseEntity.badRequest().body(ApiResponse.<Void>builder()
+                .success(false).statusCode(400).message(ex.getMessage()).errors(ex.getErrors()).build());
+    }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<ApiResponse<Void>> handleValidation(MethodArgumentNotValidException ex, WebRequest req) {
@@ -49,6 +57,7 @@ public class GlobalExceptionHandler {
             BadRequestException.class,
             IllegalArgumentException.class,
             MissingServletRequestParameterException.class,
+            org.springframework.web.multipart.support.MissingServletRequestPartException.class,
             MethodArgumentTypeMismatchException.class
     })
     public ResponseEntity<ApiResponse<Void>> handleBadRequest(Exception ex, WebRequest req) {
@@ -58,6 +67,21 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(HttpMessageNotReadableException.class)
     public ResponseEntity<ApiResponse<Void>> handleUnreadable(HttpMessageNotReadableException ex, WebRequest req) {
         return build("Request body không hợp lệ", req, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadSize(Exception ex, WebRequest req, HttpServletRequest request) {
+        // Preserve each feature's existing upload error contract.
+        if (request.getRequestURI().equals(request.getContextPath() + "/api/organizer/applications")
+                || request.getRequestURI().equals(request.getContextPath() + "/api/organizer/verification-documents")) {
+            return build("Document exceeds the upload size limit (5 MB per file)", req, HttpStatus.PAYLOAD_TOO_LARGE);
+        }
+        return build("Dung lượng file vượt quá giới hạn cho phép (tối đa 5MB).", req, HttpStatus.BAD_REQUEST);
+    }
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMediaType(Exception ex, WebRequest req) {
+        return build("Unsupported request content type", req, HttpStatus.UNSUPPORTED_MEDIA_TYPE);
     }
 
     @ExceptionHandler(UnauthorizedException.class)

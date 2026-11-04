@@ -5,6 +5,14 @@ spring.datasource.password=<password>
 
 app.jwt.secret=<random string, at least 32 bytes>
 app.seed.admin.password=<initial admin password>
+app.seed.organizer.password=<initial organizer password>
+
+# ── Cloudinary Media Storage (Optional for local dev, auto-fallback to local storage) ──
+# Get free credentials at: https://cloudinary.com/users/register_free
+# cloudinary.cloud-name=<your_cloud_name>
+# cloudinary.api-key=<your_api_key>
+# cloudinary.api-secret=<your_api_secret>
+# cloudinary.folder=nexspace/workspaces
 
 # Optional — only needed when app.auth.email-verification-enabled=true or for forgot-password emails
 # spring.mail.username=<smtp user>

@@ -39,6 +39,14 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return Arrays.stream(SecurityConfig.PUBLIC_ENDPOINTS).anyMatch(pattern -> pathMatcher.match(pattern, path));
     }
 
+    private boolean isPublicGetEndpoint(HttpServletRequest request) {
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return false;
+        }
+        String path = request.getRequestURI();
+        return Arrays.stream(SecurityConfig.PUBLIC_GET_ENDPOINTS).anyMatch(pattern -> pathMatcher.match(pattern, path));
+    }
+
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
@@ -53,6 +61,10 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             Long userId = jwtUtil.extractUserId(token);
             if (userId == null || tokenRevocationService.isRevoked(token)) {
+                if (isPublicGetEndpoint(request)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
                 writeUnauthorized(response, "Token không hợp lệ");
                 return;
             }
@@ -67,9 +79,17 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             auth.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
             SecurityContextHolder.getContext().setAuthentication(auth);
         } catch (ExpiredJwtException ex) {
+            if (isPublicGetEndpoint(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             writeUnauthorized(response, "Token đã hết hạn");
             return;
         } catch (JwtException | IllegalArgumentException | UsernameNotFoundException ex) {
+            if (isPublicGetEndpoint(request)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
             writeUnauthorized(response, "Token không hợp lệ");
             return;
         }
