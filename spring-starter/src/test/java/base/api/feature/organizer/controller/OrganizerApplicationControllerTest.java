@@ -169,4 +169,29 @@ class OrganizerApplicationControllerTest {
         mvc.perform(post("/api/organizer/applications/submit").with(user(principal("USER"))))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("PENDING_REVIEW"));
     }
+
+    @Test
+    void currentReturnsPermittedReviewMetadataAndIgnoresClientOwnerId() throws Exception {
+        var profile = new base.api.shared.entity.organizer.OrganizerProfileModel();
+        profile.setId(42L); profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED);
+        profile.setSubmittedAt(LocalDateTime.of(2026, 11, 4, 8, 0));
+        profile.setReviewedAt(LocalDateTime.of(2026, 11, 4, 9, 0));
+        profile.setReviewFeedback("Please provide a readable license");
+        when(service.current(7L)).thenReturn(base.api.feature.organizer.dto.response.OrganizerApplicationDetailsResponse.from(profile));
+        mvc.perform(get("/api/organizer/applications/current").param("userId", "999").with(user(principal("USER"))))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.status").value("REVISION_REQUESTED"))
+                .andExpect(jsonPath("$.data.reviewedAt").value("2026-11-04T09:00:00"))
+                .andExpect(jsonPath("$.data.reviewFeedback").value("Please provide a readable license"))
+                .andExpect(jsonPath("$.data.reviewedBy").doesNotExist())
+                .andExpect(jsonPath("$.data.bankAccountNumber").doesNotExist());
+        verify(service).current(7L); verify(service, never()).current(999L);
+    }
+
+    @Test
+    void currentMissingProfileReturns404WithoutStartingADraft() throws Exception {
+        when(service.current(7L)).thenThrow(new base.api.shared.exception.NotFoundException("Organizer profile not found"));
+        mvc.perform(get("/api/organizer/applications/current").with(user(principal("USER"))))
+                .andExpect(status().isNotFound()).andExpect(jsonPath("$.success").value(false));
+        verify(service).current(7L); verifyNoMoreInteractions(service);
+    }
 }
