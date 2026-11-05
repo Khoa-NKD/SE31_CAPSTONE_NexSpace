@@ -20,6 +20,7 @@ import org.springframework.transaction.annotation.Transactional;
 public class OrganizerBusinessProfileService {
     private final IUserRepository users;
     private final IOrganizerProfileRepository profiles;
+    private final OrganizerBankAccountCipher bankCipher;
 
     @Transactional(readOnly = true)
     public OrganizerBusinessProfileResponse getCurrentProfile(Long actorId) {
@@ -36,6 +37,20 @@ public class OrganizerBusinessProfileService {
         var profile = profiles.findByOrganizerIdForUpdate(actorId)
                 .orElseThrow(() -> new NotFoundException("Organizer business profile not found"));
         requireOwnedApprovedProfile(actorId, profile);
+        var bank = request.bankDetails();
+        if (bank != null) {
+            if (!bankCipher.isConfigured()) {
+                throw new ConflictException("Bank account updates are temporarily unavailable");
+            }
+            String number = bank.bankAccountNumber();
+            if (number != null && !number.isBlank()) {
+                profile.setBankAccountNumber(bankCipher.encrypt(profile.getId(), number));
+            } else if (bankCipher.lastFour(profile.getId(), profile.getBankAccountNumber()) == null) {
+                throw new base.api.shared.exception.BadRequestException("Enter a new bank account number before saving bank details");
+            }
+            profile.setBankName(bank.bankName());
+            profile.setBankAccountHolder(bank.bankAccountHolder());
+        }
         profile.setAddress(request.address());
         profile.setContactEmail(request.contactEmail());
         profile.setContactPhone(request.contactPhone());
@@ -64,6 +79,9 @@ public class OrganizerBusinessProfileService {
     private OrganizerBusinessProfileResponse toResponse(OrganizerProfileModel profile) {
         return new OrganizerBusinessProfileResponse(profile.getId(), profile.getLegalName(),
                 profile.getBusinessType(), profile.getTaxId(), profile.getRepresentativeName(),
-                profile.getAddress(), profile.getContactEmail(), profile.getContactPhone());
+                profile.getAddress(), profile.getContactEmail(), profile.getContactPhone(),
+                profile.getBankName(), profile.getBankAccountHolder(),
+                bankCipher.lastFour(profile.getId(), profile.getBankAccountNumber()),
+                profile.getBankAccountNumber() != null && !profile.getBankAccountNumber().isBlank(), bankCipher.isConfigured());
     }
 }

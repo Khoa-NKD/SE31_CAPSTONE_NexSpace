@@ -19,4 +19,9 @@ public class BusinessTypeController extends BaseAPIController {
     public ResponseEntity<ApiResponse<List<BusinessTypeResponse>>> list() {
         return success(service.list());
     }
+
+    @GetMapping("/api/public/organizer-document-requirements")
+    public ResponseEntity<ApiResponse<List<base.api.feature.organizer.service.OrganizerDocumentRequirements.Policy>>> requirements() {
+        return success(base.api.feature.organizer.service.OrganizerDocumentRequirements.catalog());
+    }
 }

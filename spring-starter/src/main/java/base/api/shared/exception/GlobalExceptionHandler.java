@@ -25,6 +25,12 @@ import java.util.stream.Collectors;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    @ExceptionHandler(base.api.feature.organizer.service.BankCatalogUnavailableException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBankCatalogUnavailable(
+            base.api.feature.organizer.service.BankCatalogUnavailableException ex, WebRequest req) {
+        return build(ex.getMessage(), req, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
     @ExceptionHandler(base.api.feature.organizer.service.PrivateDocumentUnavailableException.class)
     public ResponseEntity<ApiResponse<Void>> handlePrivateDocumentUnavailable(
             base.api.feature.organizer.service.PrivateDocumentUnavailableException ex, WebRequest req) {

@@ -50,7 +50,7 @@ class OrganizerBusinessProfileServiceTest {
     void setUp() {
         users = mock(IUserRepository.class);
         profiles = mock(IOrganizerProfileRepository.class);
-        service = new OrganizerBusinessProfileService(users, profiles);
+        service = new OrganizerBusinessProfileService(users, profiles, new OrganizerBankAccountCipher(java.util.Base64.getEncoder().encodeToString(new byte[32])));
         organizer = new UserModel();
         organizer.setId(7L);
         organizer.setVerified(true);
@@ -176,6 +176,41 @@ class OrganizerBusinessProfileServiceTest {
         assertThat(profile.getBankAccountHolder()).isEqualTo("Existing holder");
         verify(profiles).findByOrganizerIdForUpdate(7L);
         verify(profiles).saveAndFlush(profile);
+    }
+
+    @Test
+    void encryptsBankUpdatesAndReturnsOnlyLastFourWithoutChangingApproval() {
+        var bank = new UpdateOrganizerBusinessProfileRequest.BankDetails(" Example Bank ", " EXAMPLE COMPANY ", " 001234567890 ");
+        var result = service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("123 Example Street", "contact@example.test", "0901234567", bank));
+        assertThat(profile.getBankAccountNumber()).startsWith("bank:v1:").doesNotContain("001234567890");
+        assertThat(result.bankAccountLastFour()).isEqualTo("7890");
+        assertThat(result.bankName()).isEqualTo("Example Bank");
+        assertThat(result.bankAccountHolder()).isEqualTo("EXAMPLE COMPANY");
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.APPROVED);
+        var stored = profile.getBankAccountNumber();
+        service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("123 Example Street", "contact@example.test", "0901234567",
+                new UpdateOrganizerBusinessProfileRequest.BankDetails("Updated Bank", "EXAMPLE COMPANY", "")));
+        assertThat(profile.getBankAccountNumber()).isEqualTo(stored);
+        assertThat(profile.getBankName()).isEqualTo("Updated Bank");
+    }
+
+    @Test
+    void requiresNumberForFirstBankUpdateAndLeavesContactsUntouched() {
+        assertThatThrownBy(() -> service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("Changed", "new@example.test", "0901234567",
+                new UpdateOrganizerBusinessProfileRequest.BankDetails("Bank", "Holder", ""))))
+                .isInstanceOf(base.api.shared.exception.BadRequestException.class);
+        assertThat(profile.getAddress()).isEqualTo("123 Example Street");
+        verify(profiles, org.mockito.Mockito.never()).saveAndFlush(profile);
+    }
+
+    @Test
+    void missingEncryptionKeyBlocksBankChangesButAllowsContactUpdates() {
+        var noKey = new OrganizerBusinessProfileService(users, profiles, new OrganizerBankAccountCipher(""));
+        assertThatThrownBy(() -> noKey.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("Changed", "new@example.test", "0901234567",
+                new UpdateOrganizerBusinessProfileRequest.BankDetails("Bank", "Holder", "123456"))))
+                .isInstanceOf(ConflictException.class);
+        assertThat(profile.getAddress()).isEqualTo("123 Example Street");
+        assertThat(noKey.updateCurrentProfile(7L, UPDATE).address()).isEqualTo("456 New Street");
     }
 
     @Test

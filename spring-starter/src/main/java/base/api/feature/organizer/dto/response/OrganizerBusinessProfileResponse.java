@@ -2,7 +2,7 @@ package base.api.feature.organizer.dto.response;
 
 import base.api.shared.enums.BusinessType;
 
-/** Business information owned by the authenticated organizer, excluding verification evidence and banking data. */
+/** Owned business information excluding verification evidence and full bank account numbers. */
 public record OrganizerBusinessProfileResponse(
         Long id,
         String legalName,
@@ -11,5 +11,10 @@ public record OrganizerBusinessProfileResponse(
         String representativeName,
         String address,
         String contactEmail,
-        String contactPhone) {
+        String contactPhone,
+        String bankName,
+        String bankAccountHolder,
+        String bankAccountLastFour,
+        boolean bankAccountConfigured,
+        boolean bankingAvailable) {
 }

@@ -47,6 +47,12 @@ class OrganizerLifecycleDatabaseTest {
 
     @Configuration @EnableTransactionManagement @EnableMethodSecurity
     static class DatabaseConfiguration {
+        @Bean base.api.shared.config.EmailService emailService() {
+            return org.mockito.Mockito.mock(base.api.shared.config.EmailService.class);
+        }
+        @Bean OrganizerReviewEmailNotification reviewEmails(base.api.shared.config.EmailService emailService) {
+            return new OrganizerReviewEmailNotification(emailService, "http://localhost:3000");
+        }
         @Bean(destroyMethod="close") SessionFactory entityManagerFactory() {
             String url = "jdbc:h2:mem:organizer_lifecycle_" + UUID.randomUUID() + ";MODE=MySQL;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=5000";
             if (!url.startsWith("jdbc:h2:mem:")) throw new IllegalStateException("Only isolated in-memory tests are allowed");
@@ -85,8 +91,8 @@ class OrganizerLifecycleDatabaseTest {
         }
         @Bean OrganizerApplicationLifecycleService service(IUserRepository users, IRoleRepository roles,
                 IOrganizerProfileRepository profiles, IOrganizerDocumentRepository documents, PrivateOrganizerDocumentStorage storage,
-                OrganizerLifecycleAudit audit, Validator validator, Clock clock) {
-            return new OrganizerApplicationLifecycleService(users, roles, profiles, documents, storage, audit, validator, clock);
+                OrganizerLifecycleAudit audit, Validator validator, Clock clock, org.springframework.context.ApplicationEventPublisher events) {
+            return new OrganizerApplicationLifecycleService(users, roles, profiles, documents, storage, audit, validator, clock, events);
         }
     }
     @BeforeAll static void start() {
@@ -101,6 +107,7 @@ class OrganizerLifecycleDatabaseTest {
     }
     @AfterEach void clearAuthentication() { SecurityContextHolder.clearContext(); }
     @BeforeEach void seedIsolatedDatabase() {
+        org.mockito.Mockito.reset(context.getBean(base.api.shared.config.EmailService.class));
         failAudit = false; authentication("ADMIN");
         tx.executeWithoutResult(status -> {
             for (String entity : List.of("AuditLogModel", "OrganizerDocumentModel", "OrganizerProfileModel", "UserModel", "RoleModel"))
@@ -130,6 +137,10 @@ class OrganizerLifecycleDatabaseTest {
 
     @Test void approvalUpdatesProfileRoleDocumentsAndAuditTogether() {
         var result = service.approve(adminId, profileId, approval(0));
+        org.mockito.Mockito.verify(context.getBean(base.api.shared.config.EmailService.class))
+                .sendHtmlEmail(org.mockito.ArgumentMatchers.eq("owner@example.test"),
+                        org.mockito.ArgumentMatchers.contains("đã được phê duyệt"),
+                        org.mockito.ArgumentMatchers.contains("%2Fdashboard%2Forganizer%2Fworkspaces"));
         assertThat(result.status()).isEqualTo(OrganizerProfileStatus.APPROVED); assertThat(result.canSuspend()).isFalse();
         tx.executeWithoutResult(status -> {
             var p = em.find(OrganizerProfileModel.class, profileId);
@@ -153,16 +164,19 @@ class OrganizerLifecycleDatabaseTest {
         assertThat(events()).isZero();
     }
 
-    @Test void savingRequestedCorrectionsRetainsReviewOutcomeUntilExplicitResubmission() {
-        tx.executeWithoutResult(status -> {var profile=em.find(OrganizerProfileModel.class,profileId); profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED);profile.setReviewFeedback("Clarify legal address");});
+    @Test void requestedDocumentChangesCannotModifyBusinessInformation() {
+        tx.executeWithoutResult(status -> { var profile=em.find(OrganizerProfileModel.class,profileId); profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED); profile.setReviewFeedback("Replace the license"); });
         authentication("USER");
-        var input=new base.api.feature.organizer.dto.request.SubmitOrganizerApplicationRequest("Updated Workspace Company",BusinessType.LIMITED_LIABILITY,"0400000123","Representative","25 New Street","0900000123","contact@example.test", "Offer meeting rooms and flexible desks.");
-        var corrected=service.saveCorrection(ownerId,new Correction(0L,input));
-        assertThat(corrected.status()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
-        tx.executeWithoutResult(status -> {var profile=em.find(OrganizerProfileModel.class,profileId); assertThat(profile.getAddress()).isEqualTo("25 New Street");assertThat(profile.getReviewFeedback()).isEqualTo("Clarify legal address");assertThat(profile.getOrganizer().getRole()).isEqualTo(UserRole.USER);});
-        assertThat(service.resubmit(ownerId,new Revision(corrected.revision())).status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
-        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class, profileId).getRegistrationReason()).isEqualTo(input.registrationReason()));
-        assertThat(events()).isEqualTo(2);
+        var input=new base.api.feature.organizer.dto.request.SubmitOrganizerApplicationRequest("Changed company",BusinessType.OTHER,"0400000123","Changed owner","Changed address","0900000123","changed@example.test", "Changed reason");
+        assertThatThrownBy(() -> service.saveCorrection(ownerId,new Correction(0L,input))).isInstanceOf(ConflictException.class);
+        tx.executeWithoutResult(status -> {
+            var profile=em.find(OrganizerProfileModel.class,profileId);
+            assertThat(profile.getLegalName()).isEqualTo("Test Workspace Company");
+            assertThat(profile.getBusinessType()).isEqualTo(BusinessType.LIMITED_LIABILITY);
+            assertThat(profile.getAddress()).isEqualTo("12 Test Street");
+            assertThat(profile.getReviewFeedback()).isEqualTo("Replace the license");
+        });
+        assertThat(events()).isZero();
     }
 
     @Test void legacyPendingApplicationCanBeApprovedWithoutFabricatingAReason() {
@@ -189,6 +203,19 @@ class OrganizerLifecycleDatabaseTest {
             assertThat(em.find(OrganizerDocumentModel.class, documentId).getStatus()).isEqualTo(OrganizerDocumentStatus.PENDING);
         });
         assertThat(events()).isZero();
+        org.mockito.Mockito.verifyNoInteractions(context.getBean(base.api.shared.config.EmailService.class));
+    }
+
+    @Test void decisionEventIsNotDeliveredBeforeCommitOrAfterOuterRollback() {
+        var email = context.getBean(base.api.shared.config.EmailService.class);
+        tx.executeWithoutResult(status -> {
+            service.approve(adminId, profileId, approval(0));
+            org.mockito.Mockito.verifyNoInteractions(email);
+            status.setRollbackOnly();
+        });
+        org.mockito.Mockito.verifyNoInteractions(email);
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class, profileId).getStatus())
+                .isEqualTo(OrganizerProfileStatus.PENDING_REVIEW));
     }
     @Test void requestedChangesRequireReplacementBeforeResubmissionAndRejectStaleReview() {
         var rejected = requestDocumentChanges("Please clarify the business address");
@@ -224,6 +251,11 @@ class OrganizerLifecycleDatabaseTest {
         });
         service.requestChanges(adminId,profileId,new Rejection(0L,"Please clarify the documents",List.of(
                 new DocumentFeedback(documentId," License image is blurry "),new DocumentFeedback(secondDocument,"Identity card is cropped"))));
+        org.mockito.Mockito.verify(context.getBean(base.api.shared.config.EmailService.class))
+                .sendHtmlEmail(org.mockito.ArgumentMatchers.eq("owner@example.test"),
+                        org.mockito.ArgumentMatchers.contains("cần bổ sung"),
+                        org.mockito.ArgumentMatchers.argThat(html -> html.contains("License image is blurry")
+                                && html.contains("Identity card is cropped") && html.contains("%2Forganizer%2Fapply")));
         tx.executeWithoutResult(status -> {
             assertThat(em.find(OrganizerProfileModel.class,profileId).getReviewFeedback()).isEqualTo("Please clarify the documents");
             assertThat(em.find(OrganizerDocumentModel.class,documentId).getAdminFeedback()).isEqualTo("License image is blurry");
@@ -380,6 +412,18 @@ class OrganizerLifecycleDatabaseTest {
         assertThatThrownBy(() -> service.correctDocument(ownerId, replaced.revision(), OrganizerDocumentType.BUSINESS_LICENSE,
                 replaced.currentDocumentIds().stream().filter(id -> !id.equals(other)).findFirst().orElseThrow(), pdf("already-resolved.pdf"))).isInstanceOf(ConflictException.class);
         assertThat(service.resubmit(ownerId, new Revision(replaced.revision())).status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+    }
+
+    @Test void revisionCannotAddEvenMissingRequiredDocumentTypesWithoutAdminRequest() {
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setBusinessType(BusinessType.HOUSEHOLD_BUSINESS));
+        var requested = requestDocumentChanges("Replace the unclear registration certificate");
+        authentication("USER");
+        assertThatThrownBy(() -> service.correctDocument(ownerId, requested.revision(), OrganizerDocumentType.ID_CARD_FRONT, null, pdf("front.pdf")))
+                .isInstanceOf(ConflictException.class);
+        var replaced = service.correctDocument(ownerId, requested.revision(), OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("registration.pdf"));
+        assertThatThrownBy(() -> service.resubmit(ownerId, new Revision(replaced.revision())))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, error -> assertThat(error.getErrors())
+                        .containsKeys("documents.ID_CARD_FRONT", "documents.ID_CARD_BACK"));
     }
 
     private OrganizerLifecycleContext requestDocumentChanges(String reason) {
