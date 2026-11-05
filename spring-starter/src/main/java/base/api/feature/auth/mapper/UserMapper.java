@@ -24,6 +24,7 @@ public final class UserMapper {
                 .birthDate(user.getBirthDate())
                 .avatar(user.getAvatar())
                 .verified(user.isVerified())
+                .twoFactorEnabled(user.isTwoFactorEnabled())
                 .status(user.getStatus())
                 .role(user.getRole())
                 .createdAt(user.getCreatedAt())

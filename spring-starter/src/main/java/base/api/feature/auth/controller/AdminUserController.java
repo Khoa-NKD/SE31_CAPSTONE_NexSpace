@@ -37,7 +37,7 @@ public class AdminUserController extends BaseAPIController {
 
     private final IUserService userService;
 
-    @Operation(summary = "Danh sách user (phân trang, tìm kiếm, lọc)")
+    @Operation(summary = "Xem danh sách người dùng (phân trang, tìm kiếm, lọc)")
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponseDTO<UserDto>>> getUsers(
             @ModelAttribute PageRequestDTO pageRequest,
@@ -46,7 +46,7 @@ public class AdminUserController extends BaseAPIController {
         return successPage(userService.getUserPage(pageRequest, role, status));
     }
 
-    @Operation(summary = "Chi tiết user")
+    @Operation(summary = "Xem chi tiết hồ sơ người dùng theo ID", description = "Trả về thông tin hồ sơ chi tiết của người dùng cho Quản trị viên, che chắn dữ liệu nhạy cảm")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<UserDto>> getUser(@PathVariable Long id) {
         return success(userService.getById(id));
