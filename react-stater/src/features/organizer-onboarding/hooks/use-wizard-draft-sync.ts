@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
+import { useLocation } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
 import {
@@ -12,10 +13,20 @@ import { ApiError } from '@/lib/api-client';
 
 export function useWizardDraftSync() {
   const queryClient = useQueryClient();
+  const location = useLocation();
   const store = useWizardStore();
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(store.lastSavedAt);
   const inFlightPromiseRef = useRef<Promise<CanonicalWorkspace | null> | null>(null);
+
+  const search = (location.search as Record<string, unknown>) || {};
+  const rawId = search.id ?? search.workspaceId;
+  const routeWorkspaceId =
+    typeof rawId === 'string' || typeof rawId === 'number'
+      ? String(rawId).replace(/^["']|["']$/g, '').trim()
+      : undefined;
+
+  const fetchedIdRef = useRef<string | null>(null);
 
   /**
    * Saves the current wizard form state to the centralized Mock REST API.
@@ -146,6 +157,42 @@ export function useWizardDraftSync() {
     },
     []
   );
+
+  // When navigating to Create Workspace fresh (no id, not edit mode), reset previous canonical workspace
+  useEffect(() => {
+    if (location.pathname === '/dashboard/organizer/workspaces/create') {
+      const isEdit = search.mode === 'edit' || Boolean(routeWorkspaceId);
+      if (!isEdit && store.canonicalWorkspaceId) {
+        store.resetDraft();
+      }
+    }
+  }, [location.pathname, routeWorkspaceId, search.mode, store]);
+
+  // Automatically hydrate workspace if route parameter id differs from store
+  useEffect(() => {
+    if (
+      routeWorkspaceId &&
+      routeWorkspaceId !== store.canonicalWorkspaceId &&
+      fetchedIdRef.current !== routeWorkspaceId
+    ) {
+      fetchedIdRef.current = routeWorkspaceId;
+      // oxlint-disable-next-line react/set-state-in-effect
+      loadWorkspaceFromServer(routeWorkspaceId);
+    }
+  }, [routeWorkspaceId, store.canonicalWorkspaceId, loadWorkspaceFromServer]);
+
+  // Automatically record current wizard step route for this workspace without triggering infinite re-renders
+  useEffect(() => {
+    if (location.pathname.startsWith('/dashboard/organizer/workspaces/create')) {
+      const targetId = routeWorkspaceId || store.canonicalWorkspaceId;
+      if (targetId) {
+        const state = useWizardStore.getState();
+        if (state.workspaceSteps?.[targetId] !== location.pathname) {
+          state.setWorkspaceStep(targetId, location.pathname);
+        }
+      }
+    }
+  }, [location.pathname, routeWorkspaceId, store.canonicalWorkspaceId]);
 
   return {
     canonicalWorkspaceId: store.canonicalWorkspaceId,

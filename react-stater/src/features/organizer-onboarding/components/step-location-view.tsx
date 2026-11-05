@@ -56,6 +56,18 @@ export function StepLocationView() {
   // Validation errors
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // Synchronize form state when store location hydrates from server
+  React.useEffect(() => {
+    // oxlint-disable-next-line react/set-state-in-effect
+    setStreetAddress((prev) => (prev !== (location.streetAddress || '') ? (location.streetAddress || '') : prev));
+    setDistrict((prev) => (prev !== (location.district || '') ? (location.district || '') : prev));
+    setCity((prev) => (prev !== (location.city || '') ? (location.city || '') : prev));
+    setFloorSuite((prev) => (prev !== (location.floorSuite || '') ? (location.floorSuite || '') : prev));
+    setLatitudeState((prev) => (prev !== (location.latitude ?? null) ? (location.latitude ?? null) : prev));
+    setLongitudeState((prev) => (prev !== (location.longitude ?? null) ? (location.longitude ?? null) : prev));
+    setEntryNotes((prev) => (prev !== (location.entryNotes || '') ? (location.entryNotes || '') : prev));
+  }, [location]);
+
   // Dynamic Ward list for current city
   const availableWards = getWardsForCity(city);
   const verification = typeof latitude === 'number' && typeof longitude === 'number'
@@ -146,7 +158,7 @@ export function StepLocationView() {
       longitude,
       entryNotes
     });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev });
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -187,7 +199,7 @@ export function StepLocationView() {
       description: 'Proceeding to Operating Hours configuration.'
     });
 
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev });
   };
 
   return (

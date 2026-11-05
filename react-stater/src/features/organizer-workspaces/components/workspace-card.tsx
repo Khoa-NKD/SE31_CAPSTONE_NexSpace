@@ -3,6 +3,7 @@ import { Link } from '@tanstack/react-router';
 import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import type { OrganizerWorkspace } from '../types';
+import { getWorkspaceResumeRoute } from '../utils/workspace-routing';
 
 interface WorkspaceCardProps {
   workspace: OrganizerWorkspace;
@@ -10,6 +11,7 @@ interface WorkspaceCardProps {
 
 export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
   const isDraft = workspace.status === 'DRAFT';
+  const resumeRoute = isDraft ? getWorkspaceResumeRoute(workspace) : '/dashboard/organizer/workspaces/create';
 
   return (
     <article className='flex flex-col rounded-xl bg-card border border-border shadow-2xs overflow-hidden hover:shadow-md transition-shadow duration-200'>
@@ -127,7 +129,7 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               className='w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 dark:border-indigo-500 dark:text-indigo-400 font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm'
             >
               <Link
-                to='/dashboard/organizer/workspaces/create'
+                to={resumeRoute}
                 search={{ id: workspace.id, mode: 'edit' }}
               >
                 <Edit className='size-3.5' />

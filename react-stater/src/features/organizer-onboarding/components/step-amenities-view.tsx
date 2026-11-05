@@ -288,7 +288,7 @@ export function StepAmenitiesView() {
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev });
   };
 
   const handleContinue = async (e: React.FormEvent) => {

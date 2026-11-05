@@ -910,7 +910,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
               type='button'
               onClick={() => {
                 setIsCompletionModalOpen(false);
-                router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan' });
+                router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan', search: (prev) => prev });
               }}
               className='h-10 px-5 text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs flex items-center gap-1.5'
             >

@@ -19,24 +19,22 @@ import { mapCanonicalToWizardState } from '../utils/wizard-api-mapper';
 const STORAGE_KEY = 'nexspace_organizer_onboarding_draft_v1';
 
 export const INITIAL_BASIC_INFO: BasicInfoValues = {
-  name: 'NexSpace Executive Center Saigon',
+  name: '',
   category: 'coworking_hub',
-  description:
-    'Modern, high-connectivity enterprise coworking floor situated in District 1, boasting ergonomic Herman Miller chairs, soundproof phone booths, and high-speed enterprise fiber network.',
-  totalArea: 1250,
-  contactPhone: '+84 (0) 28 3822 9900',
-  contactEmail: 'concierge.prime@nexspace.vn'
+  description: '',
+  totalArea: 0,
+  contactPhone: '',
+  contactEmail: ''
 };
 
 export const INITIAL_LOCATION: LocationValues = {
-  streetAddress: '72 Le Thanh Ton Boulevard',
-  district: 'Ben Nghe Ward, District 1',
-  city: 'Ho Chi Minh City',
-  floorSuite: 'Vincom Center Landmark Tower, Floor 12',
-  latitude: 10.7769,
-  longitude: 106.7009,
-  entryNotes:
-    'Parking available in basement B2 & B3 (motorbike & car). Please take High-zone elevator bank B directly to 12th floor reception desk.'
+  streetAddress: '',
+  district: '',
+  city: '',
+  floorSuite: '',
+  latitude: null,
+  longitude: null,
+  entryNotes: ''
 };
 
 export const INITIAL_SCHEDULE: DaySchedule[] = [
@@ -196,6 +194,7 @@ export interface WizardStore extends OnboardingDraftState {
   setSyncError: (error: string | null) => void;
   markDraftSynced: (isSynced: boolean) => void;
   hydrateFromServer: (workspace: CanonicalWorkspace) => void;
+  setWorkspaceStep: (workspaceId: string, route: string) => void;
   saveDraft: () => void;
   resetDraft: () => void;
 }
@@ -210,6 +209,7 @@ export const useWizardStore = create<WizardStore>()(
       isEditMode: false,
       clientDraftKey: undefined,
       serverVersion: undefined,
+      workspaceSteps: {},
       basicInfo: INITIAL_BASIC_INFO,
       location: INITIAL_LOCATION,
       operatingHours: INITIAL_OPERATING_HOURS,
@@ -218,6 +218,14 @@ export const useWizardStore = create<WizardStore>()(
       media: INITIAL_MEDIA_GALLERY,
       floorPlan: INITIAL_FLOOR_PLAN,
       submissionStatus: 'draft',
+
+      setWorkspaceStep: (workspaceId, route) =>
+        set((state) => ({
+          workspaceSteps: {
+            ...state.workspaceSteps,
+            [workspaceId]: route
+          }
+        })),
 
       setBasicInfo: (data) =>
         set((state) => ({

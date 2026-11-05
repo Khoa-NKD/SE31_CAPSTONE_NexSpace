@@ -264,7 +264,7 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create' })}
+                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev })}
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
@@ -336,7 +336,7 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/hours' })}
+                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev })}
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
@@ -405,7 +405,7 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities' })}
+                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities', search: (prev) => prev })}
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
@@ -519,7 +519,7 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan' })}
+                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan', search: (prev) => prev })}
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
