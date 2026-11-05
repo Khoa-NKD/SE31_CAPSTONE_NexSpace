@@ -42,6 +42,15 @@ class CloudinaryPrivateDocumentStorageTest {
         });
     }
 
+    @Test
+    void profileScopedUploadsUseTheRequestedFolderWithoutPublicDelivery() throws Exception {
+        String result = storage.uploadPrivateDocument(new byte[]{1}, KEY + ".pdf", 42L);
+        assertThat(result).isEqualTo("cloudinary:authenticated:raw:Organizers/42/doc/" + KEY + ".pdf");
+        verify(uploader).upload(any(), argThat(options -> "Organizers/42/doc".equals(options.get("asset_folder"))
+                && ("Organizers/42/doc/" + KEY + ".pdf").equals(options.get("public_id"))
+                && "authenticated".equals(options.get("type"))));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"jpg", "jpeg", "png", "pdf"})
     void explicitlyProtectsEachSupportedResourceTypeAndReturnsOnlyAReference(String extension) throws Exception {

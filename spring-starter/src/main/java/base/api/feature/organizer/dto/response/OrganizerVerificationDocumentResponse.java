@@ -11,5 +11,9 @@ public record OrganizerVerificationDocumentResponse(
         OrganizerDocumentType documentType,
         String fileName,
         OrganizerDocumentStatus status,
-        LocalDateTime uploadedAt) {
+        LocalDateTime uploadedAt, String adminFeedback) {
+    public OrganizerVerificationDocumentResponse(Long id, OrganizerDocumentType documentType, String fileName,
+            OrganizerDocumentStatus status, LocalDateTime uploadedAt) {
+        this(id, documentType, fileName, status, uploadedAt, null);
+    }
 }

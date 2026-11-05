@@ -7,12 +7,23 @@ import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import org.springframework.data.domain.Page;
+import org.springframework.web.multipart.MultipartFile;
 
 public interface IUserService {
 
     UserDto getById(Long userId);
 
     UserDto updateProfile(Long userId, UpdateProfileDto dto);
+
+    UserDto updateProfileWithMultipart(Long userId, base.api.feature.auth.dto.request.UpdateProfileMultipartDto dto);
+
+    UserDto uploadAvatar(Long userId, MultipartFile file);
+
+    UserDto updateAvatarUrl(Long userId, String avatarUrl);
+
+    UserDto updateAvatar(Long userId, base.api.feature.auth.dto.request.UpdateAvatarMultipartDto dto);
+
+    UserDto deleteAvatar(Long userId);
 
     void changePassword(Long userId, ChangePasswordDto dto);
 

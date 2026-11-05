@@ -20,6 +20,13 @@ public class AdminOrganizerDocumentContentService {
         return new Content(content.bytes(), content.contentType(), safeFilename(reference.fileName(), content.contentType()));
     }
 
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public Content readOwner(Long actorId, Long documentId) {
+        var reference = access.authorizeOwner(actorId, documentId);
+        var content = storage.read(reference.key());
+        return new Content(content.bytes(), content.contentType(), safeFilename(reference.fileName(), content.contentType()));
+    }
+
     private String safeFilename(String original, String contentType) {
         String name = original == null ? "" : original.replace('\\', '/');
         name = name.substring(name.lastIndexOf('/') + 1).replaceAll("[\\p{Cntrl}<>:\"|?*]", "_").trim();

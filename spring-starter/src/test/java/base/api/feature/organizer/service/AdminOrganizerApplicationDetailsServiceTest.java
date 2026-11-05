@@ -55,6 +55,7 @@ class AdminOrganizerApplicationDetailsServiceTest {
     @Test
     void readsTargetApplicationAndMetadataWithoutModifyingEntities() {
         var profile = profile();
+        profile.setRegistrationReason("Provide flexible workspaces.\nServe local companies.");
         var current = new AdminOrganizerDocumentResponse(9L, OrganizerDocumentType.BUSINESS_LICENSE,
                 "license.pdf", OrganizerDocumentStatus.PENDING, profile.getSubmittedAt(), true, null);
         var previous = new AdminOrganizerDocumentResponse(8L, OrganizerDocumentType.BUSINESS_LICENSE,
@@ -69,6 +70,7 @@ class AdminOrganizerApplicationDetailsServiceTest {
         assertThat(result.contactEmail()).isEqualTo("contact@example.test");
         assertThat(result.taxId()).isEqualTo("0400000123");
         assertThat(result.reviewFeedback()).isEqualTo("Clarify address");
+        assertThat(result.registrationReason()).isEqualTo(profile.getRegistrationReason());
         assertThat(result.documents()).containsExactly(current, previous);
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
         assertThat(profile.getOrganizer().getPassword()).isEqualTo("private-account-hash");
@@ -85,6 +87,7 @@ class AdminOrganizerApplicationDetailsServiceTest {
         var result = service.getDetails(1L, 7L);
         assertThat(result.documents()).isEmpty(); assertThat(result.reviewedAt()).isNull();
         assertThat(result.reviewFeedback()).isNull();
+        assertThat(result.registrationReason()).isNull();
     }
 
     @ParameterizedTest

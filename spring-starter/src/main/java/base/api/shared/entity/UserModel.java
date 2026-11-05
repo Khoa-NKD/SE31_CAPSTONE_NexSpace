@@ -49,6 +49,7 @@ public class UserModel extends BaseModel {
     @Column(name = "birth_date")
     private LocalDate birthDate;
 
+    @Column(name = "avatar", length = 1000)
     private String avatar;
 
     @Column(name = "is_verified", nullable = false)

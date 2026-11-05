@@ -45,7 +45,7 @@ class OrganizerApplicationServiceTest {
     TransactionTemplate transaction;
     static final SubmitOrganizerApplicationRequest REQUEST = new SubmitOrganizerApplicationRequest(
             " Example Company ", BusinessType.LIMITED_LIABILITY, " TAX-123 ", " Representative ",
-            " Business address ", "+84901234567", " contact@example.com ");
+            " Business address ", "+84901234567", " contact@example.com ", " Offer flexible workspaces to local businesses. ");
 
     @BeforeEach
     void setUp() {
@@ -160,7 +160,7 @@ class OrganizerApplicationServiceTest {
 
     base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest draftRequest() {
         return new base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest(REQUEST.legalName(), REQUEST.businessType(),
-                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail());
+                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail(), REQUEST.registrationReason());
     }
 
     OrganizerDocumentModel currentLicense() {
@@ -230,6 +230,7 @@ class OrganizerApplicationServiceTest {
     void completeDraftIsSubmittedUsingExistingLicenseExactlyOnceWithoutReupload() {
         var profile = draft();
         transaction.execute(status -> service.saveDraft(7L, draftRequest()));
+        assertThat(profile.getRegistrationReason()).isEqualTo(REQUEST.registrationReason());
         currentLicense();
         var result = transaction.execute(status -> service.submitDraft(7L));
         assertThat(result.id()).isEqualTo(42L);
@@ -239,6 +240,21 @@ class OrganizerApplicationServiceTest {
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
         verify(documents, never()).saveAndFlush(any());
         assertThat(user.getRole()).isEqualTo(UserRole.USER);
+    }
+
+    @Test
+    void blankReasonCanBeSavedButCannotBeSubmittedAndDoesNotChangeDraftState() {
+        var profile = draft();
+        var request = new base.api.feature.organizer.dto.request.SaveOrganizerDraftRequest(REQUEST.legalName(), REQUEST.businessType(),
+                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail(), "  ");
+        var saved = transaction.execute(status -> service.saveDraft(7L, request));
+        assertThat(saved.registrationReason()).isNull();
+        currentLicense();
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, failure ->
+                        assertThat(failure.getErrors()).containsKey("registrationReason"));
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        assertThat(profile.getSubmittedAt()).isNull();
     }
 
     @Test

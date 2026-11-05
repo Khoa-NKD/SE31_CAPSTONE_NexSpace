@@ -1,3 +1,5 @@
+> For the current storage and replacement policy, see [Cloudinary document retention](organizer-cloudinary-retention.md).
+
 # Initial organizer application
 
 ## Scope and decisions
@@ -6,22 +8,22 @@ This implementation uses the approved current Java 17 / Long ID / Bearer JWT bas
 
 The supported business types are `JOINT_STOCK`, `LIMITED_LIABILITY`, `SOLE_PROPRIETOR`, `HOUSEHOLD_BUSINESS`, and `OTHER` (other business). All require legal name, business type, tax ID, representative name, address, contact phone, contact email and a business license. `INDIVIDUAL` remains unsupported pending a separate schema/enum decision; it is not mapped to `OTHER`.
 
-An existing organizer profile in any status returns 409. This endpoint does not modify drafts or implement resubmission. An approved organizer's tax ID cannot be reused. Submission does not implement approval, rejection, document management, or workspace publication.
+The draft workflow is documented in [organizer-application-draft.md](organizer-application-draft.md). Existing DRAFT profiles can be saved and submitted without creating another profile. Existing profiles in every other state return 409 on draft writes and submission; revision resubmission remains outside this task. An approved organizer's tax ID cannot be reused. Submission does not implement approval, rejection or workspace publication.
 
 ## API contract
 
 `POST /api/organizer/applications`, authenticated with `Authorization: Bearer ...`.
 
-Content type: `multipart/form-data` with these required parts:
+Content type: `multipart/form-data` with the following parts (the legacy contract is retained):
 
 - `application`: `application/json`, containing `legalName` (1–255), `businessType`, `taxId` (1–50), `representativeName` (1–100), `address` (1–500), `contactPhone` (8–20, digits and `+() .-`), and `contactEmail` (email, maximum 255). Strings are trimmed before validation. Actor identity comes exclusively from the authenticated principal.
-- `businessLicense`: one nonempty JPG, JPEG, PNG or PDF, at most 5 MiB. Extension, declared MIME type, file signature, and safe filename are checked. These checks do not replace administrator document review or malware scanning.
+- `businessLicense`: one nonempty JPG, JPEG, PNG or PDF, at most 5 MiB. Required unless the owned DRAFT already has a current, non-rejected business license with a stored reference. When a current license exists, omit this part; uploading another returns 409 instead of replacing it. Extension, declared MIME type, file signature, and safe filename are checked. These checks do not replace administrator document review or malware scanning.
 
 Success: HTTP 201, existing envelope `{ success, data: { id, status, submittedAt }, message, statusCode }`. `submittedAt` is an ISO local date/time interpreted as UTC. No document path, file bytes or account credentials are returned.
 
 Errors use the existing envelope and HTTP statuses: 400 for invalid fields/parts/files, 401 for missing/invalid authentication, 403 for ineligible accounts/roles, 409 for existing profiles or approved tax ID conflicts, 413 for multipart limits, and 415 for unsupported request media types. Bean Validation errors use the `errors` field map.
 
-The user's row is locked inside the submission transaction before checking for an existing profile; the existing unique organizer foreign key is an additional constraint. The profile and document metadata are flushed within that transaction. Confirmed transaction rollback removes the newly written file. An indeterminate commit result or process crash can leave an orphan file; automatic deletion in that case could destroy a committed document, so operational reconciliation remains necessary.
+The user's row is locked inside the submission transaction before checking for an existing profile; the existing unique organizer foreign key is an additional constraint. The profile and document metadata are flushed within that transaction. Confirmed transaction rollback removes the newly stored object through its recorded provider. An indeterminate commit result or process crash can leave an orphan object; automatic deletion in that case could destroy a committed document, so operational reconciliation remains necessary.
 
 ## Local configuration and private files
 
@@ -37,7 +39,9 @@ This is a normal application startup command, not a read-only configuration chec
 
 Set `APP_ORGANIZER_DOCUMENTS_DIRECTORY` to an absolute directory outside the checkout and outside all web/static roots. The default is `${user.home}/.nexspace/organizer-documents`, independent of the source directory. This resolves as `app.organizer.documents-directory`. An explicitly blank or relative setting fails submission without creating a profile. Use a persistent private volume in deployment, restrict Windows directory ACLs to the backend service account, and back it up together with database metadata. On POSIX, files are created with owner-only read/write permission. No static resource mapping or document download endpoint is added.
 
-Only an opaque generated file key is stored in `organizer_document.file_url`; its original filename is metadata. Maximum multipart file/request sizes are 5/20 MiB, preserving the shared workspace upload configuration. Each organizer document remains limited to 5 MiB. The supplied database/JWT values are never included in this document.
+Authenticated Cloudinary storage is now preferred when `app.organizer.documents-cloudinary-enabled` is true (default) and the existing Cloudinary credentials are configured. JPG/PNG use `image/authenticated`; PDF uses `raw/authenticated`. Upload requests still pass through the Backend. The public workspace-image upload method is not used for verification documents. Set `ORGANIZER_DOCUMENTS_CLOUDINARY_ENABLED=false` to retain private local storage. When Cloudinary is enabled, missing credentials or an upload failure fail closed. Local-only mode is available only when explicitly disabled. See [the storage integration and upload contract](organizer-onboarding-storage.md).
+
+`organizer_document.file_url` stores either a legacy generated local key or an internal `cloudinary:authenticated:...` storage reference. It never stores a public or signed delivery URL. Original filename remains metadata. The approved Local maintenance run migrated active document references to Cloudinary; superseded files are removed while their database records are retained. Maximum multipart file/request sizes remain 5/20 MiB, preserving the shared workspace upload configuration. Each organizer document remains limited to 5 MiB. The supplied database/JWT/Cloudinary credential values are never included in this document.
 
 ## Frontend integration
 

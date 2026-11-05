@@ -79,6 +79,10 @@ public class PrivateOrganizerDocumentStorage {
     }
 
     public StoredDocument store(MultipartFile file) {
+        return store(file, null);
+    }
+
+    public StoredDocument store(MultipartFile file, Long organizerProfileId) {
         String name = file.getOriginalFilename();
         if (name == null || name.isBlank() || name.length() > 255
                 || name.matches(".*[/\\\\:<>\"|?*].*") || name.codePoints().anyMatch(Character::isISOControl)) {
@@ -98,8 +102,12 @@ public class PrivateOrganizerDocumentStorage {
                 throw new BadRequestException("Only valid JPG, PNG or PDF documents up to 5 MB are accepted");
             }
             String key = UUID.randomUUID() + "." + extension;
-            if (cloudinaryEnabled && cloudinaryStorage != null && cloudinaryStorage.isCloudinaryConfigured()) {
-                return new StoredDocument(cloudinaryStorage.uploadPrivateDocument(bytes, key), name);
+            if (cloudinaryEnabled) {
+                if (cloudinaryStorage == null || !cloudinaryStorage.isCloudinaryConfigured())
+                    throw new IllegalStateException("Private Cloudinary storage is not configured");
+                return new StoredDocument(organizerProfileId == null
+                        ? cloudinaryStorage.uploadPrivateDocument(bytes, key)
+                        : cloudinaryStorage.uploadPrivateDocument(bytes, key, organizerProfileId), name);
             }
             Path root = root();
             Path target = root.resolve(key);

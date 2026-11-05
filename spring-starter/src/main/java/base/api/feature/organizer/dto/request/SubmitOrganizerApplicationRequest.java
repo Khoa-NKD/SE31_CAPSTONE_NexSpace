@@ -15,7 +15,15 @@ public record SubmitOrganizerApplicationRequest(
         @NotBlank @Size(max = 100) String representativeName,
         @NotBlank @Size(max = 500) String address,
         @NotBlank @Size(max = 20) @Pattern(regexp = "[+0-9() .-]{8,20}") String contactPhone,
-        @NotBlank @Email @Size(max = 255) String contactEmail) {
+        @NotBlank @Email @Size(max = 255) String contactEmail,
+        @NotBlank(groups = Submission.class) @Size(max = 2000) String registrationReason) {
+    /** Only explicit submission/resubmission requires a reason; legacy review remains valid. */
+    public interface Submission {}
+
+    public SubmitOrganizerApplicationRequest(String legalName, BusinessType businessType, String taxId,
+            String representativeName, String address, String contactPhone, String contactEmail) {
+        this(legalName, businessType, taxId, representativeName, address, contactPhone, contactEmail, null);
+    }
     public SubmitOrganizerApplicationRequest {
         legalName = trim(legalName);
         taxId = trim(taxId);
@@ -23,6 +31,7 @@ public record SubmitOrganizerApplicationRequest(
         address = trim(address);
         contactPhone = trim(contactPhone);
         contactEmail = trim(contactEmail);
+        registrationReason = trim(registrationReason);
     }
 
     private static String trim(String value) {

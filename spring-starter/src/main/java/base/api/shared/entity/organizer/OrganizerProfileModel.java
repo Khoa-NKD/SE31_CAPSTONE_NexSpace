@@ -41,6 +41,10 @@ public class OrganizerProfileModel extends BaseModel {
     @Column(name = "legal_name")
     private String legalName;
 
+    /** Applicant-provided motivation; nullable for legacy applications and incomplete drafts. */
+    @Column(name = "registration_reason", length = 2000)
+    private String registrationReason;
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "business_type", length = 30)
