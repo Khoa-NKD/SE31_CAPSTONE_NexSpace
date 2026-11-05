@@ -16,15 +16,17 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequiredArgsConstructor
 public class OrganizerApplicationLifecycleController extends BaseAPIController {
+    @PostMapping("/api/admin/organizer-applications/{id}/request-changes") @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> requestChanges(@PathVariable Long id, @Valid @RequestBody Rejection request) {
+        return success(service.requestChanges(getCurrentUserId(), id, request), "Document changes requested");
+    }
     private final OrganizerApplicationLifecycleService service;
     @GetMapping("/api/admin/organizer-applications/{id}/lifecycle") @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> adminContext(@PathVariable Long id) { return success(service.adminContext(getCurrentUserId(), id)); }
     @PostMapping("/api/admin/organizer-applications/{id}/approve") @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> approve(@PathVariable Long id, @Valid @RequestBody Approval request) { return success(service.approve(getCurrentUserId(), id, request), "Organizer application approved"); }
     @PostMapping("/api/admin/organizer-applications/{id}/reject") @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> reject(@PathVariable Long id, @Valid @RequestBody Reason request) { return success(service.reject(getCurrentUserId(), id, request), "Organizer application rejected"); }
-    @PostMapping("/api/admin/organizer-applications/{id}/suspend") @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> suspend(@PathVariable Long id, @Valid @RequestBody Reason request) { return success(service.suspend(getCurrentUserId(), id, request), "Organizer operations suspended"); }
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> reject(@PathVariable Long id, @Valid @RequestBody Rejection request) { return success(service.reject(getCurrentUserId(), id, request), "Organizer application rejected"); }
     @GetMapping("/api/organizer/applications/current/lifecycle") @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> ownerContext() { return success(service.ownerContext(getCurrentUserId())); }
     @PutMapping("/api/organizer/applications/current/correction") @PreAuthorize("hasAnyRole('USER','ORGANIZER')")

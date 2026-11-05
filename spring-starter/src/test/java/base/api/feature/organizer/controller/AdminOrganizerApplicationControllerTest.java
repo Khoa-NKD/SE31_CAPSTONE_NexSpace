@@ -63,7 +63,7 @@ class AdminOrganizerApplicationControllerTest {
         var dto = new AdminOrganizerApplicationDetailsResponse(7L, "Company", BusinessType.LIMITED_LIABILITY,
                 "0400000123", "Representative", "12 Test Street", "contact@example.test", "0900000123",
                 new AdminOrganizerApplicationDetailsResponse.Applicant(42L, "applicant", "applicant@example.test", "Test Applicant"),
-                OrganizerProfileStatus.APPROVED, date, date, "Accepted", List.of(document));
+                OrganizerProfileStatus.APPROVED, date, date, "Accepted", List.of(document), "Offer flexible workspaces to local businesses.");
         when(detailsService.getDetails(1L, 7L)).thenReturn(dto);
         when(jwtUtil.extractUserId("fixture-admin-token")).thenReturn(1L);
         when(userDetails.loadUserById(1L)).thenReturn(principal("ADMIN"));
@@ -79,7 +79,7 @@ class AdminOrganizerApplicationControllerTest {
                 .andExpect(jsonPath("$.data.bankAccountNumber").doesNotExist())
                 .andExpect(jsonPath("$.data.applicant.password").doesNotExist())
                 .andExpect(jsonPath("$.data.applicant.twoFactorSecret").doesNotExist())
-                .andExpect(jsonPath("$.data.registrationReason").doesNotExist())
+                .andExpect(jsonPath("$.data.registrationReason").value("Offer flexible workspaces to local businesses."))
                 .andExpect(jsonPath("$.data.history").doesNotExist());
         verify(detailsService).getDetails(1L, 7L);
     }

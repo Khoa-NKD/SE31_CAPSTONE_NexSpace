@@ -43,6 +43,6 @@ public class AdminOrganizerApplicationDetailsService {
                 new AdminOrganizerApplicationDetailsResponse.Applicant(
                         applicant.getId(), applicant.getUserName(), applicant.getEmail(), applicant.getFullName()),
                 profile.getStatus(), profile.getSubmittedAt(), profile.getReviewedAt(), profile.getReviewFeedback(),
-                List.copyOf(documents.findAdminMetadataByProfileId(profile.getId())));
+                List.copyOf(documents.findAdminMetadataByProfileId(profile.getId())), profile.getRegistrationReason());
     }
 }

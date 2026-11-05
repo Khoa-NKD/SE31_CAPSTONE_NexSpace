@@ -19,6 +19,7 @@ import base.api.shared.exception.UnauthorizedException;
 import base.api.shared.exception.NotFoundException;
 import base.api.shared.entity.UserModel;
 import jakarta.validation.Validator;
+import jakarta.validation.groups.Default;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -72,7 +73,7 @@ public class OrganizerApplicationService {
         requireDraft(profile);
         validate(request);
         apply(profile, new SubmitOrganizerApplicationRequest(request.legalName(), request.businessType(),
-                request.taxId(), request.representativeName(), request.address(), request.contactPhone(), request.contactEmail()));
+                request.taxId(), request.representativeName(), request.address(), request.contactPhone(), request.contactEmail(), request.registrationReason()));
         profiles.saveAndFlush(profile);
         return OrganizerApplicationDetailsResponse.from(profile);
     }
@@ -84,8 +85,8 @@ public class OrganizerApplicationService {
         var profile = owned(actorId, true);
         requireDraft(profile);
         var request = new SubmitOrganizerApplicationRequest(profile.getLegalName(), profile.getBusinessType(),
-                profile.getTaxId(), profile.getRepresentativeName(), profile.getAddress(), profile.getContactPhone(), profile.getContactEmail());
-        var errors = validationErrors(request);
+                profile.getTaxId(), profile.getRepresentativeName(), profile.getAddress(), profile.getContactPhone(), profile.getContactEmail(), profile.getRegistrationReason());
+        var errors = validationErrors(request, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
         var license = documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(
                 profile.getId(), OrganizerDocumentType.BUSINESS_LICENSE);
         if (license.isEmpty() || license.get().getStatus() == OrganizerDocumentStatus.REJECTED
@@ -102,7 +103,8 @@ public class OrganizerApplicationService {
     @Transactional
     public OrganizerApplicationResponse submit(Long actorId, SubmitOrganizerApplicationRequest request, MultipartFile file) {
         var user = lockEligibleUser(actorId);
-        validate(request);
+        var errors = validationErrors(request, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
+        if (!errors.isEmpty()) throw new OrganizerApplicationValidationException(errors);
         var existing = profiles.findByOrganizerIdForUpdate(actorId);
         var profile = existing.orElseGet(OrganizerProfileModel::new);
         if (existing.isPresent()) {
@@ -123,11 +125,11 @@ public class OrganizerApplicationService {
         if (currentLicense.isEmpty() && file == null) {
             throw new OrganizerApplicationValidationException(java.util.Map.of("businessLicense", "A business license is required"));
         }
-        var stored = currentLicense.isEmpty() ? storage.store(file) : null;
-        if (stored != null) registerRollbackCleanup(stored);
         profile.setOrganizer(user);
         apply(profile, request);
         var receipt = markSubmitted(profile);
+        var stored = currentLicense.isEmpty() ? storage.store(file, profile.getId()) : null;
+        if (stored != null) registerRollbackCleanup(stored);
         if (stored != null) {
             var document = new OrganizerDocumentModel();
             document.setOrganizerProfile(profile);
@@ -162,6 +164,7 @@ public class OrganizerApplicationService {
         profile.setAddress(request.address());
         profile.setContactPhone(request.contactPhone());
         profile.setContactEmail(request.contactEmail());
+        profile.setRegistrationReason(request.registrationReason());
     }
 
     private OrganizerApplicationResponse markSubmitted(OrganizerProfileModel profile) {
@@ -208,9 +211,9 @@ public class OrganizerApplicationService {
         }
     }
 
-    private LinkedHashMap<String, String> validationErrors(Object request) {
+    private LinkedHashMap<String, String> validationErrors(Object request, Class<?>... groups) {
         var errors = new LinkedHashMap<String, String>();
-        validator.validate(request).forEach(violation -> errors.putIfAbsent(violation.getPropertyPath().toString(), violation.getMessage()));
+        validator.validate(request, groups).forEach(violation -> errors.putIfAbsent(violation.getPropertyPath().toString(), violation.getMessage()));
         return errors;
     }
 

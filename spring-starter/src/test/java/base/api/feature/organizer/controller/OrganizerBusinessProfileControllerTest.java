@@ -65,11 +65,13 @@ class OrganizerBusinessProfileControllerTest {
     }
 
     @Test
-    void suspendedOrganizerCannotReadOrWriteBusinessManagement() throws Exception {
+    void retiredSuspensionFlagDoesNotOverrideBusinessProfileAuthorization() throws Exception {
         when(operationalProfiles.existsByOrganizerIdAndSuspendedTrue(7L)).thenReturn(true);
-        mvc.perform(get(URL).with(user(principal("ORGANIZER")))).andExpect(status().isForbidden());
-        mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isForbidden());
-        verifyNoInteractions(service);
+        when(service.getCurrentProfile(7L)).thenReturn(response());
+        when(service.updateCurrentProfile(eq(7L), any())).thenReturn(response());
+        mvc.perform(get(URL).with(user(principal("ORGANIZER")))).andExpect(status().isOk());
+        mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON).content(BODY)).andExpect(status().isOk());
+        verifyNoInteractions(operationalProfiles);
     }
 
     @Test
