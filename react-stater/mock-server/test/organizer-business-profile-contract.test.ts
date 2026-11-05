@@ -5,6 +5,7 @@ import { ApiError } from '../../src/lib/api-client.ts';
 import { useAuthStore } from '../../src/features/auth/store/auth-store.ts';
 import {
   businessContactSchema,
+  bankDetailsSchema,
   businessProfileKeys,
   businessProfileMutationOptions,
   businessProfileQueryOptions
@@ -177,4 +178,57 @@ test('server errors and changed eligibility retain their HTTP status', async () 
       (error: unknown) => error instanceof ApiError && error.status === status
     );
   }
+});
+
+test('sends explicit bank changes without returning the full saved account number', async () => {
+  authenticate();
+  const bankDetails = {
+    bankName: 'Example Bank',
+    bankAccountHolder: 'EXAMPLE COMPANY',
+    bankAccountNumber: '001234567890'
+  };
+  globalThis.fetch = async (_url, options) => {
+    assert.deepEqual(JSON.parse(options?.body as string).bankDetails, bankDetails);
+    return Response.json({
+      success: true,
+      statusCode: 200,
+      data: {
+        ...profile,
+        bankName: bankDetails.bankName,
+        bankAccountLastFour: '7890',
+        bankAccountConfigured: true
+      }
+    });
+  };
+  const updated = await businessProfileMutationOptions(client(), 7).mutationFn({
+    ...contacts,
+    bankDetails
+  });
+  assert.equal(updated.bankAccountLastFour, '7890');
+  assert.equal('bankAccountNumber' in updated, false);
+});
+
+test('validates bank fields and preserves leading zeros and blank replacement intent', () => {
+  const bank = {
+    bankName: ' Bank ',
+    bankAccountHolder: ' Holder ',
+    bankAccountNumber: ' 00123456 '
+  };
+  assert.deepEqual(bankDetailsSchema.parse(bank), {
+    bankName: 'Bank',
+    bankAccountHolder: 'Holder',
+    bankAccountNumber: '00123456'
+  });
+  assert.equal(bankDetailsSchema.safeParse({ ...bank, bankAccountNumber: '' }).success, true);
+  for (const bad of [
+    { ...bank, bankName: ' ' },
+    { ...bank, bankName: 'x'.repeat(101) },
+    { ...bank, bankAccountHolder: '' },
+    { ...bank, bankAccountHolder: 'x'.repeat(101) },
+    { ...bank, bankAccountNumber: '12345' },
+    { ...bank, bankAccountNumber: '1'.repeat(35) },
+    { ...bank, bankAccountNumber: '****3456' },
+    { ...bank, bankAccountNumber: '12abc456' }
+  ])
+    assert.equal(bankDetailsSchema.safeParse(bad).success, false);
 });

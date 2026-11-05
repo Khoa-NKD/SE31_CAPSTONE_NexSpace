@@ -75,12 +75,12 @@ export default function AppSidebar() {
       <Sidebar
         variant='inset'
         collapsible='icon'
-        className='bg-[#090D16] text-slate-300 border-r border-[#1E293B]'
+        className='bg-sidebar text-sidebar-foreground border-r border-sidebar-border'
       >
-        <SidebarHeader className='bg-[#090D16] border-b border-[#1E293B]/60 pb-3'>
+        <SidebarHeader className='bg-sidebar border-b border-sidebar-border pb-3'>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton size='lg' asChild className='hover:bg-[#1E293B]'>
+              <SidebarMenuButton size='lg' asChild className='hover:bg-sidebar-accent'>
                 <Link
                   to={isOrganizer ? '/dashboard/organizer/workspaces' : '/dashboard/overview'}
                   aria-label={
@@ -94,7 +94,6 @@ export default function AppSidebar() {
                   <div className='flex items-center gap-2'>
                     <NexSpaceLogo
                       variant={isOrganizer ? 'organizer' : 'admin'}
-                      inverted
                       aria-hidden='true'
                       className='h-8 w-auto group-data-[collapsible=icon]:hidden'
                     />
@@ -115,7 +114,7 @@ export default function AppSidebar() {
               <button
                 type='button'
                 onClick={() => setIncidentModalOpen(true)}
-                className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-[#1E293B]/80 hover:bg-slate-800 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto'
+                className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-sidebar-accent/80 hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground rounded-lg border border-sidebar-border transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto'
                 title='System Incident Report'
               >
                 <Icons.warning className='size-3.5 text-amber-400 shrink-0' />
@@ -127,11 +126,11 @@ export default function AppSidebar() {
           )}
         </SidebarHeader>
 
-        <SidebarContent className='overflow-x-hidden bg-[#090D16]'>
+        <SidebarContent className='overflow-x-hidden bg-sidebar [scrollbar-color:var(--sidebar-border)_transparent]'>
           {filteredGroups.map((group) => (
             <SidebarGroup key={group.label || 'ungrouped'} className='py-1.5'>
               {group.label && (
-                <SidebarGroupLabel className='text-[10px] font-semibold text-slate-400 uppercase tracking-wider px-3 group-data-[collapsible=icon]:hidden'>
+                <SidebarGroupLabel className='text-[10px] font-semibold text-sidebar-foreground/60 uppercase tracking-wider px-3 group-data-[collapsible=icon]:hidden'>
                   {group.label}
                 </SidebarGroupLabel>
               )}
@@ -147,7 +146,7 @@ export default function AppSidebar() {
                             <SidebarMenuButton
                               tooltip={item.title}
                               isActive={pathname === item.url}
-                              className='group/collapsible hover:bg-[#1E293B] text-slate-300 hover:text-white'
+                              className='group/collapsible hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground'
                             >
                               {item.icon && <Icon className='size-4 shrink-0' />}
                               <span className='group-data-[collapsible=icon]:hidden'>
@@ -157,13 +156,13 @@ export default function AppSidebar() {
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
                           <CollapsibleContent>
-                            <SidebarMenuSub className='border-[#1E293B]'>
+                            <SidebarMenuSub className='border-sidebar-border'>
                               {item.items?.map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.title}>
                                   <SidebarMenuSubButton
                                     asChild
                                     isActive={pathname === subItem.url}
-                                    className='hover:bg-[#1E293B] text-slate-400 hover:text-white'
+                                    className='hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-accent-foreground'
                                   >
                                     <Link to={subItem.url} aria-label={subItem.title}>
                                       <span>{subItem.title}</span>
@@ -184,10 +183,12 @@ export default function AppSidebar() {
                         <SidebarMenuButton
                           tooltip={`${item.title} (${item.label || 'Planned'})`}
                           isActive={false}
-                          className='cursor-not-allowed opacity-60 text-slate-400 hover:bg-[#1E293B]/40 hover:text-slate-400 aria-disabled:pointer-events-none'
+                          className='cursor-not-allowed opacity-60 text-sidebar-foreground/60 hover:bg-sidebar-accent/40 hover:text-sidebar-foreground/60 aria-disabled:pointer-events-none'
                           aria-disabled='true'
                         >
-                          {item.icon && <Icon className='size-4 shrink-0 text-slate-400' />}
+                          {item.icon && (
+                            <Icon className='size-4 shrink-0 text-sidebar-foreground/60' />
+                          )}
                           <span className='truncate flex-1 group-data-[collapsible=icon]:hidden'>
                             {item.title}
                           </span>
@@ -196,7 +197,7 @@ export default function AppSidebar() {
                               20
                             </span>
                           ) : (
-                            <span className='ml-auto text-[9px] uppercase px-1.5 py-0.5 font-semibold bg-slate-800 text-slate-400 rounded border border-slate-700/60 group-data-[collapsible=icon]:hidden'>
+                            <span className='ml-auto text-[9px] uppercase px-1.5 py-0.5 font-semibold bg-sidebar-accent text-sidebar-foreground/60 rounded border border-sidebar-border group-data-[collapsible=icon]:hidden'>
                               {item.label || 'Planned'}
                             </span>
                           )}
@@ -211,7 +212,7 @@ export default function AppSidebar() {
                         asChild
                         tooltip={item.title}
                         isActive={pathname === item.url}
-                        className='hover:bg-[#1E293B] text-slate-300 hover:text-white data-[active=true]:bg-[#1E293B] data-[active=true]:text-white data-[active=true]:border-l-2 data-[active=true]:border-indigo-500'
+                        className='hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground data-[active=true]:bg-sidebar-accent data-[active=true]:text-sidebar-accent-foreground data-[active=true]:border-l-2 data-[active=true]:border-sidebar-primary'
                       >
                         <Link to={item.url} aria-label={item.title}>
                           {item.icon && <Icon className='size-4 shrink-0' />}
@@ -228,18 +229,22 @@ export default function AppSidebar() {
           ))}
         </SidebarContent>
 
-        <SidebarFooter className='bg-[#090D16] border-t border-[#1E293B]/60 p-2'>
+        <SidebarFooter className='bg-sidebar border-t border-sidebar-border p-2'>
           {isOrganizer ? (
-            <div className='flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-[#1E293B]/60 border border-slate-700/60'>
-              <div className='relative size-8 rounded-full bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center shrink-0'>
-                <span className='font-bold text-[11px] text-indigo-300'>PS</span>
-                <span className='absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-[#090D16] flex items-center justify-center text-white text-[8px] leading-none'>
+            <div className='flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/60 border border-sidebar-border'>
+              <div className='relative size-8 rounded-full bg-sidebar-primary/10 border border-sidebar-primary/20 flex items-center justify-center shrink-0'>
+                <span className='font-bold text-[11px] text-sidebar-primary'>PS</span>
+                <span className='absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-sidebar flex items-center justify-center text-white text-[8px] leading-none'>
                   ✓
                 </span>
               </div>
               <div className='flex flex-col min-w-0 group-data-[collapsible=icon]:hidden'>
-                <span className='font-medium text-xs text-white truncate'>Prime Spaces JSC</span>
-                <span className='text-[10px] text-emerald-400 font-medium'>Verified Partner</span>
+                <span className='font-medium text-xs text-sidebar-foreground truncate'>
+                  Prime Spaces JSC
+                </span>
+                <span className='text-[10px] text-sidebar-primary font-medium'>
+                  Verified Partner
+                </span>
               </div>
             </div>
           ) : (
@@ -249,9 +254,9 @@ export default function AppSidebar() {
                   <DropdownMenuTrigger asChild>
                     <SidebarMenuButton
                       size='lg'
-                      className='hover:bg-[#1E293B] text-slate-300 data-[state=open]:bg-[#1E293B]'
+                      className='hover:bg-sidebar-accent text-sidebar-foreground data-[state=open]:bg-sidebar-accent'
                     >
-                      <div className='relative size-8 rounded-full overflow-hidden bg-indigo-950 border border-indigo-500/40 shrink-0'>
+                      <div className='relative size-8 rounded-full overflow-hidden bg-sidebar-accent border border-sidebar-primary/20 shrink-0'>
                         <img
                           src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
                           alt='Marcus Vance'
@@ -259,32 +264,34 @@ export default function AppSidebar() {
                         />
                       </div>
                       <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
-                        <span className='truncate font-semibold text-white'>Marcus Vance</span>
-                        <span className='text-slate-400 truncate text-[10px]'>
+                        <span className='truncate font-semibold text-sidebar-foreground'>
+                          Marcus Vance
+                        </span>
+                        <span className='text-sidebar-foreground/60 truncate text-[10px]'>
                           CPTO • Super Admin
                         </span>
                       </div>
-                      <Icons.chevronsDown className='ml-auto size-3.5 text-slate-400 group-data-[collapsible=icon]:hidden' />
+                      <Icons.chevronsDown className='ml-auto size-3.5 text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden' />
                     </SidebarMenuButton>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent
-                    className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-[#090D16] text-slate-300 border-[#1E293B]'
+                    className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-sidebar text-sidebar-foreground border-sidebar-border'
                     side='bottom'
                     align='end'
                     sideOffset={4}
                   >
                     <DropdownMenuGroup>
                       <DropdownMenuItem
-                        className='hover:bg-[#1E293B] focus:bg-[#1E293B] text-slate-300 focus:text-white cursor-pointer'
+                        className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
                         onClick={() => router.navigate({ to: '/dashboard/notifications' })}
                       >
                         <Icons.notification className='mr-2 h-4 w-4' />
                         Notifications
                       </DropdownMenuItem>
                     </DropdownMenuGroup>
-                    <DropdownMenuSeparator className='bg-[#1E293B]' />
+                    <DropdownMenuSeparator className='bg-sidebar-accent' />
                     <DropdownMenuItem
-                      className='hover:bg-[#1E293B] focus:bg-[#1E293B] text-slate-300 focus:text-white cursor-pointer'
+                      className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
                       onClick={() => {
                         toast.info('Sign Out Simulated', {
                           description: 'Session invalidated in local state.'
