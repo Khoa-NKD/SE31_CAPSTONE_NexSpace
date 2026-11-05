@@ -9,7 +9,7 @@ export const Route = createFileRoute('/dashboard/admin/organizers/')({
         page: 1,
         size: 20,
         search: '',
-        status: 'PENDING_REVIEW',
+        status: 'all',
         sortBy: 'submittedAt',
         sortDir: 'desc'
       }

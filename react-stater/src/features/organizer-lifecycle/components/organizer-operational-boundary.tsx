@@ -18,6 +18,8 @@ export function OrganizerOperationalBoundary({ children }: { children: ReactNode
   const { pathname } = useLocation();
   const protectedRoute =
     actor?.role === 'ORGANIZER' &&
+    pathname !== '/dashboard/organizer/application' &&
+    pathname !== '/dashboard/organizer/application/' &&
     (pathname === '/dashboard/organizer' || pathname.startsWith('/dashboard/organizer/'));
   if (!protectedRoute) return children;
   if (!mounted) return <p role='status'>Checking Organizer operational access…</p>;
@@ -53,7 +55,7 @@ function OwnedOperationalBoundary({ actorId, children }: { actorId: number; chil
         {query.data.suspensionReason || 'Contact platform support for details.'}
       </p>
       <p>You can still sign in, view your application status and use customer features.</p>
-      <Link to='/organizer/status' className='text-primary underline'>
+      <Link to='/dashboard/organizer/application' className='text-primary underline'>
         View application status
       </Link>
       <Button variant='outline' onClick={() => void query.refetch()}>

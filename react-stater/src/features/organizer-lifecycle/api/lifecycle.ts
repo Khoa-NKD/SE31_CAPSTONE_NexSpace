@@ -7,10 +7,10 @@ import type {
 } from '../../organizer-application/api/application.ts';
 import { applicationDraftSchema } from '../../organizer-application/api/application.ts';
 
-/** Corrections are complete submissions; draft rules remain unchanged. */
+/** Business fields must be complete; the reason is required only on explicit resubmission. */
 export const correctionSchema = applicationDraftSchema.superRefine((application, context) => {
   for (const [field, value] of Object.entries(application)) {
-    if (!value.trim())
+    if (field !== 'registrationReason' && !value.trim())
       context.addIssue({ code: 'custom', path: [field], message: 'This field is required.' });
   }
 });
@@ -31,7 +31,7 @@ export interface LifecycleContext {
   canCorrect: boolean;
   currentDocumentIds: number[];
 }
-export type ReviewAction = 'approve' | 'reject' | 'suspend';
+export type ReviewAction = 'approve' | 'request-changes' | 'reject';
 export type ReviewDecision = {
   action: ReviewAction;
   revision: number;
@@ -39,6 +39,7 @@ export type ReviewDecision = {
   note?: string;
   documentsConfirmed?: boolean;
   documentIds?: number[];
+  documentFeedbacks?: { documentId: number; feedback: string }[];
 };
 export const lifecycleKeys = {
   admin: (actorId: number, id: string) => ['organizer-lifecycle', 'admin', actorId, id] as const,
@@ -89,6 +90,8 @@ function revision(value: number) {
     throw new Error('Reload the latest application revision.');
 }
 export function reviewPayload(decision: ReviewDecision) {
+  if (!['approve', 'request-changes', 'reject'].includes(decision.action))
+    throw new Error('Unsupported review action.');
   revision(decision.revision);
   if (decision.action === 'approve') {
     if (!decision.documentsConfirmed || !decision.documentIds?.length)
@@ -105,10 +108,35 @@ export function reviewPayload(decision: ReviewDecision) {
   const reason = decision.reason?.trim();
   if (!reason || reason.length > 500)
     throw new Error('Enter a reason between 1 and 500 characters.');
+  if (decision.action === 'reject' && decision.documentFeedbacks?.length)
+    throw new Error('Final rejection accepts one general reason only.');
+  if (decision.action === 'request-changes' && !decision.documentFeedbacks?.length)
+    throw new Error('Select at least one current document and explain the required change.');
+  if (decision.action === 'request-changes' && decision.documentFeedbacks?.length) {
+    if (decision.documentFeedbacks.length > 100) throw new Error('Too many document comments.');
+    const seen = new Set<number>();
+    const documentFeedbacks = decision.documentFeedbacks.map((item) => {
+      const feedback = item.feedback.trim();
+      if (
+        !Number.isSafeInteger(item.documentId) ||
+        item.documentId < 1 ||
+        seen.has(item.documentId) ||
+        !feedback ||
+        feedback.length > 500 ||
+        (decision.documentIds && !decision.documentIds.includes(item.documentId))
+      )
+        throw new Error(
+          'Each comment must refer to one current document and contain 1–500 characters.'
+        );
+      seen.add(item.documentId);
+      return { documentId: item.documentId, feedback };
+    });
+    return { revision: decision.revision, reason, documentFeedbacks };
+  }
   return { revision: decision.revision, reason };
 }
 export function adminReview(id: string, decision: ReviewDecision) {
-  if (!['approve', 'reject', 'suspend'].includes(decision.action))
+  if (!['approve', 'request-changes', 'reject'].includes(decision.action))
     throw new Error('Unsupported review action.');
   return backendRequest<LifecycleContext>(
     `${adminPath(id)}/${decision.action}`,

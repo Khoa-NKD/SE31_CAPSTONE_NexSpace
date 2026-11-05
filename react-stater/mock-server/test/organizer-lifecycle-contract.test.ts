@@ -83,19 +83,18 @@ test('admin actions call real authenticated Spring routes and preserve reviewed 
     documentIds: [9],
     note: ' Checked '
   });
-  for (const action of ['reject', 'suspend'] as const)
+  for (const action of ['reject'] as const)
     await adminReview('42', { action, revision: 12, reason: ' Policy reason ' });
   assert.deepEqual(calls, [
     '/api/admin/organizer-applications/42/approve',
-    '/api/admin/organizer-applications/42/reject',
-    '/api/admin/organizer-applications/42/suspend'
+    '/api/admin/organizer-applications/42/reject'
   ]);
 });
 test('review validation blocks invalid reason, stale revision format and unconfirmed approval before HTTP', () => {
   for (const revision of [-1, NaN, 0.1, Number.MAX_SAFE_INTEGER + 1])
     assert.throws(() => reviewPayload({ action: 'reject', revision, reason: 'reason' }));
   for (const reason of ['', '   ', 'x'.repeat(501)])
-    assert.throws(() => reviewPayload({ action: 'suspend', revision: 0, reason }));
+    assert.throws(() => reviewPayload({ action: 'reject', revision: 0, reason }));
   assert.throws(() =>
     reviewPayload({ action: 'approve', revision: 0, documentsConfirmed: false, documentIds: [9] })
   );
@@ -114,7 +113,8 @@ test('owner correction and explicit resubmit use same current profile and do not
     representativeName: 'Legal Representative',
     address: '12 Example Street',
     contactPhone: '0900000123',
-    contactEmail: 'contact@example.test'
+    contactEmail: 'contact@example.test',
+    registrationReason: 'Offer flexible meeting rooms for local companies.'
   };
   globalThis.fetch = async (url, options) => {
     calls.push(String(url));
@@ -231,4 +231,83 @@ test('anonymous lifecycle requests fail before HTTP', async () => {
     (error: unknown) => error instanceof ApiError && error.status === 401
   );
   assert.equal(called, false);
+});
+
+test('request changes carries required document reasons while approve and reject retain their payloads', async () => {
+  authenticate();
+  globalThis.fetch = async (url, options) => {
+    assert.equal(url, '/api/admin/organizer-applications/42/request-changes');
+    assert.deepEqual(JSON.parse(options?.body as string), {
+      revision: 12,
+      reason: 'Correct documents',
+      documentFeedbacks: [
+        { documentId: 9, feedback: 'Blurry image' },
+        { documentId: 10, feedback: 'Cropped identity card' }
+      ]
+    });
+    return Response.json({ success: true, data: context });
+  };
+  await adminReview('42', {
+    action: 'request-changes',
+    revision: 12,
+    reason: 'Correct documents',
+    documentIds: [9, 10],
+    documentFeedbacks: [
+      { documentId: 9, feedback: ' Blurry image ' },
+      { documentId: 10, feedback: 'Cropped identity card' }
+    ]
+  });
+  assert.deepEqual(reviewPayload({ action: 'reject', revision: 12, reason: 'Correct address' }), {
+    revision: 12,
+    reason: 'Correct address'
+  });
+  assert.deepEqual(reviewPayload({ action: 'reject', revision: 12, reason: 'Policy violation' }), {
+    revision: 12,
+    reason: 'Policy violation'
+  });
+});
+test('document comment validation blocks duplicates, foreign IDs and invalid lengths before HTTP', () => {
+  for (const documentFeedbacks of [
+    [{ documentId: 99, feedback: 'Foreign' }],
+    [
+      { documentId: 9, feedback: 'One' },
+      { documentId: 9, feedback: 'Two' }
+    ],
+    [{ documentId: 9, feedback: '   ' }],
+    [{ documentId: 9, feedback: 'x'.repeat(501) }]
+  ])
+    assert.throws(() =>
+      reviewPayload({
+        action: 'request-changes',
+        revision: 12,
+        reason: 'Correct documents',
+        documentIds: [9],
+        documentFeedbacks
+      })
+    );
+});
+
+test('request changes requires selected documents while final rejection accepts only a general reason', () => {
+  assert.throws(() =>
+    reviewPayload({ action: 'request-changes', revision: 12, reason: 'Correct documents' })
+  );
+  assert.throws(() =>
+    reviewPayload({
+      action: 'reject',
+      revision: 12,
+      reason: 'Final rejection',
+      documentFeedbacks: [{ documentId: 9, feedback: 'Replace' }]
+    })
+  );
+  assert.deepEqual(reviewPayload({ action: 'reject', revision: 12, reason: 'Final rejection' }), {
+    revision: 12,
+    reason: 'Final rejection'
+  });
+});
+
+test('removed suspension action is rejected before any request', () => {
+  assert.throws(
+    () => adminReview('42', { action: 'suspend' as never, revision: 0, reason: 'Not supported' }),
+    /Unsupported review action/
+  );
 });

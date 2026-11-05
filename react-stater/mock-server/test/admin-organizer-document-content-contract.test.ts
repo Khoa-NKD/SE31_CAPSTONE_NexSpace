@@ -29,6 +29,22 @@ afterEach(() => {
   if (originalWindow) Object.defineProperty(globalThis, 'window', originalWindow);
   else Reflect.deleteProperty(globalThis, 'window');
 });
+test('owner preview uses its own authenticated endpoint and keeps administrator access separate', async () => {
+  authenticate('USER');
+  globalThis.fetch = async (url, options) => {
+    assert.equal(String(url), '/api/organizer/documents/9/content?download=true');
+    assert.equal(options?.cache, 'no-store');
+    return new Response('%PDF-1.4 owner fixture', {
+      headers: { 'content-type': 'application/pdf' }
+    });
+  };
+  assert.equal(
+    (await fetchDocumentContent('7', '9', undefined, true, 'owner')).type,
+    'application/pdf'
+  );
+  authenticate('ADMIN');
+  await assert.rejects(fetchDocumentContent('7', '9', undefined, false, 'owner'), ApiError);
+});
 test('scopes content paths by application and document, with no token in the URL', () => {
   assert.equal(
     documentContentEndpoint('7', '9', true),

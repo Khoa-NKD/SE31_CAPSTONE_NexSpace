@@ -2,35 +2,31 @@ import { backendRequest } from '../../auth/api/session.ts';
 import { ApiError } from '../../../lib/api-client.ts';
 import { z } from 'zod';
 
-export const BUSINESS_TYPES = [
-  ['JOINT_STOCK', 'Joint stock company'],
-  ['LIMITED_LIABILITY', 'Limited liability company'],
-  ['SOLE_PROPRIETOR', 'Sole proprietor'],
-  ['HOUSEHOLD_BUSINESS', 'Household business'],
-  ['OTHER', 'Other business']
+// Stable domain codes remain aligned with the backend enum; labels come from the master API.
+export const BUSINESS_TYPE_CODES = [
+  'JOINT_STOCK',
+  'LIMITED_LIABILITY',
+  'SOLE_PROPRIETOR',
+  'HOUSEHOLD_BUSINESS',
+  'OTHER'
 ] as const;
 
 export interface ApplicationInput {
   legalName: string;
-  businessType: (typeof BUSINESS_TYPES)[number][0];
+  businessType: (typeof BUSINESS_TYPE_CODES)[number];
   taxId: string;
   representativeName: string;
   address: string;
   contactPhone: string;
   contactEmail: string;
+  registrationReason: string;
 }
 
 const optionalText = (max: number) => z.string().trim().max(max);
 /** Draft validation permits empty fields, while validating every provided value. */
 export const applicationDraftSchema = z.object({
   legalName: optionalText(255),
-  businessType: z.enum([
-    'JOINT_STOCK',
-    'LIMITED_LIABILITY',
-    'SOLE_PROPRIETOR',
-    'HOUSEHOLD_BUSINESS',
-    'OTHER'
-  ]),
+  businessType: z.enum(BUSINESS_TYPE_CODES),
   taxId: optionalText(50),
   representativeName: optionalText(100),
   address: optionalText(500),
@@ -41,8 +37,16 @@ export const applicationDraftSchema = z.object({
   contactEmail: z
     .string()
     .trim()
-    .pipe(z.union([z.literal(''), z.string().email('Enter a valid email address').max(255)]))
+    .pipe(z.union([z.literal(''), z.string().email('Enter a valid email address').max(255)])),
+  registrationReason: optionalText(2000).default('')
 });
+
+/** The reason may be blank while saving, but every explicit submission requires it. */
+export const registrationReasonSubmissionSchema = z
+  .string()
+  .trim()
+  .min(1, 'Registration reason is required before submitting.')
+  .max(2000, 'Registration reason must not exceed 2,000 characters.');
 
 export interface ApplicationReceipt {
   id: number;
@@ -63,6 +67,7 @@ export interface ApplicationDetails extends Omit<ApplicationReceipt, 'status' | 
   address?: string;
   contactPhone?: string;
   contactEmail?: string;
+  registrationReason?: string | null;
 }
 
 export async function currentApplication(signal?: AbortSignal): Promise<ApplicationDetails | null> {

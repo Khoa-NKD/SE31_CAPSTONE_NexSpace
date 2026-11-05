@@ -20,7 +20,7 @@ function AdminApplicationDetailsPage() {
   const filters = Route.useSearch();
   return (
     <PageContainer
-      pageTitle='Organizer application details'
+      pageTitle='Organizer Application Details'
       pageDescription='Submitted business information and verification document metadata.'
     >
       <ApplicationDetailsView applicationId={applicationId} filters={filters} />

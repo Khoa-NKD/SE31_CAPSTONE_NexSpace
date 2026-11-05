@@ -1,3 +1,13 @@
+import {
+  ArrowLeft,
+  RefreshCw,
+  ClipboardList,
+  Building2,
+  UserRound,
+  Files,
+  MessageSquare,
+  Clock3
+} from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -13,7 +23,7 @@ import {
   TableHeader,
   TableRow
 } from '@/components/ui/table';
-import { BUSINESS_TYPES } from '@/features/organizer-application/api/application';
+import { useBusinessTypes } from '@/features/organizer-application/hooks/use-business-types';
 import { DOCUMENT_LABELS } from '@/features/organizer-verification-documents/api/documents';
 import {
   applicationStatusPresentation,
@@ -32,8 +42,8 @@ const emptySubscribe = () => () => {};
 function Field({ label, children }: { label: string; children?: ReactNode }) {
   return (
     <div className='min-w-0 space-y-1'>
-      <dt className='text-sm text-muted-foreground'>{label}</dt>
-      <dd className='whitespace-pre-wrap break-words [overflow-wrap:anywhere]'>
+      <dt className='text-xs font-medium text-muted-foreground'>{label}</dt>
+      <dd className='whitespace-pre-wrap break-words text-sm font-medium leading-6 [overflow-wrap:anywhere]'>
         {children || 'Not provided'}
       </dd>
     </div>
@@ -47,6 +57,7 @@ export function ApplicationDetailsView({
   applicationId: string;
   filters: AdminApplicationFilters;
 }) {
+  const businessTypes = useBusinessTypes();
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -61,9 +72,9 @@ export function ApplicationDetailsView({
     enabled: mounted && allowed && validId
   });
   const back = (
-    <Button variant='outline' asChild>
+    <Button variant='outline' className='rounded-xl text-xs shadow-none' asChild>
       <Link to='/dashboard/admin/organizers/queue' search={{ ...filters, appId: undefined }}>
-        Back to applications
+        <ArrowLeft className='size-3.5' aria-hidden='true' /> Back to applications
       </Link>
     </Button>
   );
@@ -107,20 +118,36 @@ export function ApplicationDetailsView({
   }
   const application = query.data;
   return (
-    <div className='min-w-0 space-y-6'>
-      <div className='flex flex-wrap items-center justify-between gap-3'>
+    <div className='grid min-w-0 gap-5 lg:grid-cols-2 [&>section]:rounded-2xl [&>section]:p-5 [&>section]:shadow-sm sm:[&>section]:p-6'>
+      <div className='flex flex-wrap items-center justify-between gap-3 lg:col-span-2'>
         {back}
-        <Button variant='outline' disabled={query.isFetching} onClick={() => void query.refetch()}>
+        <Button
+          variant='outline'
+          className='rounded-xl text-xs shadow-none'
+          disabled={query.isFetching}
+          onClick={() => void query.refetch()}
+        >
+          <RefreshCw
+            className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`}
+            aria-hidden='true'
+          />{' '}
           Refresh details
         </Button>
       </div>
-      <AdminReviewActions key={applicationId} applicationId={applicationId} />
+      <AdminReviewActions
+        key={applicationId}
+        applicationId={applicationId}
+        documents={application.documents}
+      />
       <section
         aria-labelledby='application-summary-heading'
-        className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
+        className='min-w-0 space-y-4 rounded-lg border bg-card p-4 lg:col-span-2'
       >
-        <h2 id='application-summary-heading' className='text-lg font-semibold'>
-          Application summary
+        <h2
+          id='application-summary-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <ClipboardList className='size-4 text-primary' aria-hidden='true' /> Application summary
         </h2>
         <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
           <Field label='Application ID'>#{application.id}</Field>
@@ -144,15 +171,16 @@ export function ApplicationDetailsView({
         aria-labelledby='business-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
       >
-        <h2 id='business-heading' className='text-lg font-semibold'>
-          Business and legal information
+        <h2
+          id='business-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <Building2 className='size-4 text-primary' aria-hidden='true' /> Business and legal
+          information
         </h2>
         <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
           <Field label='Legal business name'>{application.legalName}</Field>
-          <Field label='Business type'>
-            {BUSINESS_TYPES.find(([type]) => type === application.businessType)?.[1] ??
-              application.businessType}
-          </Field>
+          <Field label='Business type'>{businessTypes.label(application.businessType)}</Field>
           <Field label='Tax ID'>{application.taxId}</Field>
           <Field label='Legal representative'>{application.representativeName}</Field>
           <Field label='Business address'>{application.address}</Field>
@@ -164,8 +192,11 @@ export function ApplicationDetailsView({
         aria-labelledby='applicant-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
       >
-        <h2 id='applicant-heading' className='text-lg font-semibold'>
-          Applicant
+        <h2
+          id='applicant-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <UserRound className='size-4 text-primary' aria-hidden='true' /> Applicant
         </h2>
         <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
           <Field label='Applicant ID'>#{application.applicant.id}</Field>
@@ -176,10 +207,13 @@ export function ApplicationDetailsView({
       </section>
       <section
         aria-labelledby='documents-heading'
-        className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
+        className='min-w-0 space-y-4 rounded-lg border bg-card p-4 lg:col-span-2'
       >
-        <h2 id='documents-heading' className='text-lg font-semibold'>
-          Verification documents
+        <h2
+          id='documents-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <Files className='size-4 text-primary' aria-hidden='true' /> Verification documents
         </h2>
         <p className='text-sm text-muted-foreground'>
           View or download submitted documents securely. These actions do not change verification
@@ -188,8 +222,8 @@ export function ApplicationDetailsView({
         {!application.documents.length ? (
           <p>No verification documents are available for this application.</p>
         ) : (
-          <Table>
-            <TableHeader>
+          <Table className='text-xs [&_td]:py-4 [&_th]:text-[11px]'>
+            <TableHeader className='bg-muted/30'>
               <TableRow>
                 <TableHead>Document ID</TableHead>
                 <TableHead>Type</TableHead>
@@ -214,11 +248,13 @@ export function ApplicationDetailsView({
                   <TableCell>{applicationTimestamp(document.uploadedAt)}</TableCell>
                   <TableCell>
                     <Badge variant={document.status === 'REJECTED' ? 'destructive' : 'secondary'}>
-                      {document.status === 'VERIFIED'
-                        ? 'Verified'
-                        : document.status === 'REJECTED'
-                          ? 'Rejected'
-                          : 'Pending verification'}
+                      {document.status === 'REPLACED'
+                        ? 'Replaced'
+                        : document.status === 'VERIFIED'
+                          ? 'Verified'
+                          : document.status === 'REJECTED'
+                            ? 'Rejected'
+                            : 'Pending verification'}
                     </Badge>
                   </TableCell>
                   <TableCell>{document.current ? 'Current' : 'Previous version'}</TableCell>
@@ -226,7 +262,13 @@ export function ApplicationDetailsView({
                     {document.adminFeedback?.trim() || 'No document feedback recorded.'}
                   </TableCell>
                   <TableCell>
-                    <DocumentActions applicationId={applicationId} document={document} />
+                    {document.status === 'REPLACED' ? (
+                      <span className='text-xs text-muted-foreground'>
+                        Historical record · file removed
+                      </span>
+                    ) : (
+                      <DocumentActions applicationId={applicationId} document={document} />
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -235,11 +277,29 @@ export function ApplicationDetailsView({
         )}
       </section>
       <section
+        aria-labelledby='registration-reason-heading'
+        className='min-w-0 space-y-3 rounded-lg border bg-card p-4'
+      >
+        <h2
+          id='registration-reason-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <MessageSquare className='size-4 text-primary' aria-hidden='true' /> Registration reason
+        </h2>
+        <p className='whitespace-pre-wrap break-words [overflow-wrap:anywhere]'>
+          {application.registrationReason?.trim() ||
+            'No registration reason was recorded for this application.'}
+        </p>
+      </section>
+      <section
         aria-labelledby='review-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
       >
-        <h2 id='review-heading' className='text-lg font-semibold'>
-          Current review outcome
+        <h2
+          id='review-heading'
+          className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
+        >
+          <Clock3 className='size-4 text-primary' aria-hidden='true' /> Current review outcome
         </h2>
         <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
           <Field label='Reviewed at'>

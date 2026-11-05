@@ -24,7 +24,7 @@ export const navGroups: NavGroup[] = [
         label: 'Live'
       },
       {
-        title: 'Organizer applications',
+        title: 'Organizer Applications',
         url: '/dashboard/admin/organizers/queue',
         icon: 'badgeCheck',
         isActive: false
@@ -206,14 +206,8 @@ export const organizerNavGroups: NavGroup[] = [
     label: 'Organizer Console',
     items: [
       {
-        title: 'Application Status',
-        url: '/organizer/status',
-        icon: 'forms',
-        isActive: false
-      },
-      {
-        title: 'Verification Documents',
-        url: '/organizer/documents',
+        title: 'Application Management',
+        url: '/dashboard/organizer/application',
         icon: 'forms',
         isActive: false
       },

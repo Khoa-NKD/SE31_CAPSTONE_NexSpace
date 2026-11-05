@@ -10,8 +10,8 @@ export const adminApplicationSearchSchema = z.object({
   search: z.string().trim().max(255).catch('').default(''),
   status: z
     .enum(['all', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'REVISION_REQUESTED'])
-    .catch('PENDING_REVIEW')
-    .default('PENDING_REVIEW'),
+    .catch('all')
+    .default('all'),
   sortBy: z
     .enum(['id', 'legalName', 'submittedAt', 'reviewedAt', 'status'])
     .catch('submittedAt')

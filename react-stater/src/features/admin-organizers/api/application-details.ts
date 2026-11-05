@@ -18,6 +18,7 @@ export interface AdminOrganizerApplicationDetails {
   address?: string | null;
   contactEmail?: string | null;
   contactPhone?: string | null;
+  registrationReason?: string | null;
   applicant: { id: number; userName: string; email: string; fullName: string };
   status: AdminOrganizerApplication['status'];
   submittedAt: string;
