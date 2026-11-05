@@ -21,9 +21,13 @@ class PrivateOrganizerDocumentDeliveryTest {
         for (String value: new String[]{"image:nexspace/organizer-verification/11111111-1111-1111-1111-111111111111", "raw:nexspace/organizer-verification/11111111-1111-1111-1111-111111111111.pdf"}) {
             var storage=new PrivateOrganizerDocumentStorage("",provider,false);
             assertThat(storage.read("cloudinary:authenticated:"+value).contentType()).isEqualTo("application/pdf");
-            assertThat(provider.requested.getHost()).isEqualTo("res.cloudinary.com");
+            boolean raw = value.startsWith("raw:");
+            assertThat(provider.requested.getHost()).isEqualTo(raw ? "api.cloudinary.com" : "res.cloudinary.com");
             assertThat(provider.requested.getScheme()).isEqualTo("https");
-            assertThat(provider.requested.getPath()).contains("/authenticated/s--");
+            if (raw) {
+                assertThat(provider.requested.getPath()).contains("/raw/download");
+                assertThat(provider.requested.getQuery()).contains("signature=", "expires_at=", "type=authenticated");
+            } else assertThat(provider.requested.getPath()).contains("/authenticated/s--");
         }
         // Reading dispatches by the persisted reference even when new Cloudinary uploads are disabled.
         assertThatThrownBy(() -> provider.readPrivateDocument("cloudinary:authenticated:image:../../foreign"))

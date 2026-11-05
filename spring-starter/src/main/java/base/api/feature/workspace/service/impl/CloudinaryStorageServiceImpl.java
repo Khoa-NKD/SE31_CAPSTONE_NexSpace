@@ -116,18 +116,22 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     public byte[] readPrivateDocument(String reference) {
         String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
         if (!isCloudinaryConfigured() || reference == null
-                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:" + PRIVATE_DOCUMENT_FOLDER
-                + "/" + uuid + "|raw:" + PRIVATE_DOCUMENT_FOLDER + "/" + uuid + "\\.pdf)")) {
+                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)"
+                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)/" + uuid + "\\.pdf)")) {
             throw new PrivateDocumentUnavailableException();
         }
         String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());
         int separator = value.indexOf(':');
         try {
-            String signed = createCloudinaryClient().url().secure(true).signed(true)
+            boolean raw = "raw".equals(value.substring(0, separator));
+            // Raw PDFs use the short-lived authenticated download API, keeping CDN delivery restrictions intact.
+            String signed = raw ? createCloudinaryClient().privateDownload(value.substring(separator + 1), null,
+                    ObjectUtils.asMap("resource_type", "raw", "type", "authenticated", "expires_at", java.time.Instant.now().getEpochSecond() + 60))
+                    : createCloudinaryClient().url().secure(true).signed(true)
                     .resourceType(value.substring(0, separator)).type("authenticated")
                     .generate(value.substring(separator + 1));
             var uri = java.net.URI.create(signed);
-            if (!"https".equals(uri.getScheme()) || !"res.cloudinary.com".equals(uri.getHost())
+            if (!"https".equals(uri.getScheme()) || !(raw ? "api.cloudinary.com" : "res.cloudinary.com").equals(uri.getHost())
                     || uri.getUserInfo() != null || uri.getPort() != -1) {
                 throw new PrivateDocumentUnavailableException();
             }
@@ -175,6 +179,15 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
      * The organizer storage facade validates filename, extension, MIME and signature before calling this method.
      */
     public String uploadPrivateDocument(byte[] content, String generatedKey) {
+        return uploadPrivateDocumentToFolder(content, generatedKey, PRIVATE_DOCUMENT_FOLDER);
+    }
+
+    public String uploadPrivateDocument(byte[] content, String generatedKey, Long organizerProfileId) {
+        if (organizerProfileId == null || organizerProfileId < 1) throw new IllegalArgumentException("Organizer profile ID is required");
+        return uploadPrivateDocumentToFolder(content, generatedKey, "Organizers/" + organizerProfileId + "/doc");
+    }
+
+    private String uploadPrivateDocumentToFolder(byte[] content, String generatedKey, String folder) {
         if (!isCloudinaryConfigured() || content == null || content.length == 0
                 || content.length > MAX_FILE_SIZE_BYTES || generatedKey == null
                 || !generatedKey.matches("[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\.(jpg|jpeg|png|pdf)")) {
@@ -182,12 +195,12 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         }
         boolean raw = generatedKey.endsWith(".pdf");
         String resourceType = raw ? "raw" : "image";
-        String publicId = PRIVATE_DOCUMENT_FOLDER + "/"
+        String publicId = folder + "/"
                 + (raw ? generatedKey : generatedKey.substring(0, generatedKey.lastIndexOf('.')));
         try {
             var uploader = createCloudinaryClient().uploader();
             Map<?, ?> result = uploader.upload(content, ObjectUtils.asMap(
-                    "public_id", publicId, "resource_type", resourceType, "type", "authenticated",
+                    "public_id", publicId, "asset_folder", folder, "resource_type", resourceType, "type", "authenticated",
                     "overwrite", false, "use_filename", false, "unique_filename", false));
             if ("true".equalsIgnoreCase(String.valueOf(result.get("existing")))) {
                 throw new IllegalStateException("Private document ID already exists");
@@ -218,8 +231,8 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     public void deletePrivateDocument(String reference) {
         String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
         if (!isCloudinaryConfigured() || reference == null
-                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:" + PRIVATE_DOCUMENT_FOLDER
-                + "/" + uuid + "|raw:" + PRIVATE_DOCUMENT_FOLDER + "/" + uuid + "\\.pdf)")) {
+                || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)"
+                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)/" + uuid + "\\.pdf)")) {
             throw new IllegalStateException("Invalid or unavailable private document reference");
         }
         String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());

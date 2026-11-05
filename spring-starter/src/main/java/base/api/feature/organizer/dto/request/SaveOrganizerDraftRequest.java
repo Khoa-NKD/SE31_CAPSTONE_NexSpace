@@ -14,7 +14,12 @@ public record SaveOrganizerDraftRequest(
         @Size(max = 100) String representativeName,
         @Size(max = 500) String address,
         @Pattern(regexp = "[+0-9() .-]{8,20}") String contactPhone,
-        @Email @Size(max = 255) String contactEmail) {
+        @Email @Size(max = 255) String contactEmail,
+        @Size(max = 2000) String registrationReason) {
+    public SaveOrganizerDraftRequest(String legalName, BusinessType businessType, String taxId,
+            String representativeName, String address, String contactPhone, String contactEmail) {
+        this(legalName, businessType, taxId, representativeName, address, contactPhone, contactEmail, null);
+    }
     public SaveOrganizerDraftRequest {
         legalName = normalize(legalName);
         taxId = normalize(taxId);
@@ -22,6 +27,7 @@ public record SaveOrganizerDraftRequest(
         address = normalize(address);
         contactPhone = normalize(contactPhone);
         contactEmail = normalize(contactEmail);
+        registrationReason = normalize(registrationReason);
     }
 
     @JsonAnySetter

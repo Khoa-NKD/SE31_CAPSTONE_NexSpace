@@ -8,6 +8,8 @@ import base.api.feature.organizer.service.OrganizerApplicationService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.groups.Default;
+import org.springframework.validation.annotation.Validated;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -30,7 +32,8 @@ public class OrganizerApplicationController extends BaseAPIController {
     @PreAuthorize("hasAnyRole('USER', 'ORGANIZER')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ApiResponse<OrganizerApplicationResponse>> submit(
-            @Valid @RequestPart("application") SubmitOrganizerApplicationRequest request,
+            @Validated({Default.class, SubmitOrganizerApplicationRequest.Submission.class})
+            @RequestPart("application") SubmitOrganizerApplicationRequest request,
             @RequestPart(value = "businessLicense", required = false) MultipartFile businessLicense) {
         return created(service.submit(getCurrentUserId(), request, businessLicense),
                 "Application submitted successfully. Pending administrator review.");

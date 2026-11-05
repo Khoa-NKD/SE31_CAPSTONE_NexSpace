@@ -10,6 +10,7 @@ import base.api.shared.entity.organizer.*;
 import base.api.shared.enums.*;
 import base.api.shared.exception.*;
 import jakarta.validation.Validator;
+import jakarta.validation.groups.Default;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -36,7 +37,7 @@ public class OrganizerApplicationLifecycleService {
             OrganizerDocumentType.ID_CARD_FRONT, OrganizerDocumentType.ID_CARD_BACK,
             OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.OTHER);
 
-    private record DocumentState(Long id, OrganizerDocumentStatus status, boolean current) {}
+    private record DocumentState(Long id, OrganizerDocumentStatus status, boolean current, String feedback) {}
     private record State(OrganizerProfileStatus status, UserRole role, boolean suspended,
             LocalDateTime submittedAt, List<DocumentState> documents) {}
 
@@ -90,30 +91,45 @@ public class OrganizerApplicationLifecycleService {
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public OrganizerLifecycleContext reject(Long actorId, Long applicationId, Reason request) {
-        var actor = admin(actorId); validate(request);
-        var profile = lockAdminTarget(actorId, applicationId);
-        requirePending(profile); requireApplicant(profile.getOrganizer()); revision(profile, request.revision());
-        var current = currentDocuments(profile); var before = snapshot(profile, current);
-        profile.setStatus(OrganizerProfileStatus.REJECTED); profile.setReviewedBy(actor);
-        profile.setReviewedAt(now()); profile.setReviewFeedback(request.reason()); profiles.save(profile);
-        // A profile rejection is not a document verification result and never changes the applicant's role.
-        audit.write(actor, profile.getId(), "Organizer.Reject", before, snapshot(profile, current), request.reason());
-        return context(profile, actorId, true);
+    public OrganizerLifecycleContext reject(Long actorId, Long applicationId, Rejection request) {
+        validate(request);
+        if (!request.documentFeedbacks().isEmpty()) throw new BadRequestException("Final rejection accepts one general reason only");
+        return decideReview(actorId, applicationId, request, false);
     }
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public OrganizerLifecycleContext suspend(Long actorId, Long applicationId, Reason request) {
+    public OrganizerLifecycleContext requestChanges(Long actorId, Long applicationId, Rejection request) {
+        validate(request);
+        if (request.documentFeedbacks().isEmpty()) throw new BadRequestException("Select at least one current document and explain the required change");
+        return decideReview(actorId, applicationId, request, true);
+    }
+
+    private OrganizerLifecycleContext decideReview(Long actorId, Long applicationId, Rejection request, boolean changesRequested) {
         var actor = admin(actorId); validate(request);
-        var profile = lockAdminTarget(actorId, applicationId); revision(profile, request.revision());
-        if (profile.getStatus() != OrganizerProfileStatus.APPROVED || profile.isSuspended()
-                || profile.getOrganizer().getRole() != UserRole.ORGANIZER || !profile.getOrganizer().isActive()) {
-            throw new ConflictException("Only an active, approved, unsuspended Organizer can be suspended");
-        }
+        var profile = lockAdminTarget(actorId, applicationId);
+        requirePending(profile); requireApplicant(profile.getOrganizer()); revision(profile, request.revision());
         var current = currentDocuments(profile); var before = snapshot(profile, current);
-        profile.setSuspended(true); profiles.save(profile);
-        audit.write(actor, profile.getId(), "Organizer.Suspend", before, snapshot(profile, current), request.reason());
+        var currentIds = new HashSet<>(current.stream().map(OrganizerDocumentModel::getId).toList());
+        var feedbacks = new HashMap<Long, String>();
+        for (var feedback : request.documentFeedbacks()) {
+            if (!currentIds.contains(feedback.documentId()) || feedbacks.putIfAbsent(feedback.documentId(), feedback.feedback()) != null)
+                throw new BadRequestException("Feedback must reference unique current documents belonging to this application");
+        }
+        if (changesRequested && current.stream().anyMatch(document -> feedbacks.containsKey(document.getId()) && !CORRECTION_TYPES.contains(document.getDocumentType())))
+            throw new BadRequestException("This document type cannot be replaced through applicant corrections");
+        if (changesRequested) {
+            // Rejected current versions must be replaced before the existing resubmission validator accepts them.
+            current.forEach(document -> {
+                document.setAdminFeedback(feedbacks.get(document.getId()));
+                if (feedbacks.containsKey(document.getId())) document.setStatus(OrganizerDocumentStatus.REJECTED);
+            });
+            documents.saveAll(current);
+        }
+        profile.setStatus(changesRequested ? OrganizerProfileStatus.REVISION_REQUESTED : OrganizerProfileStatus.REJECTED); profile.setReviewedBy(actor);
+        profile.setReviewedAt(now()); profile.setReviewFeedback(request.reason()); profiles.save(profile);
+        // A profile rejection is not a document verification result and never changes the applicant's role.
+        audit.write(actor, profile.getId(), changesRequested ? "Organizer.RequestChanges" : "Organizer.Reject", before, snapshot(profile, current), request.reason());
         return context(profile, actorId, true);
     }
 
@@ -125,7 +141,8 @@ public class OrganizerApplicationLifecycleService {
         var input = request.application(); var current = currentDocuments(profile); var before = snapshot(profile, current);
         profile.setLegalName(input.legalName()); profile.setBusinessType(input.businessType()); profile.setTaxId(input.taxId());
         profile.setRepresentativeName(input.representativeName()); profile.setAddress(input.address());
-        profile.setContactPhone(input.contactPhone()); profile.setContactEmail(input.contactEmail()); profiles.save(profile);
+        profile.setContactPhone(input.contactPhone()); profile.setContactEmail(input.contactEmail());
+        profile.setRegistrationReason(input.registrationReason()); profiles.save(profile);
         audit.write(profile.getOrganizer(), profile.getId(), "Organizer.Correct", before, snapshot(profile, current), null);
         return context(profile, actorId, false);
     }
@@ -134,26 +151,35 @@ public class OrganizerApplicationLifecycleService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrganizerLifecycleContext correctDocument(Long actorId, Long expectedRevision, OrganizerDocumentType type,
             Long expectedCurrentDocumentId, MultipartFile file) {
-        var profile = lockOwnerCorrection(actorId); revision(profile, expectedRevision);
+        var profile = lockOwnerDocumentEditing(actorId); revision(profile, expectedRevision);
         if (type == null || !CORRECTION_TYPES.contains(type)) throw new BadRequestException("Unsupported correction document type");
         var current = currentDocuments(profile);
         var matching = current.stream().filter(document -> document.getDocumentType() == type).toList();
         if (matching.size() > 1) throw new ConflictException("Multiple current documents require administrator investigation");
         var old = matching.isEmpty() ? null : matching.get(0);
+        if (profile.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED
+                && (old == null || old.getStatus() != OrganizerDocumentStatus.REJECTED))
+            throw new ConflictException("Only documents explicitly requested for replacement can be changed");
         if (!Objects.equals(old == null ? null : old.getId(), expectedCurrentDocumentId)) {
             throw new ConflictException("The current document changed. Reload before explicitly replacing it");
         }
         if (file == null) throw new BadRequestException("Choose a replacement document");
         var before = snapshot(profile, current);
-        var stored = storage.store(file);
+        var stored = storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                if (old != null) {
+                    try { storage.delete(new PrivateOrganizerDocumentStorage.StoredDocument(old.getFileUrl(), old.getFileName())); }
+                    catch (RuntimeException ex) { log.error("Replaced organizer document cleanup pending for document {}", old.getId()); }
+                }
+            }
             @Override public void afterCompletion(int status) {
                 if (status == STATUS_ROLLED_BACK) {
                     try { storage.delete(stored); } catch (RuntimeException ex) { log.error("Could not compensate a rolled-back correction upload"); }
                 }
             }
         });
-        if (old != null) { old.setCurrent(false); documents.save(old); }
+        if (old != null) { old.setCurrent(false); old.setStatus(OrganizerDocumentStatus.REPLACED); documents.save(old); }
         var replacement = new OrganizerDocumentModel(); replacement.setOrganizerProfile(profile);
         replacement.setDocumentType(type); replacement.setFileUrl(stored.key()); replacement.setFileName(stored.originalName());
         documents.saveAndFlush(replacement);
@@ -167,7 +193,8 @@ public class OrganizerApplicationLifecycleService {
     public OrganizerLifecycleContext resubmit(Long actorId, Revision request) {
         validate(request);
         var profile = lockOwnerCorrection(actorId); revision(profile, request.revision());
-        validateBusiness(profile); var current = currentDocuments(profile); validateDocuments(current); availableTaxId(profile);
+        validateBusiness(profile, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
+        var current = currentDocuments(profile); validateDocuments(current); availableTaxId(profile);
         var before = snapshot(profile, current);
         profile.setStatus(OrganizerProfileStatus.PENDING_REVIEW); profile.setSubmittedAt(now());
         profile.setReviewedAt(null); profile.setReviewedBy(null); profile.setReviewFeedback(null); profiles.save(profile);
@@ -188,11 +215,21 @@ public class OrganizerApplicationLifecycleService {
     }
 
     private OrganizerProfileModel lockOwnerCorrection(Long actorId) {
+        return lockOwnerEditable(actorId, false);
+    }
+
+    private OrganizerProfileModel lockOwnerDocumentEditing(Long actorId) {
+        return lockOwnerEditable(actorId, true);
+    }
+
+    private OrganizerProfileModel lockOwnerEditable(Long actorId, boolean allowDraftDocuments) {
         var user = users.findByIdForApplication(actorId).orElseThrow(() -> new UnauthorizedException("Account not found"));
         requireApplicant(user);
         var profile = profiles.findByOrganizerIdForUpdate(actorId).orElseThrow(() -> new NotFoundException("Organizer profile not found"));
         owner(actorId, profile);
-        if (profile.isSuspended() || !correctable(profile)) throw new ConflictException("Only rejected or revision-requested applications can be corrected or resubmitted");
+        if ((!correctable(profile)
+                && !(allowDraftDocuments && profile.getStatus() == OrganizerProfileStatus.DRAFT)))
+            throw new ConflictException("This application does not allow the requested edit");
         return profile;
     }
 
@@ -200,24 +237,23 @@ public class OrganizerApplicationLifecycleService {
         var user = profile.getOrganizer();
         var current = currentDocuments(profile);
         boolean eligible = user.isActive() && user.isVerified() && user.getRole() == UserRole.USER;
-        boolean pending = administrator && !actorId.equals(user.getId()) && profile.getStatus() == OrganizerProfileStatus.PENDING_REVIEW && !profile.isSuspended() && eligible;
-        boolean suspend = administrator && !actorId.equals(user.getId()) && profile.getStatus() == OrganizerProfileStatus.APPROVED
-                && !profile.isSuspended() && user.isActive() && user.getRole() == UserRole.ORGANIZER;
+        boolean pending = administrator && !actorId.equals(user.getId()) && profile.getStatus() == OrganizerProfileStatus.PENDING_REVIEW && eligible;
+        boolean suspend = false;
         boolean approve = false;
         if (pending) {
             try { validateBusiness(profile); validateDocuments(current); availableTaxId(profile); approve = true; }
             catch (OrganizerApplicationValidationException | ConflictException unavailable) { /* Capability only; mutations validate again under locks. */ }
         }
         return new OrganizerLifecycleContext(profile.getId(), profile.getStatus(), audit.revision(profile.getId()),
-                profile.isSuspended(), profile.isSuspended() ? audit.suspensionReason(profile.getId()) : null,
-                approve, pending, suspend, !administrator && eligible && correctable(profile) && !profile.isSuspended(),
+                false, null,
+                approve, pending, suspend, !administrator && eligible && correctable(profile),
                 current.stream().map(OrganizerDocumentModel::getId).toList());
     }
     private List<OrganizerDocumentModel> currentDocuments(OrganizerProfileModel profile) {
         return documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profile.getId());
     }
-    private void validateBusiness(OrganizerProfileModel p) {
-        validate(new SubmitOrganizerApplicationRequest(p.getLegalName(), p.getBusinessType(), p.getTaxId(), p.getRepresentativeName(), p.getAddress(), p.getContactPhone(), p.getContactEmail()));
+    private void validateBusiness(OrganizerProfileModel p, Class<?>... groups) {
+        validate(new SubmitOrganizerApplicationRequest(p.getLegalName(), p.getBusinessType(), p.getTaxId(), p.getRepresentativeName(), p.getAddress(), p.getContactPhone(), p.getContactEmail(), p.getRegistrationReason()), groups);
     }
     private void validateDocuments(List<OrganizerDocumentModel> current) {
         if (current.stream().noneMatch(d -> d.getDocumentType() == OrganizerDocumentType.BUSINESS_LICENSE)
@@ -249,17 +285,17 @@ public class OrganizerApplicationLifecycleService {
     }
     private void positive(Long id) { if (id == null || id < 1) throw new BadRequestException("Application ID must be positive"); }
     private void owner(Long actorId, OrganizerProfileModel p) { if (!actorId.equals(p.getOrganizer().getId())) throw new ForbiddenException("This application belongs to another account"); }
-    private boolean correctable(OrganizerProfileModel p) { return p.getStatus() == OrganizerProfileStatus.REJECTED || p.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED; }
-    private void requirePending(OrganizerProfileModel p) { if (p.getStatus() != OrganizerProfileStatus.PENDING_REVIEW || p.isSuspended()) throw new ConflictException("Only pending applications can be reviewed"); }
+    private boolean correctable(OrganizerProfileModel p) { return p.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED; }
+    private void requirePending(OrganizerProfileModel p) { if (p.getStatus() != OrganizerProfileStatus.PENDING_REVIEW) throw new ConflictException("Only pending applications can be reviewed"); }
     private LocalDateTime now() { return LocalDateTime.now(organizerApplicationClock); }
     private State snapshot(OrganizerProfileModel p, List<OrganizerDocumentModel> current) {
         return new State(p.getStatus(), p.getOrganizer().getRole(), p.isSuspended(), p.getSubmittedAt(),
-                current.stream().map(d -> new DocumentState(d.getId(), d.getStatus(), d.isCurrent())).toList());
+                current.stream().map(d -> new DocumentState(d.getId(), d.getStatus(), d.isCurrent(), d.getAdminFeedback())).toList());
     }
-    private void validate(Object value) {
+    private void validate(Object value, Class<?>... groups) {
         if (value == null) throw new BadRequestException("Request is required");
         var errors = new LinkedHashMap<String, String>();
-        validator.validate(value).forEach(v -> errors.putIfAbsent(v.getPropertyPath().toString(), v.getMessage()));
+        validator.validate(value, groups).forEach(v -> errors.putIfAbsent(v.getPropertyPath().toString(), v.getMessage()));
         if (!errors.isEmpty()) throw new OrganizerApplicationValidationException(errors);
     }
 }

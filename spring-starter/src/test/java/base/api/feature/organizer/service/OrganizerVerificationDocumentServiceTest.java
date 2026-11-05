@@ -108,10 +108,11 @@ class OrganizerVerificationDocumentServiceTest {
     }
 
     @Test
-    void organizerCanAddEvidenceForARevisionRequestedProfileWithoutResubmission() {
+    void revisionRequestsCannotAddUnrequestedTypes() {
         user.setRoleEntity(new RoleModel("ORGANIZER", null));
         profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED);
-        service.upload(7L, OrganizerDocumentType.OTHER, file());
+        assertThatThrownBy(() -> service.upload(7L, OrganizerDocumentType.OTHER, file())).isInstanceOf(ConflictException.class);
+        verify(documents, never()).saveAndFlush(any());
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
     }
 
@@ -202,16 +203,18 @@ class OrganizerVerificationDocumentServiceTest {
     }
 
     @Test
-    void listsOnlyCurrentMetadataWithoutPrivateKeysOrFeedbackInTheDto() {
+    void listsCurrentMetadataAndOwnerFeedbackWithoutPrivateKeys() {
         var document = new OrganizerDocumentModel();
         document.setId(3L); document.setDocumentType(OrganizerDocumentType.BUSINESS_LICENSE);
         document.setFileName("license.pdf"); document.setFileUrl("private-key.pdf");
+        document.setAdminFeedback("Upload a clearer scan");
         when(documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(42L)).thenReturn(List.of(document));
         var result = service.listCurrentDocuments(7L);
         assertThat(result.uploadAllowed()).isTrue();
         assertThat(result.profileId()).isEqualTo(42L);
         assertThat(result.supportedDocumentTypes()).doesNotContain(OrganizerDocumentType.BANK_CERTIFICATE).hasSize(5);
         assertThat(result.documents()).singleElement().satisfies(item -> assertThat(item.fileName()).isEqualTo("license.pdf"));
+        assertThat(result.documents().get(0).adminFeedback()).isEqualTo("Upload a clearer scan");
         verify(documents).findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(42L);
     }
 

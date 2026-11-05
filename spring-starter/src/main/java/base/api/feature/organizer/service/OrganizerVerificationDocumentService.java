@@ -56,8 +56,8 @@ public class OrganizerVerificationDocumentService {
         var profile = profiles.findByOrganizerIdForUpdate(actorId)
                 .orElseThrow(() -> new NotFoundException("Organizer profile not found"));
         requireOwnership(actorId, profile);
-        if (!uploadAllowed(profile)) {
-            throw new ConflictException("Documents can only be uploaded for DRAFT or REVISION_REQUESTED profiles");
+        if (profile.getStatus() != OrganizerProfileStatus.DRAFT) {
+            throw new ConflictException("New document types can only be added to a DRAFT; use the correction flow for requested replacements");
         }
         if (type == null || !SUPPORTED_TYPES.contains(type)) {
             throw new BadRequestException("Unsupported verification document type");
@@ -65,7 +65,7 @@ public class OrganizerVerificationDocumentService {
         if (documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(profile.getId(), type).isPresent()) {
             throw new ConflictException("A current document of this type already exists. Replacement is not available here");
         }
-        var stored = storage.store(file);
+        var stored = storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {
@@ -109,6 +109,6 @@ public class OrganizerVerificationDocumentService {
 
     private OrganizerVerificationDocumentResponse toResponse(OrganizerDocumentModel document) {
         return new OrganizerVerificationDocumentResponse(document.getId(), document.getDocumentType(),
-                document.getFileName(), document.getStatus(), document.getCreatedAt());
+                document.getFileName(), document.getStatus(), document.getCreatedAt(), document.getAdminFeedback());
     }
 }

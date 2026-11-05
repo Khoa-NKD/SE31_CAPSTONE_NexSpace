@@ -3,6 +3,7 @@ package base.api.feature.organizer.service;
 import base.api.feature.auth.repository.*;
 import base.api.feature.governance.repository.IAuditLogRepository;
 import base.api.feature.organizer.dto.request.OrganizerLifecycleRequests.*;
+import base.api.feature.organizer.dto.response.OrganizerLifecycleContext;
 import base.api.feature.organizer.repository.*;
 import base.api.shared.entity.*;
 import base.api.shared.entity.organizer.*;
@@ -122,14 +123,14 @@ class OrganizerLifecycleDatabaseTest {
         var p = new OrganizerProfileModel(); p.setOrganizer(owner); p.setStatus(OrganizerProfileStatus.PENDING_REVIEW);
         p.setLegalName("Test Workspace Company"); p.setBusinessType(BusinessType.LIMITED_LIABILITY); p.setTaxId(taxId);
         p.setRepresentativeName("Test Representative"); p.setAddress("12 Test Street"); p.setContactPhone("0900000123");
-        p.setContactEmail("business@example.test"); p.setSubmittedAt(TIME); return p;
+        p.setContactEmail("business@example.test"); p.setRegistrationReason("Provide flexible workspaces for local companies."); p.setSubmittedAt(TIME); return p;
     }
     Approval approval(long revision) { return new Approval(revision, true, List.of(documentId), "Documents checked and consistent"); }
     long events() { return tx.execute(status -> em.createQuery("select count(a) from AuditLogModel a", Long.class).getSingleResult()); }
 
     @Test void approvalUpdatesProfileRoleDocumentsAndAuditTogether() {
         var result = service.approve(adminId, profileId, approval(0));
-        assertThat(result.status()).isEqualTo(OrganizerProfileStatus.APPROVED); assertThat(result.canSuspend()).isTrue();
+        assertThat(result.status()).isEqualTo(OrganizerProfileStatus.APPROVED); assertThat(result.canSuspend()).isFalse();
         tx.executeWithoutResult(status -> {
             var p = em.find(OrganizerProfileModel.class, profileId);
             assertThat(p.getOrganizer().getRole()).isEqualTo(UserRole.ORGANIZER);
@@ -145,22 +146,39 @@ class OrganizerLifecycleDatabaseTest {
         tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setOrganizer(em.find(UserModel.class,adminId)));
         assertThatThrownBy(() -> service.approve(adminId,profileId,approval(0))).isInstanceOf(ForbiddenException.class);
         tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setOrganizer(em.find(UserModel.class,ownerId)));
-        assertThatThrownBy(() -> service.suspend(adminId,profileId,new Reason(0L,"Pending cannot be suspended"))).isInstanceOf(ConflictException.class);
+        assertThat(service.adminContext(adminId, profileId).canSuspend()).isFalse();
         authentication("USER");
         assertThatThrownBy(() -> service.resubmit(ownerId,new Revision(0L))).isInstanceOf(ConflictException.class);
-        assertThatThrownBy(() -> service.reject(adminId,profileId,new Reason(0L,"Unauthorized"))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
+        assertThatThrownBy(() -> service.reject(adminId,profileId,new Rejection(0L,"Unauthorized"))).isInstanceOf(org.springframework.security.access.AccessDeniedException.class);
         assertThat(events()).isZero();
     }
 
     @Test void savingRequestedCorrectionsRetainsReviewOutcomeUntilExplicitResubmission() {
         tx.executeWithoutResult(status -> {var profile=em.find(OrganizerProfileModel.class,profileId); profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED);profile.setReviewFeedback("Clarify legal address");});
         authentication("USER");
-        var input=new base.api.feature.organizer.dto.request.SubmitOrganizerApplicationRequest("Updated Workspace Company",BusinessType.LIMITED_LIABILITY,"0400000123","Representative","25 New Street","0900000123","contact@example.test");
+        var input=new base.api.feature.organizer.dto.request.SubmitOrganizerApplicationRequest("Updated Workspace Company",BusinessType.LIMITED_LIABILITY,"0400000123","Representative","25 New Street","0900000123","contact@example.test", "Offer meeting rooms and flexible desks.");
         var corrected=service.saveCorrection(ownerId,new Correction(0L,input));
         assertThat(corrected.status()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
         tx.executeWithoutResult(status -> {var profile=em.find(OrganizerProfileModel.class,profileId); assertThat(profile.getAddress()).isEqualTo("25 New Street");assertThat(profile.getReviewFeedback()).isEqualTo("Clarify legal address");assertThat(profile.getOrganizer().getRole()).isEqualTo(UserRole.USER);});
         assertThat(service.resubmit(ownerId,new Revision(corrected.revision())).status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class, profileId).getRegistrationReason()).isEqualTo(input.registrationReason()));
         assertThat(events()).isEqualTo(2);
+    }
+
+    @Test void legacyPendingApplicationCanBeApprovedWithoutFabricatingAReason() {
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class,profileId).setRegistrationReason(null));
+        assertThat(service.approve(adminId,profileId,approval(0)).status()).isEqualTo(OrganizerProfileStatus.APPROVED);
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class,profileId).getRegistrationReason()).isNull());
+    }
+
+    @Test void resubmissionRequiresReasonAndKeepsRevisionRequestUnchanged() {
+        var rejected=requestDocumentChanges("Clarify the application");
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class,profileId).setRegistrationReason(null));
+        authentication("USER");
+        assertThatThrownBy(() -> service.resubmit(ownerId,new Revision(rejected.revision())))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, failure -> assertThat(failure.getErrors()).containsKey("registrationReason"));
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class,profileId).getStatus()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED));
+        assertThat(events()).isEqualTo(1);
     }
     @Test void auditFailureRollsBackAlreadyFlushedRoleProfileAndDocumentChanges() {
         failAudit = true;
@@ -172,12 +190,14 @@ class OrganizerLifecycleDatabaseTest {
         });
         assertThat(events()).isZero();
     }
-    @Test void rejectionAndResubmissionReuseProfileAndRejectStaleReviewEvenWithSameTimestamp() {
-        var rejected = service.reject(adminId, profileId, new Reason(0L, "Please clarify the business address"));
-        assertThat(rejected.status()).isEqualTo(OrganizerProfileStatus.REJECTED);
+    @Test void requestedChangesRequireReplacementBeforeResubmissionAndRejectStaleReview() {
+        var rejected = requestDocumentChanges("Please clarify the business address");
+        assertThat(rejected.status()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
         authentication("USER");
         assertThat(service.ownerContext(ownerId).canCorrect()).isTrue();
-        var submitted = service.resubmit(ownerId, new Revision(rejected.revision()));
+        assertThatThrownBy(() -> service.resubmit(ownerId, new Revision(rejected.revision()))).isInstanceOf(OrganizerApplicationValidationException.class);
+        var replacement = service.correctDocument(ownerId, rejected.revision(), OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("corrected.pdf"));
+        var submitted = service.resubmit(ownerId, new Revision(replacement.revision()));
         assertThat(submitted.id()).isEqualTo(profileId);
         assertThat(submitted.status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
         tx.executeWithoutResult(status -> {
@@ -188,45 +208,106 @@ class OrganizerLifecycleDatabaseTest {
         });
         authentication("ADMIN");
         assertThatThrownBy(() -> service.approve(adminId, profileId, approval(0))).isInstanceOf(ConflictException.class);
-        assertThat(events()).isEqualTo(2);
+        assertThat(events()).isEqualTo(3);
     }
     @Test void invalidReasonOrUnconfirmedDocumentsWriteNothing() {
-        assertThatThrownBy(() -> service.reject(adminId, profileId, new Reason(0L, "  "))).isInstanceOf(OrganizerApplicationValidationException.class);
+        assertThatThrownBy(() -> service.reject(adminId, profileId, new Rejection(0L, "  "))).isInstanceOf(OrganizerApplicationValidationException.class);
         assertThatThrownBy(() -> service.approve(adminId, profileId, new Approval(0L, false, List.of(documentId), null))).isInstanceOf(ConflictException.class);
         assertThat(events()).isZero();
     }
-    @Test void suspendKeepsAccountRoleAndApprovalAndRejectsDuplicateSuspension() {
+
+    @Test void requestChangesStoresRequiredDocumentReasonsAndProfileSummary() {
+        Long secondDocument = tx.execute(status -> {
+            var document=new OrganizerDocumentModel();document.setOrganizerProfile(em.find(OrganizerProfileModel.class,profileId));
+            document.setDocumentType(OrganizerDocumentType.ID_CARD_FRONT);document.setFileName("identity.png");
+            document.setFileUrl("22222222-2222-2222-2222-222222222222.png");em.persist(document);em.flush();return document.getId();
+        });
+        service.requestChanges(adminId,profileId,new Rejection(0L,"Please clarify the documents",List.of(
+                new DocumentFeedback(documentId," License image is blurry "),new DocumentFeedback(secondDocument,"Identity card is cropped"))));
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerProfileModel.class,profileId).getReviewFeedback()).isEqualTo("Please clarify the documents");
+            assertThat(em.find(OrganizerDocumentModel.class,documentId).getAdminFeedback()).isEqualTo("License image is blurry");
+            assertThat(em.find(OrganizerDocumentModel.class,secondDocument).getAdminFeedback()).isEqualTo("Identity card is cropped");
+            assertThat(em.find(OrganizerDocumentModel.class,documentId).getStatus()).isEqualTo(OrganizerDocumentStatus.REJECTED);
+            assertThat(em.find(UserModel.class,ownerId).getRole()).isEqualTo(UserRole.USER);
+        });
+        assertThat(events()).isEqualTo(1);
+    }
+
+    @Test void requestedChangesRollBackWhenAuditFails() {
+        tx.executeWithoutResult(status -> em.find(OrganizerDocumentModel.class,documentId).setAdminFeedback("Keep previous note"));
+        failAudit=true;
+        assertThatThrownBy(() -> service.requestChanges(adminId,profileId,new Rejection(0L,"Correct the license",List.of(new DocumentFeedback(documentId,"New note"))))).isInstanceOf(IllegalStateException.class);
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerProfileModel.class,profileId).getStatus()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+            assertThat(em.find(OrganizerProfileModel.class,profileId).getReviewFeedback()).isNull();
+            assertThat(em.find(OrganizerDocumentModel.class,documentId).getAdminFeedback()).isEqualTo("Keep previous note");
+        });
+        assertThat(events()).isZero();
+    }
+
+    @Test void requestChangesCannotTargetPreviousForeignOrDuplicateDocuments() {
+        Long[] invalidDocuments=tx.execute(status -> {
+            var previous=new OrganizerDocumentModel();previous.setOrganizerProfile(em.find(OrganizerProfileModel.class,profileId));
+            previous.setDocumentType(OrganizerDocumentType.BUSINESS_LICENSE);previous.setFileName("old.pdf");previous.setFileUrl("old-reference");previous.setCurrent(false);em.persist(previous);
+            var foreignProfile=profile(em.find(UserModel.class,adminId),"0400000999");em.persist(foreignProfile);
+            var foreign=new OrganizerDocumentModel();foreign.setOrganizerProfile(foreignProfile);foreign.setDocumentType(OrganizerDocumentType.BUSINESS_LICENSE);foreign.setFileName("foreign.pdf");foreign.setFileUrl("foreign-reference");em.persist(foreign);em.flush();
+            return new Long[]{previous.getId(),foreign.getId()};
+        });
+        for(Long id:invalidDocuments)assertThatThrownBy(() -> service.requestChanges(adminId,profileId,new Rejection(0L,"Clarify documents",List.of(new DocumentFeedback(id,"Invalid target"))))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.requestChanges(adminId,profileId,new Rejection(0L,"Clarify documents",List.of(new DocumentFeedback(documentId,"One"),new DocumentFeedback(documentId,"Two"))))).isInstanceOf(BadRequestException.class);
+        assertThat(events()).isZero();
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class,profileId).getStatus()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW));
+    }
+    @Test void approvedProfileHasNoSuspensionCapability() {
         var approved = service.approve(adminId, profileId, approval(0));
-        var suspended = service.suspend(adminId, profileId, new Reason(approved.revision(), "Confirmed policy violation"));
-        assertThat(suspended.suspended()).isTrue(); assertThat(suspended.status()).isEqualTo(OrganizerProfileStatus.APPROVED);
-        assertThat(suspended.suspensionReason()).isEqualTo("Confirmed policy violation");
-        tx.executeWithoutResult(status -> { var user = em.find(UserModel.class, ownerId);
-            assertThat(user.getRole()).isEqualTo(UserRole.ORGANIZER); assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE); });
-        assertThatThrownBy(() -> service.suspend(adminId, profileId, new Reason(suspended.revision(), "Again"))).isInstanceOf(ConflictException.class);
-        assertThat(events()).isEqualTo(2);
+        assertThat(approved.canSuspend()).isFalse();
+        assertThat(approved.suspended()).isFalse();
+        assertThat(approved.status()).isEqualTo(OrganizerProfileStatus.APPROVED);
+        tx.executeWithoutResult(status -> assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.ORGANIZER));
+        assertThat(events()).isEqualTo(1);
     }
     @Test void concurrentApprovalAndRejectionProduceExactlyOneDecision() throws Exception {
         var start = new CountDownLatch(1); var pool = Executors.newFixedThreadPool(2);
         try {
             Callable<Boolean> approve = () -> { authentication("ADMIN"); start.await(); try { service.approve(adminId, profileId, approval(0)); return true; } catch (ConflictException expected) { return false; } finally { SecurityContextHolder.clearContext(); } };
-            Callable<Boolean> reject = () -> { authentication("ADMIN"); start.await(); try { service.reject(adminId, profileId, new Reason(0L, "Correction required")); return true; } catch (ConflictException expected) { return false; } finally { SecurityContextHolder.clearContext(); } };
+            Callable<Boolean> reject = () -> { authentication("ADMIN"); start.await(); try { service.reject(adminId, profileId, new Rejection(0L, "Correction required")); return true; } catch (ConflictException expected) { return false; } finally { SecurityContextHolder.clearContext(); } };
             var a = pool.submit(approve); var b = pool.submit(reject); start.countDown();
             assertThat((a.get(15, TimeUnit.SECONDS) ? 1 : 0) + (b.get(15, TimeUnit.SECONDS) ? 1 : 0)).isEqualTo(1);
             assertThat(events()).isEqualTo(1);
         } finally { pool.shutdownNow(); }
     }
 
-    @Test void replacementRetainsOldBytesAndVersionAndDoesNotResubmit() throws Exception {
-        var rejected = service.reject(adminId, profileId, new Reason(0L, "Upload a clearer license"));
+    @Test void draftReplacementRetainsVersionAndCannotSubmitOrReplaceAfterSubmission() {
+        tx.executeWithoutResult(status -> {
+            var profile = em.find(OrganizerProfileModel.class, profileId);
+            profile.setStatus(OrganizerProfileStatus.DRAFT); profile.setSubmittedAt(null);
+        });
+        authentication("USER");
+        var saved = service.correctDocument(ownerId, 0L, OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("draft.pdf"));
+        assertThat(saved.status()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerDocumentModel.class, documentId).isCurrent()).isFalse();
+            assertThat(em.find(OrganizerProfileModel.class, profileId).getSubmittedAt()).isNull();
+        });
+        assertThatThrownBy(() -> service.resubmit(ownerId, new Revision(saved.revision()))).isInstanceOf(ConflictException.class);
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setStatus(OrganizerProfileStatus.PENDING_REVIEW));
+        assertThatThrownBy(() -> service.correctDocument(ownerId, saved.revision(), OrganizerDocumentType.BUSINESS_LICENSE,
+                saved.currentDocumentIds().get(0), pdf("blocked.pdf"))).isInstanceOf(ConflictException.class);
+    }
+
+    @Test void replacementRetainsMetadataAndDeletesOldFileAfterCommit() throws Exception {
+        var rejected = requestDocumentChanges("Upload a clearer license");
         var storage = context.getBean(PrivateOrganizerDocumentStorage.class);
         var original = storage.store(pdf("old.pdf"));
         tx.executeWithoutResult(status -> em.find(OrganizerDocumentModel.class, documentId).setFileUrl(original.key()));
         authentication("USER");
         var corrected = service.correctDocument(ownerId, rejected.revision(), OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("new.pdf"));
-        assertThat(corrected.status()).isEqualTo(OrganizerProfileStatus.REJECTED);
-        assertThat(files.resolve(original.key())).exists();
+        assertThat(corrected.status()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
+        assertThat(files.resolve(original.key())).doesNotExist();
         tx.executeWithoutResult(status -> {
             assertThat(em.find(OrganizerDocumentModel.class, documentId).isCurrent()).isFalse();
+            assertThat(em.find(OrganizerDocumentModel.class, documentId).getStatus()).isEqualTo(OrganizerDocumentStatus.REPLACED);
             var docs = em.createQuery("select d from OrganizerDocumentModel d where d.organizerProfile.id=:id and d.current=true", OrganizerDocumentModel.class).setParameter("id", profileId).getResultList();
             assertThat(docs).hasSize(1); assertThat(docs.get(0).getStatus()).isEqualTo(OrganizerDocumentStatus.PENDING);
             assertThat(docs.get(0).getFileName()).isEqualTo("new.pdf"); assertThat(files.resolve(docs.get(0).getFileUrl())).exists();
@@ -236,7 +317,7 @@ class OrganizerLifecycleDatabaseTest {
     }
 
     @Test void failedReplacementRollsBackMetadataAndDeletesOnlyNewFile() throws Exception {
-        var rejected = service.reject(adminId, profileId, new Reason(0L, "License correction required"));
+        var rejected = requestDocumentChanges("License correction required");
         long before;
         try (var list = Files.list(files)) { before = list.count(); }
         failAudit = true;
@@ -251,7 +332,7 @@ class OrganizerLifecycleDatabaseTest {
     }
 
     @Test void resubmitRequiresRequiredDocumentsAndCorrectOwnership() {
-        var rejected = service.reject(adminId, profileId, new Reason(0L, "Correct details"));
+        var rejected = requestDocumentChanges("Correct details");
         tx.executeWithoutResult(status -> em.remove(em.find(OrganizerDocumentModel.class, documentId)));
         authentication("USER");
         assertThatThrownBy(() -> service.resubmit(ownerId, new Revision(rejected.revision()))).isInstanceOf(OrganizerApplicationValidationException.class);
@@ -283,5 +364,40 @@ class OrganizerLifecycleDatabaseTest {
     }
     static MockMultipartFile pdf(String name) {
         return new MockMultipartFile("file", name, "application/pdf", "%PDF-1.4 isolated test".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+    }
+
+    @Test void onlyRequestedDocumentsCanBeReplaced() {
+        Long other = tx.execute(status -> {
+            var document = new OrganizerDocumentModel(); document.setOrganizerProfile(em.find(OrganizerProfileModel.class, profileId));
+            document.setDocumentType(OrganizerDocumentType.ID_CARD_FRONT); document.setFileName("identity.pdf");
+            document.setFileUrl("identity-key"); em.persist(document); em.flush(); return document.getId();
+        });
+        var requested = requestDocumentChanges("Replace the license only");
+        authentication("USER");
+        assertThatThrownBy(() -> service.correctDocument(ownerId, requested.revision(), OrganizerDocumentType.ID_CARD_FRONT, other, pdf("not-requested.pdf"))).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> service.correctDocument(ownerId, requested.revision(), OrganizerDocumentType.OTHER, null, pdf("new-type.pdf"))).isInstanceOf(ConflictException.class);
+        var replaced = service.correctDocument(ownerId, requested.revision(), OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("replacement.pdf"));
+        assertThatThrownBy(() -> service.correctDocument(ownerId, replaced.revision(), OrganizerDocumentType.BUSINESS_LICENSE,
+                replaced.currentDocumentIds().stream().filter(id -> !id.equals(other)).findFirst().orElseThrow(), pdf("already-resolved.pdf"))).isInstanceOf(ConflictException.class);
+        assertThat(service.resubmit(ownerId, new Revision(replaced.revision())).status()).isEqualTo(OrganizerProfileStatus.PENDING_REVIEW);
+    }
+
+    private OrganizerLifecycleContext requestDocumentChanges(String reason) {
+        return service.requestChanges(adminId, profileId, new Rejection(0L, reason, List.of(new DocumentFeedback(documentId, reason))));
+    }
+    @Test void finalRejectionBlocksEveryCorrectionAndResubmissionPath() {
+        var rejected = service.reject(adminId, profileId, new Rejection(0L, "Application does not meet requirements"));
+        authentication("USER");
+        assertThat(service.ownerContext(ownerId).canCorrect()).isFalse();
+        assertThatThrownBy(() -> service.correctDocument(ownerId, rejected.revision(), OrganizerDocumentType.BUSINESS_LICENSE, documentId, pdf("blocked.pdf"))).isInstanceOf(ConflictException.class);
+        var input = new base.api.feature.organizer.dto.request.SubmitOrganizerApplicationRequest("Company", BusinessType.LIMITED_LIABILITY, "0400000123", "Representative", "Address", "0900000123", "company@example.test", "Reason");
+        assertThatThrownBy(() -> service.saveCorrection(ownerId, new Correction(rejected.revision(), input))).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> service.resubmit(ownerId, new Revision(rejected.revision()))).isInstanceOf(ConflictException.class);
+        assertThat(events()).isEqualTo(1);
+    }
+    @Test void requestingChangesRequiresDocumentsAndFinalRejectionRejectsPerDocumentInput() {
+        assertThatThrownBy(() -> service.requestChanges(adminId, profileId, new Rejection(0L, "Clarify documents"))).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> service.reject(adminId, profileId, new Rejection(0L, "Reject", List.of(new DocumentFeedback(documentId, "Clarify"))))).isInstanceOf(BadRequestException.class);
+        assertThat(events()).isZero();
     }
 }

@@ -44,7 +44,8 @@ class OrganizerApplicationControllerTest {
     static final String DETAILS = """
             {"legalName":"Company","businessType":"LIMITED_LIABILITY","taxId":"TAX-123",
              "representativeName":"Representative","address":"Business address",
-             "contactPhone":"+84901234567","contactEmail":"contact@example.com","userId":999}
+             "contactPhone":"+84901234567","contactEmail":"contact@example.com","userId":999,
+             "registrationReason":"Offer flexible workspaces."}
             """;
 
     MockMultipartFile details(String json) {
@@ -53,6 +54,20 @@ class OrganizerApplicationControllerTest {
 
     MockMultipartFile license() {
         return new MockMultipartFile("businessLicense", "license.pdf", "application/pdf", "%PDF-1.4".getBytes());
+    }
+
+    @Test
+    void multipartSubmissionRequiresReasonButDraftSaveDoesNot() throws Exception {
+        for (String reason : java.util.List.of("", "   ", "x".repeat(2001))) {
+            mvc.perform(multipart("/api/organizer/applications").file(details(DETAILS.replace("Offer flexible workspaces.", reason)))
+                            .file(license()).with(user(principal("USER"))))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors.registrationReason").exists());
+        }
+        verify(service, never()).submit(anyLong(), any(), any());
+        mvc.perform(put("/api/organizer/applications/draft").with(user(principal("USER")))
+                        .contentType("application/json").content("{\"registrationReason\":\"   \"}"))
+                .andExpect(status().isOk());
+        verify(service).saveDraft(eq(7L), argThat(request -> request.registrationReason() == null));
     }
 
     AuthUser principal(String role) {

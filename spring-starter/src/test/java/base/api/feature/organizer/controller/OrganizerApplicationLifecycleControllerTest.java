@@ -45,7 +45,7 @@ class OrganizerApplicationLifecycleControllerTest {
         return new OrganizerLifecycleContext(42L,OrganizerProfileStatus.PENDING_REVIEW,12L,false,null,true,true,false,false,List.of(9L));
     }
     @Test void anonymousAndWrongRolesCannotReview() throws Exception {
-        for(String action:List.of("approve","reject","suspend")) {
+        for(String action:List.of("approve","reject","request-changes")) {
             mvc.perform(post(ADMIN+"/"+action).contentType(MediaType.APPLICATION_JSON).content("{}")) .andExpect(status().isUnauthorized());
             for(String role:List.of("USER","ORGANIZER")) mvc.perform(post(ADMIN+"/"+action).with(user(principal(role))).contentType(MediaType.APPLICATION_JSON).content("{}")) .andExpect(status().isForbidden());
         }
@@ -59,7 +59,7 @@ class OrganizerApplicationLifecycleControllerTest {
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.revision").value(12)).andExpect(jsonPath("$.data.fileUrl").doesNotExist());
         verify(service).approve(7L,42L,new Approval(12L,true,List.of(9L),"checked"));
     }
-    @ParameterizedTest @ValueSource(strings={"reject","suspend"})
+    @ParameterizedTest @ValueSource(strings={"reject","request-changes"})
     void reasonsAreRequiredAndBounded(String action) throws Exception {
         for(String reason:List.of("", "   ", "x".repeat(501)))
             mvc.perform(post(ADMIN+"/"+action).with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON)
@@ -70,6 +70,14 @@ class OrganizerApplicationLifecycleControllerTest {
         when(service.reject(eq(7L),eq(42L),any())).thenThrow(new ConflictException("Application changed. Reload latest details"));
         mvc.perform(post(ADMIN+"/reject").with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON)
                 .content("{\"revision\":0,\"reason\":\"Clarify address\"}")) .andExpect(status().isConflict()).andExpect(jsonPath("$.statusCode").value(409));
+    }
+    @Test void requestChangesAcceptsBoundedReasonsAndRetiredSuspensionReturnsNotFound() throws Exception {
+        when(service.requestChanges(eq(7L),eq(42L),any())).thenReturn(response());
+        String body="{\"revision\":12,\"reason\":\" Clarify documents \",\"documentFeedbacks\":[{\"documentId\":9,\"feedback\":\" Blurry image \"}]}";
+        mvc.perform(post(ADMIN+"/request-changes").with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isOk());
+        verify(service).requestChanges(7L,42L,new Rejection(12L,"Clarify documents",List.of(new DocumentFeedback(9L,"Blurry image"))));
+        for(String feedback:List.of("   ","x".repeat(501)))mvc.perform(post(ADMIN+"/request-changes").with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON).content(body.replace(" Blurry image ",feedback))).andExpect(status().isBadRequest());
+        mvc.perform(post(ADMIN+"/suspend").with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON).content(body)).andExpect(status().isNotFound());
     }
     @Test void resubmissionAndDocumentCorrectionUseOwnerPrincipalOnly() throws Exception {
         when(service.resubmit(eq(7L),any())).thenReturn(response());
@@ -85,6 +93,12 @@ class OrganizerApplicationLifecycleControllerTest {
             mvc.perform(post(OWNER+"/resubmit").with(user(principal("USER"))).contentType(MediaType.APPLICATION_JSON).content(body)) .andExpect(status().isBadRequest());
         mvc.perform(put(OWNER+"/correction").with(user(principal("USER"))).contentType(MediaType.APPLICATION_JSON).content("{\"revision\":0,\"application\":{}}"))
                 .andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+    }
+
+    @Test void suspensionEndpointIsNoLongerAvailable() throws Exception {
+        mvc.perform(post(ADMIN+"/suspend").with(user(principal("ADMIN"))).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().is4xxClientError());
         verifyNoInteractions(service);
     }
 }

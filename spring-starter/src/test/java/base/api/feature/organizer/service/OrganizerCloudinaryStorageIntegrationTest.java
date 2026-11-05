@@ -46,6 +46,7 @@ class OrganizerCloudinaryStorageIntegrationTest {
         cloudinary = mock(CloudinaryStorageServiceImpl.class);
         when(cloudinary.isCloudinaryConfigured()).thenReturn(true);
         when(cloudinary.uploadPrivateDocument(any(), anyString())).thenReturn(REFERENCE);
+        when(cloudinary.uploadPrivateDocument(any(), anyString(), anyLong())).thenReturn(REFERENCE);
         storage = new PrivateOrganizerDocumentStorage(directory.toString(), cloudinary, true);
         users = mock(IUserRepository.class); profiles = mock(IOrganizerProfileRepository.class); documents = mock(IOrganizerDocumentRepository.class);
         user = new UserModel(); user.setId(7L); user.setVerified(true); user.setRoleEntity(new RoleModel("USER", null));
@@ -84,14 +85,14 @@ class OrganizerCloudinaryStorageIntegrationTest {
 
     @Test
     void standaloneUploadMetadataFailureCompensatesCloudWithoutChangingProfileState() {
-        var profile = new OrganizerProfileModel(); profile.setId(42L); profile.setOrganizer(user); profile.setStatus(OrganizerProfileStatus.REVISION_REQUESTED);
+        var profile = new OrganizerProfileModel(); profile.setId(42L); profile.setOrganizer(user); profile.setStatus(OrganizerProfileStatus.DRAFT);
         when(profiles.findByOrganizerIdForUpdate(7L)).thenReturn(Optional.of(profile));
         doThrow(new IllegalStateException("Simulated persistence failure")).when(documents).saveAndFlush(any());
         var service = new OrganizerVerificationDocumentService(users, profiles, documents, storage);
         assertThatThrownBy(() -> transaction.execute(status -> service.upload(7L, OrganizerDocumentType.OTHER, OrganizerApplicationServiceTest.license())))
                 .hasMessage("Simulated persistence failure");
         verify(cloudinary).deletePrivateDocument(REFERENCE);
-        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.REVISION_REQUESTED);
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
     }
 
     @Test
@@ -122,15 +123,15 @@ class OrganizerCloudinaryStorageIntegrationTest {
         assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, OrganizerApplicationServiceTest.REQUEST, OrganizerApplicationServiceTest.license())))
                 .hasMessage("Could not store verification document");
         verifyNoInteractions(documents);
-        verify(profiles, never()).saveAndFlush(any());
+        verify(profiles).saveAndFlush(any());
         assertDirectoryEmpty();
     }
 
     @Test
-    void unconfiguredAndDisabledCloudinaryUseOnlyPrivateLocalStorage() throws Exception {
+    void unconfiguredCloudinaryFailsClosedAndExplicitLocalModeRemainsAvailable() throws Exception {
         when(cloudinary.isCloudinaryConfigured()).thenReturn(false);
-        var stored = storage.store(OrganizerApplicationServiceTest.license());
-        assertThat(directory.resolve(stored.key())).exists();
+        assertThatThrownBy(() -> storage.store(OrganizerApplicationServiceTest.license()))
+                .hasMessage("Private Cloudinary storage is not configured");
         when(cloudinary.isCloudinaryConfigured()).thenReturn(true);
         var localOnly = new PrivateOrganizerDocumentStorage(directory.toString(), cloudinary, false);
         var disabled = localOnly.store(OrganizerApplicationServiceTest.license());

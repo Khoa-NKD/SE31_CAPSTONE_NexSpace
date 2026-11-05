@@ -10,7 +10,15 @@ public record AdminOrganizerApplicationDetailsResponse(
         Long id, String legalName, BusinessType businessType, String taxId,
         String representativeName, String address, String contactEmail, String contactPhone,
         Applicant applicant, OrganizerProfileStatus status, LocalDateTime submittedAt,
-        LocalDateTime reviewedAt, String reviewFeedback, List<AdminOrganizerDocumentResponse> documents) {
+        LocalDateTime reviewedAt, String reviewFeedback, List<AdminOrganizerDocumentResponse> documents,
+        String registrationReason) {
+    public AdminOrganizerApplicationDetailsResponse(Long id, String legalName, BusinessType businessType, String taxId,
+            String representativeName, String address, String contactEmail, String contactPhone,
+            Applicant applicant, OrganizerProfileStatus status, LocalDateTime submittedAt,
+            LocalDateTime reviewedAt, String reviewFeedback, List<AdminOrganizerDocumentResponse> documents) {
+        this(id, legalName, businessType, taxId, representativeName, address, contactEmail, contactPhone,
+                applicant, status, submittedAt, reviewedAt, reviewFeedback, documents, null);
+    }
     public record Applicant(Long id, String userName, String email, String fullName) {
     }
 }
