@@ -61,7 +61,7 @@ class OrganizerBusinessProfileControllerTest {
 
     private OrganizerBusinessProfileResponse response() {
         return new OrganizerBusinessProfileResponse(42L, "Example Company", BusinessType.LIMITED_LIABILITY,
-                "TEST-TAX-123", "Test Representative", "123 Example Street", "contact@example.test", "0901234567");
+                "TEST-TAX-123", "Test Representative", "123 Example Street", "contact@example.test", "0901234567", "Example Bank", "EXAMPLE COMPANY", "7890", true, true);
     }
 
     @Test
@@ -83,6 +83,7 @@ class OrganizerBusinessProfileControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.statusCode").value(200))
                 .andExpect(jsonPath("$.data.legalName").value("Example Company"))
+                .andExpect(jsonPath("$.data.bankAccountLastFour").value("7890"))
                 .andExpect(jsonPath("$.data.bankAccountNumber").doesNotExist())
                 .andExpect(jsonPath("$.data.fileUrl").doesNotExist())
                 .andExpect(jsonPath("$.data.reviewFeedback").doesNotExist());
@@ -107,6 +108,17 @@ class OrganizerBusinessProfileControllerTest {
         verifyNoInteractions(service);
     }
 
+    @Test
+    void acceptsBankDetailsAndRejectsMalformedBankNumbers() throws Exception {
+        when(service.updateCurrentProfile(eq(7L), any())).thenReturn(response());
+        String bankBody = BODY.trim().replace("}", ",\"bankDetails\":{\"bankName\":\"Example Bank\",\"bankAccountHolder\":\"EXAMPLE COMPANY\",\"bankAccountNumber\":\"001234567890\"}}");
+        mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON).content(bankBody))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.data.bankAccountLastFour").value("7890"));
+        mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON)
+                        .content(bankBody.replace("001234567890", "invalid")))
+                .andExpect(status().isBadRequest()).andExpect(jsonPath("$.errors['bankDetails.bankAccountNumber']").exists());
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"USER", "ADMIN"})
     void rejectsOtherRolesForBothMethods(String role) throws Exception {
@@ -118,7 +130,7 @@ class OrganizerBusinessProfileControllerTest {
 
     @ParameterizedTest
     @ValueSource(strings = {"legalName", "businessType", "taxId", "representativeName", "userId", "organizerId",
-            "id", "role", "status", "createdAt", "updatedAt", "submittedAt", "reviewedAt", "bankAccountNumber", "description"})
+            "id", "role", "status", "createdAt", "updatedAt", "submittedAt", "reviewedAt", "bankAccountNumber", "bankAccountLastFour", "description"})
     void rejectsProtectedAndUnknownFieldsInsteadOfSilentlyIgnoringThem(String field) throws Exception {
         String body = BODY.trim().replace("}", ",\"" + field + "\":\"attempted-change\"}");
         mvc.perform(put(URL).with(user(principal("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON).content(body))

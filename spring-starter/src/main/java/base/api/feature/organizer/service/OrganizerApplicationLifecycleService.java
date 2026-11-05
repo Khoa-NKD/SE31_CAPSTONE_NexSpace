@@ -33,6 +33,7 @@ public class OrganizerApplicationLifecycleService {
     private final OrganizerLifecycleAudit audit;
     private final Validator validator;
     private final Clock organizerApplicationClock;
+    private final org.springframework.context.ApplicationEventPublisher events;
     private static final Set<OrganizerDocumentType> CORRECTION_TYPES = Set.of(OrganizerDocumentType.BUSINESS_LICENSE,
             OrganizerDocumentType.ID_CARD_FRONT, OrganizerDocumentType.ID_CARD_BACK,
             OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.OTHER);
@@ -86,6 +87,7 @@ public class OrganizerApplicationLifecycleService {
         profile.getOrganizer().setRoleEntity(organizerRole);
         users.save(profile.getOrganizer()); profiles.save(profile);
         audit.write(actor, profile.getId(), "Organizer.Approve", before, snapshot(profile, current), request.note());
+        notifyReview(profile, List.of());
         return context(profile, actorId, true);
     }
 
@@ -130,6 +132,8 @@ public class OrganizerApplicationLifecycleService {
         profile.setReviewedAt(now()); profile.setReviewFeedback(request.reason()); profiles.save(profile);
         // A profile rejection is not a document verification result and never changes the applicant's role.
         audit.write(actor, profile.getId(), changesRequested ? "Organizer.RequestChanges" : "Organizer.Reject", before, snapshot(profile, current), request.reason());
+        notifyReview(profile, changesRequested ? current.stream().filter(d -> feedbacks.containsKey(d.getId()))
+                .map(d -> new OrganizerReviewNotification.DocumentChange(d.getDocumentType(), feedbacks.get(d.getId()))).toList() : List.of());
         return context(profile, actorId, true);
     }
 
@@ -138,13 +142,7 @@ public class OrganizerApplicationLifecycleService {
     public OrganizerLifecycleContext saveCorrection(Long actorId, Correction request) {
         validate(request);
         var profile = lockOwnerCorrection(actorId); revision(profile, request.revision());
-        var input = request.application(); var current = currentDocuments(profile); var before = snapshot(profile, current);
-        profile.setLegalName(input.legalName()); profile.setBusinessType(input.businessType()); profile.setTaxId(input.taxId());
-        profile.setRepresentativeName(input.representativeName()); profile.setAddress(input.address());
-        profile.setContactPhone(input.contactPhone()); profile.setContactEmail(input.contactEmail());
-        profile.setRegistrationReason(input.registrationReason()); profiles.save(profile);
-        audit.write(profile.getOrganizer(), profile.getId(), "Organizer.Correct", before, snapshot(profile, current), null);
-        return context(profile, actorId, false);
+        throw new ConflictException("Business information is locked after submission. Only administrator-requested document replacements are allowed");
     }
 
     @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
@@ -194,13 +192,24 @@ public class OrganizerApplicationLifecycleService {
         validate(request);
         var profile = lockOwnerCorrection(actorId); revision(profile, request.revision());
         validateBusiness(profile, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
-        var current = currentDocuments(profile); validateDocuments(current); availableTaxId(profile);
+        var current = currentDocuments(profile); validateDocuments(current);
+        var documentErrors = OrganizerDocumentRequirements.errors(profile.getBusinessType(), current, false);
+        if (!documentErrors.isEmpty()) throw new OrganizerApplicationValidationException(documentErrors);
+        availableTaxId(profile);
         var before = snapshot(profile, current);
         profile.setStatus(OrganizerProfileStatus.PENDING_REVIEW); profile.setSubmittedAt(now());
         profile.setReviewedAt(null); profile.setReviewedBy(null); profile.setReviewFeedback(null); profiles.save(profile);
         // Previous decisions/reasons remain in audit; pending review does not display an obsolete decision as current.
         audit.write(profile.getOrganizer(), profile.getId(), "Organizer.Resubmit", before, snapshot(profile, current), null);
         return context(profile, actorId, false);
+    }
+
+    private void notifyReview(OrganizerProfileModel profile, List<OrganizerReviewNotification.DocumentChange> changes) {
+        var owner = profile.getOrganizer();
+        String name = owner.getFullName();
+        events.publishEvent(new OrganizerReviewNotification(profile.getId(), owner.getEmail(),
+                name == null || name.isBlank() ? owner.getUserName() : name, profile.getLegalName(),
+                profile.getStatus(), profile.getReviewFeedback(), changes));
     }
 
     private OrganizerProfileModel lockAdminTarget(Long actorId, Long id) {

@@ -169,6 +169,7 @@ class OrganizerApplicationServiceTest {
         document.setDocumentType(OrganizerDocumentType.BUSINESS_LICENSE);
         when(documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(42L, OrganizerDocumentType.BUSINESS_LICENSE))
                 .thenReturn(Optional.of(document));
+        when(documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(42L)).thenReturn(java.util.List.of(document));
         return document;
     }
 
@@ -286,6 +287,22 @@ class OrganizerApplicationServiceTest {
         var result = transaction.execute(status -> service.submit(7L, REQUEST, license()));
         assertThat(result.id()).isEqualTo(profile.getId());
         verify(documents).saveAndFlush(any());
+    }
+
+    @Test
+    void householdDraftAndMultipartCannotBypassIdentityDocumentRequirements() {
+        var profile = draft();
+        transaction.execute(status -> service.saveDraft(7L, draftRequest()));
+        profile.setBusinessType(BusinessType.HOUSEHOLD_BUSINESS);
+        currentLicense();
+        assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L)))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, error -> assertThat(error.getErrors())
+                        .containsKeys("documents.ID_CARD_FRONT", "documents.ID_CARD_BACK"));
+        var household = new SubmitOrganizerApplicationRequest(REQUEST.legalName(), BusinessType.HOUSEHOLD_BUSINESS,
+                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail(), REQUEST.registrationReason());
+        assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, household, null)))
+                .isInstanceOf(OrganizerApplicationValidationException.class);
+        assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
     }
 
     @Test

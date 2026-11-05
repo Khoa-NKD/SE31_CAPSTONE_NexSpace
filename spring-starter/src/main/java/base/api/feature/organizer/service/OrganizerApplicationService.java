@@ -87,12 +87,8 @@ public class OrganizerApplicationService {
         var request = new SubmitOrganizerApplicationRequest(profile.getLegalName(), profile.getBusinessType(),
                 profile.getTaxId(), profile.getRepresentativeName(), profile.getAddress(), profile.getContactPhone(), profile.getContactEmail(), profile.getRegistrationReason());
         var errors = validationErrors(request, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
-        var license = documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(
-                profile.getId(), OrganizerDocumentType.BUSINESS_LICENSE);
-        if (license.isEmpty() || license.get().getStatus() == OrganizerDocumentStatus.REJECTED
-                || license.get().getFileUrl() == null || license.get().getFileUrl().isBlank()) {
-            errors.put("businessLicense", "Upload a current, non-rejected business license before submitting");
-        }
+        errors.putAll(OrganizerDocumentRequirements.errors(profile.getBusinessType(),
+                documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profile.getId()), false));
         if (!errors.isEmpty()) throw new OrganizerApplicationValidationException(errors);
         requireAvailableTaxId(request.taxId());
         apply(profile, request);
@@ -125,6 +121,10 @@ public class OrganizerApplicationService {
         if (currentLicense.isEmpty() && file == null) {
             throw new OrganizerApplicationValidationException(java.util.Map.of("businessLicense", "A business license is required"));
         }
+        var currentDocuments = existing.isPresent()
+                ? documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profile.getId()) : java.util.List.<OrganizerDocumentModel>of();
+        var documentErrors = OrganizerDocumentRequirements.errors(request.businessType(), currentDocuments, file != null);
+        if (!documentErrors.isEmpty()) throw new OrganizerApplicationValidationException(documentErrors);
         profile.setOrganizer(user);
         apply(profile, request);
         var receipt = markSubmitted(profile);

@@ -30,6 +30,6 @@ public class OrganizerBusinessProfileController extends BaseAPIController {
     @PutMapping
     public ResponseEntity<ApiResponse<OrganizerBusinessProfileResponse>> updateCurrentProfile(
             @Valid @RequestBody UpdateOrganizerBusinessProfileRequest request) {
-        return success(service.updateCurrentProfile(getCurrentUserId(), request), "Business contact details updated successfully");
+        return success(service.updateCurrentProfile(getCurrentUserId(), request), "Business profile updated successfully");
     }
 }
