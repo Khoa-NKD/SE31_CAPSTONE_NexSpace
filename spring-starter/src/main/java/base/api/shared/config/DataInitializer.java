@@ -79,43 +79,6 @@ public class DataInitializer implements ApplicationRunner {
         seedDefaultAmenities();
         seedAdminAccount();
         seedOrganizerAccount();
-        seedDefaultWorkspace();
-    }
-
-    /**
-     * [NOTE CHO DEV SAU / SEED DỮ LIỆU ĐỂ TEST FEATURE GÁN TIỆN ÍCH]:
-     * Không gian làm việc ID 1 ("NexSpace Saigon Central Hub") được seed sẵn cho tài khoản Organizer ('organizer')
-     * nhằm mục đích phục vụ kiểm thử và đồng bộ cho tính năng "Gán tiện ích cho Không gian" (Workspace Amenities Mapping).
-     * Khi hệ thống triển khai module Quản lý / Đăng ký không gian đầy đủ (Workspace CRUD), không gian này
-     * có thể giữ lại làm dữ liệu mẫu (demo fixture) hoặc tùy chỉnh theo yêu cầu của sprint sau.
-     */
-    private void seedDefaultWorkspace() {
-        if (workspaceRepository.count() > 0) {
-            return;
-        }
-
-        UserModel organizer = userRepository.findByLogin(organizerUserName)
-                .or(() -> userRepository.findByLogin(organizerEmail))
-                .orElse(null);
-
-        if (organizer == null) {
-            return;
-        }
-
-        WorkspaceModel ws = new WorkspaceModel();
-        ws.setName("NexSpace Saigon Central Hub");
-        ws.setOrganizer(organizer);
-        ws.setStatus(WorkspaceStatus.ACTIVE);
-        ws.setCategory(WorkspaceCategory.COWORKING_HUB);
-        ws.setDescription("Modern coworking space situated in District 1, Ho Chi Minh City.");
-        ws.setAddress("72 Le Thanh Ton Boulevard");
-        ws.setDistrict("District 1");
-        ws.setCity("Ho Chi Minh City");
-        ws.setAreaSqm(new BigDecimal("1250.00"));
-        ws.setSupportPhone("0901234567");
-
-        workspaceRepository.save(ws);
-        log.info("Seeded default workspace 'NexSpace Saigon Central Hub' for organizer '{}'", organizer.getUserName());
     }
 
     private void seedAdminAccount() {
