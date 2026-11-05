@@ -17,8 +17,9 @@ export interface VerificationDocument {
   id: number;
   documentType: DocumentType;
   fileName: string;
-  status: 'PENDING' | 'VERIFIED' | 'REJECTED';
+  status: 'PENDING' | 'VERIFIED' | 'REJECTED' | 'REPLACED';
   uploadedAt: string;
+  adminFeedback?: string | null;
 }
 
 export interface VerificationDocuments {

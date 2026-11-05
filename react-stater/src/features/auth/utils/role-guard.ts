@@ -81,7 +81,16 @@ export function checkRouteAccess(
     };
   }
 
-  // Organizer routes: ONLY ORGANIZER
+  // Applicants complete onboarding on the landing application page until approval.
+  if (
+    (pathname === '/dashboard/organizer/application' ||
+      pathname === '/dashboard/organizer/application/') &&
+    role === 'USER'
+  ) {
+    return { allowed: false, redirectUrl: '/organizer/apply' };
+  }
+
+  // Organizer operational routes: ONLY ORGANIZER
   if (pathname.startsWith('/dashboard/organizer')) {
     if (role === 'ORGANIZER') {
       return { allowed: true };
@@ -104,4 +113,3 @@ export function checkRouteAccess(
   // Accessible by all 3 roles: ADMIN, ORGANIZER, USER
   return { allowed: true };
 }
-

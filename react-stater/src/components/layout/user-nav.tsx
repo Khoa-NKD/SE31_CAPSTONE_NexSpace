@@ -93,10 +93,14 @@ export function UserNav() {
           {showApplicationStatus && (
             <DropdownMenuItem
               className='cursor-pointer flex items-center gap-2'
-              onClick={() => router.navigate({ to: '/organizer/status' })}
+              onClick={() =>
+                router.navigate({
+                  to: role === 'ORGANIZER' ? '/dashboard/organizer/application' : '/organizer/apply'
+                })
+              }
             >
               <ClipboardList className='w-4 h-4 text-muted-foreground' />
-              <span>Trạng thái hồ sơ Organizer</span>
+              <span>Quản lý hồ sơ Organizer</span>
             </DropdownMenuItem>
           )}
           <DropdownMenuItem

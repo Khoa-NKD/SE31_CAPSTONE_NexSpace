@@ -72,7 +72,11 @@ export default function AppSidebar() {
 
   return (
     <>
-      <Sidebar variant='inset' collapsible='icon' className='bg-[#090D16] text-slate-300 border-r border-[#1E293B]'>
+      <Sidebar
+        variant='inset'
+        collapsible='icon'
+        className='bg-[#090D16] text-slate-300 border-r border-[#1E293B]'
+      >
         <SidebarHeader className='bg-[#090D16] border-b border-[#1E293B]/60 pb-3'>
           <SidebarMenu>
             <SidebarMenuItem>
@@ -83,8 +87,8 @@ export default function AppSidebar() {
                     isOrganizer
                       ? 'NexSpace Organizer Hub'
                       : isAdmin
-                      ? 'Nex Space Admin Console'
-                      : 'NexSpace User Workspace'
+                        ? 'Nex Space Admin Console'
+                        : 'NexSpace User Workspace'
                   }
                 >
                   <div className='flex items-center gap-2'>
@@ -115,7 +119,9 @@ export default function AppSidebar() {
                 title='System Incident Report'
               >
                 <Icons.warning className='size-3.5 text-amber-400 shrink-0' />
-                <span className='truncate group-data-[collapsible=icon]:hidden'>System Incident Report</span>
+                <span className='truncate group-data-[collapsible=icon]:hidden'>
+                  System Incident Report
+                </span>
               </button>
             </div>
           )}
@@ -144,7 +150,9 @@ export default function AppSidebar() {
                               className='group/collapsible hover:bg-[#1E293B] text-slate-300 hover:text-white'
                             >
                               {item.icon && <Icon className='size-4 shrink-0' />}
-                              <span className='group-data-[collapsible=icon]:hidden'>{item.title}</span>
+                              <span className='group-data-[collapsible=icon]:hidden'>
+                                {item.title}
+                              </span>
                               <Icons.chevronRight className='ml-auto size-3.5 transition-transform duration-200 group-data-[state=open]/collapsible:rotate-90 group-data-[collapsible=icon]:hidden' />
                             </SidebarMenuButton>
                           </CollapsibleTrigger>
@@ -152,7 +160,11 @@ export default function AppSidebar() {
                             <SidebarMenuSub className='border-[#1E293B]'>
                               {item.items?.map((subItem) => (
                                 <SidebarMenuSubItem key={subItem.title}>
-                                  <SidebarMenuSubButton asChild isActive={pathname === subItem.url} className='hover:bg-[#1E293B] text-slate-400 hover:text-white'>
+                                  <SidebarMenuSubButton
+                                    asChild
+                                    isActive={pathname === subItem.url}
+                                    className='hover:bg-[#1E293B] text-slate-400 hover:text-white'
+                                  >
                                     <Link to={subItem.url} aria-label={subItem.title}>
                                       <span>{subItem.title}</span>
                                     </Link>
@@ -176,7 +188,9 @@ export default function AppSidebar() {
                           aria-disabled='true'
                         >
                           {item.icon && <Icon className='size-4 shrink-0 text-slate-400' />}
-                          <span className='truncate flex-1 group-data-[collapsible=icon]:hidden'>{item.title}</span>
+                          <span className='truncate flex-1 group-data-[collapsible=icon]:hidden'>
+                            {item.title}
+                          </span>
                           {item.label === '20' ? (
                             <span className='ml-auto px-1.5 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 rounded border border-amber-500/30 group-data-[collapsible=icon]:hidden'>
                               20
@@ -201,7 +215,9 @@ export default function AppSidebar() {
                       >
                         <Link to={item.url} aria-label={item.title}>
                           {item.icon && <Icon className='size-4 shrink-0' />}
-                          <span className='truncate group-data-[collapsible=icon]:hidden'>{item.title}</span>
+                          <span className='truncate group-data-[collapsible=icon]:hidden'>
+                            {item.title}
+                          </span>
                         </Link>
                       </SidebarMenuButton>
                     </SidebarMenuItem>
@@ -244,7 +260,9 @@ export default function AppSidebar() {
                       </div>
                       <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
                         <span className='truncate font-semibold text-white'>Marcus Vance</span>
-                        <span className='text-slate-400 truncate text-[10px]'>CPTO • Super Admin</span>
+                        <span className='text-slate-400 truncate text-[10px]'>
+                          CPTO • Super Admin
+                        </span>
                       </div>
                       <Icons.chevronsDown className='ml-auto size-3.5 text-slate-400 group-data-[collapsible=icon]:hidden' />
                     </SidebarMenuButton>
@@ -300,7 +318,8 @@ export default function AppSidebar() {
 
           <div className='space-y-2 text-xs bg-muted/40 p-3 rounded-lg border border-border text-foreground'>
             <p>
-              In production, this triggers an automated PagerDuty alert to the Platform Security &amp; Infrastructure team.
+              In production, this triggers an automated PagerDuty alert to the Platform Security
+              &amp; Infrastructure team.
             </p>
             <p className='text-muted-foreground text-[11px]'>
               Severity level: P1 / High • Automated logs attachment enabled.

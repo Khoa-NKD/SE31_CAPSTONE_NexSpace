@@ -1,3 +1,4 @@
+import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQueryClient } from '@tanstack/react-query';
@@ -7,10 +8,11 @@ import { currentUser } from '@/features/auth/api/session';
 import type { SessionUser } from '@/features/auth/api/session';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { VerificationDocumentsView } from '@/features/organizer-verification-documents/components/verification-documents-view';
+import { DraftVerificationDocuments } from '@/features/organizer-verification-documents/components/draft-verification-documents';
 import { verificationDocumentKeys } from '@/features/organizer-verification-documents/api/documents';
 import {
-  BUSINESS_TYPES,
   applicationDraftSchema,
+  registrationReasonSubmissionSchema,
   currentApplication,
   startApplicationDraft,
   saveApplicationDraft,
@@ -19,6 +21,14 @@ import {
 import type { ApplicationInput, ApplicationDetails } from '../api/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Building2, ClipboardCheck, Files, RefreshCw } from 'lucide-react';
+import {
+  applicationStatusPresentation,
+  applicationTimestamp
+} from '@/features/organizer-application-status/api/status';
+import { useBusinessTypes } from '../hooks/use-business-types';
+import { useApplicationNotice } from '../hooks/use-application-notice';
 import {
   ownerLifecycle,
   correctionSchema,
@@ -28,6 +38,7 @@ import {
   type LifecycleContext
 } from '@/features/organizer-lifecycle/api/lifecycle';
 import { CorrectionDocuments } from '@/features/organizer-lifecycle/components/correction-documents';
+import { OwnerLifecycleStatus } from '@/features/organizer-lifecycle/components/owner-lifecycle-status';
 import {
   Dialog,
   DialogContent,
@@ -53,7 +64,8 @@ function formValues(details: ApplicationDetails | null, email = ''): Application
     representativeName: details?.representativeName ?? '',
     address: details?.address ?? '',
     contactPhone: details?.contactPhone ?? '',
-    contactEmail: details?.contactEmail ?? email
+    contactEmail: details?.contactEmail ?? email,
+    registrationReason: details?.registrationReason ?? ''
   };
 }
 
@@ -70,6 +82,8 @@ export function ApplicationForm() {
 }
 
 function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
+  const tr = useOrganizerTranslation();
+  const businessTypes = useBusinessTypes();
   const [user, setUser] = useState<SessionUser | null>(null);
   const [details, setDetails] = useState<ApplicationDetails | null>(null);
   const [checking, setChecking] = useState(true);
@@ -78,6 +92,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const [feedback, setFeedback] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  useApplicationNotice(feedback, error, busy);
   const [lifecycle, setLifecycle] = useState<LifecycleContext | null>(null);
   const [confirmResubmit, setConfirmResubmit] = useState(false);
   const operation = useRef(false);
@@ -93,7 +108,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         setUser(account);
         const application = await currentApplication(controller.signal);
         const permissions =
-          application && ['REJECTED', 'REVISION_REQUESTED'].includes(application.status)
+          application && application.status === 'REVISION_REQUESTED'
             ? await ownerLifecycle(controller.signal)
             : null;
         if (controller.signal.aborted) return;
@@ -133,14 +148,17 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
     setFeedback('');
     form.clearErrors();
     try {
+      let successMessage: string;
       if (action === 'start') {
         const draft = await startApplicationDraft();
         setDetails(draft);
         form.reset(formValues(draft, user?.email));
-        setFeedback('Draft created. Save your details and upload your business license below.');
+        successMessage = 'Draft created. Save your details and upload your business license below.';
       } else {
+        if (!businessTypes.options.length)
+          throw new Error('Load the business type catalog before saving or submitting.');
         // Both actions persist the visible snapshot; only explicit submission changes status.
-        const correcting = details && ['REJECTED', 'REVISION_REQUESTED'].includes(details.status);
+        const correcting = details && details.status === 'REVISION_REQUESTED';
         const parsed = (correcting ? correctionSchema : applicationDraftSchema).safeParse(
           form.getValues()
         );
@@ -149,6 +167,16 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             form.setError(issue.path[0] as keyof ApplicationInput, { message: issue.message });
           setError('Correct the highlighted fields before saving or submitting.');
           return;
+        }
+        if (action === 'submit') {
+          const reason = registrationReasonSubmissionSchema.safeParse(
+            parsed.data.registrationReason
+          );
+          if (!reason.success) {
+            form.setError('registrationReason', { message: reason.error.issues[0].message });
+            setError('Enter your registration reason before submitting.');
+            return;
+          }
         }
         let revision = lifecycle?.revision;
         if (correcting) {
@@ -168,15 +196,12 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           const receipt = correcting ? await resubmit(revision!) : await submitApplicationDraft();
           setDetails({ ...saved, ...receipt });
           setConfirmResubmit(false);
-          setFeedback(
-            'Application submitted. Your account permissions change only after approval.'
-          );
+          successMessage =
+            'Application submitted. Your account permissions change only after approval.';
         } else
-          setFeedback(
-            correcting
-              ? 'Corrections saved. The application has not been resubmitted.'
-              : 'Draft saved. You can return later; it has not been submitted for review.'
-          );
+          successMessage = correcting
+            ? 'Corrections saved. The application has not been resubmitted.'
+            : 'Draft saved. You can return later; it has not been submitted for review.';
       }
       if (user)
         await queryClient.invalidateQueries({
@@ -184,11 +209,17 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           exact: true
         });
       await invalidateLifecycle(queryClient);
+      // Publish success together with the final busy-state update after all refreshes finish.
+      setFeedback(successMessage);
     } catch (failure) {
       if (failure instanceof ApiError) {
         for (const [path, message] of Object.entries(failure.validationErrors ?? {})) {
           const field = path.replace(/^application\./, '');
-          if (field === 'businessType' || fields.some(([name]) => name === field))
+          if (
+            field === 'businessType' ||
+            field === 'registrationReason' ||
+            fields.some(([name]) => name === field)
+          )
             form.setError(field as keyof ApplicationInput, { message });
         }
         if ([401, 403].includes(failure.status)) setAccessError(failure.message);
@@ -216,20 +247,20 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
     }
   };
 
-  if (checking) return <p role='status'>Loading your application…</p>;
+  if (checking) return <p role='status'>{tr('Loading your application…')}</p>;
   if (loadError)
     return (
       <div role='alert' className='space-y-3'>
-        <p>{loadError}</p>
-        <Button onClick={onRetry}>Try again</Button>
+        <p>{tr(loadError)}</p>
+        <Button onClick={onRetry}>{tr('Try again')}</Button>
       </div>
     );
   if (accessError || !user)
     return (
       <div role='alert' className='space-y-3'>
-        <p>{accessError || 'Please sign in to apply.'}</p>
+        <p>{accessError || tr('Please sign in to apply.')}</p>
         <Link to='/auth/sign-in' className='text-primary underline'>
-          Sign in
+          {tr('Sign in')}{' '}
         </Link>
       </div>
     );
@@ -240,68 +271,189 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   )
     return (
       <p role='alert'>
-        An active, email-verified Customer or Organizer account is required to apply.
+        {tr('An active, email-verified Customer or Organizer account is required to apply.')}{' '}
       </p>
     );
 
-  const correcting = !!details && ['REJECTED', 'REVISION_REQUESTED'].includes(details.status);
+  const correcting = !!details && details.status === 'REVISION_REQUESTED';
   const editable = details?.status === 'DRAFT' || (correcting && !!lifecycle?.canCorrect);
+  const refreshStatus = async () => {
+    if (operation.current) return;
+    operation.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const updated = await currentApplication();
+      const permissions =
+        updated && updated.status === 'REVISION_REQUESTED' ? await ownerLifecycle() : null;
+      setDetails(updated);
+      setLifecycle(permissions);
+      // Preserve unsaved form values when checking a new review outcome.
+      await invalidateLifecycle(queryClient);
+    } catch (failure) {
+      setError(
+        failure instanceof Error ? failure.message : 'Could not refresh application status.'
+      );
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
+  };
   return (
-    <div className='space-y-6'>
-      <p className='text-sm text-muted-foreground'>Signed in as {user.email}.</p>
+    <div className='space-y-6 [&_input]:rounded-md [&_input]:bg-background [&_input]:shadow-none [&_select]:rounded-md [&_textarea]:rounded-md'>
       {details ? (
-        <p role='status'>
-          Application #{details.id} · {details.status}
-        </p>
+        <section
+          aria-label='Application status and review feedback'
+          className='rounded-lg border bg-card p-5 shadow-sm sm:p-7'
+        >
+          <div className='flex flex-wrap items-start justify-between gap-4'>
+            <div className='flex items-center gap-3'>
+              <span className='flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary'>
+                <ClipboardCheck className='size-5' aria-hidden='true' />
+              </span>
+              <div>
+                <h2 className='text-lg font-semibold'>{tr('Application progress')}</h2>
+                <p className='text-xs text-muted-foreground'>
+                  {tr('Application #')}
+                  {details.id}
+                </p>
+              </div>
+            </div>
+            <Badge
+              variant={details.status === 'REJECTED' ? 'destructive' : 'secondary'}
+              className='rounded-md px-3 py-1'
+            >
+              {tr(applicationStatusPresentation(details.status).label)}
+            </Badge>
+          </div>
+          <p role='status' className='mt-4 text-sm leading-6 text-muted-foreground'>
+            {tr(applicationStatusPresentation(details.status).description)}
+          </p>
+          <div className='mt-5 grid gap-4 border-t pt-5 text-sm sm:grid-cols-2'>
+            <div>
+              <p className='text-xs text-muted-foreground'>{tr('Submitted at')}</p>
+              <p className='mt-1 font-medium'>
+                {details.submittedAt
+                  ? applicationTimestamp(details.submittedAt)
+                  : tr('Not submitted yet')}
+              </p>
+            </div>
+            <div>
+              <p className='text-xs text-muted-foreground'>{tr('Reviewed at')}</p>
+              <p className='mt-1 font-medium'>
+                {details.reviewedAt
+                  ? applicationTimestamp(details.reviewedAt)
+                  : tr('Awaiting review')}
+              </p>
+            </div>
+          </div>
+          {(correcting || details.status === 'REJECTED') && (
+            <div className='mt-5 rounded-md border border-amber-500/20 bg-amber-500/5 p-4'>
+              <h3 className='text-sm font-semibold'>{tr('Review feedback')}</h3>
+              <p className='mt-2 whitespace-pre-wrap break-words text-sm'>
+                {details.reviewFeedback || tr('No feedback recorded.')}
+              </p>
+              <p className='mt-2 text-xs text-muted-foreground'>
+                {tr(
+                  correcting
+                    ? 'Update your details and documents below, then resubmit for review.'
+                    : 'This application was rejected. Editing and resubmission are unavailable.'
+                )}{' '}
+              </p>
+            </div>
+          )}
+          {details.status === 'APPROVED' && (
+            <div className='mt-5'>
+              <OwnerLifecycleStatus actorId={user.id} />
+            </div>
+          )}
+          <Button
+            type='button'
+            variant='outline'
+            className='mt-5 rounded-md'
+            disabled={busy}
+            onClick={() => void refreshStatus()}
+          >
+            <RefreshCw className={`size-4 ${busy ? 'animate-spin' : ''}`} aria-hidden='true' />{' '}
+            {tr('Refresh status')}{' '}
+          </Button>
+        </section>
       ) : (
-        <>
+        <section className='space-y-4 rounded-lg border bg-card p-6 shadow-sm'>
           <p>
-            Start a draft, save your business details and upload a business license. Submit only
-            when ready for review.
+            {tr(
+              'Start a draft, save your business details and upload a business license. Submit only when ready for review.'
+            )}{' '}
           </p>
           <Button disabled={busy} onClick={() => void run('start')}>
-            {busy ? 'Starting…' : 'Start draft application'}
+            {busy ? tr('Starting…') : tr('Start draft application')}
           </Button>
-        </>
+        </section>
       )}
       {details && (
         <>
-          {correcting && (
-            <p className='whitespace-pre-wrap break-words'>
-              Review feedback: {details.reviewFeedback || 'No feedback recorded.'} Save corrections
-              and replace documents as needed, then explicitly resubmit.
-            </p>
-          )}
           <form
+            id='organizer-application-form'
             noValidate
-            className='space-y-5'
+            className='space-y-6 rounded-lg border bg-card p-5 shadow-sm sm:p-7'
             onSubmit={(event) => {
               event.preventDefault();
               if (editable) void run('save');
             }}
           >
+            <div className='flex items-center gap-3 border-b pb-5'>
+              <span className='flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary'>
+                <Building2 className='size-5' aria-hidden='true' />
+              </span>
+              <div>
+                <h2 className='text-lg font-semibold'>{tr('Business details')}</h2>
+                <p className='break-all text-xs text-muted-foreground'>
+                  {tr('Signed in as')} {user.email}
+                </p>
+              </div>
+            </div>
             <fieldset
               disabled={!editable || busy}
               className='grid gap-5 sm:grid-cols-2 disabled:opacity-70'
             >
-              <legend className='sr-only'>Business application</legend>
+              <legend className='sr-only'>{tr('Business application')}</legend>
               <div className='space-y-2 sm:col-span-2'>
                 <label htmlFor='businessType' className='text-sm font-medium'>
-                  Business type
+                  {businessTypes.language === 'vi' ? 'Loại hình kinh doanh' : tr('Business type')}
                 </label>
                 <select
                   id='businessType'
                   {...form.register('businessType')}
+                  disabled={!businessTypes.options.length}
                   className='h-10 w-full rounded-md border border-input bg-background px-3'
                 >
-                  {BUSINESS_TYPES.map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
+                  {!businessTypes.options.length && (
+                    <option value={form.getValues('businessType')}>
+                      {businessTypes.query.isError
+                        ? tr('Could not load business types')
+                        : tr('Loading business types…')}
+                    </option>
+                  )}
+                  {businessTypes.options.map((option) => (
+                    <option key={option.code} value={option.code}>
+                      {businessTypes.label(option.code)}
                     </option>
                   ))}
                 </select>
+                {businessTypes.query.isError && (
+                  <div role='alert' className='space-y-2'>
+                    <p>{tr(businessTypes.query.error.message)}</p>
+                    <Button
+                      type='button'
+                      variant='outline'
+                      onClick={() => void businessTypes.query.refetch()}
+                    >
+                      {tr('Reload business types')}{' '}
+                    </Button>
+                  </div>
+                )}
                 {form.formState.errors.businessType && (
-                  <p role='alert'>{form.formState.errors.businessType.message}</p>
+                  <p role='alert'>{tr(form.formState.errors.businessType.message)}</p>
                 )}
               </div>
               {fields.map(([name, label, maxLength]) => (
@@ -310,7 +462,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   className={`space-y-2 ${name === 'address' ? 'sm:col-span-2' : ''}`}
                 >
                   <label htmlFor={name} className='text-sm font-medium'>
-                    {label}
+                    {tr(label)}
                   </label>
                   <Input
                     id={name}
@@ -324,67 +476,126 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   />
                   {form.formState.errors[name] && (
                     <p id={`${name}-error`} role='alert' className='text-sm text-red-600'>
-                      {form.formState.errors[name]?.message}
+                      {tr(form.formState.errors[name]?.message)}
                     </p>
                   )}
                 </div>
               ))}
-            </fieldset>
-            {editable && (
-              <div className='flex flex-wrap gap-3'>
-                <Button type='submit' disabled={busy}>
-                  {busy ? 'Saving…' : correcting ? 'Save corrections' : 'Save draft'}
-                </Button>
-                <Button
-                  type='button'
-                  disabled={busy}
-                  onClick={() => (correcting ? setConfirmResubmit(true) : void run('submit'))}
-                >
-                  {correcting ? 'Resubmit for review' : 'Submit for review'}
-                </Button>
+              <div className='space-y-2 sm:col-span-2'>
+                <label htmlFor='registrationReason' className='text-sm font-medium'>
+                  {tr('Registration reason')}{' '}
+                </label>
+                <textarea
+                  id='registrationReason'
+                  maxLength={2000}
+                  rows={5}
+                  {...form.register('registrationReason')}
+                  aria-invalid={!!form.formState.errors.registrationReason}
+                  aria-describedby={
+                    form.formState.errors.registrationReason
+                      ? 'registrationReason-help registrationReason-error'
+                      : 'registrationReason-help'
+                  }
+                  className='w-full rounded-md border border-input bg-background p-3 text-sm'
+                />
+                <p id='registrationReason-help' className='text-sm text-muted-foreground'>
+                  {tr(
+                    'Explain why you want to become an Organizer. Optional while saving; required when submitting or resubmitting. Maximum 2,000 characters.'
+                  )}{' '}
+                </p>
+                {form.formState.errors.registrationReason && (
+                  <p id='registrationReason-error' role='alert' className='text-sm text-red-600'>
+                    {tr(form.formState.errors.registrationReason.message)}
+                  </p>
+                )}
               </div>
-            )}
+            </fieldset>
             {editable && (
               <p className='text-sm text-muted-foreground'>
                 {correcting
-                  ? 'Review all corrections before resubmitting.'
-                  : 'Drafts may be incomplete.'}{' '}
-                All business fields and a current business license are required for submission.
-                Uploading does not submit the application.
+                  ? tr('Review all corrections before resubmitting.')
+                  : tr('Drafts may be incomplete.')}{' '}
+                {tr(
+                  'All business fields and a current business license are required for submission. Uploading does not submit the application.'
+                )}{' '}
               </p>
             )}
           </form>
           {!editable && (
             <p>
-              This application is read-only here. Corrections are available only when requested or
-              rejected. Pending and approved applications cannot be edited here.
+              {tr(
+                'This application is read-only. Only applications with requested changes can be corrected. Rejected applications cannot be edited or resubmitted.'
+              )}{' '}
             </p>
           )}
         </>
       )}
-      {feedback && (
-        <p role='status' className='text-sm text-emerald-700'>
-          {feedback}
-        </p>
+
+      {details && (
+        <section aria-label={tr('Verification documents')} className='space-y-4'>
+          <div className='flex items-center gap-3 px-1'>
+            <Files className='size-5 text-primary' aria-hidden='true' />
+            <div>
+              <h2 className='text-lg font-semibold'>{tr('Verification documents')}</h2>
+              <p className='text-sm text-muted-foreground'>
+                {tr(
+                  'Upload and review your files here. A current business license is required to submit.'
+                )}{' '}
+              </p>
+            </div>
+          </div>
+          {details.status === 'DRAFT' ? (
+            <DraftVerificationDocuments
+              actorId={user.id}
+              disabled={busy}
+              onBusyChange={(value) => {
+                operation.current = value;
+                setBusy(value);
+              }}
+            />
+          ) : correcting && lifecycle ? (
+            <CorrectionDocuments
+              actorId={user.id}
+              context={lifecycle}
+              disabled={busy}
+              onUpdated={setLifecycle}
+              onBusyChange={(value) => {
+                operation.current = value;
+                setBusy(value);
+              }}
+            />
+          ) : (
+            details && <VerificationDocumentsView />
+          )}
+        </section>
       )}
-      {error && (
-        <p role='alert' className='text-sm text-red-600'>
-          {error}
-        </p>
-      )}
-      {correcting && lifecycle ? (
-        <CorrectionDocuments
-          actorId={user.id}
-          context={lifecycle}
-          disabled={busy}
-          onUpdated={setLifecycle}
-          onBusyChange={(value) => {
-            operation.current = value;
-            setBusy(value);
-          }}
-        />
-      ) : (
-        details && <VerificationDocumentsView />
+      {editable && (
+        <div className='flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-5 shadow-sm'>
+          <p className='max-w-md text-sm text-muted-foreground'>
+            {tr(
+              'Save your progress at any time. Submit only when your details and documents are ready.'
+            )}{' '}
+          </p>
+          <div className='flex flex-wrap gap-3'>
+            <Button
+              type='submit'
+              form='organizer-application-form'
+              variant='outline'
+              className='rounded-md'
+              disabled={busy || !businessTypes.options.length}
+            >
+              {busy ? tr('Saving…') : correcting ? tr('Save corrections') : tr('Save draft')}
+            </Button>
+            <Button
+              type='button'
+              className='rounded-md bg-primary text-primary-foreground hover:bg-primary/90'
+              disabled={busy || !businessTypes.options.length}
+              onClick={() => (correcting ? setConfirmResubmit(true) : void run('submit'))}
+            >
+              {correcting ? tr('Resubmit for review') : tr('Submit for review')}
+            </Button>
+          </div>
+        </div>
       )}
       <Dialog
         open={confirmResubmit}
@@ -394,21 +605,21 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Resubmit your application?</DialogTitle>
+            <DialogTitle>{tr('Resubmit your application?')}</DialogTitle>
             <DialogDescription>
-              The visible business details will be saved and the current documents sent for review.
-              Editing and uploads will be locked until a review outcome permits corrections.
+              {tr(
+                'The visible business details will be saved and the current documents sent for review. Editing and uploads will be locked until a review outcome permits corrections.'
+              )}{' '}
             </DialogDescription>
           </DialogHeader>
           <div className='flex justify-end gap-3'>
             <Button variant='outline' disabled={busy} onClick={() => setConfirmResubmit(false)}>
-              Cancel
+              {tr('Cancel')}{' '}
             </Button>
             <Button disabled={busy} onClick={() => void run('submit')}>
-              {busy ? 'Submitting…' : 'Confirm resubmission'}
+              {busy ? tr('Submitting…') : tr('Confirm resubmission')}
             </Button>
           </div>
-          {error && <p role='alert'>{error}</p>}
         </DialogContent>
       </Dialog>
     </div>

@@ -25,7 +25,7 @@ export const APPLICATION_STATUS = {
   REJECTED: {
     label: 'Rejected',
     description:
-      'Your organizer application was rejected. Read the available review feedback below.'
+      'Your application was rejected. This is a final decision; editing and resubmission are unavailable.'
   }
 } as const satisfies Record<ApplicationStatus, { label: string; description: string }>;
 

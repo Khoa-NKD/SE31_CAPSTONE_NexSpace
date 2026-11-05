@@ -6,7 +6,7 @@ import { Link } from '@tanstack/react-router';
 import { ApiError } from '@/lib/api-client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
-import { BUSINESS_TYPES } from '@/features/organizer-application/api/application';
+import { useBusinessTypes } from '@/features/organizer-application/hooks/use-business-types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -67,6 +67,7 @@ function BusinessContactForm({
   profile: OrganizerBusinessProfile;
   actorId: number;
 }) {
+  const businessTypes = useBusinessTypes();
   const queryClient = useQueryClient();
   const mutation = useMutation(businessProfileMutationOptions(queryClient, actorId));
   const submitting = useRef(false);
@@ -77,11 +78,7 @@ function BusinessContactForm({
   });
   const legalFields = [
     ['legalName', 'Legal business name', profile.legalName],
-    [
-      'businessType',
-      'Business type',
-      BUSINESS_TYPES.find(([type]) => type === profile.businessType)?.[1] ?? profile.businessType
-    ],
+    ['businessType', 'Business type', businessTypes.label(profile.businessType)],
     ['taxId', 'Tax ID', profile.taxId],
     ['representativeName', 'Legal representative', profile.representativeName]
   ] as const;

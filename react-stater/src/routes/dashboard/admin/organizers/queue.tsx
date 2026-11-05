@@ -20,7 +20,7 @@ function AdminOrganizerApplicationsPage() {
   const navigate = Route.useNavigate();
   return (
     <PageContainer
-      pageTitle='Organizer applications'
+      pageTitle='Organizer Applications'
       pageDescription='Submitted applications and current review outcomes.'
     >
       <ApplicationsListView

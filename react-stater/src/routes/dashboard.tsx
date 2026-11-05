@@ -10,7 +10,6 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { checkRouteAccess } from '@/features/auth/utils/role-guard';
 import { toast } from 'sonner';
 import { ShieldAlert, Loader2 } from 'lucide-react';
-import { OrganizerOperationalBoundary } from '@/features/organizer-lifecycle/components/organizer-operational-boundary';
 
 const emptySubscribe = () => () => {};
 
@@ -90,9 +89,7 @@ function DashboardLayout() {
         <SidebarInset id='main-content' tabIndex={-1}>
           <Header />
           <InfobarProvider defaultOpen={false}>
-            <OrganizerOperationalBoundary>
-              <Outlet />
-            </OrganizerOperationalBoundary>
+            <Outlet />
             <InfoSidebar side='right' />
           </InfobarProvider>
         </SidebarInset>

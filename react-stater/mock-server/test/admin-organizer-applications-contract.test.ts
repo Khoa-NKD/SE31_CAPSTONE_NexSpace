@@ -40,13 +40,14 @@ afterEach(() => {
   for (const value of clients.splice(0)) value.clear();
 });
 
-test('defaults to a real pending queue with canonical one-based pagination and whitelisted URL parameters', () => {
+test('defaults to all submitted applications with one-based pagination and whitelisted URL parameters', () => {
   const filters = adminApplicationSearchSchema.parse({ appId: 'old-prototype-id' });
   const url = new URL(adminApplicationEndpoint(filters), 'http://fixture.test');
   assert.equal(url.pathname, '/admin/organizer-applications');
   assert.equal(url.searchParams.get('page'), '1');
   assert.equal(url.searchParams.get('size'), '20');
-  assert.equal(url.searchParams.get('status'), 'PENDING_REVIEW');
+  assert.equal(filters.status, 'all');
+  assert.equal(url.searchParams.has('status'), false);
   assert.equal(url.searchParams.get('sortBy'), 'submittedAt');
   assert.equal(url.searchParams.has('appId'), false);
   assert.equal(url.searchParams.has('userId'), false);
@@ -85,7 +86,7 @@ test('normalizes malformed URL filters without permitting arbitrary sort fields 
   assert.equal(invalid.size, 20);
   assert.equal(invalid.sortBy, 'submittedAt');
   assert.equal(invalid.sortDir, 'desc');
-  assert.equal(invalid.status, 'PENDING_REVIEW');
+  assert.equal(invalid.status, 'all');
   assert.equal(invalid.search, '');
 });
 

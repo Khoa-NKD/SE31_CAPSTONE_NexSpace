@@ -5,11 +5,16 @@ import { validApplicationId } from './application-details.ts';
 export function documentContentEndpoint(
   applicationId: string,
   documentId: string,
-  download = false
+  download = false,
+  audience: 'admin' | 'owner' = 'admin'
 ) {
   if (!validApplicationId(applicationId) || !validApplicationId(documentId))
     throw new ApiError(400, 'Bad Request', { message: 'Invalid application or document ID.' });
-  return `/admin/organizer-applications/${applicationId}/documents/${documentId}/content${download ? '?download=true' : ''}`;
+  const path =
+    audience === 'owner'
+      ? `/organizer/documents/${documentId}/content`
+      : `/admin/organizer-applications/${applicationId}/documents/${documentId}/content`;
+  return `${path}${download ? '?download=true' : ''}`;
 }
 
 export function safeDocumentFilename(name: string, mime: string): string {
@@ -35,14 +40,22 @@ export async function fetchDocumentContent(
   applicationId: string,
   documentId: string,
   signal?: AbortSignal,
-  download = false
+  download = false,
+  audience: 'admin' | 'owner' = 'admin'
 ): Promise<Blob> {
-  const endpoint = documentContentEndpoint(applicationId, documentId, download);
+  const endpoint = documentContentEndpoint(applicationId, documentId, download, audience);
   const session = useAuthStore.getState();
   const token = typeof window !== 'undefined' ? session.accessToken : null;
-  if (!token || session.user?.role !== 'ADMIN')
+  const allowed =
+    audience === 'admin'
+      ? session.user?.role === 'ADMIN'
+      : ['USER', 'ORGANIZER'].includes(session.user?.role ?? '');
+  if (!token || !allowed)
     throw new ApiError(token ? 403 : 401, 'Unauthorized', {
-      message: 'Administrator sign-in is required.'
+      message:
+        audience === 'admin'
+          ? 'Administrator sign-in is required.'
+          : 'Applicant sign-in is required.'
     });
   const response = await fetch(`${import.meta.env?.VITE_BACKEND_API_URL || '/api'}${endpoint}`, {
     method: 'GET',

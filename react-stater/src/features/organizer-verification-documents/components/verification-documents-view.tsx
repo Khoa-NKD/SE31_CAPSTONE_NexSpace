@@ -1,3 +1,5 @@
+import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
+import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -15,10 +17,14 @@ import {
   verificationDocumentsQueryOptions
 } from '../api/documents';
 import type { UploadDocumentType, VerificationDocuments } from '../api/documents';
+import { OwnerDocumentActions } from './owner-document-actions';
+import { DraftVerificationDocuments } from './draft-verification-documents';
 
 const emptySubscribe = () => () => {};
 
 export function VerificationDocumentsView() {
+  const tr = useOrganizerTranslation();
+  const [editingBusy, setEditingBusy] = useState(false);
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -33,28 +39,36 @@ export function VerificationDocumentsView() {
     enabled: mounted && allowed
   });
 
-  if (!mounted) return <p role='status'>Loading verification documents…</p>;
+  if (!mounted) return <p role='status'>{tr('Loading verification documents…')}</p>;
   if (!allowed)
     return (
       <div className='space-y-3' role='alert'>
-        <p>Sign in with the Customer or Organizer account that owns the application.</p>
+        <p>{tr('Sign in with the Customer or Organizer account that owns the application.')}</p>
         <Link to='/auth/sign-in' className='text-primary underline'>
-          Sign in
+          {tr('Sign in')}{' '}
         </Link>
       </div>
     );
-  if (query.isPending) return <p role='status'>Loading verification documents…</p>;
+  if (query.isPending) return <p role='status'>{tr('Loading verification documents…')}</p>;
   if (query.isError) {
     const status = query.error instanceof ApiError ? query.error.status : undefined;
     return (
       <div className='space-y-3' role='alert'>
-        <p>{query.error.message || 'Could not load verification documents.'}</p>
+        <p>{query.error.message || tr('Could not load verification documents.')}</p>
         {status !== 403 && status !== 404 ? (
-          <Button onClick={() => void query.refetch()}>Try again</Button>
+          <Button onClick={() => void query.refetch()}>{tr('Try again')}</Button>
         ) : null}
       </div>
     );
   }
+  if (query.data.uploadAllowed)
+    return (
+      <DraftVerificationDocuments
+        actorId={actorId}
+        disabled={editingBusy}
+        onBusyChange={setEditingBusy}
+      />
+    );
   return (
     <DocumentsPanel
       key={`${actorId}:${query.data.profileId}`}
@@ -65,12 +79,18 @@ export function VerificationDocumentsView() {
 }
 
 function DocumentsPanel({ actorId, data }: { actorId: number; data: VerificationDocuments }) {
+  const tr = useOrganizerTranslation();
   const queryClient = useQueryClient();
   const mutation = useMutation(verificationDocumentMutationOptions(queryClient, actorId));
   const [selectedType, setSelectedType] = useState<UploadDocumentType | ''>('');
   const [file, setFile] = useState<File | null>(null);
   const [fileError, setFileError] = useState('');
   const [feedback, setFeedback] = useState<{ error: boolean; message: string } | null>(null);
+  useApplicationNotice(
+    feedback && !feedback.error ? feedback.message : '',
+    feedback?.error ? feedback.message : '',
+    mutation.isPending
+  );
   const submitting = useRef(false);
   const fileInput = useRef<HTMLInputElement>(null);
   const availableTypes = data.supportedDocumentTypes.filter(
@@ -121,22 +141,25 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
     <div className='space-y-6'>
       <Card>
         <CardHeader>
-          <CardTitle>Upload verification document</CardTitle>
+          <CardTitle>{tr('Upload verification document')}</CardTitle>
         </CardHeader>
         <CardContent className='space-y-4'>
           <p className='text-sm text-muted-foreground'>
-            Documents belong to your Organizer profile. Ownership or operating evidence uses Other
-            and is not linked to an individual workspace.
+            {tr(
+              'Documents belong to your Organizer profile. Ownership or operating evidence uses Other and is not linked to an individual workspace.'
+            )}{' '}
           </p>
           {!data.uploadAllowed ? (
             <p role='status'>
-              Upload is only available for DRAFT or REVISION_REQUESTED profiles. Current documents
-              are shown below.
+              {tr(
+                'Upload is only available for DRAFT or REVISION_REQUESTED profiles. Current documents are shown below.'
+              )}{' '}
             </p>
           ) : !availableTypes.length ? (
             <p role='status'>
-              A current document already exists for every supported type. Replacement is not
-              available here.
+              {tr(
+                'A current document already exists for every supported type. Replacement is not available here.'
+              )}{' '}
             </p>
           ) : null}
           {canUpload ? (
@@ -152,10 +175,10 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
                 disabled={mutation.isPending}
                 className='min-w-0 space-y-4 disabled:opacity-70'
               >
-                <legend className='sr-only'>New verification document</legend>
+                <legend className='sr-only'>{tr('New verification document')}</legend>
                 <div className='space-y-2'>
                   <label htmlFor='verification-document-type' className='text-sm font-medium'>
-                    Document type
+                    {tr('Document type')}{' '}
                   </label>
                   <select
                     id='verification-document-type'
@@ -165,14 +188,14 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
                   >
                     {availableTypes.map((type) => (
                       <option key={type} value={type}>
-                        {DOCUMENT_LABELS[type]}
+                        {tr(DOCUMENT_LABELS[type])}
                       </option>
                     ))}
                   </select>
                 </div>
                 <div className='space-y-2'>
                   <label htmlFor='verification-file' className='text-sm font-medium'>
-                    Verification file
+                    {tr('Verification file')}{' '}
                   </label>
                   <Input
                     ref={fileInput}
@@ -194,56 +217,54 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
                     }}
                   />
                   <p id='verification-file-help' className='text-sm text-muted-foreground'>
-                    One JPG, PNG or PDF, nonempty and up to 5 MB. Verification files are stored
-                    privately.
+                    {tr(
+                      'One JPG, PNG or PDF, nonempty and up to 5 MB. Verification files are stored privately.'
+                    )}{' '}
                   </p>
                   <p
                     id='verification-file-error'
                     role={fileError ? 'alert' : undefined}
                     className='text-sm text-destructive'
                   >
-                    {fileError}
+                    {tr(fileError)}
                   </p>
                 </div>
               </fieldset>
               <Button type='submit' disabled={mutation.isPending}>
-                {mutation.isPending ? 'Uploading…' : 'Upload document'}
+                {mutation.isPending ? tr('Uploading…') : tr('Upload document')}
               </Button>
             </form>
-          ) : null}
-          {feedback ? (
-            <p
-              role={feedback.error ? 'alert' : 'status'}
-              className={
-                feedback.error ? 'text-destructive' : 'text-emerald-700 dark:text-emerald-400'
-              }
-            >
-              {feedback.message}
-            </p>
           ) : null}
         </CardContent>
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>Current verification documents</CardTitle>
+          <CardTitle>{tr('Current verification documents')}</CardTitle>
         </CardHeader>
         <CardContent>
           {!data.documents.length ? (
-            <p>No current documents have been uploaded.</p>
+            <p>{tr('No current documents have been uploaded.')}</p>
           ) : (
             <ul className='divide-y'>
               {data.documents.map((document) => (
                 <li key={document.id} className='space-y-1 py-4 first:pt-0 last:pb-0'>
+                  <OwnerDocumentActions profileId={data.profileId} document={document} />
                   <p className='font-medium'>
-                    {DOCUMENT_LABELS[document.documentType] ?? document.documentType}
+                    {tr(DOCUMENT_LABELS[document.documentType] ?? document.documentType)}
                   </p>
                   <p className='break-all text-sm'>{document.fileName}</p>
+                  {document.adminFeedback?.trim() && (
+                    <p className='whitespace-pre-wrap break-words text-sm'>
+                      {tr('Last document feedback:')} {document.adminFeedback}
+                    </p>
+                  )}
                   <p className='text-sm text-muted-foreground'>
-                    Document #{document.id} · {document.status}
+                    {tr('Document #')}
+                    {document.id} · {tr(document.status)}
                   </p>
                   {document.uploadedAt ? (
                     <p className='text-xs text-muted-foreground'>
-                      Uploaded:{' '}
+                      {tr('Uploaded:')}{' '}
                       <time dateTime={document.uploadedAt}>
                         {document.uploadedAt.replace('T', ' ')}
                       </time>

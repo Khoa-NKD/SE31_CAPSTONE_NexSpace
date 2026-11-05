@@ -66,7 +66,8 @@ test('upstream login and logout share the token used by organizer submission', a
       representativeName: 'Representative',
       address: 'Test address',
       contactPhone: '+84901234567',
-      contactEmail: 'contact@example.test'
+      contactEmail: 'contact@example.test',
+      registrationReason: 'Provide flexible desks for local businesses.'
     },
     new File(['%PDF-1.4'], 'license.pdf', { type: 'application/pdf' })
   );
@@ -134,7 +135,8 @@ test('multipart contains the agreed JSON part and real file bytes without client
       representativeName: 'Representative',
       address: 'Address',
       contactPhone: '+84901234567',
-      contactEmail: 'contact@example.com'
+      contactEmail: 'contact@example.com',
+      registrationReason: 'Provide flexible desks for local businesses.'
     },
     file
   );
@@ -267,7 +269,8 @@ const partialDraft = {
   representativeName: '',
   address: '',
   contactPhone: '',
-  contactEmail: ''
+  contactEmail: '',
+  registrationReason: ''
 };
 
 test('draft validation allows incomplete snapshots, trims values and rejects invalid supplied fields', () => {
