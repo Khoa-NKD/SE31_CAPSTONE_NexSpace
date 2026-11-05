@@ -157,7 +157,7 @@ export function StepOperatingHoursView() {
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/location' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => prev });
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -183,7 +183,7 @@ export function StepOperatingHoursView() {
       description: 'Proceeding to Amenities configuration.'
     });
 
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities', search: (prev) => prev });
   };
 
   return (

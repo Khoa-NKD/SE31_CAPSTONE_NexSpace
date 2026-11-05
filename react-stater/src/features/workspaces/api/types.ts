@@ -166,6 +166,12 @@ export interface WorkspacePaginationMeta {
 export interface WorkspaceListResponse {
   content: CanonicalWorkspace[];
   pagination: WorkspacePaginationMeta;
+  listObjects?: CanonicalWorkspace[];
+  totalElements?: number;
+  totalRecords?: number;
+  totalPages?: number;
+  page?: number;
+  size?: number;
 }
 
 export interface PublicWorkspaceSummary {

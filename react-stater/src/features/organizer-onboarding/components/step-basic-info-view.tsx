@@ -54,7 +54,7 @@ interface StepBasicInfoViewProps {
   routeWorkspaceId?: string;
 }
 
-export function StepBasicInfoView({ routeWorkspaceId }: StepBasicInfoViewProps = {}) {
+export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepBasicInfoViewProps = {}) {
   const router = useRouter();
   const basicInfo = useWizardStore((state) => state.basicInfo);
   const setBasicInfo = useWizardStore((state) => state.setBasicInfo);
@@ -62,33 +62,26 @@ export function StepBasicInfoView({ routeWorkspaceId }: StepBasicInfoViewProps =
     canonicalWorkspaceId,
     serverVersion,
     isSaving,
-    saveDraftToServer,
-    loadWorkspaceFromServer
+    saveDraftToServer
   } = useWizardDraftSync();
-
-  // Load workspace if route query param is provided
-  useEffect(() => {
-    if (routeWorkspaceId && routeWorkspaceId !== canonicalWorkspaceId) {
-      loadWorkspaceFromServer(routeWorkspaceId);
-    }
-  }, [routeWorkspaceId, canonicalWorkspaceId, loadWorkspaceFromServer]);
 
   // Form local state initialized from store and updated when store hydrates
   const [name, setName] = useState(basicInfo.name);
   const [category, setCategory] = useState<SpaceCategory>(basicInfo.category);
   const [description, setDescription] = useState(basicInfo.description);
-  const [totalArea, setTotalArea] = useState<string>(String(basicInfo.totalArea || 1250));
+  const [totalArea, setTotalArea] = useState<string>(basicInfo.totalArea ? String(basicInfo.totalArea) : '');
   const [contactPhone, setContactPhone] = useState(basicInfo.contactPhone);
   const [contactEmail, setContactEmail] = useState(basicInfo.contactEmail);
 
   useEffect(() => {
     // oxlint-disable-next-line react/set-state-in-effect
-    setName(basicInfo.name);
-    setCategory(basicInfo.category);
-    setDescription(basicInfo.description);
-    setTotalArea(String(basicInfo.totalArea || 1250));
-    setContactPhone(basicInfo.contactPhone);
-    setContactEmail(basicInfo.contactEmail);
+    setName((prev) => (prev !== basicInfo.name ? basicInfo.name : prev));
+    setCategory((prev) => (prev !== basicInfo.category ? basicInfo.category : prev));
+    setDescription((prev) => (prev !== basicInfo.description ? basicInfo.description : prev));
+    const nextArea = basicInfo.totalArea ? String(basicInfo.totalArea) : '';
+    setTotalArea((prev) => (prev !== nextArea ? nextArea : prev));
+    setContactPhone((prev) => (prev !== basicInfo.contactPhone ? basicInfo.contactPhone : prev));
+    setContactEmail((prev) => (prev !== basicInfo.contactEmail ? basicInfo.contactEmail : prev));
   }, [basicInfo]);
 
   // Validation errors
@@ -140,7 +133,7 @@ export function StepBasicInfoView({ routeWorkspaceId }: StepBasicInfoViewProps =
     setErrors({});
     setBasicInfo(values);
     await saveDraftToServer({ silent: true });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/location' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => prev });
   };
 
   return (

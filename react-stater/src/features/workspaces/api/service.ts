@@ -169,10 +169,6 @@ export const workspaceService = {
         headers['x-mock-role'] = 'organizer';
       }
     }
-    if (!headers['x-mock-role'] && !headers['x-organizer-id'] && !params?.isPublic) {
-      headers['x-mock-role'] = 'organizer';
-      headers['x-organizer-id'] = 'USR-9432';
-    }
 
     return apiClient.get<WorkspaceListResponse>('/workspaces', {
       params: queryParams,

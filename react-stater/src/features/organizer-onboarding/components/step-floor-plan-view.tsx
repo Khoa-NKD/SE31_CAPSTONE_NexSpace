@@ -206,7 +206,7 @@ export function StepFloorPlanView() {
     toast.success('Floor Plan draft saved successfully', {
       description: 'Proceeding to Pre-submission Review Checklist (O15).'
     });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/review' });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/review', search: (prev) => prev });
   };
 
   return (
@@ -790,7 +790,7 @@ export function StepFloorPlanView() {
           <Button
             type='button'
             variant='outline'
-            onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/media' })}
+            onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/media', search: (prev) => prev })}
             className='h-10 px-3 sm:px-4 text-xs sm:text-sm font-medium border-border hover:bg-muted gap-1.5'
           >
             <ArrowLeft className='size-4' />

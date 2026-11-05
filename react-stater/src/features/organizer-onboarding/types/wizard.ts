@@ -128,6 +128,7 @@ export interface OnboardingDraftState {
   serverVersion?: number;
   isSavingToServer?: boolean;
   syncError?: string | null;
+  workspaceSteps?: Record<string, string>;
   basicInfo: BasicInfoValues;
   location: LocationValues;
   operatingHours: OperatingHoursValues;
