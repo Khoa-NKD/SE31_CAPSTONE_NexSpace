@@ -1,5 +1,13 @@
 /** English source messages remain stable; user-entered content is never translated. */
 export const organizerVietnamese: Record<string, string> = {
+  'Only replace the documents requested by the administrator, then resubmit. Business information is read-only.':
+    'Chỉ thay giấy tờ được quản trị viên yêu cầu rồi gửi lại. Thông tin doanh nghiệp chỉ được xem.',
+  'Only the requested document replacements will be sent for review. Business information remains unchanged. Uploads will be locked after resubmission.':
+    'Chỉ gửi lại các giấy tờ đã thay theo yêu cầu. Thông tin doanh nghiệp giữ nguyên. Sau khi gửi lại, chức năng upload sẽ được khóa.',
+  'Complete all required business fields and the document checklist before submitting. Uploading does not submit the application.':
+    'Hoàn thành các trường bắt buộc và checklist giấy tờ trước khi gửi. Tải file lên chưa gửi hồ sơ để xét duyệt.',
+  'Upload your files here. Required documents depend on the selected business type.':
+    'Tải giấy tờ tại đây. Danh sách bắt buộc phụ thuộc vào loại hình kinh doanh đã chọn.',
   REPLACED: 'Đã thay thế',
   'Your approved application is read-only. You can view or download its documents here.':
     'Hồ sơ đã duyệt chỉ được xem. Bạn có thể xem hoặc tải giấy tờ tại đây.',

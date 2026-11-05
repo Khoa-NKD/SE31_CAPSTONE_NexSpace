@@ -1,3 +1,4 @@
+import type { ApplicationInput } from '@/features/organizer-application/api/application';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ownerLifecycleQueryOptions } from '@/features/organizer-lifecycle/api/lifecycle';
 import { CorrectionDocuments } from '@/features/organizer-lifecycle/components/correction-documents';
@@ -5,10 +6,12 @@ import { useOrganizerTranslation } from '@/features/organizer-application/hooks/
 import { Button } from '@/components/ui/button';
 
 export function DraftVerificationDocuments({
+  businessType,
   actorId,
   disabled,
   onBusyChange
 }: {
+  businessType?: ApplicationInput['businessType'];
   actorId: number;
   disabled: boolean;
   onBusyChange: (busy: boolean) => void;
@@ -27,6 +30,7 @@ export function DraftVerificationDocuments({
     );
   return (
     <CorrectionDocuments
+      businessType={businessType}
       actorId={actorId}
       context={query.data}
       disabled={disabled}

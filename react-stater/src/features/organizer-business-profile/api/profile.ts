@@ -14,6 +14,20 @@ export const businessContactSchema = z.object({
 
 export type BusinessContactInput = z.infer<typeof businessContactSchema>;
 
+export const bankDetailsSchema = z.object({
+  bankName: z.string().trim().min(1, 'Bank name is required').max(100),
+  bankAccountHolder: z.string().trim().min(1, 'Account holder is required').max(100),
+  bankAccountNumber: z
+    .string()
+    .trim()
+    .regex(/^(?:[0-9]{6,34})?$/, 'Enter an account number containing 6–34 digits')
+    .optional()
+});
+export const businessProfileSchema = businessContactSchema.extend({
+  bankDetails: bankDetailsSchema.optional()
+});
+export type BusinessProfileInput = z.infer<typeof businessProfileSchema>;
+
 export interface OrganizerBusinessProfile {
   id: number;
   legalName: string | null;
@@ -23,6 +37,11 @@ export interface OrganizerBusinessProfile {
   address: string | null;
   contactEmail: string | null;
   contactPhone: string | null;
+  bankName: string | null;
+  bankAccountHolder: string | null;
+  bankAccountLastFour: string | null;
+  bankAccountConfigured: boolean;
+  bankingAvailable: boolean;
 }
 
 export const businessProfileKeys = {
@@ -50,12 +69,14 @@ export function businessProfileQueryOptions(actorId: number) {
 
 export function businessProfileMutationOptions(queryClient: QueryClient, actorId: number) {
   return {
-    mutationFn: (input: BusinessContactInput) => {
-      const { address, contactEmail, contactPhone } = businessContactSchema.parse(input);
+    mutationFn: (input: BusinessProfileInput) => {
+      const { address, contactEmail, contactPhone, bankDetails } =
+        businessProfileSchema.parse(input);
       return backendRequest<OrganizerBusinessProfile>('/organizer/business-profile', 'PUT', {
         address,
         contactEmail,
-        contactPhone
+        contactPhone,
+        ...(bankDetails ? { bankDetails } : {})
       });
     },
     onSuccess: async (profile: OrganizerBusinessProfile) => {

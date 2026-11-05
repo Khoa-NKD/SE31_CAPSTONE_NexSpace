@@ -1,6 +1,9 @@
+import { useLanguage } from '@/features/landing/context/language-context';
+import type { ApplicationInput } from '@/features/organizer-application/api/application';
+import { documentPoliciesQueryOptions } from '@/features/organizer-application/api/document-requirements';
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -15,12 +18,16 @@ import {
 import { correctDocument, invalidateLifecycle, type LifecycleContext } from '../api/lifecycle';
 
 export function CorrectionDocuments({
+  focusRequest,
+  businessType,
   actorId,
   context,
   disabled,
   onUpdated,
   onBusyChange
 }: {
+  focusRequest?: { documentId: number; requestId: number } | null;
+  businessType?: ApplicationInput['businessType'];
   actorId: number;
   context: LifecycleContext;
   disabled: boolean;
@@ -28,18 +35,36 @@ export function CorrectionDocuments({
   onBusyChange: (busy: boolean) => void;
 }) {
   const tr = useOrganizerTranslation();
+  const { language } = useLanguage();
   const query = useQuery(verificationDocumentsQueryOptions(actorId));
   const client = useQueryClient();
+  const policies = useQuery(documentPoliciesQueryOptions());
+  const policy = policies.data?.find((item) => item.businessType === businessType);
   const [selectedType, setType] = useState<UploadDocumentType>('BUSINESS_LICENSE');
   const allowedTypes = Object.keys(DOCUMENT_LABELS).filter(
     (value): value is UploadDocumentType =>
       value !== 'BANK_CERTIFICATE' &&
       (context.status === 'DRAFT' ||
-        (context.status === 'REVISION_REQUESTED' &&
-          !!query.data?.documents.some(
-            (document) => document.documentType === value && document.status === 'REJECTED'
-          )))
+        (context.status === 'REVISION_REQUESTED' && !!query.data?.documents.some(
+          (document) => document.documentType === value && document.status === 'REJECTED'
+        )))
   );
+  const lastJump = useRef(-1);
+  useEffect(() => {
+    if (!focusRequest || lastJump.current === focusRequest.requestId) return;
+    const target = query.data?.documents.find((document) => document.id === focusRequest.documentId && document.status === 'REJECTED');
+    if (!target) return;
+    lastJump.current = focusRequest.requestId;
+    setType(target.documentType as UploadDocumentType);
+    setFile(null); setConfirmed(false);
+    if (input.current) input.current.value = '';
+    const frame = requestAnimationFrame(() => {
+      const element = document.getElementById('organizer-document-' + target.id);
+      element?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' });
+      element?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [focusRequest, query.data]);
   const type = allowedTypes.includes(selectedType) ? selectedType : (allowedTypes[0] ?? '');
   const [file, setFile] = useState<File | null>(null);
   const [confirmed, setConfirmed] = useState(false);
@@ -120,7 +145,9 @@ export function CorrectionDocuments({
           {query.data.documents.map((document) => (
             <li
               key={document.id}
-              className={`min-w-0 space-y-3 rounded-md border p-4 ${type === document.documentType ? 'border-primary/30 bg-primary/5' : 'bg-background'}`}
+              id={'organizer-document-' + document.id}
+              tabIndex={-1}
+              className={`scroll-mt-24 min-w-0 space-y-3 rounded-md border p-4 focus-visible:ring-2 focus-visible:ring-ring ${type === document.documentType ? 'border-primary/30 bg-primary/5' : 'bg-background'}`}
             >
               <div className='flex items-start gap-3'>
                 <span className='flex size-10 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary'>
@@ -186,7 +213,9 @@ export function CorrectionDocuments({
               >
                 {allowedTypes.map((value) => (
                   <option key={value} value={value}>
-                    {tr(DOCUMENT_LABELS[value])}
+                    {policy?.requiredDocuments.find(
+                      (requirement) => requirement.documentType === value
+                    )?.[language === 'vi' ? 'labelVi' : 'labelEn'] || tr(DOCUMENT_LABELS[value])}
                   </option>
                 ))}
               </select>

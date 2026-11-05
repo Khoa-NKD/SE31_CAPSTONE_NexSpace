@@ -1,7 +1,14 @@
+import { DOCUMENT_LABELS } from '@/features/organizer-verification-documents/api/documents';
+import { DocumentRequirementsChecklist } from './document-requirements-checklist';
+import {
+  documentPoliciesQueryOptions,
+  missingRequiredDocuments
+} from '../api/document-requirements';
+import { verificationDocumentsQueryOptions } from '@/features/organizer-verification-documents/api/documents';
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useForm } from 'react-hook-form';
 import { ApiError } from '@/lib/api-client';
 import { currentUser } from '@/features/auth/api/session';
@@ -22,7 +29,7 @@ import type { ApplicationInput, ApplicationDetails } from '../api/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Building2, ClipboardCheck, Files, RefreshCw } from 'lucide-react';
+import { Building2, ClipboardCheck, Files, RefreshCw, MessageSquareText, FileText, ArrowDownRight, LockKeyhole } from 'lucide-react';
 import {
   applicationStatusPresentation,
   applicationTimestamp
@@ -31,8 +38,6 @@ import { useBusinessTypes } from '../hooks/use-business-types';
 import { useApplicationNotice } from '../hooks/use-application-notice';
 import {
   ownerLifecycle,
-  correctionSchema,
-  saveCorrection,
   resubmit,
   invalidateLifecycle,
   type LifecycleContext
@@ -99,6 +104,15 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const queryClient = useQueryClient();
   const form = useForm<ApplicationInput>({ defaultValues: formValues(null) });
   const isDirty = form.formState.isDirty;
+  const [focusRequest, setFocusRequest] = useState<{ documentId: number; requestId: number } | null>(null);
+  const jumpCounter = useRef(0);
+  const reviewDocuments = useQuery({ ...verificationDocumentsQueryOptions(user?.id ?? 0), enabled: !!user && details?.status === 'REVISION_REQUESTED' });
+  const requestedDocuments = reviewDocuments.data?.documents.filter((document) => document.status === 'REJECTED') ?? [];
+  const jumpToDocument = (documentId?: number) => {
+    if (documentId !== undefined) setFocusRequest({ documentId, requestId: ++jumpCounter.current });
+    else document.getElementById('organizer-verification-documents')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+  const selectedBusinessType = form.watch('businessType');
 
   useEffect(() => {
     const controller = new AbortController();
@@ -154,12 +168,20 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         setDetails(draft);
         form.reset(formValues(draft, user?.email));
         successMessage = 'Draft created. Save your details and upload your business license below.';
+      } else if (details?.status === 'REVISION_REQUESTED') {
+        if (action !== 'submit') throw new Error('Business information is locked after submission.');
+        if (!lifecycle?.canCorrect) throw new Error('Reload the application before resubmitting.');
+        const receipt = await resubmit(lifecycle.revision);
+        setDetails({ ...details, ...receipt });
+        setLifecycle(receipt);
+        setConfirmResubmit(false);
+        successMessage = 'Application submitted. Your account permissions change only after approval.';
       } else {
         if (!businessTypes.options.length)
           throw new Error('Load the business type catalog before saving or submitting.');
         // Both actions persist the visible snapshot; only explicit submission changes status.
-        const correcting = details && details.status === 'REVISION_REQUESTED';
-        const parsed = (correcting ? correctionSchema : applicationDraftSchema).safeParse(
+
+        const parsed = applicationDraftSchema.safeParse(
           form.getValues()
         );
         if (!parsed.success) {
@@ -178,30 +200,33 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             return;
           }
         }
-        let revision = lifecycle?.revision;
-        if (correcting) {
-          if (!lifecycle?.canCorrect)
-            throw new Error('Reload the application before correcting it.');
-          const corrected = await saveCorrection(lifecycle.revision, parsed.data);
-          setLifecycle(corrected);
-          revision = corrected.revision;
+        if (action === 'submit' && user) {
+          const policies = await queryClient.fetchQuery(documentPoliciesQueryOptions());
+          const policy = policies.find((item) => item.businessType === parsed.data.businessType);
+          if (!policy) throw new Error('Reload the document requirements before submitting.');
+          const uploaded = await queryClient.fetchQuery(verificationDocumentsQueryOptions(user.id));
+          const missing = missingRequiredDocuments(policy, uploaded.documents);
+          if (missing.length)
+            throw new Error(
+              (businessTypes.language === 'vi'
+                ? 'Còn thiếu hoặc cần thay tài liệu: '
+                : 'Upload or replace the required documents: ') +
+                missing
+                  .map((item) => (businessTypes.language === 'vi' ? item.labelVi : item.labelEn))
+                  .join(', ')
+            );
         }
-        const saved = correcting
-          ? await currentApplication()
-          : await saveApplicationDraft(parsed.data);
+        const saved = await saveApplicationDraft(parsed.data);
         if (!saved) throw new Error('Application no longer exists. Reload this page.');
         setDetails(saved);
         form.reset(formValues(saved));
         if (action === 'submit') {
-          const receipt = correcting ? await resubmit(revision!) : await submitApplicationDraft();
+          const receipt = await submitApplicationDraft();
           setDetails({ ...saved, ...receipt });
           setConfirmResubmit(false);
           successMessage =
             'Application submitted. Your account permissions change only after approval.';
-        } else
-          successMessage = correcting
-            ? 'Corrections saved. The application has not been resubmitted.'
-            : 'Draft saved. You can return later; it has not been submitted for review.';
+        } else successMessage = 'Draft saved. You can return later; it has not been submitted for review.';
       }
       if (user)
         await queryClient.invalidateQueries({
@@ -348,18 +373,36 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             </div>
           </div>
           {(correcting || details.status === 'REJECTED') && (
-            <div className='mt-5 rounded-md border border-amber-500/20 bg-amber-500/5 p-4'>
-              <h3 className='text-sm font-semibold'>{tr('Review feedback')}</h3>
-              <p className='mt-2 whitespace-pre-wrap break-words text-sm'>
-                {details.reviewFeedback || tr('No feedback recorded.')}
-              </p>
-              <p className='mt-2 text-xs text-muted-foreground'>
-                {tr(
-                  correcting
-                    ? 'Update your details and documents below, then resubmit for review.'
-                    : 'This application was rejected. Editing and resubmission are unavailable.'
-                )}{' '}
-              </p>
+            <div className='border-border bg-background mt-6 overflow-hidden rounded-xl border'>
+              <div className='border-border bg-muted/25 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5'>
+                <div className='flex items-center gap-3'>
+                  <span className='bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg'><MessageSquareText className='size-4' /></span>
+                  <div>
+                    <h3 className='text-sm font-semibold'>{tr('Review feedback')}</h3>
+                    {correcting && <p className='text-muted-foreground mt-0.5 text-xs'>{businessTypes.language === 'vi' ? 'Chọn giấy tờ bên dưới để chuyển tới đúng chỗ cần sửa.' : 'Select a document below to jump to its correction.'}</p>}
+                  </div>
+                </div>
+                {correcting && requestedDocuments.length > 0 && <Badge variant='secondary' className='gap-1.5 px-2.5 py-1'><span className='bg-primary size-1.5 rounded-full' />{requestedDocuments.length} {businessTypes.language === 'vi' ? 'giấy tờ cần sửa' : 'documents to update'}</Badge>}
+              </div>
+              <div className={correcting && requestedDocuments.length ? 'grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : 'p-4 sm:p-5'}>
+                <div className='min-w-0'>
+                  <p className='text-muted-foreground mb-2 text-xs font-medium'>{businessTypes.language === 'vi' ? 'Nhận xét chung' : 'Overall feedback'}</p>
+                  {correcting ? <button type='button' className='border-primary/40 hover:border-primary hover:bg-primary/5 block w-full whitespace-pre-wrap break-words rounded-r-md border-l-2 py-1 pr-2 pl-3 text-left text-sm leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' onClick={() => jumpToDocument(requestedDocuments[0]?.id)}>{details.reviewFeedback || tr('No feedback recorded.')}</button>
+                    : <p className='whitespace-pre-wrap break-words text-sm leading-6'>{details.reviewFeedback || tr('No feedback recorded.')}</p>}
+                </div>
+                {correcting && requestedDocuments.length > 0 && <div className='space-y-2.5'>{requestedDocuments.map((document, index) => (
+                  <button key={document.id} type='button' className='group border-border bg-card hover:border-primary/40 hover:bg-primary/5 flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4' onClick={() => jumpToDocument(document.id)}>
+                    <span className='bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors'><FileText className='size-5' /></span>
+                    <span className='min-w-0 flex-1'>
+                      <span className='flex flex-wrap items-center gap-x-2 gap-y-1'><span className='text-muted-foreground text-[11px] font-medium'>{String(index + 1).padStart(2, '0')}</span><span className='text-sm font-semibold'>{tr(DOCUMENT_LABELS[document.documentType])}</span></span>
+                      <span className='text-muted-foreground mt-1 block truncate text-xs'>{document.fileName}</span>
+                      <span className='mt-2 block whitespace-pre-wrap break-words text-sm leading-5'>{document.adminFeedback}</span>
+                      <span className='text-primary bg-primary/10 mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium'>{businessTypes.language === 'vi' ? 'Đến tài liệu' : 'Go to document'}<ArrowDownRight className='size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:translate-y-0.5' /></span>
+                    </span>
+                  </button>
+                ))}</div>}
+              </div>
+              <div className='border-border text-muted-foreground flex items-start gap-2 border-t px-4 py-3 text-xs leading-5 sm:px-5'><LockKeyhole className='mt-0.5 size-3.5 shrink-0' /><span>{tr(correcting ? 'Only replace the documents requested by the administrator, then resubmit. Business information is read-only.' : 'This application was rejected. Editing and resubmission are unavailable.')}</span></div>
             </div>
           )}
           {details.status === 'APPROVED' && (
@@ -413,7 +456,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
               </div>
             </div>
             <fieldset
-              disabled={!editable || busy}
+              disabled={details?.status !== 'DRAFT' || busy}
               className='grid gap-5 sm:grid-cols-2 disabled:opacity-70'
             >
               <legend className='sr-only'>{tr('Business application')}</legend>
@@ -440,6 +483,18 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                     </option>
                   ))}
                 </select>
+                <p className='text-muted-foreground text-xs leading-5'>
+                  {businessTypes.language === 'vi'
+                    ? 'Chọn đúng loại hình trên giấy đăng ký. Doanh nghiệp tư nhân khác hộ kinh doanh; OTHER dành cho tổ chức có giấy tờ tương đương, không dùng cho cá nhân.'
+                    : 'Match the type on your registration document. A sole proprietor differs from a household business. OTHER is for organizations with equivalent documents, not individuals.'}
+                </p>
+                {details.status === 'DRAFT' && selectedBusinessType !== details.businessType && (
+                  <p className='text-primary text-xs'>
+                    {businessTypes.language === 'vi'
+                      ? 'Lưu thay đổi loại hình trước khi bổ sung giấy tờ theo checklist mới.'
+                      : 'Save the business type change before adding documents required by the new checklist.'}
+                  </p>
+                )}
                 {businessTypes.query.isError && (
                   <div role='alert' className='space-y-2'>
                     <p>{tr(businessTypes.query.error.message)}</p>
@@ -516,7 +571,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   ? tr('Review all corrections before resubmitting.')
                   : tr('Drafts may be incomplete.')}{' '}
                 {tr(
-                  'All business fields and a current business license are required for submission. Uploading does not submit the application.'
+                  'Complete all required business fields and the document checklist before submitting. Uploading does not submit the application.'
                 )}{' '}
               </p>
             )}
@@ -532,20 +587,24 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
       )}
 
       {details && (
-        <section aria-label={tr('Verification documents')} className='space-y-4'>
+        <section id='organizer-verification-documents' aria-label={tr('Verification documents')} className='scroll-mt-24 space-y-4'>
+          {editable && (
+            <DocumentRequirementsChecklist actorId={user.id} businessType={selectedBusinessType} />
+          )}
           <div className='flex items-center gap-3 px-1'>
             <Files className='size-5 text-primary' aria-hidden='true' />
             <div>
               <h2 className='text-lg font-semibold'>{tr('Verification documents')}</h2>
               <p className='text-sm text-muted-foreground'>
                 {tr(
-                  'Upload and review your files here. A current business license is required to submit.'
+                  'Upload your files here. Required documents depend on the selected business type.'
                 )}{' '}
               </p>
             </div>
           </div>
           {details.status === 'DRAFT' ? (
             <DraftVerificationDocuments
+              businessType={details.businessType}
               actorId={user.id}
               disabled={busy}
               onBusyChange={(value) => {
@@ -555,8 +614,10 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             />
           ) : correcting && lifecycle ? (
             <CorrectionDocuments
+              businessType={details.businessType}
               actorId={user.id}
               context={lifecycle}
+              focusRequest={focusRequest}
               disabled={busy}
               onUpdated={setLifecycle}
               onBusyChange={(value) => {
@@ -577,15 +638,15 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             )}{' '}
           </p>
           <div className='flex flex-wrap gap-3'>
-            <Button
+            {!correcting && <Button
               type='submit'
               form='organizer-application-form'
               variant='outline'
               className='rounded-md'
               disabled={busy || !businessTypes.options.length}
             >
-              {busy ? tr('Saving…') : correcting ? tr('Save corrections') : tr('Save draft')}
-            </Button>
+              {busy ? tr('Saving…') : tr('Save draft')}
+            </Button>}
             <Button
               type='button'
               className='rounded-md bg-primary text-primary-foreground hover:bg-primary/90'
@@ -608,7 +669,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             <DialogTitle>{tr('Resubmit your application?')}</DialogTitle>
             <DialogDescription>
               {tr(
-                'The visible business details will be saved and the current documents sent for review. Editing and uploads will be locked until a review outcome permits corrections.'
+                'Only the requested document replacements will be sent for review. Business information remains unchanged. Uploads will be locked after resubmission.'
               )}{' '}
             </DialogDescription>
           </DialogHeader>
