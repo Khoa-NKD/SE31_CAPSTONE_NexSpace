@@ -369,6 +369,23 @@ class UserServiceImplTest {
     }
 
     @Test
+    @DisplayName("Tìm user theo ID thành công trả về UserDto đầy đủ thông tin")
+    void getByIdReturnsUserDtoWhenFound() {
+        user.setTwoFactorEnabled(true);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
+
+        UserDto result = service.getById(1L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getId()).isEqualTo(1L);
+        assertThat(result.getUserName()).isEqualTo("john");
+        assertThat(result.getEmail()).isEqualTo("john@example.com");
+        assertThat(result.isTwoFactorEnabled()).isTrue();
+        assertThat(result.getRole()).isEqualTo(UserRole.USER);
+        assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
+    }
+
+    @Test
     @DisplayName("Tìm user theo ID không tồn tại ném NotFoundException")
     void getByIdThrowsNotFoundForUnknownUser() {
         when(userRepository.findById(99L)).thenReturn(Optional.empty());

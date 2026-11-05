@@ -27,6 +27,7 @@ public class UserDto {
 
     String avatar;
     boolean verified;
+    boolean twoFactorEnabled;
     UserStatus status;
     UserRole role;
 
