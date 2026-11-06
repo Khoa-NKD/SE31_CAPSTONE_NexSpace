@@ -40,9 +40,12 @@ logs
 *.log
 *.dumpstream
 
-# Agent Skills
+# Agent Skills & Rules
 .agent/
 .agents/
+AGENTS.md
+**/AGENTS.md
+skills-lock.json
 
 # Custom rules
 SCREEN_ARCHITECTURE_STANDARDS.md
