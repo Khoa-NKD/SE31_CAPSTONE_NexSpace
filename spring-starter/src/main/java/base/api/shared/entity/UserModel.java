@@ -57,7 +57,7 @@ public class UserModel extends BaseModel {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 16)
-    private UserStatus status = UserStatus.INACTIVE;
+    private UserStatus status = UserStatus.ACTIVE;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)
     @JoinColumn(name = "role_id", nullable = false)

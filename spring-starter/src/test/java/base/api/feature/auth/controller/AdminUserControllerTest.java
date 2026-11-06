@@ -54,7 +54,7 @@ class AdminUserControllerTest {
         @BeforeEach
         void setUp() {
                 userService = mock(IUserService.class);
-                objectMapper = new ObjectMapper();
+                objectMapper = new ObjectMapper().findAndRegisterModules();
 
                 AdminUserController controller = new AdminUserController(userService);
                 org.springframework.test.util.ReflectionTestUtils.setField(controller, "currentUserProvider",
