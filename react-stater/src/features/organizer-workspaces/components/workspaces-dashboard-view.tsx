@@ -88,7 +88,8 @@ export function WorkspacesDashboardView() {
     return {
       all: totalElements,
       active: list.filter((w) => w.status === 'ACTIVE').length,
-      draft: list.filter((w) => w.status === 'DRAFT').length
+      draft: list.filter((w) => w.status === 'DRAFT').length,
+      rejected: list.filter((w) => w.status === 'REJECTED').length
     };
   }, [isError, storeWorkspaces, serverWorkspaces, totalElements]);
 
@@ -100,6 +101,7 @@ export function WorkspacesDashboardView() {
       if (filter === 'paused' && workspace.status !== 'PAUSED') return false;
       if (filter === 'maintenance' && workspace.status !== 'MAINTENANCE') return false;
       if (filter === 'archived' && workspace.status !== 'ARCHIVED') return false;
+      if (filter === 'rejected' && workspace.status !== 'REJECTED') return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();

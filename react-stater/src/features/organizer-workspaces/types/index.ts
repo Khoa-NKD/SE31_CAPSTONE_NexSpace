@@ -4,7 +4,8 @@ export type WorkspaceStatus =
   | 'PAUSED'
   | 'MAINTENANCE'
   | 'ARCHIVED'
-  | 'UNDER_REVIEW';
+  | 'UNDER_REVIEW'
+  | 'REJECTED';
 
 export interface OrganizerWorkspace {
   id: string;
@@ -15,6 +16,7 @@ export interface OrganizerWorkspace {
   status: WorkspaceStatus;
   draftProgress?: number;
   draftWarningMessage?: string;
+  reviewFeedback?: string;
   imageUrl?: string;
   desksCount: number;
   meetingRoomsCount: number;
@@ -37,4 +39,5 @@ export type WorkspaceFilter =
   | 'draft'
   | 'paused'
   | 'maintenance'
-  | 'archived';
+  | 'archived'
+  | 'rejected';

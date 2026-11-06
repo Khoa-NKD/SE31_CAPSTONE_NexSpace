@@ -29,7 +29,10 @@ import {
   handleWorkspaceLifecycle,
   handleWorkspaceSubmit,
   handleAdminReviewWorkspace,
-  handleAdminModerationWorkspace
+  handleAdminModerationWorkspace,
+  handleGetFeaturedWorkspaces,
+  handleAdminFeaturedWorkspace,
+  handleGetWorkspaceAmenities
 } from './routes/workspaces.ts';
 import {
   handleMediaUpload,
@@ -269,6 +272,12 @@ export async function handleRequest(
     return;
   }
 
+  // 11b. Public Featured Workspaces: GET /api/v1/public/workspaces/featured
+  if (pathname === '/api/v1/public/workspaces/featured' && method === 'GET') {
+    await handleGetFeaturedWorkspaces(res);
+    return;
+  }
+
   // 12. Public Workspace Detail: GET /api/v1/public/workspaces/:id
   const publicWorkspaceDetailMatch = pathname.match(/^\/api\/v1\/public\/workspaces\/([a-zA-Z0-9_.-]+)$/);
   if (publicWorkspaceDetailMatch && method === 'GET') {
@@ -299,8 +308,20 @@ export async function handleRequest(
     return;
   }
 
-  // 15. Workspaces List & Create: GET /api/v1/workspaces, GET /api/v1/organizer/workspaces & POST /api/v1/workspaces
-  if (pathname === '/api/v1/workspaces' || pathname === '/api/v1/organizer/workspaces') {
+  // 14b. Admin Workspace Featured: PATCH/PUT /api/v1/admin/workspaces/:id/featured
+  const adminFeaturedMatch = pathname.match(/^\/api\/v1\/admin\/workspaces\/([a-zA-Z0-9_.-]+)\/featured$/);
+  if (adminFeaturedMatch && (method === 'PATCH' || method === 'PUT')) {
+    const workspaceId = adminFeaturedMatch[1];
+    await handleAdminFeaturedWorkspace(req, res, workspaceId, body);
+    return;
+  }
+
+  // 15. Workspaces List & Create: GET /api/v1/workspaces, GET /api/v1/organizer/workspaces, GET /api/v1/admin/workspaces & POST /api/v1/workspaces
+  if (
+    pathname === '/api/v1/workspaces' ||
+    pathname === '/api/v1/organizer/workspaces' ||
+    pathname === '/api/v1/admin/workspaces'
+  ) {
     if (method === 'GET') {
       await handleGetWorkspaces(req, res, searchParams);
       return;
@@ -327,8 +348,16 @@ export async function handleRequest(
     return;
   }
 
-  // 18. Workspace Detail & Update: GET /api/v1/workspaces/:id & PATCH/PUT /api/v1/workspaces/:id
-  const workspaceDetailMatch = pathname.match(/^\/api\/v1\/workspaces\/([a-zA-Z0-9_.-]+)$/);
+  // 17b. Workspace Amenities: GET /api/v1/workspaces/:id/amenities or GET /api/workspaces/:id/amenities
+  const workspaceAmenitiesMatch = pathname.match(/^\/api\/(?:v1\/)?workspaces\/([a-zA-Z0-9_.-]+)\/amenities$/);
+  if (workspaceAmenitiesMatch && method === 'GET') {
+    const workspaceId = workspaceAmenitiesMatch[1];
+    await handleGetWorkspaceAmenities(req, res, workspaceId);
+    return;
+  }
+
+  // 18. Workspace Detail & Update: GET /api/v1/workspaces/:id, GET /api/v1/admin/workspaces/:id & PATCH/PUT /api/v1/workspaces/:id
+  const workspaceDetailMatch = pathname.match(/^\/api\/v1\/(?:admin\/)?workspaces\/([a-zA-Z0-9_.-]+)$/);
   if (workspaceDetailMatch) {
     const workspaceId = workspaceDetailMatch[1];
     if (method === 'GET') {

@@ -48,6 +48,8 @@ export function StepReviewChecklistView() {
     amenities,
     media,
     floorPlan,
+    reviewStatus,
+    reviewFeedback,
     saveDraft,
     setSubmissionStatus
   } = useWizardStore();
@@ -134,7 +136,7 @@ export function StepReviewChecklistView() {
         return;
       }
 
-      const targetId = saved.id;
+      const targetId = String(saved.id);
       const targetVersion = saved.version;
 
       await submitMutation.mutateAsync({
@@ -205,6 +207,22 @@ export function StepReviewChecklistView() {
 
       {/* Main Review Form Area */}
       <main className='flex-1 p-4 sm:p-8 max-w-4xl w-full mx-auto space-y-6'>
+        {/* Rejection Alert Banner */}
+        {reviewStatus === 'Rejected' && (
+          <div className='flex items-start gap-3 p-4 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-300 shadow-2xs'>
+            <AlertTriangle className='size-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5' />
+            <div className='space-y-1 flex-1'>
+              <h3 className='font-bold text-sm text-rose-900 dark:text-rose-200'>Hồ sơ cần điều chỉnh (Yêu cầu từ Quản trị viên)</h3>
+              <p className='text-xs leading-relaxed font-medium text-rose-800 dark:text-rose-300'>
+                {reviewFeedback || 'Quản trị viên đã từ chối hồ sơ này. Vui lòng cập nhật các thông tin theo yêu cầu trước khi nộp lại.'}
+              </p>
+              <p className='text-[11px] text-muted-foreground pt-1'>
+                Sau khi bổ sung đầy đủ thông tin hoặc hình ảnh theo yêu cầu, hãy kiểm tra danh mục kiểm tra bên dưới và nhấn <strong>&quot;Resubmit for Review&quot;</strong> để gửi duyệt lại.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Header Block */}
         <div>
           <div className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-1'>
@@ -615,7 +633,7 @@ export function StepReviewChecklistView() {
               }`}
             >
               <Send className='size-4' />
-              <span>Submit for Review</span>
+              <span>{reviewStatus === 'Rejected' ? 'Resubmit for Review' : 'Submit for Review'}</span>
             </Button>
           </div>
         </div>
@@ -627,10 +645,12 @@ export function StepReviewChecklistView() {
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400'>
               <Send className='size-5' />
-              <span>Confirm Submission for Review</span>
+              <span>{reviewStatus === 'Rejected' ? 'Confirm Resubmission for Review' : 'Confirm Submission for Review'}</span>
             </DialogTitle>
             <DialogDescription>
-              Submit <strong className='text-foreground'>{basicInfo.name}</strong> for administrator review. Once approved by our team, the listing will be published to the marketplace.
+              {reviewStatus === 'Rejected'
+                ? <span>Nộp lại hồ sơ <strong className='text-foreground'>{basicInfo.name}</strong> sau khi đã điều chỉnh để Quản trị viên thẩm định lại.</span>
+                : <span>Submit <strong className='text-foreground'>{basicInfo.name}</strong> for administrator review. Once approved by our team, the listing will be published to the marketplace.</span>}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-3 py-2 text-xs text-muted-foreground'>

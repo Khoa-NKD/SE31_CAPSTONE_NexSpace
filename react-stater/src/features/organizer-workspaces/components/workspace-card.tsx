@@ -80,6 +80,12 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
                 <span>UNDER REVIEW</span>
               </div>
             )}
+            {workspace.status === 'REJECTED' && (
+              <div className='absolute top-3 right-3 bg-rose-500/15 text-rose-600 dark:text-rose-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-rose-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
+                <span className='size-1.5 rounded-full bg-rose-500' />
+                <span>NEEDS REVISION</span>
+              </div>
+            )}
           </>
         )}
       </div>
@@ -95,6 +101,18 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             <span className='truncate'>{workspace.address}</span>
           </div>
         </div>
+
+        {workspace.status === 'REJECTED' && (
+          <div className='bg-rose-500/10 border border-rose-500/30 rounded-lg p-3 text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2.5'>
+            <AlertTriangle className='size-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5' />
+            <div className='flex flex-col gap-0.5 flex-1 min-w-0'>
+              <span className='font-semibold'>Yêu cầu chỉnh sửa từ Quản trị viên:</span>
+              <span className='leading-relaxed font-medium text-rose-900 dark:text-rose-200'>
+                {workspace.reviewFeedback || 'Vui lòng bổ sung thông tin hồ sơ và nộp duyệt lại.'}
+              </span>
+            </div>
+          </div>
+        )}
 
         {isDraft ? (
           <>
@@ -181,16 +199,40 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             </div>
 
             {/* Action Button: Manage Workspace */}
-            <Button
-              variant='outline'
-              asChild
-              className='w-full border-border hover:bg-muted text-foreground font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm'
-            >
-              <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
-                <span>Manage Workspace</span>
-                <ArrowRight className='size-3.5' />
-              </Link>
-            </Button>
+            {workspace.status === 'REJECTED' ? (
+              <div className='flex items-center gap-2'>
+                <Button
+                  variant='outline'
+                  asChild
+                  className='flex-1 border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs'
+                >
+                  <Link to='/dashboard/organizer/workspaces/create' search={{ id: workspace.id, mode: 'edit' }}>
+                    <Edit className='size-3.5' />
+                    <span>Chỉnh sửa</span>
+                  </Link>
+                </Button>
+                <Button
+                  asChild
+                  className='flex-1 bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs shadow-2xs'
+                >
+                  <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
+                    <span>Phản hồi &amp; Nộp lại</span>
+                    <ArrowRight className='size-3.5' />
+                  </Link>
+                </Button>
+              </div>
+            ) : (
+              <Button
+                variant='outline'
+                asChild
+                className='w-full font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm border-border hover:bg-muted text-foreground'
+              >
+                <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
+                  <span>Manage Workspace</span>
+                  <ArrowRight className='size-3.5' />
+                </Link>
+              </Button>
+            )}
           </>
         )}
       </div>

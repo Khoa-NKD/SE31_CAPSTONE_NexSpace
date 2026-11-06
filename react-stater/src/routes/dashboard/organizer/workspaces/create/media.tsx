@@ -4,6 +4,12 @@ import { z } from 'zod';
 import PageContainer from '@/components/layout/page-container';
 import { StepMediaGalleryView } from '@/features/organizer-onboarding/components/step-media-gallery-view';
 
+const sanitizeId = (val: unknown): string | undefined => {
+  if (val == null) return undefined;
+  const s = String(val).replace(/^["']+|["']+$/g, '').trim();
+  return s.length > 0 ? s : undefined;
+};
+
 const mediaSearchSchema = z.object({
   id: z.union([z.string(), z.number()]).optional(),
   workspaceId: z.union([z.string(), z.number()]).optional(),
@@ -29,7 +35,7 @@ export const Route = createFileRoute(
 function CreateWorkspaceMediaPage() {
   const search = Route.useSearch();
   const rawId = search.id ?? search.workspaceId;
-  const targetId = rawId != null ? String(rawId) : undefined;
+  const targetId = sanitizeId(rawId);
   return (
     <PageContainer>
       <StepMediaGalleryView routeWorkspaceId={targetId} routeMode={search.mode} />

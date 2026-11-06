@@ -12,6 +12,7 @@ import type {
   SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto,
+  AdminFeaturedWorkspaceDto,
   AdminWorkspaceKpisDto,
   WorkspaceMediaDto,
   AddWorkspaceMediaPayload,
@@ -25,7 +26,9 @@ import type {
   UpdateMaintenanceLogPayload,
   WorkspaceAssetFilterParams,
   PaginatedAssetResponse,
-  WorkspaceOperatingHour
+  WorkspaceOperatingHour,
+  WorkspaceAmenityDto,
+  AssignWorkspaceAmenitiesPayload
 } from './types';
 
 /**
@@ -82,12 +85,15 @@ export const LEGACY_WORKSPACE_ID_MAP: Record<string, string> = {
 
 /**
  * Resolves a legacy workspace identifier or alias to its authoritative canonical ID.
+ * Robust against numeric, string, or nullish identifier inputs.
  */
-export function resolveWorkspaceId(aliasOrId: string): string {
-  if (!aliasOrId) return aliasOrId;
-  const normalized = aliasOrId.toLowerCase().trim();
+export function resolveWorkspaceId(aliasOrId: unknown): string {
+  if (aliasOrId === null || aliasOrId === undefined) return '';
+  const str = String(aliasOrId).trim();
+  if (!str) return '';
+  const normalized = str.toLowerCase();
   if (/^\d+$/.test(normalized)) return normalized;
-  return LEGACY_WORKSPACE_ID_MAP[normalized] || aliasOrId;
+  return LEGACY_WORKSPACE_ID_MAP[normalized] || str;
 }
 
 export const workspaceService = {
@@ -170,7 +176,12 @@ export const workspaceService = {
       }
     }
 
-    return apiClient.get<WorkspaceListResponse>('/workspaces', {
+    const isAdmin =
+      params?.role?.toLowerCase() === 'administrator' ||
+      params?.role?.toLowerCase() === 'admin';
+    const endpoint = isAdmin ? '/admin/workspaces' : '/workspaces';
+
+    return apiClient.get<WorkspaceListResponse>(endpoint, {
       params: queryParams,
       headers
     });
@@ -352,6 +363,33 @@ export const workspaceService = {
   },
 
   /**
+   * Dedicated Admin endpoint for setting/clearing featured status and order.
+   */
+  async adminSetFeatured(
+    id: string,
+    dto: AdminFeaturedWorkspaceDto,
+    options?: { adminId?: string }
+  ): Promise<CanonicalWorkspace> {
+    const resolvedId = resolveWorkspaceId(id);
+    const headers: Record<string, string> = {
+      'x-mock-role': 'Administrator',
+      'x-mock-user-id': options?.adminId || 'USR-1882'
+    };
+    return apiClient.patch<CanonicalWorkspace>(
+      `/admin/workspaces/${encodeURIComponent(resolvedId)}/featured`,
+      dto,
+      { headers }
+    );
+  },
+
+  /**
+   * Public endpoint to fetch currently featured active workspaces for Marketplace / Homepage.
+   */
+  async getFeaturedWorkspaces(): Promise<CanonicalWorkspace[]> {
+    return apiClient.get<CanonicalWorkspace[]>('/public/workspaces/featured');
+  },
+
+  /**
    * Uploads a local binary image (JPEG/PNG/WebP) to the media storage service.
    * Returns durable media URL.
    */
@@ -432,6 +470,25 @@ export const workspaceService = {
     mediaId: number | string
   ): Promise<void> {
     return apiClient.delete(`/workspaces/${workspaceId}/media/${mediaId}`);
+  },
+
+  /**
+   * Retrieves all amenities assigned to a workspace.
+   */
+  async getWorkspaceAmenities(workspaceId: number | string): Promise<WorkspaceAmenityDto[]> {
+    const numericId = typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    return apiClient.get<WorkspaceAmenityDto[]>(`/workspaces/${numericId}/amenities`);
+  },
+
+  /**
+   * Synchronizes / assigns full amenities list to a workspace.
+   */
+  async syncWorkspaceAmenities(
+    workspaceId: number | string,
+    payload: AssignWorkspaceAmenitiesPayload
+  ): Promise<WorkspaceAmenityDto[]> {
+    const numericId = typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    return apiClient.put<WorkspaceAmenityDto[]>(`/workspaces/${numericId}/amenities`, payload);
   },
 
   /**

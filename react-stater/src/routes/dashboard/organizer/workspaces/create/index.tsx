@@ -19,7 +19,8 @@ export const Route = createFileRoute('/dashboard/organizer/workspaces/create/')(
 function CreateWorkspaceBasicInfoPage() {
   const location = useLocation();
   const search = location.search as Record<string, unknown>;
-  const id = typeof search.id === 'string' ? search.id : undefined;
+  const rawId = search.id ?? search.workspaceId;
+  const id = rawId != null ? String(rawId).replace(/^["']+|["']+$/g, '').trim() : undefined;
   return (
     <PageContainer>
       <StepBasicInfoView routeWorkspaceId={id} />

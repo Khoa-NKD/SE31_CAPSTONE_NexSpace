@@ -338,6 +338,27 @@ async function runClientTests() {
       }
     );
 
+    // 20b. Admin Featured Workspace & Public Featured Workspaces
+    console.log('\n--- Client Test 20b: Admin Featured & Public Featured via apiClient ---');
+    const featuredWs = await apiClient.patch<any>(
+      '/admin/workspaces/WS-101/featured',
+      {
+        isFeatured: true,
+        featuredOrder: 1
+      },
+      {
+        headers: {
+          'x-mock-role': 'Administrator',
+          'x-mock-user-id': 'USR-1882'
+        }
+      }
+    );
+    assert(featuredWs?.featuredPosition === 1 || featuredWs?.featuredOrder === 1, 'apiClient admin set featured succeeded');
+
+    const publicFeatured = await apiClient.get<any[]>('/public/workspaces/featured');
+    assert(Array.isArray(publicFeatured) && publicFeatured.length > 0, 'apiClient GET /public/workspaces/featured returns items');
+    assert(publicFeatured.some((w) => w.id === 'WS-101'), 'public featured includes WS-101');
+
     // 21. Cleanup reset
     console.log('\n--- Client Test 21: Reset via apiClient ---');
     const resetResult = await apiClient.post<any>('/dev/reset');

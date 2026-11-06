@@ -8,6 +8,7 @@ interface WorkspaceFilterPillsProps {
     all: number;
     active: number;
     draft: number;
+    rejected?: number;
   };
 }
 
@@ -63,6 +64,22 @@ export function WorkspaceFilterPills({
       >
         Draft ({counts.draft})
       </button>
+
+      {typeof counts.rejected === 'number' && counts.rejected > 0 && (
+        <button
+          type='button'
+          role='tab'
+          aria-selected={filter === 'rejected'}
+          onClick={() => onFilterChange('rejected')}
+          className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all duration-150 ${
+            filter === 'rejected'
+              ? 'bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-800 shadow-2xs'
+              : 'text-muted-foreground hover:text-rose-600 hover:bg-rose-50/50 border border-transparent'
+          }`}
+        >
+          Needs Revision ({counts.rejected})
+        </button>
+      )}
     </div>
   );
 }

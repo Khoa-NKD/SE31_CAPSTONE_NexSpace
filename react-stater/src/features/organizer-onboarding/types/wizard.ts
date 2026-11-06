@@ -138,4 +138,6 @@ export interface OnboardingDraftState {
   floorPlan: FloorPlanValues;
   floorPlanHandoff?: FloorPlanHandoffContract;
   submissionStatus?: 'draft' | 'under_review' | 'published';
+  reviewStatus?: string;
+  reviewFeedback?: string | null;
 }

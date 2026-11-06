@@ -15,7 +15,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Check,
-  Loader2
+  Loader2,
+  Eye
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -126,6 +127,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
 
   // Derived progress
   const uploadedCount = media.items.length;
@@ -618,8 +620,8 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
                       {/* Gradient Overlay */}
                       <div className='absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-slate-950/50 pointer-events-none' />
 
-                      {/* Top Badges */}
-                      <div className='relative z-10 p-3 flex items-start justify-between'>
+                      {/* Top Badges (visible when not hovered) */}
+                      <div className='relative z-10 p-3 flex items-start justify-between pointer-events-none'>
                         <div className='flex flex-col gap-1 items-start'>
                           {isCover && (
                             <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
@@ -661,100 +663,133 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
                         </span>
                       </div>
 
-                      {/* Action Overlay */}
-                      <div className='absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex items-center justify-center gap-2 z-20 p-2'>
-                        {/* Retry Upload Button */}
-                        {item.uploadStatus === 'error' && (
+                      {/* Action Overlay: Hover / Focus action toolbar */}
+                      <div className='absolute inset-0 bg-slate-950/65 opacity-0 group-hover:opacity-100 sm:focus-within:opacity-100 transition-opacity flex flex-col justify-between p-3 z-20 pointer-events-auto'>
+                        {/* Top Row: Left has Cover badge or Set Cover button, Right has Delete + Index */}
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            {isCover ? (
+                              <span className='inline-flex items-center gap-1.5 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
+                                <Star className='size-3.5 fill-white text-white' />
+                                <span>COVER PHOTO</span>
+                              </span>
+                            ) : (
+                              <Button
+                                type='button'
+                                size='sm'
+                                variant='secondary'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleSetCover(item.id, item.name);
+                                }}
+                                className='h-7 px-2.5 bg-slate-900/80 hover:bg-indigo-600 text-white hover:text-white border border-white/20 text-xs font-semibold shadow transition-colors'
+                                title='Set as primary cover photo'
+                              >
+                                <Star className='size-3 mr-1 text-amber-400' />
+                                <span>Set Cover</span>
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className='flex items-center gap-1.5'>
+                            <Button
+                              type='button'
+                              size='icon'
+                              variant='destructive'
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeletePhoto(item.id, item.name);
+                              }}
+                              className='size-7 rounded-md bg-red-600 hover:bg-red-700 text-white shadow'
+                              title='Delete photo'
+                            >
+                              <Trash2 className='size-3.5' />
+                            </Button>
+                            <span className='size-6 rounded-full bg-slate-900/85 backdrop-blur-md text-white flex items-center justify-center text-xs font-bold border border-white/20'>
+                              {index + 1}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Middle Area: Click opens preview modal without affecting cover status */}
+                        <div className='flex items-center justify-center'>
                           <Button
                             type='button'
                             size='sm'
                             variant='secondary'
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleRetryUpload(item.id);
+                              setPreviewItem(item);
                             }}
-                            className='h-8 px-2.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow'
-                            title='Retry uploading this image'
+                            className='h-8 px-3 rounded-full bg-slate-900/80 hover:bg-slate-900 text-white border border-white/20 text-xs font-medium backdrop-blur-sm shadow hover:scale-105 transition-all'
+                            title='View full size photo'
                           >
-                            <span>Retry</span>
+                            <Eye className='size-3.5 mr-1.5' />
+                            <span>Preview</span>
                           </Button>
-                        )}
+                        </div>
 
-                        {/* Set Cover Button */}
-                        {!isCover ? (
-                          <Button
-                            type='button'
-                            size='sm'
-                            variant='secondary'
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleSetCover(item.id, item.name);
-                            }}
-                            className='h-8 px-2.5 bg-white hover:bg-slate-100 text-slate-900 text-xs font-semibold shadow'
-                            title='Set as primary cover photo'
-                          >
-                            <Star className='size-3.5 mr-1 text-amber-500' />
-                            <span>Set Cover</span>
-                          </Button>
-                        ) : (
-                          <Badge className='h-8 px-2.5 bg-indigo-600 text-white text-xs font-semibold gap-1'>
-                            <Check className='size-3.5' />
-                            <span>Primary Active</span>
-                          </Badge>
-                        )}
+                        {/* Bottom Row: Metadata Tag & Reordering / Retry */}
+                        <div className='flex items-center justify-between gap-2'>
+                          <span className='inline-block px-2.5 py-1 rounded bg-slate-900/85 backdrop-blur-md text-white text-[11px] font-medium border border-white/10 truncate max-w-[130px] sm:max-w-[170px]'>
+                            {item.dimension ? `${item.dimension} • ` : ''}
+                            {item.caption || item.name}
+                          </span>
 
-                        {/* Reorder Left */}
-                        {index > 0 && (
-                          <Button
-                            type='button'
-                            size='icon'
-                            variant='secondary'
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMove(index, 'left');
-                            }}
-                            className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
-                            title='Move Earlier'
-                          >
-                            <ChevronLeft className='size-4' />
-                          </Button>
-                        )}
+                          <div className='flex items-center gap-1'>
+                            {item.uploadStatus === 'error' && (
+                              <Button
+                                type='button'
+                                size='sm'
+                                variant='secondary'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleRetryUpload(item.id);
+                                }}
+                                className='h-7 px-2 bg-amber-500 hover:bg-amber-600 text-white text-xs font-semibold shadow'
+                                title='Retry uploading this image'
+                              >
+                                <span>Retry</span>
+                              </Button>
+                            )}
 
-                        {/* Reorder Right */}
-                        {index < media.items.length - 1 && (
-                          <Button
-                            type='button'
-                            size='icon'
-                            variant='secondary'
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleMove(index, 'right');
-                            }}
-                            className='size-8 bg-white/90 hover:bg-white text-slate-900 shadow'
-                            title='Move Later'
-                          >
-                            <ChevronRight className='size-4' />
-                          </Button>
-                        )}
+                            {index > 0 && (
+                              <Button
+                                type='button'
+                                size='icon'
+                                variant='secondary'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMove(index, 'left');
+                                }}
+                                className='size-7 rounded-md bg-white/90 hover:bg-white text-slate-900 shadow'
+                                title='Move Earlier'
+                              >
+                                <ChevronLeft className='size-4' />
+                              </Button>
+                            )}
 
-                        {/* Delete Button */}
-                        <Button
-                          type='button'
-                          size='icon'
-                          variant='destructive'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeletePhoto(item.id, item.name);
-                          }}
-                          className='size-8 bg-red-600 hover:bg-red-700 text-white shadow'
-                          title='Delete photo'
-                        >
-                          <Trash2 className='size-4' />
-                        </Button>
+                            {index < media.items.length - 1 && (
+                              <Button
+                                type='button'
+                                size='icon'
+                                variant='secondary'
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleMove(index, 'right');
+                                }}
+                                className='size-7 rounded-md bg-white/90 hover:bg-white text-slate-900 shadow'
+                                title='Move Later'
+                              >
+                                <ChevronRight className='size-4' />
+                              </Button>
+                            )}
+                          </div>
+                        </div>
                       </div>
 
-                      {/* Bottom Metadata Tag */}
-                      <div className='relative z-10 p-3'>
+                      {/* Bottom Metadata Tag (visible when not hovered) */}
+                      <div className='relative z-10 p-3 pointer-events-none'>
                         <span className='inline-block px-2.5 py-1 rounded bg-slate-900/80 backdrop-blur-md text-white text-[11px] font-medium border border-white/10 truncate max-w-full'>
                           {item.dimension ? `${item.dimension} • ` : ''}
                           {item.caption || item.name}
@@ -847,6 +882,70 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
           </Button>
         </div>
       </footer>
+
+      {/* Preview Lightbox Dialog */}
+      <Dialog open={!!previewItem} onOpenChange={(open) => !open && setPreviewItem(null)}>
+        <DialogContent className='max-w-3xl p-4 sm:p-6 overflow-hidden'>
+          <DialogHeader>
+            <DialogTitle className='text-sm sm:text-base font-semibold truncate'>
+              {previewItem?.name || 'Photo Preview'}
+            </DialogTitle>
+            {previewItem?.dimension && (
+              <DialogDescription className='text-xs text-muted-foreground'>
+                Resolution: {previewItem.dimension}
+              </DialogDescription>
+            )}
+          </DialogHeader>
+
+          {previewItem && (
+            <div className='relative my-3 rounded-lg overflow-hidden bg-slate-950 flex items-center justify-center max-h-[65vh]'>
+              <img
+                src={previewItem.url}
+                alt={previewItem.caption || previewItem.name}
+                className='w-full h-auto max-h-[65vh] object-contain'
+              />
+            </div>
+          )}
+
+          <DialogFooter className='flex flex-row justify-between items-center sm:justify-between pt-2 border-t border-border'>
+            <div>
+              {previewItem && (
+                previewItem.id === media.coverPhotoId || previewItem.isCover ? (
+                  <Badge className='h-8 px-2.5 bg-indigo-600 text-white text-xs font-semibold gap-1.5'>
+                    <Star className='size-3.5 fill-white' />
+                    <span>Cover Photo Active</span>
+                  </Badge>
+                ) : (
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant='outline'
+                    onClick={() => {
+                      if (previewItem) {
+                        handleSetCover(previewItem.id, previewItem.name);
+                      }
+                    }}
+                    className='h-8 text-xs font-medium border-border hover:bg-muted'
+                  >
+                    <Star className='size-3.5 mr-1 text-amber-500' />
+                    <span>Set as Cover Photo</span>
+                  </Button>
+                )
+              )}
+            </div>
+
+            <Button
+              type='button'
+              variant='secondary'
+              size='sm'
+              onClick={() => setPreviewItem(null)}
+              className='h-8 text-xs px-4'
+            >
+              Close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Continuation Dialog: Batch 2 Complete -> Batch 3 Handoff */}
       <Dialog open={isCompletionModalOpen} onOpenChange={setIsCompletionModalOpen}>

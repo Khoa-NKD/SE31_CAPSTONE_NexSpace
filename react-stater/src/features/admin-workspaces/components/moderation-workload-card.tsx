@@ -48,7 +48,7 @@ export function ModerationWorkloadCard({
             items.map((item) => (
               <div
                 key={item.id}
-                className='p-3.5 rounded-lg bg-muted/50 border border-border flex items-start justify-between gap-3'
+                className='p-3.5 rounded-lg bg-muted/50 border border-border flex items-start justify-between gap-3 hover:border-primary/40 transition-colors'
               >
                 <div className='flex items-start gap-3'>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center mt-0.5 shrink-0 ${item.iconBgClass} ${item.iconColorClass}`}>
@@ -63,9 +63,19 @@ export function ModerationWorkloadCard({
                     <p className='text-xs text-muted-foreground mt-0.5'>{item.description}</p>
                   </div>
                 </div>
-                <span className='font-mono text-[11px] font-semibold text-foreground bg-card px-2 py-0.5 rounded border border-border shrink-0'>
-                  {item.priorityLabel}
-                </span>
+                <div className='flex items-center gap-2 shrink-0'>
+                  <span className='font-mono text-[11px] font-semibold text-foreground bg-card px-2 py-0.5 rounded border border-border'>
+                    {item.priorityLabel}
+                  </span>
+                  <Link
+                    to='/dashboard/admin/workspaces/directory'
+                    search={item.workspaceId ? { hubId: item.workspaceId } : { status: 'pending' }}
+                    className='inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline px-2 py-0.5 rounded bg-primary/10'
+                  >
+                    Review Queue
+                    <ArrowRight className='size-3' />
+                  </Link>
+                </div>
               </div>
             ))
           )}
@@ -81,8 +91,8 @@ export function ModerationWorkloadCard({
           </span>
         </div>
         <Link
-          to='/dashboard/admin/workspaces'
-          search={{ filter: 'pending' }}
+          to='/dashboard/admin/workspaces/directory'
+          search={{ status: 'pending' }}
           className='inline-flex items-center gap-1.5 text-xs text-primary hover:text-indigo-700 transition-colors font-semibold'
         >
           <span>Review Pending Queue</span>

@@ -31,6 +31,7 @@ export const ZERO_WORKSPACE_KPIS: WorkspaceKpis = {
 
 export interface ModerationWorkloadItem {
   id: string;
+  workspaceId?: string;
   title: string;
   description: string;
   priorityLabel: 'Priority 1' | 'Standard' | 'Low';
@@ -293,7 +294,9 @@ export function deriveModerationWorkloadItems(
 ): ModerationWorkloadItem[] {
   if (!workspaces) return [];
 
-  const pendingWorkspaces = workspaces.filter((w) => w.reviewStatus === 'Pending');
+  const pendingWorkspaces = workspaces.filter(
+    (w) => w.reviewStatus === 'Pending' || w.status === 'pending'
+  );
   if (pendingWorkspaces.length === 0) return [];
 
   return [

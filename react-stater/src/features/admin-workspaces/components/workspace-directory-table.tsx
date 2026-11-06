@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useMemo } from 'react';
 import { Building2, CheckCircle2, ChevronRight, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { WorkspaceDirectoryItem } from '../data/mock-workspaces-directory';
@@ -7,6 +7,10 @@ interface WorkspaceDirectoryTableProps {
   items: WorkspaceDirectoryItem[];
   selectedWorkspaceId?: string;
   onSelectWorkspace: (item: WorkspaceDirectoryItem) => void;
+  page?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  onPageSizeChange?: (pageSize: number) => void;
 }
 
 function getStatusBadge(status: WorkspaceDirectoryItem['status']) {
@@ -32,14 +36,77 @@ function getStatusBadge(status: WorkspaceDirectoryItem['status']) {
           Suspended
         </span>
       );
+    case 'archived':
+      return (
+        <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'>
+          <span className='w-1.5 h-1.5 rounded-full bg-slate-500' aria-hidden='true'></span>
+          Archived
+        </span>
+      );
   }
 }
 
 export function WorkspaceDirectoryTable({
   items,
   selectedWorkspaceId,
-  onSelectWorkspace
+  onSelectWorkspace,
+  page,
+  pageSize,
+  onPageChange,
+  onPageSizeChange
 }: WorkspaceDirectoryTableProps) {
+  const [internalPage, setInternalPage] = useState(1);
+  const [internalPageSize, setInternalPageSize] = useState(10);
+
+  const currentPage = page ?? internalPage;
+  const currentPageSize = pageSize ?? internalPageSize;
+
+  const handlePageChange = (p: number) => {
+    if (onPageChange) {
+      onPageChange(p);
+    } else {
+      setInternalPage(p);
+    }
+  };
+
+  const handlePageSizeChange = (s: number) => {
+    if (onPageSizeChange) {
+      onPageSizeChange(s);
+    } else {
+      setInternalPageSize(s);
+      setInternalPage(1);
+    }
+  };
+
+  const totalItems = items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / currentPageSize));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startItem = totalItems === 0 ? 0 : (safePage - 1) * currentPageSize + 1;
+  const endItem = Math.min(totalItems, safePage * currentPageSize);
+
+  const paginatedItems = useMemo(() => {
+    const startIndex = (safePage - 1) * currentPageSize;
+    return items.slice(startIndex, startIndex + currentPageSize);
+  }, [items, safePage, currentPageSize]);
+
+  const getPageNumbers = () => {
+    const pages: (number | string)[] = [];
+    if (totalPages <= 5) {
+      for (let i = 1; i <= totalPages; i++) {
+        pages.push(i);
+      }
+    } else {
+      if (safePage <= 3) {
+        pages.push(1, 2, 3, '...', totalPages);
+      } else if (safePage >= totalPages - 2) {
+        pages.push(1, '...', totalPages - 2, totalPages - 1, totalPages);
+      } else {
+        pages.push(1, '...', safePage, '...', totalPages);
+      }
+    }
+    return pages;
+  };
+
   if (items.length === 0) {
     return (
       <div className='p-12 text-center bg-card rounded-xl border border-border shadow-2xs'>
@@ -69,7 +136,7 @@ export function WorkspaceDirectoryTable({
             </tr>
           </thead>
           <tbody className='divide-y divide-border'>
-            {items.map((workspace) => {
+            {paginatedItems.map((workspace) => {
               const isSelected = selectedWorkspaceId === workspace.id;
 
               return (
@@ -165,45 +232,80 @@ export function WorkspaceDirectoryTable({
       </div>
 
       {/* Pagination Footer */}
-      <div className='p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground'>
+      <div className='p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground select-none'>
         <div>
-          Showing <strong className='text-foreground font-semibold'>{items.length}</strong> of{' '}
-          <strong className='text-foreground font-semibold'>618</strong> workspaces
+          Showing{' '}
+          <strong className='text-foreground font-semibold'>
+            {totalItems === 0 ? 0 : `${startItem}–${endItem}`}
+          </strong>{' '}
+          of <strong className='text-foreground font-semibold'>{totalItems}</strong> workspaces
         </div>
-        <div className='inline-flex items-center gap-1.5'>
-          <button
-            type='button'
-            disabled
-            className='px-2.5 py-1 rounded border border-border bg-card text-muted-foreground opacity-50 cursor-not-allowed'
-          >
-            Previous
-          </button>
-          <span className='px-2.5 py-1 rounded bg-primary text-white font-semibold'>1</span>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            2
-          </button>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            3
-          </button>
-          <span className='px-1 text-muted-foreground'>...</span>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            62
-          </button>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            Next
-          </button>
+
+        <div className='flex items-center gap-3'>
+          {/* Rows per page selector */}
+          <div className='flex items-center gap-1.5'>
+            <span className='text-[11px] text-muted-foreground whitespace-nowrap'>Rows per page</span>
+            <select
+              aria-label='Rows per page'
+              value={currentPageSize}
+              onChange={(e) => handlePageSizeChange(Number(e.target.value))}
+              className='h-7 rounded border border-border bg-card px-2 text-xs text-foreground focus:outline-hidden focus:ring-1 focus:ring-primary cursor-pointer'
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={20}>20</option>
+              <option value={50}>50</option>
+            </select>
+          </div>
+
+          {/* Navigation buttons */}
+          <div className='inline-flex items-center gap-1'>
+            <button
+              type='button'
+              onClick={() => handlePageChange(safePage - 1)}
+              disabled={safePage <= 1}
+              className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+              aria-label='Previous page'
+            >
+              Previous
+            </button>
+
+            {getPageNumbers().map((p, idx) => {
+              if (p === '...') {
+                return (
+                  <span key={`ellipsis-${idx}`} className='px-1 text-muted-foreground'>
+                    ...
+                  </span>
+                );
+              }
+              const isCurrent = p === safePage;
+              return (
+                <button
+                  key={`page-${p}`}
+                  type='button'
+                  onClick={() => handlePageChange(Number(p))}
+                  aria-current={isCurrent ? 'page' : undefined}
+                  className={`min-w-[28px] px-2 py-1 rounded text-center font-medium transition-colors ${
+                    isCurrent
+                      ? 'bg-primary text-white font-semibold shadow-2xs'
+                      : 'border border-border bg-card text-foreground hover:bg-muted'
+                  }`}
+                >
+                  {p}
+                </button>
+              );
+            })}
+
+            <button
+              type='button'
+              onClick={() => handlePageChange(safePage + 1)}
+              disabled={safePage >= totalPages}
+              className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-colors'
+              aria-label='Next page'
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>

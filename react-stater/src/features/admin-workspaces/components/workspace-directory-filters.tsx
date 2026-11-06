@@ -105,6 +105,21 @@ export function WorkspaceDirectoryFilters({
           >
             Suspended ({kpis.suspendedCount})
           </button>
+          {typeof kpis.archivedCount === 'number' && kpis.archivedCount > 0 && (
+            <button
+              type='button'
+              role='tab'
+              aria-selected={statusFilter === 'archived'}
+              onClick={() => onStatusChange('archived')}
+              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+                statusFilter === 'archived'
+                  ? 'bg-card text-foreground shadow-2xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Archived ({kpis.archivedCount})
+            </button>
+          )}
         </div>
 
         {/* City Filter */}
