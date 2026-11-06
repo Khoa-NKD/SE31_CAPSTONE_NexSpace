@@ -91,13 +91,13 @@ public class AuthServiceImpl implements IAuthService {
 
             // 1. Kiểm tra tài khoản chưa xác thực (INACTIVE)
             if (candidate.getStatus() == UserStatus.INACTIVE || !candidate.isVerified()) {
-                throw new UnauthorizedException("Tài khoản chưa được kích hoạt. Vui lòng xác thực tài khoản qua Gmail trước khi đăng nhập");
+                throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
             }
 
             // 2. Kiểm tra tài khoản bị khóa (vĩnh viễn hoặc có thời hạn)
             if (candidate.getStatus() == UserStatus.LOCKED) {
                 if (candidate.getLockedUntil() != null) {
-                    LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                    LocalDateTime now = LocalDateTime.now();
                     if (now.isBefore(candidate.getLockedUntil())) {
                         long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
                         throw new UnauthorizedException("Tài khoản đang bị khóa đến " + candidate.getLockedUntil().format(DATE_TIME_FORMATTER) + " (vui lòng thử lại sau " + remainingMinutes + " phút)");
@@ -115,7 +115,7 @@ public class AuthServiceImpl implements IAuthService {
 
             // 3. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
             if (candidate.getLockedUntil() != null) {
-                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                LocalDateTime now = LocalDateTime.now();
                 if (now.isBefore(candidate.getLockedUntil())) {
                     long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
                     throw new UnauthorizedException("Tài khoản đang bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau " + remainingMinutes + " phút");
@@ -152,7 +152,7 @@ public class AuthServiceImpl implements IAuthService {
                 .orElseThrow(() -> new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu")));
 
         if (!user.isVerified() || user.getStatus() == UserStatus.INACTIVE) {
-            throw new UnauthorizedException("Vui lòng xác thực tài khoản qua Gmail trước khi đăng nhập");
+            throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
         }
 
         // Đăng nhập thành công: xóa bộ đếm đăng nhập sai và cập nhật thời gian đăng nhập gần nhất

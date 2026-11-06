@@ -182,6 +182,9 @@ class AdminUserControllerTest {
                 dto.setStatus(UserStatus.LOCKED);
                 dto.setReason("");
 
+                when(userService.updateUserStatus(eq(1L), eq(10L), eq(UserStatus.LOCKED), eq(""), eq(null)))
+                                .thenThrow(new BadRequestException("Vui lòng nhập lý do khi khóa tài khoản"));
+
                 mockMvc.perform(patch("/api/admin/users/10/status")
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(dto)))

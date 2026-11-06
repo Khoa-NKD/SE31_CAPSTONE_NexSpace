@@ -27,6 +27,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
 
@@ -519,6 +520,7 @@ class UserServiceImplTest {
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.LOCKED);
         assertThat(user.getLockedUntil()).isEqualTo(lockedUntil);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         verify(auditService).log(
                 eq(admin),
                 eq(AuditActorType.USER),
@@ -528,7 +530,7 @@ class UserServiceImplTest {
                 eq(1L),
                 eq("ACTIVE"),
                 eq("LOCKED"),
-                eq("Tạm khóa 3 ngày (Khóa tạm đến: " + lockedUntil + ")"),
+                eq("Tạm khóa 3 ngày (Khóa tạm đến: " + lockedUntil.format(formatter) + " GMT+7)"),
                 eq(null)
         );
     }
