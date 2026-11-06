@@ -1,8 +1,12 @@
 package base.api.feature.workspace.service;
 
+import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
+import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
+import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
+import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.shared.dto.PageRequestDTO;
@@ -119,4 +123,69 @@ public interface IWorkspaceService {
      * @return Danh sách giờ hoạt động
      */
     java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> getPublicOperatingHours(Long workspaceId);
+
+    /**
+     * Organizer gửi duyệt hồ sơ không gian làm việc (DRAFT hoặc REJECTED -> PENDING_REVIEW).
+     * Áp dụng Strict Ownership Defense (ném NotFoundException nếu không sở hữu).
+     *
+     * @param organizerId ID của Organizer từ authenticated JWT
+     * @param workspaceId ID không gian làm việc
+     * @return WorkspaceDetailDto chi tiết sau khi cập nhật
+     */
+    WorkspaceDetailDto submitWorkspace(Long organizerId, Long workspaceId);
+
+    /**
+     * Admin thẩm định hồ sơ không gian làm việc (PENDING_REVIEW -> ACTIVE hoặc REJECTED).
+     *
+     * @param adminId ID của Admin
+     * @param workspaceId ID không gian làm việc
+     * @param dto DTO chứa trạng thái duyệt và lý do phản hồi
+     * @return WorkspaceDetailDto chi tiết sau khi duyệt
+     */
+    WorkspaceDetailDto adminReviewWorkspace(Long adminId, Long workspaceId, AdminReviewWorkspaceDto dto);
+
+    /**
+     * Admin điều hành/đình chỉ không gian làm việc (ACTIVE <-> SUSPENDED).
+     *
+     * @param adminId ID của Admin
+     * @param workspaceId ID không gian làm việc
+     * @param dto DTO chứa trạng thái điều hành và lý do
+     * @return WorkspaceDetailDto chi tiết sau khi điều hành
+     */
+    WorkspaceDetailDto adminModerateWorkspace(Long adminId, Long workspaceId, AdminModerationWorkspaceDto dto);
+
+    /**
+     * Admin cấu hình ghim nổi bật không gian làm việc (chỉ áp dụng cho ACTIVE).
+     *
+     * @param adminId ID của Admin
+     * @param workspaceId ID không gian làm việc
+     * @param dto DTO chứa thông tin ghim, thứ tự ưu tiên và thời hạn
+     * @return WorkspaceDetailDto chi tiết sau khi ghim
+     */
+    WorkspaceDetailDto adminSetFeatured(Long adminId, Long workspaceId, AdminFeaturedWorkspaceDto dto);
+
+    /**
+     * Admin xem danh sách toàn bộ không gian làm việc có phân trang và bộ lọc.
+     *
+     * @param status Trạng thái lọc
+     * @param city Thành phố lọc
+     * @param search Từ khóa tìm kiếm
+     * @param pageRequest Phân trang
+     * @return Trang danh sách WorkspaceDto
+     */
+    Page<WorkspaceDto> getAdminWorkspaces(WorkspaceStatus status, String city, String search, PageRequestDTO pageRequest);
+
+    /**
+     * Admin lấy thống kê KPI các không gian làm việc theo trạng thái.
+     *
+     * @return AdminWorkspaceKpisDto
+     */
+    AdminWorkspaceKpisDto getAdminWorkspaceKpis();
+
+    /**
+     * Khách hàng xem danh sách các không gian làm việc nổi bật (chỉ ACTIVE và còn hạn).
+     *
+     * @return Danh sách WorkspaceDto nổi bật sắp xếp theo thứ tự ưu tiên
+     */
+    java.util.List<WorkspaceDto> getFeaturedWorkspaces();
 }

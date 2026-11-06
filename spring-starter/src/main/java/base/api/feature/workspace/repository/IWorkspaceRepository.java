@@ -45,5 +45,33 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             @Param("status") WorkspaceStatus status,
             @Param("search") String search,
             Pageable pageable);
+
+    long countByStatus(WorkspaceStatus status);
+
+    @Query("""
+            SELECT w FROM WorkspaceModel w
+            WHERE (:status IS NULL OR w.status = :status)
+              AND (:city IS NULL OR LOWER(w.city) = LOWER(:city))
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.organizer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.organizer.lastName) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<WorkspaceModel> searchAdmin(
+            @Param("status") WorkspaceStatus status,
+            @Param("city") String city,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND w.featuredOrder IS NOT NULL
+              AND (w.featuredUntil IS NULL OR w.featuredUntil > CURRENT_TIMESTAMP)
+            ORDER BY w.featuredOrder ASC, w.createdAt DESC
+            """)
+    java.util.List<WorkspaceModel> findFeaturedWorkspaces(@Param("status") WorkspaceStatus status);
 }
 

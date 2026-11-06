@@ -27,6 +27,13 @@ public class PublicWorkspaceController extends BaseAPIController {
 
     private final IWorkspaceService workspaceService;
 
+    @Operation(summary = "Xem danh sách không gian nổi bật", description = "Khách hàng xem danh sách các không gian làm việc nổi bật được tuyển chọn (chỉ workspace ACTIVE)")
+    @GetMapping("/featured")
+    public ResponseEntity<ApiResponse<java.util.List<WorkspaceDto>>> getFeaturedWorkspaces() {
+        java.util.List<WorkspaceDto> list = workspaceService.getFeaturedWorkspaces();
+        return success(list);
+    }
+
     @Operation(summary = "Xem chi tiết không gian công khai", description = "Khách hàng xem thông tin không gian làm việc đang hoạt động (ACTIVE)")
     @GetMapping("/{id}")
     public ResponseEntity<ApiResponse<WorkspaceDetailDto>> getPublicWorkspaceDetail(@PathVariable String id) {
