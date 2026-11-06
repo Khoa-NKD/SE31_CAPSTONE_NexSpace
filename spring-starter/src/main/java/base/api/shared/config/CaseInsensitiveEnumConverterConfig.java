@@ -13,10 +13,10 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 public class CaseInsensitiveEnumConverterConfig implements WebMvcConfigurer {
 
     @Override
+    @SuppressWarnings({"rawtypes", "unchecked"})
     public void addFormatters(FormatterRegistry registry) {
         registry.addConverterFactory(new ConverterFactory<String, Enum>() {
             @Override
-            @SuppressWarnings({"rawtypes", "unchecked"})
             public <T extends Enum> Converter<String, T> getConverter(Class<T> targetType) {
                 return source -> {
                     if (source == null || source.isBlank()) {

@@ -50,4 +50,7 @@ public interface IUserRepository extends JpaRepository<UserModel, Long> {
                            @Param("roleName") String roleName,
                            @Param("status") UserStatus status,
                            Pageable pageable);
+
+    @Query("SELECT COUNT(u) FROM UserModel u WHERE u.roleEntity.name = :roleName AND u.status = :status")
+    long countByRoleNameAndStatus(@Param("roleName") String roleName, @Param("status") UserStatus status);
 }

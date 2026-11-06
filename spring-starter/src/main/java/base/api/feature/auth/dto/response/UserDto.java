@@ -39,4 +39,7 @@ public class UserDto {
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss", shape = JsonFormat.Shape.STRING)
     LocalDateTime lastLoginAt;
+
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "Asia/Ho_Chi_Minh")
+    LocalDateTime lockedUntil;
 }

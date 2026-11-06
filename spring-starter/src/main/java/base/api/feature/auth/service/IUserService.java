@@ -9,6 +9,8 @@ import base.api.shared.enums.UserStatus;
 import org.springframework.data.domain.Page;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+
 public interface IUserService {
 
     UserDto getById(Long userId);
@@ -32,4 +34,6 @@ public interface IUserService {
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status);
 
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason);
+
+    UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason, LocalDateTime lockedUntil);
 }

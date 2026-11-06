@@ -30,6 +30,7 @@ public final class UserMapper {
                 .createdAt(user.getCreatedAt())
                 .updatedAt(user.getUpdatedAt())
                 .lastLoginAt(user.getLastLoginAt())
+                .lockedUntil(user.getLockedUntil())
                 .build();
     }
 }

@@ -4,16 +4,19 @@ import base.api.feature.auth.dto.request.ChangePasswordDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.auth.repository.IUserSessionRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
+import base.api.shared.entity.identity.UserSessionModel;
 import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.UserGender;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -22,9 +25,10 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import java.io.IOException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,6 +43,7 @@ class UserServiceImplTest {
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
     private IUserRepository userRepository;
+    private IUserSessionRepository userSessionRepository;
     private IAuditService auditService;
     private IMediaStorageService mediaStorageService;
     private UserServiceImpl service;
@@ -48,9 +53,10 @@ class UserServiceImplTest {
     @BeforeEach
     void setUp() {
         userRepository = mock(IUserRepository.class);
+        userSessionRepository = mock(IUserSessionRepository.class);
         auditService = mock(IAuditService.class);
         mediaStorageService = mock(IMediaStorageService.class);
-        service = new UserServiceImpl(userRepository, passwordEncoder, auditService, mediaStorageService);
+        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService);
 
         user = new UserModel();
         user.setId(1L);
@@ -64,6 +70,7 @@ class UserServiceImplTest {
         admin.setId(2L);
         admin.setUserName("admin");
         admin.setEmail("admin@example.com");
+        admin.setStatus(UserStatus.ACTIVE);
         admin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), null));
 
         when(userRepository.findById(1L)).thenReturn(Optional.of(user));
@@ -402,11 +409,18 @@ class UserServiceImplTest {
     }
 
     @Test
-    @DisplayName("Admin khóa tài khoản thành công và ghi vết Audit Log theo BR-31")
+    @DisplayName("Admin khóa tài khoản thành công, thu hồi phiên hoạt động và ghi vết Audit Log theo BR-31")
     void adminCanLockAnotherUser() {
+        UserSessionModel session1 = new UserSessionModel();
+        session1.setId(101L);
+        session1.setUser(user);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of(session1));
+
         var result = service.updateUserStatus(2L, 1L, UserStatus.LOCKED, "Vi phạm điều khoản dịch vụ");
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.LOCKED);
+        assertThat(session1.getRevokedAt()).isNotNull();
+        verify(userSessionRepository).saveAll(any());
         verify(auditService).log(
                 eq(admin),
                 eq(AuditActorType.USER),
@@ -417,6 +431,55 @@ class UserServiceImplTest {
                 eq("ACTIVE"),
                 eq("LOCKED"),
                 eq("Vi phạm điều khoản dịch vụ"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Admin không thể khóa tài khoản Admin đang hoạt động duy nhất trong hệ thống")
+    void adminCannotLockLastActiveAdmin() {
+        UserModel anotherAdmin = new UserModel();
+        anotherAdmin.setId(3L);
+        anotherAdmin.setUserName("admin3");
+        anotherAdmin.setStatus(UserStatus.ACTIVE);
+        anotherAdmin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), null));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(anotherAdmin));
+
+        // Chỉ còn 1 Admin active
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.updateUserStatus(2L, 3L, UserStatus.LOCKED, "Khóa tài khoản admin"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Không thể khóa tài khoản Quản trị viên (ADMIN) đang hoạt động duy nhất");
+    }
+
+    @Test
+    @DisplayName("Admin có thể khóa tài khoản Admin khác khi hệ thống còn nhiều hơn 1 Admin active")
+    void adminCanLockAnotherAdminWhenMultipleAdminsExist() {
+        UserModel anotherAdmin = new UserModel();
+        anotherAdmin.setId(3L);
+        anotherAdmin.setUserName("admin3");
+        anotherAdmin.setStatus(UserStatus.ACTIVE);
+        anotherAdmin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), null));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(anotherAdmin));
+
+        // Có 2 Admin active
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(2L);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(3L)).thenReturn(List.of());
+
+        var result = service.updateUserStatus(2L, 3L, UserStatus.LOCKED, "Tạm khóa để điều tra");
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.LOCKED);
+        verify(auditService).log(
+                eq(admin),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_LOCKED"),
+                eq("UserModel"),
+                eq(3L),
+                eq("ACTIVE"),
+                eq("LOCKED"),
+                eq("Tạm khóa để điều tra"),
                 eq(null)
         );
     }
@@ -445,5 +508,40 @@ class UserServiceImplTest {
                 eq("Đã xử lý khiếu nại"),
                 eq(null)
         );
+    }
+
+    @Test
+    @DisplayName("Admin khóa tài khoản có thời hạn (lockedUntil) thành công")
+    void adminCanLockUserWithDuration() {
+        LocalDateTime lockedUntil = LocalDateTime.now().plusDays(3);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of());
+
+        var result = service.updateUserStatus(2L, 1L, UserStatus.LOCKED, "Tạm khóa 3 ngày", lockedUntil);
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.LOCKED);
+        assertThat(user.getLockedUntil()).isEqualTo(lockedUntil);
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+        verify(auditService).log(
+                eq(admin),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_LOCKED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("ACTIVE"),
+                eq("LOCKED"),
+                eq("Tạm khóa 3 ngày (Khóa tạm đến: " + lockedUntil.format(formatter) + " GMT+7)"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Admin khóa tài khoản với thời hạn trong quá khứ sẽ bị từ chối")
+    void adminCannotLockUserWithPastDuration() {
+        LocalDateTime past = LocalDateTime.now().minusHours(1);
+
+        assertThatThrownBy(() -> service.updateUserStatus(2L, 1L, UserStatus.LOCKED, "Lỗi thời gian", past))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("tương lai");
     }
 }

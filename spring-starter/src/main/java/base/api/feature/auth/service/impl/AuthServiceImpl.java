@@ -37,6 +37,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
@@ -49,6 +51,8 @@ public class AuthServiceImpl implements IAuthService {
     private static final String TOKEN_TYPE = "Bearer";
     private static final int MAX_FAILED_LOGIN_ATTEMPTS = 5;
     private static final long LOCKOUT_DURATION_MINUTES = 15;
+    private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     private final AuthenticationManager authenticationManager;
     private final IUserRepository userRepository;
@@ -85,12 +89,31 @@ public class AuthServiceImpl implements IAuthService {
         if (userOpt.isPresent()) {
             UserModel candidate = userOpt.get();
 
-            // 1. Kiểm tra tài khoản bị quản trị viên khóa
-            if (candidate.getStatus() == UserStatus.LOCKED) {
-                throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
+            // 1. Kiểm tra tài khoản chưa xác thực (INACTIVE)
+            if (candidate.getStatus() == UserStatus.INACTIVE || !candidate.isVerified()) {
+                throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
             }
 
-            // 2. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
+            // 2. Kiểm tra tài khoản bị khóa (vĩnh viễn hoặc có thời hạn)
+            if (candidate.getStatus() == UserStatus.LOCKED) {
+                if (candidate.getLockedUntil() != null) {
+                    LocalDateTime now = LocalDateTime.now();
+                    if (now.isBefore(candidate.getLockedUntil())) {
+                        long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
+                        throw new UnauthorizedException("Tài khoản đang bị khóa đến " + candidate.getLockedUntil().format(DATE_TIME_FORMATTER) + " (vui lòng thử lại sau " + remainingMinutes + " phút)");
+                    } else {
+                        // Đã hết thời hạn khóa => tự động mở lại
+                        candidate.setStatus(UserStatus.ACTIVE);
+                        candidate.setLockedUntil(null);
+                        candidate.setFailedLoginCount(0);
+                        userRepository.save(candidate);
+                    }
+                } else {
+                    throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
+                }
+            }
+
+            // 3. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
             if (candidate.getLockedUntil() != null) {
                 LocalDateTime now = LocalDateTime.now();
                 if (now.isBefore(candidate.getLockedUntil())) {
@@ -128,7 +151,7 @@ public class AuthServiceImpl implements IAuthService {
         UserModel user = userOpt.orElseGet(() -> userRepository.findByLogin(login)
                 .orElseThrow(() -> new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu")));
 
-        if (!user.isVerified()) {
+        if (!user.isVerified() || user.getStatus() == UserStatus.INACTIVE) {
             throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
         }
 
@@ -168,8 +191,8 @@ public class AuthServiceImpl implements IAuthService {
         user.setLastName(trimToNull(dto.getLastName()));
         user.setPhone(trimToNull(dto.getPhone()));
         user.setRoleEntity(findRole(UserRole.USER));
-        user.setStatus(UserStatus.ACTIVE);
         user.setVerified(!emailVerificationEnabled);
+        user.setStatus(emailVerificationEnabled ? UserStatus.INACTIVE : UserStatus.ACTIVE);
         user.setPreferredLocale("vi");
 
         UserModel saved = userRepository.save(user);
@@ -210,7 +233,8 @@ public class AuthServiceImpl implements IAuthService {
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         user.setVerified(true);
-        user.setEmailVerifiedAt(LocalDateTime.now());
+        user.setStatus(UserStatus.ACTIVE);
+        user.setEmailVerifiedAt(LocalDateTime.now(VIETNAM_ZONE));
         tokenModel.setUsed(true);
         return user.getEmail();
     }

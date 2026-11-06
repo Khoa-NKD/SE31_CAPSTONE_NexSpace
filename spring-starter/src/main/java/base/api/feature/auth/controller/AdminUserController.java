@@ -52,12 +52,12 @@ public class AdminUserController extends BaseAPIController {
         return success(userService.getById(id));
     }
 
-    @Operation(summary = "Khóa / mở khóa user", description = "Cập nhật trạng thái tài khoản và tự động ghi vết Audit Log theo BR-31")
+    @Operation(summary = "Khóa / mở khóa user", description = "Cập nhật trạng thái tài khoản, thiết lập thời hạn khóa và tự động ghi vết Audit Log theo BR-31")
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<UserDto>> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserStatusDto dto) {
-        return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus(), dto.getReason()),
+        return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus(), dto.getReason(), dto.getLockedUntil()),
                 "Cập nhật trạng thái thành công");
     }
 }

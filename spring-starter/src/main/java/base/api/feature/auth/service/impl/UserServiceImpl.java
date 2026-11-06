@@ -5,16 +5,19 @@ import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.mapper.UserMapper;
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.auth.repository.IUserSessionRepository;
 import base.api.feature.auth.service.IUserService;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
+import base.api.shared.entity.identity.UserSessionModel;
 import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -26,6 +29,10 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.List;
 import java.util.Set;
 
 @Slf4j
@@ -33,11 +40,14 @@ import java.util.Set;
 @RequiredArgsConstructor
 public class UserServiceImpl implements IUserService {
 
+    public static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+    private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
     private static final Set<String> SORTABLE_FIELDS = Set.of("id", "userName", "email", "createdAt");
     private static final long MAX_AVATAR_SIZE_BYTES = 5 * 1024 * 1024; // 5MB
     private static final String AVATAR_FOLDER = "nexspace/avatars";
 
     private final IUserRepository userRepository;
+    private final IUserSessionRepository userSessionRepository;
     private final PasswordEncoder passwordEncoder;
     private final IAuditService auditService;
     private final IMediaStorageService mediaStorageService;
@@ -291,12 +301,18 @@ public class UserServiceImpl implements IUserService {
     @Override
     @Transactional
     public UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status) {
-        return updateUserStatus(actorId, targetUserId, status, null);
+        return updateUserStatus(actorId, targetUserId, status, null, null);
     }
 
     @Override
     @Transactional
     public UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason) {
+        return updateUserStatus(actorId, targetUserId, status, reason, null);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason, LocalDateTime lockedUntil) {
         if (actorId.equals(targetUserId)) {
             throw new BadRequestException("Không thể tự thay đổi trạng thái tài khoản của mình");
         }
@@ -304,15 +320,71 @@ public class UserServiceImpl implements IUserService {
         UserModel target = findUser(targetUserId);
         UserStatus oldStatus = target.getStatus();
 
+        if (status == UserStatus.ACTIVE) {
+            if (lockedUntil != null) {
+                throw new BadRequestException("Không được thiết lập thời hạn khóa (lockedUntil) khi kích hoạt tài khoản ACTIVE");
+            }
+        } else if (status == UserStatus.LOCKED) {
+            if (target.getRole() == UserRole.ADMIN) {
+                long activeAdminCount = userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE);
+                if (activeAdminCount <= 1) {
+                    throw new ConflictException("Không thể khóa tài khoản Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống");
+                }
+            }
+            if (reason == null || reason.isBlank()) {
+                throw new BadRequestException("Vui lòng nhập lý do khi khóa tài khoản");
+            }
+            if (lockedUntil != null) {
+                LocalDateTime nowInVietnam = LocalDateTime.now(VIETNAM_ZONE);
+                if (lockedUntil.isBefore(nowInVietnam)) {
+                    throw new BadRequestException("Thời hạn khóa tài khoản phải là thời điểm trong tương lai (theo múi giờ Việt Nam GMT+7)");
+                }
+            }
+        } else if (status == UserStatus.INACTIVE) {
+            if (lockedUntil != null) {
+                throw new BadRequestException("Không được thiết lập thời hạn khóa (lockedUntil) đối với trạng thái INACTIVE");
+            }
+        }
+
         target.setStatus(status);
         if (status == UserStatus.ACTIVE) {
             target.setFailedLoginCount(0);
             target.setLockedUntil(null);
+        } else if (status == UserStatus.LOCKED) {
+            target.setLockedUntil(lockedUntil);
+            List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
+            if (!activeSessions.isEmpty()) {
+                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                activeSessions.forEach(session -> session.setRevokedAt(now));
+                userSessionRepository.saveAll(activeSessions);
+            }
+        } else if (status == UserStatus.INACTIVE) {
+            target.setLockedUntil(null);
+            List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
+            if (!activeSessions.isEmpty()) {
+                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                activeSessions.forEach(session -> session.setRevokedAt(now));
+                userSessionRepository.saveAll(activeSessions);
+            }
         }
 
         UserModel saved = userRepository.saveAndFlush(target);
 
-        String action = (status == UserStatus.LOCKED) ? "USER_LOCKED" : "USER_UNLOCKED";
+        String action;
+        if (status == UserStatus.LOCKED) {
+            action = "USER_LOCKED";
+        } else if (status == UserStatus.ACTIVE) {
+            action = "USER_UNLOCKED";
+        } else {
+            action = "USER_DEACTIVATED";
+        }
+
+        String auditDetail = reason != null && !reason.isBlank() ? reason
+                : (status == UserStatus.LOCKED ? "Khóa tài khoản" : (status == UserStatus.ACTIVE ? "Mở khóa tài khoản" : "Chuyển sang trạng thái chưa kích hoạt"));
+        if (status == UserStatus.LOCKED && lockedUntil != null) {
+            auditDetail += " (Khóa tạm đến: " + lockedUntil.format(DATE_TIME_FORMATTER) + " GMT+7)";
+        }
+
         auditService.log(
                 actor,
                 AuditActorType.USER,
@@ -322,7 +394,7 @@ public class UserServiceImpl implements IUserService {
                 targetUserId,
                 oldStatus != null ? oldStatus.name() : null,
                 status.name(),
-                reason != null && !reason.isBlank() ? reason : (status == UserStatus.LOCKED ? "Khóa tài khoản" : "Mở khóa tài khoản"),
+                auditDetail,
                 null
         );
 

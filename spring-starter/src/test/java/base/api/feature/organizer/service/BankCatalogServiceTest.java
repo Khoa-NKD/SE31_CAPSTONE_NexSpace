@@ -10,7 +10,6 @@ import java.nio.ByteBuffer;
 import java.util.concurrent.Flow;
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.Mockito.*;
-import static org.mockito.ArgumentMatchers.*;
 
 class BankCatalogServiceTest {
     private static final String BODY = """

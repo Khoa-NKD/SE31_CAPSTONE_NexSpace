@@ -8,7 +8,6 @@ import base.api.feature.organizer.dto.response.AdminOrganizerDocumentResponse;
 import base.api.feature.organizer.service.AdminOrganizerApplicationService;
 import base.api.feature.organizer.service.AdminOrganizerApplicationDetailsService;
 import base.api.shared.config.*;
-import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.enums.*;

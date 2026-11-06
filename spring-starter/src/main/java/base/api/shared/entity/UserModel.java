@@ -108,7 +108,17 @@ public class UserModel extends BaseModel {
     }
 
     public boolean isActive() {
-        return status == UserStatus.ACTIVE;
+        if (status != UserStatus.ACTIVE) {
+            if (status == UserStatus.LOCKED && lockedUntil != null
+                    && LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).isAfter(lockedUntil)) {
+                return true;
+            }
+            return false;
+        }
+        if (lockedUntil != null && LocalDateTime.now(java.time.ZoneId.of("Asia/Ho_Chi_Minh")).isBefore(lockedUntil)) {
+            return false;
+        }
+        return true;
     }
 
     public String getFullName() {
