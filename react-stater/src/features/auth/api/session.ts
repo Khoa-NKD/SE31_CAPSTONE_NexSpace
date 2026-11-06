@@ -11,7 +11,7 @@ export function clearSession(): void {
 
 export async function backendRequest<T>(
   endpoint: string,
-  method: 'GET' | 'POST' | 'PUT',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   body?: unknown,
   authenticated = true,
   signal?: AbortSignal

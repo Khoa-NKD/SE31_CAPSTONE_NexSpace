@@ -1,16 +1,24 @@
-import React from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
-import { FloorplanEditorView } from '@/features/organizer-floorplan/components/floorplan-editor-view';
+import { FloorSetupView } from '@/features/organizer-resources/components/floor-setup-view';
+
+const positiveId = (value: unknown) => {
+  const number = Number(value);
+  return Number.isSafeInteger(number) && number > 0 ? number : undefined;
+};
 
 export const Route = createFileRoute('/dashboard/organizer/floorplan/')({
+  validateSearch: (search: Record<string, unknown>): { workspaceId?: number; floorId?: number } => {
+    const workspaceId = positiveId(search.workspaceId);
+    return { workspaceId, floorId: workspaceId ? positiveId(search.floorId) : undefined };
+  },
   head: () => ({
     meta: [
       { title: 'Interactive 2D Floor Plan Editor | NexSpace Organizer Hub' },
       {
         name: 'description',
         content:
-          'Full-featured CAD canvas editor for workspace spatial planning, zone demarcation, RFID assignment, and monetization bounds.'
+          'Arrange published floor layouts and non-bookable furniture separately from seats and rooms.'
       }
     ]
   }),
@@ -18,10 +26,16 @@ export const Route = createFileRoute('/dashboard/organizer/floorplan/')({
 });
 
 function OrganizerFloorplanPage() {
+  const location = Route.useSearch();
+  const navigate = Route.useNavigate();
   return (
     <PageContainer>
-      <FloorplanEditorView />
+      <FloorSetupView
+        location={location}
+        onNavigate={(search) => {
+          void navigate({ search });
+        }}
+      />
     </PageContainer>
   );
 }
-

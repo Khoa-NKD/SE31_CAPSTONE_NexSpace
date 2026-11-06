@@ -231,17 +231,10 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Resource Table',
+        title: 'Seats & Rooms',
         url: '/dashboard/organizer/resources',
         icon: 'galleryVerticalEnd',
         isActive: false
-      },
-      {
-        title: 'Create Resource',
-        url: '/dashboard/organizer/resources/create',
-        icon: 'plusCircle',
-        isActive: false,
-        label: 'New'
       },
       {
         title: 'Pricing Matrix',

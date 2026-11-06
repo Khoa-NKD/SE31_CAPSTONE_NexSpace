@@ -6,10 +6,10 @@ import { ResourceManagementView } from '@/features/organizer-resources/component
 export const Route = createFileRoute('/dashboard/organizer/resources/')({
   head: () => ({
     meta: [
-      { title: 'O07 — Resource Inventory & Table Management | NexSpace Organizer Hub' },
+      { title: 'Resource Management | NexSpace Organizer' },
       {
         name: 'description',
-        content: 'Granular control over all bookable desks, pods, private cabins, and conference rooms across Floor 12.'
+        content: 'Manage owned desks and rooms with real inventory, base prices and availability.'
       }
     ]
   }),
@@ -23,4 +23,3 @@ function OrganizerResourcesPage() {
     </PageContainer>
   );
 }
-

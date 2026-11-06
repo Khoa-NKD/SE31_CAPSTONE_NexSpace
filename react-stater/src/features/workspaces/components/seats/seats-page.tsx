@@ -1,74 +1,39 @@
-import { useState, useMemo } from 'react';
+import { Link } from '@tanstack/react-router';
+import { Building2 } from 'lucide-react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
-import { SeatsHeader } from './seats-header';
-import { SeatsFilterBar, type ScheduleInfo } from './seats-filter-bar';
-import { SeatsList } from './seats-list';
-import { SeatsFloorPlan } from './seats-floor-plan';
-import { SeatsReassuranceBar } from './seats-reassurance-bar';
-import { seatsData } from '../../constants/seats-data';
-import type { SeatCategory } from '../../types/seat';
+import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/features/landing/context/language-context';
+import { PublicFloorMap } from '../detail/public-floor-map';
 
-export function SeatsPage() {
-  const [selectedCategory, setSelectedCategory] = useState<SeatCategory>('all');
-  const [viewMode, setViewMode] = useState<'list' | 'floor'>('list');
-  const [schedule, setSchedule] = useState<ScheduleInfo>({
-    date: 'Jan 25, 2026',
-    day: 25,
-    startTime: '09:00 AM',
-    endTime: '01:00 PM',
-    durationHours: 4
-  });
-
-  // Filter items based on selected category
-  const filteredSeats = useMemo(() => {
-    if (selectedCategory === 'all') return seatsData;
-    return seatsData.filter((seat) => seat.category === selectedCategory);
-  }, [selectedCategory]);
-
-  // Compute category count breakdown
-  const counts = useMemo(() => {
-    return {
-      all: seatsData.length,
-      hot_desk: seatsData.filter((s) => s.category === 'hot_desk').length,
-      dedicated_desk: seatsData.filter((s) => s.category === 'dedicated_desk').length,
-      meeting_pod: seatsData.filter((s) => s.category === 'meeting_pod').length
-    };
-  }, []);
-
+/** A real workspace is required; never mix a published layout with prototype floor/seat data. */
+export function SeatsPage({ workspaceId }: { workspaceId?: number } = {}) {
+  const { language } = useLanguage();
+  const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
   return (
-    <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
-      {/* Top Header */}
+    <div className='flex min-h-screen flex-col bg-background text-foreground'>
       <WorkspaceHeader />
-
-      {/* Main Workspace Canvas (1200px strict container discipline) */}
-      <main className='mx-auto w-full max-w-[1200px] flex-1 space-y-6 px-6 py-6 lg:px-8'>
-        {/* Header Breadcrumbs & Live Availability Badge */}
-        <SeatsHeader totalCount={filteredSeats.length} />
-
-        {/* Filter Bar with Date Picker & Category Chips & View Switcher */}
-        <SeatsFilterBar
-          selectedCategory={selectedCategory}
-          onSelectCategory={setSelectedCategory}
-          viewMode={viewMode}
-          onToggleView={setViewMode}
-          counts={counts}
-          schedule={schedule}
-          onScheduleChange={setSchedule}
-        />
-
-        {/* Content View: List View vs 2D Floor Plan */}
-        {viewMode === 'list' ? (
-          <SeatsList seats={filteredSeats} />
+      <main className='mx-auto w-full max-w-6xl flex-1 px-6 py-8'>
+        {workspaceId ? (
+          <PublicFloorMap workspaceId={workspaceId} />
         ) : (
-          <SeatsFloorPlan seats={filteredSeats} />
+          <div className='rounded-2xl border border-border bg-card px-6 py-16 text-center'>
+            <Building2 className='mx-auto mb-4 size-10 text-primary' />
+            <h1 className='text-xl font-semibold'>
+              {c('Choose a workspace first', 'Chọn không gian trước')}
+            </h1>
+            <p className='mt-2 text-sm text-muted-foreground'>
+              {c(
+                'Open a workspace to see its published floors and select a seat or room.',
+                'Mở một không gian để xem sơ đồ đã publish và chọn ghế hoặc phòng.'
+              )}
+            </p>
+            <Button asChild className='mt-5'>
+              <Link to='/workspaces'>{c('Explore workspaces', 'Khám phá không gian')}</Link>
+            </Button>
+          </div>
         )}
-
-        {/* Reassurance Bar */}
-        <SeatsReassuranceBar />
       </main>
-
-      {/* Global Footer */}
       <Footer />
     </div>
   );

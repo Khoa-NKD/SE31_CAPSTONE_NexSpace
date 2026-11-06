@@ -41,8 +41,29 @@ import {
   SidebarRail
 } from '@/components/ui/sidebar';
 import { toast } from 'sonner';
+import { useLanguage } from '@/features/landing/context/language-context';
+
+const organizerMenuVietnamese: Record<string, string> = {
+  'Organizer Console': 'Quản lý đối tác',
+  'User Space & Tools': 'Tiện ích & công cụ',
+  'Application Management': 'Quản lý hồ sơ đăng ký',
+  'Business Profile': 'Thông tin doanh nghiệp',
+  'My Workspaces': 'Không gian của tôi',
+  'Floor Plan & Zones': 'Sơ đồ tầng & khu vực',
+  'Seats & Rooms': 'Quản lý ghế & phòng',
+  'Create Seat/Room': 'Tạo ghế/phòng',
+  'Pricing Matrix': 'Bảng giá',
+  'Blockout Hours': 'Lịch ngừng nhận đặt',
+  Bookings: 'Quản lý đặt chỗ',
+  'Schedule (Gantt)': 'Lịch biểu (Gantt)',
+  Analytics: 'Phân tích',
+  Overview: 'Tổng quan',
+  Chat: 'Trò chuyện',
+  Kanban: 'Bảng công việc'
+};
 
 export default function AppSidebar() {
+  const { language } = useLanguage();
   const { pathname } = useLocation();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
@@ -60,7 +81,22 @@ export default function AppSidebar() {
     return customerNavGroups;
   }, [isAdmin, isOrganizer]);
 
-  const filteredGroups = useFilteredNavGroups(activeNavGroups);
+  const filteredGroups = useFilteredNavGroups(activeNavGroups).map((group) => ({
+    ...group,
+    label:
+      isOrganizer && language === 'vi'
+        ? (organizerMenuVietnamese[group.label ?? ''] ?? group.label)
+        : group.label,
+    items: group.items.map((item) => ({
+      ...item,
+      title:
+        isOrganizer && language === 'vi'
+          ? (organizerMenuVietnamese[item.title] ?? item.title)
+          : item.title,
+      label:
+        isOrganizer && language === 'vi' && item.label === 'Planned' ? 'Sắp ra mắt' : item.label
+    }))
+  }));
   const [incidentModalOpen, setIncidentModalOpen] = React.useState(false);
 
   const handleIncidentSubmit = () => {
@@ -243,7 +279,7 @@ export default function AppSidebar() {
                   Prime Spaces JSC
                 </span>
                 <span className='text-[10px] text-sidebar-primary font-medium'>
-                  Verified Partner
+                  {language === 'vi' ? 'Đối tác đã xác minh' : 'Verified Partner'}
                 </span>
               </div>
             </div>

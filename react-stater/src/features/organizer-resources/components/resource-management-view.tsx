@@ -1,370 +1,617 @@
-import React, { useState, useMemo } from 'react';
-import { toast } from 'sonner';
+import { ResourceInventoryTable } from './resource-inventory-table';
+import { ResourceFloorManager } from './resource-floor-manager';
+import { getResource } from '../api/resources';
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  ResourceItem,
-  ResourceKpiSummary,
-  ResourceTypeFilter,
-  ResourceZoneFilter,
-  ResourceStatusFilter
-} from '../types';
-import { INITIAL_MOCK_RESOURCES } from '../data/mock-resources';
-import { ResourceHeaderBar } from './resource-header-bar';
-import { ResourceKpiGrid } from './resource-kpi-grid';
-import { ResourceFilterBar } from './resource-filter-bar';
-import { ResourceTable } from './resource-table';
-import { ResourcePagination } from './resource-pagination';
-import { ResourceFormDialog } from './resource-form-dialog';
-import { ResourceBulkImportDialog } from './resource-bulk-import-dialog';
-import { ResourcePricingDialog } from './resource-pricing-dialog';
+  Armchair,
+  Building2,
+  Layers3,
+  Plus,
+  Search,
+  RefreshCw,
+  Pencil,
+  Settings2,
+  LoaderCircle,
+  ChevronLeft,
+  ChevronRight,
+  LockKeyhole
+} from 'lucide-react';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
+import { useLanguage } from '@/features/landing/context/language-context';
+import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription
+} from '@/components/ui/dialog';
+import {
+  resourceWorkspacesOptions,
+  resourceOptions,
+  resourcesOptions,
+  invalidateResources,
+  setResourceStatus,
+  deleteResource,
+  resourceMoney,
+  canConfigureWorkspaceResources
+} from '../api/resources';
+import type { ResourceDetail, ResourceFilters, TypeOption } from '../api/resources';
+import { ResourceEditor, ResourceSetupDialog } from './resource-editor';
 
-export function ResourceManagementView() {
-  const [resources, setResources] = useState<ResourceItem[]>(INITIAL_MOCK_RESOURCES);
-  const [currentFloor, setCurrentFloor] = useState('Floor 12 — Main Coworking Floor');
+const subscribe = () => () => {};
+const initialFilters: ResourceFilters = {
+  page: 1,
+  size: 20,
+  search: '',
+  category: '',
+  status: '',
+  floorPlanId: ''
+};
+const selectClass =
+  'border-input bg-background h-10 min-w-0 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-  // Filter & Search states
-  const [searchQuery, setSearchQuery] = useState('');
-  const [typeFilter, setTypeFilter] = useState<ResourceTypeFilter>('all');
-  const [zoneFilter, setZoneFilter] = useState<ResourceZoneFilter>('all');
-  const [statusFilter, setStatusFilter] = useState<ResourceStatusFilter>('all');
-  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
-
-  // Pagination states
-  const [page, setPage] = useState(1);
-  const [pageSize, setPageSize] = useState(8);
-
-  // Selection states
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-
-  // Dialog states
-  const [formDialogOpen, setFormDialogOpen] = useState(false);
-  const [resourceToEdit, setResourceToEdit] = useState<ResourceItem | null>(null);
-
-  const [bulkImportOpen, setBulkImportOpen] = useState(false);
-
-  const [pricingDialogOpen, setPricingDialogOpen] = useState(false);
-  const [pricingResource, setPricingResource] = useState<ResourceItem | null>(null);
-
-  // Dynamically computed KPIs from current inventory
-  const kpis: ResourceKpiSummary = useMemo(() => {
-    const total = resources.length;
-    const active = resources.filter((r) => r.status === 'BOOKABLE').length;
-    const maintenance = resources.filter((r) => r.status === 'DISABLED').length;
-    const totalRate = resources.reduce((acc, r) => acc + r.hourlyRate, 0);
-    const avgRate = total > 0 ? totalRate / total : 0;
-    const uptime = total > 0 ? (active / total) * 100 : 0;
-
-    return {
-      totalUnits: total,
-      activeBookable: active,
-      uptimePercent: Number(uptime.toFixed(1)),
-      maintenanceCount: maintenance,
-      maintenanceNote: maintenance > 0 ? 'Pending hardware check' : 'All units online',
-      averageHourlyRate: Number(avgRate.toFixed(2)),
-      occupancyPercent: 68
-    };
-  }, [resources]);
-
-  // Compute category pill counts across all resources
-  const counts = useMemo(
-    () => ({
-      all: resources.length,
-      hotDesk: resources.filter((r) => r.type === 'HOT_DESK').length,
-      dedicatedDesk: resources.filter((r) => r.type === 'DEDICATED_DESK').length,
-      meetingRoom: resources.filter((r) => r.type === 'MEETING_ROOM').length
-    }),
-    [resources]
+export function ResourceManagementView({ initialCreate = false }: { initialCreate?: boolean }) {
+  const mounted = useSyncExternalStore(
+    subscribe,
+    () => true,
+    () => false
   );
-
-  // Filtered & Sorted resources
-  const filteredResources = useMemo(() => {
-    let result = resources.filter((item) => {
-      // 1. Type filter
-      if (typeFilter !== 'all' && item.type !== typeFilter) return false;
-
-      // 2. Zone filter
-      if (zoneFilter !== 'all' && item.zone !== zoneFilter) return false;
-
-      // 3. Status filter
-      if (statusFilter !== 'all' && item.status !== statusFilter) return false;
-
-      // 4. Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesCode = item.code.toLowerCase().includes(query);
-        const matchesSubLabel = item.subLabel?.toLowerCase().includes(query);
-        const matchesZone = item.zoneLabel.toLowerCase().includes(query);
-        const matchesRfid = item.rfidCode?.toLowerCase().includes(query);
-        const matchesAmenities = item.amenities.some((a) =>
-          a.name.toLowerCase().includes(query)
-        );
-        return (
-          matchesCode ||
-          matchesSubLabel ||
-          matchesZone ||
-          matchesRfid ||
-          matchesAmenities
-        );
-      }
-
-      return true;
-    });
-
-    // Sort by code
-    result.sort((a, b) => {
-      if (sortDirection === 'asc') {
-        return a.code.localeCompare(b.code);
-      }
-      return b.code.localeCompare(a.code);
-    });
-
-    return result;
-  }, [resources, typeFilter, zoneFilter, statusFilter, searchQuery, sortDirection]);
-
-  // Paginated slice
-  const paginatedResources = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filteredResources.slice(start, start + pageSize);
-  }, [filteredResources, page, pageSize]);
-
-  // Selection handlers
-  const handleToggleSelectAll = (checked: boolean) => {
-    if (checked) {
-      const pageIds = paginatedResources.map((r) => r.id);
-      setSelectedIds(Array.from(new Set([...selectedIds, ...pageIds])));
-    } else {
-      const pageIdSet = new Set(paginatedResources.map((r) => r.id));
-      setSelectedIds(selectedIds.filter((id) => !pageIdSet.has(id)));
-    }
+  const user = useAuthStore((s) => s.user);
+  const token = useAuthStore((s) => s.accessToken);
+  const actorId = user?.id ?? 0;
+  const allowed = mounted && !!token && getUserRole(user) === 'ORGANIZER';
+  const { language } = useLanguage();
+  const vi = language === 'vi';
+  const c = (en: string, vn: string) => (vi ? vn : en);
+  const client = useQueryClient();
+  const [workspaceId, setWorkspaceId] = useState(0);
+  const [filters, setFilters] = useState<ResourceFilters>(initialFilters);
+  const [search, setSearch] = useState('');
+  const [editor, setEditor] = useState<ResourceDetail | 'new' | null>(initialCreate ? 'new' : null);
+  const [setup, setSetup] = useState<{ kind: 'floor' | 'type'; current?: TypeOption } | null>(null);
+  const [typesOpen, setTypesOpen] = useState(false);
+  const [floorManager, setFloorManager] = useState(false);
+  const [remove, setRemove] = useState<ResourceDetail | null>(null);
+  const [busy, setBusy] = useState(false);
+  const operation = useRef(false);
+  const [notice, setNotice] = useState({ success: '', error: '' });
+  useApplicationNotice(notice.success, notice.error, busy || !!editor || !!setup || floorManager);
+  const workspaces = useQuery({ ...resourceWorkspacesOptions(actorId), enabled: allowed });
+  const selectedWorkspace =
+    workspaces.data?.find((w) => w.id === workspaceId) ?? workspaces.data?.[0];
+  const selectedId = selectedWorkspace?.id ?? 0;
+  const options = useQuery({
+    ...resourceOptions(actorId, selectedId),
+    enabled: allowed && selectedId > 0
+  });
+  const query = useQuery({
+    ...resourcesOptions(actorId, selectedId, filters),
+    enabled: allowed && selectedId > 0
+  });
+  useEffect(() => {
+    if (query.data && filters.page > Math.max(query.data.totalPages, 1))
+      setFilters((value) => ({ ...value, page: Math.max(query.data!.totalPages, 1) }));
+  }, [query.data, filters.page]);
+  const updateFilters = (value: Partial<ResourceFilters>) =>
+    setFilters((current) => ({ ...current, ...value, page: 1 }));
+  const writable = canConfigureWorkspaceResources(selectedWorkspace?.status);
+  const openEditor = (value: ResourceDetail | 'new') => {
+    setNotice({ success: '', error: '' });
+    setEditor(value);
   };
-
-  const handleToggleSelectRow = (id: string, checked: boolean) => {
-    if (checked) {
-      setSelectedIds((prev) => [...prev, id]);
-    } else {
-      setSelectedIds((prev) => prev.filter((item) => item !== id));
-    }
+  const openSetup = (value: { kind: 'floor' | 'type'; current?: TypeOption }) => {
+    setNotice({ success: '', error: '' });
+    setSetup(value);
   };
-
-  // Toggle single status
-  const handleToggleStatus = (id: string) => {
-    setResources((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const newStatus = item.status === 'BOOKABLE' ? 'DISABLED' : 'BOOKABLE';
-          toast.success(
-            `Resource Status Updated: ${item.code}`,
-            {
-              description:
-                newStatus === 'BOOKABLE'
-                  ? 'Activated and open for instant member bookings.'
-                  : 'Disabled and flagged for maintenance check.'
-            }
-          );
-          return {
-            ...item,
-            status: newStatus,
-            warningNote: newStatus === 'DISABLED' ? (item.warningNote || 'Manual maintenance flag') : undefined
-          };
-        }
-        return item;
-      })
-    );
-  };
-
-  // Bulk actions
-  const handleBulkEnable = () => {
-    if (selectedIds.length === 0) return;
-    setResources((prev) =>
-      prev.map((item) =>
-        selectedIds.includes(item.id)
-          ? { ...item, status: 'BOOKABLE', warningNote: undefined }
-          : item
-      )
-    );
-    toast.success(`Activated ${selectedIds.length} Resources`, {
-      description: 'Selected resources are now live and bookable.'
-    });
-    setSelectedIds([]);
-  };
-
-  const handleBulkDisable = () => {
-    if (selectedIds.length === 0) return;
-    setResources((prev) =>
-      prev.map((item) =>
-        selectedIds.includes(item.id)
-          ? { ...item, status: 'DISABLED', warningNote: 'Batch maintenance flag' }
-          : item
-      )
-    );
-    toast.warning(`Disabled ${selectedIds.length} Resources`, {
-      description: 'Selected resources are disabled for maintenance triage.'
-    });
-    setSelectedIds([]);
-  };
-
-  const handleBulkExport = () => {
-    toast.success('Inventory Export Initiated', {
-      description: `Exported ${selectedIds.length > 0 ? selectedIds.length : resources.length} items to CSV.`
-    });
-  };
-
-  // Add & Edit actions
-  const handleOpenAddResource = () => {
-    setResourceToEdit(null);
-    setFormDialogOpen(true);
-  };
-
-  const handleOpenQuickEdit = (resource: ResourceItem) => {
-    setResourceToEdit(resource);
-    setFormDialogOpen(true);
-  };
-
-  const handleSaveResource = (saved: ResourceItem) => {
-    if (resourceToEdit) {
-      setResources((prev) =>
-        prev.map((item) => (item.id === saved.id ? saved : item))
-      );
-      toast.success(`Resource Updated: ${saved.code}`);
-    } else {
-      setResources((prev) => [saved, ...prev]);
-      toast.success(`Resource Created: ${saved.code}`, {
-        description: 'New inventory item provisioned onto Floor 12.'
+  async function saved() {
+    await invalidateResources(client, actorId);
+    setNotice({ success: c('Saved successfully.', 'Đã lưu thành công.'), error: '' });
+  }
+  async function act(action: () => Promise<unknown>, success: string) {
+    if (operation.current) return;
+    operation.current = true;
+    setBusy(true);
+    setNotice({ success: '', error: '' });
+    try {
+      await action();
+      await invalidateResources(client, actorId);
+      setRemove(null);
+      setNotice({ success, error: '' });
+    } catch (e) {
+      setNotice({
+        success: '',
+        error: e instanceof Error ? e.message : c('Operation failed.', 'Thao tác thất bại.')
       });
+      await invalidateResources(client, actorId);
+    } finally {
+      operation.current = false;
+      setBusy(false);
     }
-  };
-
-  // Pricing actions
-  const handleOpenPricing = (resource: ResourceItem) => {
-    setPricingResource(resource);
-    setPricingDialogOpen(true);
-  };
-
-  const handleSavePricing = (id: string, hourly: number, daily: number) => {
-    setResources((prev) =>
-      prev.map((item) =>
-        item.id === id ? { ...item, hourlyRate: hourly, dailyRate: daily } : item
-      )
+  }
+  if (!mounted)
+    return (
+      <p role='status' className='text-muted-foreground flex items-center gap-2 p-6'>
+        <LoaderCircle className='size-4 animate-spin' />
+        {c('Loading your resources…', 'Đang tải ghế/phòng của bạn…')}
+      </p>
     );
-  };
-
-  // Delete action
-  const handleDelete = (id: string) => {
-    const item = resources.find((r) => r.id === id);
-    setResources((prev) => prev.filter((r) => r.id !== id));
-    setSelectedIds((prev) => prev.filter((item) => item !== id));
-    toast.error(`Resource Deleted: ${item?.code || id}`);
-  };
-
-  // Reset filters
-  const handleResetFilters = () => {
-    setSearchQuery('');
-    setTypeFilter('all');
-    setZoneFilter('all');
-    setStatusFilter('all');
-    setPage(1);
-  };
-
+  if (!allowed)
+    return (
+      <p role='alert'>
+        {c('Sign in with an Organizer account.', 'Vui lòng đăng nhập bằng tài khoản Organizer.')}
+      </p>
+    );
+  if (workspaces.isPending)
+    return <p role='status'>{c('Loading your resources…', 'Đang tải ghế/phòng…')}</p>;
+  const statusLabel = (status: string) =>
+    ({
+      DRAFT: c('Draft', 'Nháp'),
+      ACTIVE: c('Active', 'Đang bật'),
+      DISABLED: c('Disabled', 'Đã tắt'),
+      ARCHIVED: c('Archived', 'Lưu trữ')
+    })[status] ?? status;
   return (
-    <div className='w-full max-w-[1360px] mx-auto py-2 sm:py-4 flex flex-col gap-6'>
-      {/* 1. Header Bar with Breadcrumb and Top Operational Summary */}
-      <ResourceHeaderBar
-        currentFloor={currentFloor}
-        onFloorChange={setCurrentFloor}
-        onOpenBulkImport={() => setBulkImportOpen(true)}
-        totalCount={resources.length}
-        activeCount={resources.filter((r) => r.status === 'BOOKABLE').length}
-        occupancyPercent={kpis.occupancyPercent}
-      />
-
-      {/* 2. 4-Column KPI Grid */}
-      <ResourceKpiGrid kpis={kpis} />
-
-      {/* 3. Control & Filter Bar */}
-      <ResourceFilterBar
-        searchQuery={searchQuery}
-        onSearchChange={(q) => {
-          setSearchQuery(q);
-          setPage(1);
-        }}
-        typeFilter={typeFilter}
-        onTypeFilterChange={(t) => {
-          setTypeFilter(t);
-          setPage(1);
-        }}
-        zoneFilter={zoneFilter}
-        onZoneFilterChange={(z) => {
-          setZoneFilter(z);
-          setPage(1);
-        }}
-        statusFilter={statusFilter}
-        onStatusFilterChange={(s) => {
-          setStatusFilter(s);
-          setPage(1);
-        }}
-        counts={counts}
-        selectedCount={selectedIds.length}
-        onBulkEnable={handleBulkEnable}
-        onBulkDisable={handleBulkDisable}
-        onBulkExport={handleBulkExport}
-        onOpenAddResource={handleOpenAddResource}
-      />
-
-      {/* 4. Main Data Grid Table with Pagination */}
-      <div className='flex flex-col'>
-        <ResourceTable
-          resources={paginatedResources}
-          selectedIds={selectedIds}
-          onToggleSelectAll={handleToggleSelectAll}
-          onToggleSelectRow={handleToggleSelectRow}
-          onToggleStatus={handleToggleStatus}
-          onQuickEdit={handleOpenQuickEdit}
-          onOpenPricing={handleOpenPricing}
-          onDelete={handleDelete}
-          onResetFilters={handleResetFilters}
-          onOpenAddResource={handleOpenAddResource}
-          sortDirection={sortDirection}
-          onToggleSort={() =>
-            setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'))
-          }
+    <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-6'>
+      <header className='flex flex-wrap items-start justify-between gap-4'>
+        <div className='flex items-center gap-3'>
+          <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-2xl'>
+            <Armchair className='size-6' />
+          </span>
+          <div>
+            <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>
+              {c('Resource Management', 'Quản lý ghế & phòng')}
+            </h1>
+            <p className='text-muted-foreground mt-1 text-sm'>
+              {c(
+                'A real inventory of bookable desks and rooms across your workspaces.',
+                'Quản lý danh sách ghế, phòng và trạng thái nhận đặt tại workspace của bạn.'
+              )}
+            </p>
+          </div>
+        </div>
+        <Button disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
+          <Plus className='size-4' />
+          {c('Create resource', 'Tạo ghế/phòng')}
+        </Button>
+      </header>
+      {workspaces.isError ? (
+        <div role='alert' className='border-destructive/20 text-destructive rounded-xl border p-4'>
+          <p>{workspaces.error.message}</p>
+          <Button className='mt-3' variant='outline' onClick={() => void workspaces.refetch()}>
+            {c('Try again', 'Thử lại')}
+          </Button>
+        </div>
+      ) : !selectedWorkspace ? (
+        <Card>
+          <CardContent className='text-muted-foreground flex min-h-56 flex-col items-center justify-center gap-3 text-center'>
+            <Building2 className='size-10' />
+            <h2 className='text-foreground font-semibold'>
+              {c('Create a workspace first', 'Bạn chưa có workspace')}
+            </h2>
+            <p className='text-sm'>
+              {c(
+                'Resources belong to a workspace, a floor and a resource type.',
+                'Ghế/phòng phải thuộc một workspace, tầng và loại chỗ.'
+              )}
+            </p>
+            <Button
+              variant='outline'
+              onClick={() => {
+                window.location.href = '/dashboard/organizer/workspaces';
+              }}
+            >
+              {c('My workspaces', 'Workspace của tôi')}
+            </Button>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          <div className='border-border bg-card flex flex-wrap items-end justify-between gap-4 rounded-xl border p-4 sm:p-5'>
+            <label className='min-w-56 flex-1 space-y-2'>
+              <span className='text-muted-foreground text-xs font-medium'>
+                {c('Workspace', 'Không gian làm việc')}
+              </span>
+              <select
+                className={`${selectClass} block w-full`}
+                value={selectedId}
+                onChange={(e) => {
+                  setWorkspaceId(Number(e.target.value));
+                  setFilters(initialFilters);
+                  setSearch('');
+                  setEditor(null);
+                }}
+              >
+                {workspaces.data?.map((w) => (
+                  <option key={w.id} value={w.id}>
+                    {w.name || `#${w.id}`} · {w.status}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className='flex flex-wrap gap-2'>
+              <Button
+                variant='outline'
+                disabled={!writable || busy}
+                onClick={() => openSetup({ kind: 'floor' })}
+              >
+                <Layers3 className='size-4' />
+                {c('Add floor', 'Thêm tầng')}
+              </Button>
+              <Button
+                variant='outline'
+                disabled={busy || !options.data}
+                onClick={() => setFloorManager(true)}
+              >
+                <Layers3 className='size-4' />
+                {c('Floor canvas', 'Sơ đồ & publish tầng')}
+              </Button>
+              <Button
+                variant='outline'
+                disabled={!writable || busy || !options.data}
+                onClick={() => setTypesOpen(true)}
+              >
+                <Settings2 className='size-4' />
+                {c('Resource types', 'Loại chỗ & giá')}
+              </Button>
+              <Button
+                variant='outline'
+                aria-label={c('Refresh', 'Làm mới')}
+                disabled={query.isFetching || options.isFetching}
+                onClick={() => void invalidateResources(client, actorId)}
+              >
+                <RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />
+              </Button>
+            </div>
+          </div>
+          {!writable && (
+            <p
+              role='status'
+              className='border-border bg-muted text-muted-foreground rounded-lg border p-3 text-sm'
+            >
+              {c(
+                'This workspace is read-only. Floors, resource types and seats/rooms can only be changed while the workspace is Draft, Active or Inactive.',
+                'Không gian này chỉ được xem. Chỉ có thể chỉnh sửa tầng, loại chỗ và ghế/phòng khi không gian ở trạng thái Nháp, Đang hoạt động hoặc Tạm ngừng hoạt động.'
+              )}
+            </p>
+          )}
+          {options.isError && (
+            <p role='alert' className='text-destructive text-sm'>
+              {options.error.message}
+            </p>
+          )}
+          {options.data &&
+            (!options.data.floors.length ||
+              !options.data.types.some((t) => t.active && t.currency)) && (
+              <div className='border-primary/20 bg-primary/5 flex items-start gap-3 rounded-xl border p-4'>
+                <Layers3 className='text-primary mt-0.5 size-5 shrink-0' />
+                <div>
+                  <p className='font-medium'>
+                    {c('Complete your resource setup', 'Hoàn thành cấu hình trước khi tạo chỗ')}
+                  </p>
+                  <p className='text-muted-foreground mt-1 text-sm'>
+                    {c(
+                      'Add a real floor and a resource type with a base price and confirmed VND/USD currency. Draft floors support draft resources; activation requires a published floor.',
+                      'Thêm tầng và loại chỗ có giá cơ bản, tiền tệ VND/USD rõ ràng. Tầng nháp cho phép tạo ghế/phòng nháp; muốn bật phải có tầng đã publish.'
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
+          <section className='border-border bg-card overflow-hidden rounded-xl border'>
+            <div className='border-border grid gap-3 border-b p-4 md:grid-cols-[minmax(220px,2fr)_1fr_1fr_1fr]'>
+              <form
+                className='flex gap-2'
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  updateFilters({ search: search.trim() });
+                }}
+              >
+                <div className='relative min-w-0 flex-1'>
+                  <Search className='text-muted-foreground absolute top-3 left-3 size-4' />
+                  <Input
+                    className='pl-9'
+                    aria-label={c('Search code or name', 'Tìm mã hoặc tên')}
+                    value={search}
+                    maxLength={100}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={c('Search code or name…', 'Tìm mã hoặc tên…')}
+                  />
+                </div>
+                <Button type='submit' variant='secondary'>
+                  {c('Search', 'Tìm')}
+                </Button>
+              </form>
+              <select
+                className={selectClass}
+                aria-label={c('Floor', 'Tầng')}
+                value={filters.floorPlanId}
+                onChange={(e) =>
+                  updateFilters({ floorPlanId: e.target.value ? Number(e.target.value) : '' })
+                }
+              >
+                <option value=''>{c('All floors', 'Tất cả tầng')}</option>
+                {options.data?.floors.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    {f.name}
+                  </option>
+                ))}
+              </select>
+              <select
+                className={selectClass}
+                aria-label={c('Category', 'Nhóm chỗ')}
+                value={filters.category}
+                onChange={(e) =>
+                  updateFilters({ category: e.target.value as ResourceFilters['category'] })
+                }
+              >
+                <option value=''>{c('Desks & rooms', 'Tất cả ghế/phòng')}</option>
+                <option value='DESK'>{c('Desks', 'Ghế')}</option>
+                <option value='ROOM'>{c('Rooms', 'Phòng')}</option>
+              </select>
+              <select
+                className={selectClass}
+                aria-label={c('Status', 'Trạng thái')}
+                value={filters.status}
+                onChange={(e) =>
+                  updateFilters({ status: e.target.value as ResourceFilters['status'] })
+                }
+              >
+                <option value=''>{c('All statuses', 'Tất cả trạng thái')}</option>
+                {(['DRAFT', 'ACTIVE', 'DISABLED', 'ARCHIVED'] as const).map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabel(status)}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className='flex items-center justify-between px-5 py-3'>
+              <p className='text-muted-foreground text-sm'>
+                {query.data?.totalRecords ?? 0} {c('matching resources', 'ghế/phòng phù hợp')}
+              </p>
+              <Button
+                variant='ghost'
+                size='sm'
+                onClick={() => {
+                  setFilters(initialFilters);
+                  setSearch('');
+                }}
+              >
+                {c('Reset filters', 'Xóa bộ lọc')}
+              </Button>
+            </div>
+            {query.isPending ? (
+              <p role='status' className='text-muted-foreground p-8 text-center'>
+                {c('Loading inventory…', 'Đang tải danh sách…')}
+              </p>
+            ) : query.isError ? (
+              <div role='alert' className='space-y-3 p-6'>
+                <p className='text-destructive text-sm'>{query.error.message}</p>
+                <Button variant='outline' onClick={() => void query.refetch()}>
+                  {c('Try again', 'Thử lại')}
+                </Button>
+              </div>
+            ) : !query.data?.listObjects.length ? (
+              <div className='text-muted-foreground flex min-h-48 flex-col items-center justify-center gap-3 px-4 text-center'>
+                <Armchair className='size-9' />
+                <p>
+                  {c('No resources match your filters.', 'Chưa có ghế/phòng phù hợp với bộ lọc.')}
+                </p>
+                <Button variant='outline' disabled={!writable} onClick={() => openEditor('new')}>
+                  <Plus className='size-4' />
+                  {c('Create the first resource', 'Tạo ghế/phòng đầu tiên')}
+                </Button>
+              </div>
+            ) : (
+              <ResourceInventoryTable
+                data={query.data}
+                options={options.data}
+                workspaceStatus={selectedWorkspace.status}
+                writable={writable}
+                busy={busy}
+                onEdit={openEditor}
+                onDelete={setRemove}
+                onStatus={(resource, status) =>
+                  void act(
+                    () => setResourceStatus(resource, status),
+                    c(
+                      'Status updated. Existing bookings are unchanged.',
+                      'Đã đổi trạng thái, giữ nguyên booking hiện có.'
+                    )
+                  )
+                }
+              />
+            )}
+            <div className='border-border bg-muted/15 flex flex-wrap items-center justify-between gap-3 border-t px-5 py-4'>
+              <div className='text-muted-foreground flex items-center gap-3 text-xs'>
+                <span>{c('Rows', 'Số dòng')}</span>
+                <select
+                  className={`${selectClass} h-8`}
+                  value={filters.size}
+                  onChange={(e) => updateFilters({ size: Number(e.target.value) })}
+                >
+                  {[10, 20, 50].map((size) => (
+                    <option key={size}>{size}</option>
+                  ))}
+                </select>
+                <span>
+                  {c('Page', 'Trang')} {filters.page}/{Math.max(query.data?.totalPages ?? 0, 1)}
+                </span>
+              </div>
+              <div className='flex gap-2'>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={query.isFetching || !query.data?.hasPrevious}
+                  onClick={() => setFilters((v) => ({ ...v, page: v.page - 1 }))}
+                >
+                  <ChevronLeft className='size-4' />
+                  {c('Previous', 'Trước')}
+                </Button>
+                <Button
+                  size='sm'
+                  variant='outline'
+                  disabled={query.isFetching || !query.data?.hasNext}
+                  onClick={() => setFilters((v) => ({ ...v, page: v.page + 1 }))}
+                >
+                  {c('Next', 'Tiếp')}
+                  <ChevronRight className='size-4' />
+                </Button>
+              </div>
+            </div>
+          </section>
+          <p className='text-muted-foreground flex items-start gap-2 text-xs leading-5'>
+            <LockKeyhole className='size-4 shrink-0' />
+            {c(
+              'Displayed prices retain VND/USD as saved, without currency conversion. Disabling stops new availability and does not cancel bookings. Deletion is blocked by booking history or linked records.',
+              'Giá hiển thị giữ nguyên VND/USD đã lưu, không tự quy đổi. Tắt chỗ không hủy booking. Không xóa khi có lịch sử booking hoặc dữ liệu liên kết.'
+            )}
+          </p>
+        </>
+      )}
+      {editor && options.data && writable && (
+        <ResourceEditor
+          key={editor === 'new' ? `new-${selectedId}` : editor.id}
+          workspaceId={selectedId}
+          options={options.data}
+          current={editor === 'new' ? undefined : editor}
+          onClose={() => setEditor(null)}
+          onSaved={saved}
         />
-
-        {filteredResources.length > 0 && (
-          <ResourcePagination
-            currentPage={page}
-            totalItems={filteredResources.length}
-            pageSize={pageSize}
-            onPageChange={setPage}
-            onPageSizeChange={(size) => {
-              setPageSize(size);
-              setPage(1);
+      )}
+      {floorManager && options.data && (
+        <ResourceFloorManager
+          actorId={actorId}
+          workspaceId={selectedId}
+          floors={options.data.floors}
+          writable={writable}
+          onClose={() => setFloorManager(false)}
+          onSaved={() => invalidateResources(client, actorId)}
+          onFix={(id) => {
+            setFloorManager(false);
+            void act(async () => {
+              openEditor(await getResource(id));
+            }, '');
+          }}
+        />
+      )}
+      {setup && selectedId > 0 && (
+        <ResourceSetupDialog
+          workspaceId={selectedId}
+          kind={setup.kind}
+          current={setup.current}
+          floors={options.data?.floors ?? []}
+          onClose={() => setSetup(null)}
+          onSaved={saved}
+        />
+      )}
+      <Dialog open={typesOpen} onOpenChange={setTypesOpen}>
+        <DialogContent className='max-h-[85dvh] overflow-y-auto sm:max-w-2xl'>
+          <DialogHeader>
+            <DialogTitle>{c('Resource types & base prices', 'Loại chỗ & giá cơ bản')}</DialogTitle>
+            <DialogDescription>
+              {c(
+                'VND and USD are separate price denominations, not automatic conversions.',
+                'VND và USD là tiền tệ của từng loại chỗ, không phải giá tự quy đổi.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className='space-y-3'>
+            {options.data?.types.map((type) => (
+              <div
+                key={type.id}
+                className='border-border flex items-start justify-between gap-3 rounded-lg border p-4'
+              >
+                <div>
+                  <p className='font-medium'>
+                    {type.name} <Badge variant='outline'>{type.category}</Badge>
+                  </p>
+                  <p className='text-muted-foreground mt-2 text-xs'>
+                    {type.capacity} {c('people', 'người')} ·{' '}
+                    {type.currency ?? c('Currency unconfirmed', 'Chưa xác nhận tiền tệ')}
+                  </p>
+                  <p className='mt-2 text-sm'>
+                    {resourceMoney(type.pricePerHour, type.currency, vi)} /{c('hour', 'giờ')}
+                  </p>
+                  {!type.currency && (
+                    <p className='text-destructive mt-2 text-xs'>
+                      {c(
+                        'Confirm denomination before creating or activating resources.',
+                        'Cần xác nhận tiền tệ trước khi tạo hoặc bật ghế/phòng.'
+                      )}
+                    </p>
+                  )}
+                </div>
+                <Button
+                  variant='outline'
+                  size='sm'
+                  disabled={!writable}
+                  onClick={() => {
+                    setTypesOpen(false);
+                    openSetup({ kind: 'type', current: type });
+                  }}
+                >
+                  <Pencil className='size-3.5' />
+                  {c('Edit', 'Sửa')}
+                </Button>
+              </div>
+            ))}
+          </div>
+          <Button
+            disabled={!writable}
+            onClick={() => {
+              setTypesOpen(false);
+              openSetup({ kind: 'type' });
             }}
-          />
-        )}
-      </div>
-
-      {/* Modals & Dialogs */}
-      <ResourceFormDialog
-        open={formDialogOpen}
-        onOpenChange={setFormDialogOpen}
-        resourceToEdit={resourceToEdit}
-        onSave={handleSaveResource}
-      />
-
-      <ResourceBulkImportDialog
-        open={bulkImportOpen}
-        onOpenChange={setBulkImportOpen}
-        onImportSuccess={() => {
-          // Re-sync items if needed
+          >
+            <Plus className='size-4' />
+            {c('Add resource type', 'Thêm loại chỗ')}
+          </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!remove}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRemove(null);
         }}
-      />
-
-      <ResourcePricingDialog
-        open={pricingDialogOpen}
-        onOpenChange={setPricingDialogOpen}
-        resource={pricingResource}
-        onSavePricing={handleSavePricing}
-      />
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{c('Delete this resource?', 'Xóa ghế/phòng này?')}</DialogTitle>
+            <DialogDescription>
+              {remove?.code} · {remove?.name}
+            </DialogDescription>
+          </DialogHeader>
+          <p className='text-muted-foreground text-sm'>
+            {c(
+              'This permanently deletes a resource only if it has no bookings or linked data. If deletion is blocked, disable it instead.',
+              'Chỉ xóa vĩnh viễn khi không có booking và dữ liệu liên kết. Nếu không đủ điều kiện, hãy tắt chỗ để giữ lịch sử.'
+            )}
+          </p>
+          <div className='flex justify-end gap-3'>
+            <Button variant='outline' disabled={busy} onClick={() => setRemove(null)}>
+              {c('Cancel', 'Hủy')}
+            </Button>
+            <Button
+              variant='destructive'
+              disabled={busy || !remove}
+              onClick={() =>
+                remove &&
+                void act(() => deleteResource(remove), c('Resource deleted.', 'Đã xóa ghế/phòng.'))
+              }
+            >
+              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {c('Delete', 'Xóa')}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-
