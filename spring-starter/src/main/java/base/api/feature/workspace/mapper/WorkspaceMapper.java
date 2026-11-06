@@ -59,6 +59,8 @@ public final class WorkspaceMapper {
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
         String reviewStatus;
         String operatingStatus;
+        String moderationStatus = (status == WorkspaceStatus.SUSPENDED) ? "Suspended" : "Normal";
+        String reviewedByName = workspace.getReviewedBy() != null ? workspace.getReviewedBy().getFullName() : null;
         boolean isListingVisible = false;
 
         switch (status) {
@@ -88,7 +90,9 @@ public final class WorkspaceMapper {
                 operatingStatus = "Inactive";
             }
             case ARCHIVED -> {
-                reviewStatus = "Draft";
+                reviewStatus = (workspace.getReviewedAt() != null || workspace.getReviewedBy() != null)
+                        ? "Approved"
+                        : "Draft";
                 operatingStatus = "Archived";
             }
             default -> {
@@ -115,8 +119,14 @@ public final class WorkspaceMapper {
                 .status(status)
                 .reviewStatus(reviewStatus)
                 .operatingStatus(operatingStatus)
+                .moderationStatus(moderationStatus)
+                .reviewFeedback(workspace.getReviewFeedback())
+                .reviewedBy(reviewedByName)
+                .reviewedAt(workspace.getReviewedAt())
+                .submittedAt(workspace.getSubmittedAt())
                 .isListingVisible(isListingVisible)
                 .featuredOrder(workspace.getFeaturedOrder())
+                .featuredUntil(workspace.getFeaturedUntil())
                 .organizerId(organizerId)
                 .organizerName(organizerName)
                 .createdAt(workspace.getCreatedAt())
@@ -143,6 +153,8 @@ public final class WorkspaceMapper {
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
         String reviewStatus;
         String operatingStatus;
+        String moderationStatus = (status == WorkspaceStatus.SUSPENDED) ? "Suspended" : "Normal";
+        String reviewedByName = workspace.getReviewedBy() != null ? workspace.getReviewedBy().getFullName() : null;
         boolean isListingVisible = false;
 
         switch (status) {
@@ -172,7 +184,9 @@ public final class WorkspaceMapper {
                 operatingStatus = "Inactive";
             }
             case ARCHIVED -> {
-                reviewStatus = "Draft";
+                reviewStatus = (workspace.getReviewedAt() != null || workspace.getReviewedBy() != null)
+                        ? "Approved"
+                        : "Draft";
                 operatingStatus = "Archived";
             }
             default -> {
@@ -204,9 +218,15 @@ public final class WorkspaceMapper {
                 .status(status)
                 .reviewStatus(reviewStatus)
                 .operatingStatus(operatingStatus)
+                .moderationStatus(moderationStatus)
+                .reviewFeedback(workspace.getReviewFeedback())
+                .reviewedBy(reviewedByName)
+                .reviewedAt(workspace.getReviewedAt())
                 .isListingVisible(isListingVisible)
                 .version(1)
                 .submittedAt(workspace.getSubmittedAt())
+                .featuredOrder(workspace.getFeaturedOrder())
+                .featuredUntil(workspace.getFeaturedUntil())
                 .organizerId(organizerId)
                 .organizerName(organizerName)
                 .operatingHours(hourDtos)

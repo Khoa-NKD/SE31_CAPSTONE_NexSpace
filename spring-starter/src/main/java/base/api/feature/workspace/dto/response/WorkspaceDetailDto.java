@@ -31,9 +31,15 @@ public class WorkspaceDetailDto {
     WorkspaceStatus status;
     String reviewStatus;
     String operatingStatus;
+    String moderationStatus;
+    String reviewFeedback;
+    String reviewedBy;
+    LocalDateTime reviewedAt;
     boolean isListingVisible;
     Integer version;
     LocalDateTime submittedAt;
+    Integer featuredOrder;
+    LocalDateTime featuredUntil;
     Long organizerId;
     String organizerName;
     List<WorkspaceOperatingHourDto> operatingHours;

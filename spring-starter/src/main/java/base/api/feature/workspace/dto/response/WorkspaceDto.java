@@ -29,11 +29,16 @@ public class WorkspaceDto {
     WorkspaceStatus status;
     String reviewStatus;
     String operatingStatus;
+    String moderationStatus;
+    String reviewFeedback;
+    String reviewedBy;
+    LocalDateTime reviewedAt;
+    LocalDateTime submittedAt;
     boolean isListingVisible;
     Integer featuredOrder;
+    LocalDateTime featuredUntil;
     Long organizerId;
     String organizerName;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }
-

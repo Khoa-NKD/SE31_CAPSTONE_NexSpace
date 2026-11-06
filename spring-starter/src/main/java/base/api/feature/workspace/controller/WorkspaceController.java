@@ -137,6 +137,17 @@ public class WorkspaceController extends BaseAPIController {
         return success(result, "Cập nhật vòng đời không gian làm việc thành công");
     }
 
+    @Operation(summary = "Gửi duyệt không gian làm việc (POST /submit)", description = "Organizer nộp duyệt không gian làm việc để Admin phê duyệt (chuyển DRAFT/REJECTED sang PENDING_REVIEW)")
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> submitWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto result = workspaceService.submitWorkspace(organizerId, workspaceId);
+        return success(result, "Gửi duyệt hồ sơ không gian làm việc thành công");
+    }
+
     @Operation(summary = "Lấy giờ hoạt động của workspace", description = "Xem cấu hình 7 ngày trong tuần của workspace")
     @GetMapping("/{id}/operating-hours")
     @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
