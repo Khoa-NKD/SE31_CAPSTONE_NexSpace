@@ -22,6 +22,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.enums.UserGender;
+import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
