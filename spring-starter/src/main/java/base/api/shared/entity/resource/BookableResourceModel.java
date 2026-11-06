@@ -3,6 +3,7 @@ package base.api.shared.entity.resource;
 import base.api.shared.entity.BaseModel;
 import base.api.shared.enums.BookableResourceStatus;
 import base.api.shared.enums.NoiseLevel;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -12,8 +13,10 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
 import lombok.Getter;
 import lombok.Setter;
+
 import org.hibernate.annotations.Check;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
@@ -21,18 +24,28 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 
 /**
- * Chỗ đặt cụ thể trên sơ đồ. Chỉ ACTIVE mới đặt được.
- * Giá giờ hiệu lực = COALESCE(pricePerHour, resourceType.pricePerHour); giá ngày/tháng lấy từ Resource_Type,
- * sau đó mới áp Pricing_Rule.
+ * Chỗ đặt cụ thể trên sơ đồ. Chỉ ACTIVE mới đặt được. Giá giờ hiệu lực = COALESCE(pricePerHour,
+ * resourceType.pricePerHour); giá ngày/tháng lấy từ Resource_Type, sau đó mới áp Pricing_Rule.
  */
 @Getter
 @Setter
 @Entity
-@Table(name = "bookable_resource", uniqueConstraints = {
-        @UniqueConstraint(name = "ux_bookable_resource_floor_label", columnNames = {"floor_plan_id", "label"})
-})
-@Check(name = "ck_bookable_resource_price", constraints = "price_per_hour IS NULL OR price_per_hour > 0")
+@Table(
+        name = "bookable_resource",
+        uniqueConstraints = {
+            @UniqueConstraint(
+                    name = "ux_bookable_resource_floor_label",
+                    columnNames = {"floor_plan_id", "label"})
+        })
+@Check(
+        name = "ck_bookable_resource_price",
+        constraints = "price_per_hour IS NULL OR price_per_hour > 0")
 public class BookableResourceModel extends BaseModel {
+
+    /** Optional containing room; open-area desks have no parent. Never cascade room deletion. */
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "parent_room_id")
+    private BookableResourceModel parentRoom;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "floor_plan_id", nullable = false)
@@ -45,6 +58,10 @@ public class BookableResourceModel extends BaseModel {
     /** VD: A-01, Phòng Sao Mai. */
     @Column(nullable = false, length = 50)
     private String label;
+
+    /** Display name is separate from the stable, floor-unique resource code. */
+    @Column(length = 150)
+    private String name;
 
     @Column(name = "zone_name", length = 100)
     private String zoneName;
