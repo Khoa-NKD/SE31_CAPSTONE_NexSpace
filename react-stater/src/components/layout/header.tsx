@@ -9,8 +9,11 @@ import { Badge } from '../ui/badge';
 import { ShieldCheck, Activity } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
+import { DashboardLanguageSwitcher } from './dashboard-language-switcher';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 export default function Header() {
+  const { language } = useLanguage();
   const user = useAuthStore((state) => state.user);
   const role = getUserRole(user);
 
@@ -18,8 +21,10 @@ export default function Header() {
     role === 'ADMIN'
       ? 'SUPER ADMIN'
       : role === 'ORGANIZER'
-      ? 'ORGANIZER HUB'
-      : 'CUSTOMER';
+        ? language === 'vi'
+          ? 'TRUNG TÂM ĐỐI TÁC'
+          : 'ORGANIZER HUB'
+        : 'CUSTOMER';
 
   return (
     <header className='bg-background/80 sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2.5 sm:gap-4 border-b border-border/70 backdrop-blur-md px-3 sm:px-4'>
@@ -66,6 +71,7 @@ export default function Header() {
 
         {/* Theme Mode Toggle (Light/Dark) */}
         <ThemeModeToggle />
+        {role === 'ORGANIZER' && <DashboardLanguageSwitcher />}
 
         {/* Theme Palette Selector */}
         <div className='hidden md:block'>

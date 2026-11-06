@@ -18,8 +18,10 @@ import { Settings, LayoutDashboard, LogOut, ClipboardList } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 export function UserNav() {
+  const { language } = useLanguage();
   const router = useRouter();
   const user = useAuthStore((state) => state.user);
   const clearAuth = useAuthStore((state) => state.clearAuth);
@@ -43,7 +45,7 @@ export function UserNav() {
       // Ignore network errors during logout
     } finally {
       clearAuth();
-      toast.success('Đã đăng xuất thành công');
+      toast.success(language === 'vi' ? 'Đã đăng xuất thành công' : 'Signed out successfully');
       router.navigate({ to: '/auth/sign-in' });
     }
   };
@@ -88,7 +90,9 @@ export function UserNav() {
             onClick={handleDashboardClick}
           >
             <LayoutDashboard className='w-4 h-4 text-muted-foreground' />
-            <span>Dashboard</span>
+            <span>
+              {role === 'ORGANIZER' && language === 'vi' ? 'Bảng điều khiển' : 'Dashboard'}
+            </span>
           </DropdownMenuItem>
           {showApplicationStatus && (
             <DropdownMenuItem
@@ -100,7 +104,7 @@ export function UserNav() {
               }
             >
               <ClipboardList className='w-4 h-4 text-muted-foreground' />
-              <span>Quản lý hồ sơ Organizer</span>
+              <span>{language === 'vi' ? 'Quản lý hồ sơ đối tác' : 'Application Management'}</span>
             </DropdownMenuItem>
           )}
           <DropdownMenuItem
@@ -108,7 +112,11 @@ export function UserNav() {
             onClick={() => router.navigate({ to: '/dashboard/settings' })}
           >
             <Settings className='w-4 h-4 text-muted-foreground' />
-            <span>Settings & Security</span>
+            <span>
+              {role === 'ORGANIZER' && language === 'vi'
+                ? 'Cài đặt & bảo mật'
+                : 'Settings & Security'}
+            </span>
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
@@ -117,7 +125,7 @@ export function UserNav() {
           className='text-red-600 dark:text-red-400 cursor-pointer flex items-center gap-2'
         >
           <LogOut className='w-4 h-4' />
-          <span>Sign out</span>
+          <span>{role === 'ORGANIZER' && language === 'vi' ? 'Đăng xuất' : 'Sign out'}</span>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

@@ -1,16 +1,16 @@
 import React from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
-import { CreateResourceView } from '@/features/organizer-resource-create';
+import { ResourceManagementView } from '@/features/organizer-resources/components/resource-management-view';
 
 export const Route = createFileRoute('/dashboard/organizer/resources/create')({
   head: () => ({
     meta: [
-      { title: 'O11 — Create & Publish Resource | NexSpace Organizer Hub' },
+      { title: 'Create Seat/Room | NexSpace Organizer' },
       {
         name: 'description',
         content:
-          'List a new bookable seat, pod, or meeting room directly onto the marketplace like an Agoda room listing.'
+          'Create a draft desk or room within an owned workspace and publish through validated activation.'
       }
     ]
   }),
@@ -20,8 +20,7 @@ export const Route = createFileRoute('/dashboard/organizer/resources/create')({
 function CreateResourcePage() {
   return (
     <PageContainer>
-      <CreateResourceView />
+      <ResourceManagementView initialCreate />
     </PageContainer>
   );
 }
-
