@@ -1,4 +1,6 @@
-export type WorkspaceStatus = 'pending' | 'active' | 'suspended';
+import type { CanonicalWorkspace } from '../../workspaces/api/types';
+
+export type WorkspaceStatus = 'pending' | 'active' | 'suspended' | 'archived';
 
 export interface WorkspaceGalleryImage {
   id: string;
@@ -33,6 +35,8 @@ export interface WorkspaceDirectoryItem {
   operatorContactPhone: string;
   geofenceCluster: string;
   coordinates: string;
+  latitude?: number;
+  longitude?: number;
   tags: string[];
   gallery: WorkspaceGalleryImage[];
   hsmSessionId: string;
@@ -42,9 +46,15 @@ export interface WorkspaceDirectoryItem {
   reviewStatus?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
   moderationStatus?: 'Normal' | 'Suspended';
   operatingStatus?: 'Active' | 'Inactive' | 'Archived';
+  category?: string;
   description?: string;
   coverImageUrl?: string;
+  areaSqm?: number;
   usableAreaSqm?: number;
+  entryInstructions?: string;
+  bookingConfirmationMode?: string;
+  supportPhone?: string;
+  organizerId?: string | number;
   pricePerHour?: number;
   pricePerDay?: number;
   pricePerMonth?: number | null;
@@ -54,6 +64,8 @@ export interface WorkspaceDirectoryItem {
   suspendedBy?: string | null;
   suspendedAt?: string | null;
   suspendReason?: string | null;
+  featuredOrder?: number | null;
+  featuredUntil?: string | null;
   updatedAt?: string;
   operatingHoursList?: Array<{
     dayOfWeek: number;
@@ -83,19 +95,22 @@ export interface WorkspaceDirectoryItem {
 /**
  * Maps a canonical workspace record from the REST API to a UI-friendly WorkspaceDirectoryItem.
  */
-export function mapCanonicalToDirectoryItem(cw: any): WorkspaceDirectoryItem {
+export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDirectoryItem {
   let status: WorkspaceStatus = 'active';
-  if (cw.moderationStatus === 'Suspended') {
+  const rawStatus = (cw.status || '').toUpperCase();
+  if (cw.moderationStatus === 'Suspended' || rawStatus === 'SUSPENDED') {
     status = 'suspended';
-  } else if (cw.reviewStatus === 'Pending') {
+  } else if (cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
+    status = 'archived';
+  } else if (cw.reviewStatus === 'Pending' || rawStatus === 'PENDING_REVIEW') {
     status = 'pending';
-  } else if (cw.reviewStatus === 'Approved') {
+  } else if (cw.reviewStatus === 'Approved' || rawStatus === 'ACTIVE') {
     status = 'active';
-  } else if (cw.reviewStatus === 'Rejected') {
+  } else if (cw.reviewStatus === 'Rejected' || rawStatus === 'REJECTED') {
     status = 'suspended';
   }
 
-  const galleryImages: WorkspaceGalleryImage[] = (cw.images || []).map((img: any, idx: number) => ({
+  const galleryImages: WorkspaceGalleryImage[] = (cw.images || []).map((img, idx) => ({
     id: img.id || `img-${cw.id}-${idx}`,
     label: img.caption || (img.isCover ? 'Cover Photo' : `Facility View ${idx + 1}`),
     category: img.mediaType === '360_degree' ? '360° Tour' : (img.isCover ? 'Cover Photo' : 'Nomad Space'),
@@ -119,13 +134,13 @@ export function mapCanonicalToDirectoryItem(cw: any): WorkspaceDirectoryItem {
     : '08:30 UTC';
 
   return {
-    id: cw.id,
+    id: String(cw.id),
     name: cw.name,
     facilitySubtitle: cw.facilitySubtitle || cw.buildingName || cw.streetAddress,
     streetAddress: cw.streetAddress || 'Address pending',
     metroZone,
     city: cw.city || 'Ho Chi Minh City',
-    organizerLegalName: cw.organizerLegalName || 'Acme Coworking VN Co., Ltd',
+    organizerLegalName: cw.organizerLegalName || (cw.organizerId ? `Organizer #${cw.organizerId}` : 'Acme Coworking VN Co., Ltd'),
     organizerTaxId: cw.organizerTaxId || '',
     organizerVerified: cw.organizerVerified ?? true,
     capacityDesks: cw.capacityDesks || 0,
@@ -139,11 +154,13 @@ export function mapCanonicalToDirectoryItem(cw: any): WorkspaceDirectoryItem {
     submittedTime: formattedTime,
     receptionHours: cw.receptionHours || '08:00 – 20:00 Weekdays',
     accessMethod: cw.accessMethod || 'Smart QR & PIN Terminal',
-    operatorContactName: cw.operatorContactName || 'Operator Reception',
+    operatorContactName: cw.operatorContactName || cw.organizerLegalName || 'Operator Reception',
     operatorContactPhone: cw.operatorContactPhone || cw.supportPhone || '+84 28 3822 5588',
     geofenceCluster: `${cw.buildingName || cw.name} Pin • Geofence Validated`,
     coordinates: coordsString,
-    tags: Array.isArray(cw.tags) && cw.tags.length > 0 ? cw.tags : (Array.isArray(cw.amenities) && cw.amenities.length > 0 ? cw.amenities : ['WiFi 6', 'Ergonomic Seating']),
+    latitude: typeof cw.latitude === 'number' ? cw.latitude : (cw.latitude ? Number(cw.latitude) : undefined),
+    longitude: typeof cw.longitude === 'number' ? cw.longitude : (cw.longitude ? Number(cw.longitude) : undefined),
+    tags: Array.isArray(cw.tags) && cw.tags.length > 0 ? cw.tags : (Array.isArray(cw.amenities) && cw.amenities.length > 0 ? cw.amenities : []),
     gallery: galleryImages,
     hsmSessionId: `#WS-REG-${cw.id}`,
     moderatorNotes: cw.reviewFeedback || cw.suspendReason || undefined,
@@ -151,9 +168,15 @@ export function mapCanonicalToDirectoryItem(cw: any): WorkspaceDirectoryItem {
     reviewStatus: cw.reviewStatus || 'Draft',
     moderationStatus: cw.moderationStatus || 'Normal',
     operatingStatus: cw.operatingStatus || 'Inactive',
+    category: cw.category || 'COWORKING_HUB',
     description: cw.description,
     coverImageUrl: cw.coverImageUrl,
-    usableAreaSqm: cw.usableAreaSqm,
+    areaSqm: cw.usableAreaSqm,
+    usableAreaSqm: cw.usableAreaSqm || 0,
+    entryInstructions: cw.entryInstructions,
+    bookingConfirmationMode: cw.bookingConfirmationMode || 'INSTANT',
+    supportPhone: cw.supportPhone,
+    organizerId: cw.organizerId,
     pricePerHour: cw.pricePerHour,
     pricePerDay: cw.pricePerDay,
     pricePerMonth: cw.pricePerMonth,
@@ -175,13 +198,15 @@ export interface WorkspaceDirectorySummaryKpis {
   pendingReviewCount: number;
   activeCount: number;
   suspendedCount: number;
+  archivedCount?: number;
 }
 
 export const MOCK_DIRECTORY_KPIS: WorkspaceDirectorySummaryKpis = {
   totalCount: 618,
   pendingReviewCount: 12,
   activeCount: 584,
-  suspendedCount: 22
+  suspendedCount: 22,
+  archivedCount: 0
 };
 
 export const INITIAL_WORKSPACE_DIRECTORY: WorkspaceDirectoryItem[] = [

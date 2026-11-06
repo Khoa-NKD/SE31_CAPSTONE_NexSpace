@@ -8,21 +8,29 @@ import type { OrganizerWorkspace, WorkspaceStatus } from '../types';
 export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): OrganizerWorkspace {
   let status: WorkspaceStatus = 'ACTIVE';
 
-  if (cw.moderationStatus === 'Suspended') {
+  const rawStatus = (cw.status || '').toUpperCase();
+
+  if (cw.moderationStatus === 'Suspended' || rawStatus === 'SUSPENDED') {
     status = 'ARCHIVED';
-  } else if (cw.reviewStatus === 'Draft') {
+  } else if (cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
+    status = 'ARCHIVED';
+  } else if (cw.reviewStatus === 'Rejected' || rawStatus === 'REJECTED') {
+    status = 'REJECTED';
+  } else if (cw.reviewStatus === 'Draft' || rawStatus === 'DRAFT') {
     status = 'DRAFT';
-  } else if (cw.reviewStatus === 'Pending') {
+  } else if (cw.reviewStatus === 'Pending' || rawStatus === 'PENDING_REVIEW' || rawStatus === 'UNDER_REVIEW') {
     status = 'UNDER_REVIEW';
-  } else if (cw.reviewStatus === 'Approved') {
-    if (cw.operatingStatus === 'Active') {
+  } else if (cw.reviewStatus === 'Approved' || rawStatus === 'ACTIVE' || rawStatus === 'INACTIVE') {
+    if (cw.operatingStatus === 'Active' || rawStatus === 'ACTIVE') {
       status = 'ACTIVE';
-    } else if (cw.operatingStatus === 'Inactive') {
+    } else if (cw.operatingStatus === 'Inactive' || rawStatus === 'INACTIVE') {
       status = 'PAUSED';
     } else if (cw.operatingStatus === 'Archived') {
       status = 'ARCHIVED';
     }
   }
+
+  const isDraft = status === 'DRAFT';
 
   return {
     id: String(cw.id),
@@ -31,12 +39,12 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
     district: cw.district,
     city: cw.city,
     status,
-    draftProgress: cw.draftProgress ?? (cw.reviewStatus === 'Draft' ? 80 : undefined),
-    draftWarningMessage:
-      cw.draftWarningMessage ??
-      (cw.reviewStatus === 'Draft'
-        ? 'Floor Plan & Pricing pending review. Complete setup to publish.'
-        : undefined),
+    reviewFeedback: cw.reviewFeedback || undefined,
+    draftProgress: isDraft ? (cw.draftProgress ?? 80) : undefined,
+    draftWarningMessage: isDraft
+      ? (cw.draftWarningMessage ??
+        'Floor Plan & Pricing pending review. Complete setup to publish.')
+      : undefined,
     imageUrl: cw.coverImageUrl,
     desksCount: cw.capacityDesks,
     meetingRoomsCount: cw.meetingRooms,

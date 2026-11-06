@@ -10,6 +10,7 @@ import type {
   SubmitWorkspaceDto,
   AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto,
+  AdminFeaturedWorkspaceDto,
   WorkspaceMediaDto,
   AddWorkspaceMediaPayload,
   ReorderWorkspaceMediaPayload,
@@ -181,6 +182,47 @@ export function useAdminModerateWorkspaceMutation() {
         }
       }
       toast.error('Failed to Moderate Workspace', { description });
+    }
+  });
+}
+
+export interface AdminFeaturedWorkspaceVariables {
+  id: string;
+  dto: AdminFeaturedWorkspaceDto;
+  workspaceName?: string;
+}
+
+/**
+ * TanStack Query mutation hook for Administrator featured workspace marking.
+ */
+export function useAdminSetFeaturedWorkspaceMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CanonicalWorkspace, Error, AdminFeaturedWorkspaceVariables>({
+    mutationFn: ({ id, dto }) => workspaceService.adminSetFeatured(id, dto),
+
+    onSuccess: (updatedWorkspace, variables) => {
+      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+      queryClient.setQueryData(workspaceQueryKeys.detail(updatedWorkspace.id), updatedWorkspace);
+
+      const displayName = variables.workspaceName || updatedWorkspace.name;
+      toast.success('Featured Workspace Updated', {
+        description: variables.dto.isFeatured
+          ? `"${displayName}" is now featured on the marketplace.`
+          : `"${displayName}" is no longer featured.`
+      });
+    },
+
+    onError: (err: unknown) => {
+      let description = 'Could not update featured status.';
+      if (err instanceof ApiError) {
+        if (err.status === 409) {
+          description = err.message || 'Only ACTIVE workspaces can be featured.';
+        } else {
+          description = err.message;
+        }
+      }
+      toast.error('Failed to Update Featured Status', { description });
     }
   });
 }

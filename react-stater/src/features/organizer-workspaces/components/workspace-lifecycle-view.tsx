@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { useRouter } from '@tanstack/react-router';
+import { useRouter, Link } from '@tanstack/react-router';
 import {
   ShieldAlert,
   ShieldCheck,
@@ -8,6 +8,7 @@ import {
   Wrench,
   Archive,
   Eye,
+  Edit,
   CheckCircle2,
   Clock,
   TrendingUp,
@@ -55,7 +56,8 @@ import {
   useWorkspaceDetailQuery,
   useWorkspacesQuery,
   useWorkspaceLifecycleMutation,
-  useUpdateWorkspaceMutation
+  useUpdateWorkspaceMutation,
+  useSubmitWorkspaceMutation
 } from '@/features/workspaces/api';
 import { mapCanonicalToOrganizerWorkspace } from '../utils/workspace-mapper';
 import { WorkspaceAssetsManager } from '@/features/organizer-assets/components/workspace-assets-manager';
@@ -118,11 +120,13 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
   // Centralized API Mutations
   const lifecycleMutation = useWorkspaceLifecycleMutation();
   const updateMutation = useUpdateWorkspaceMutation();
+  const submitMutation = useSubmitWorkspaceMutation();
 
   const isSuspended = canonicalWorkspace?.moderationStatus === 'Suspended';
-  const isDraftOrPending =
-    canonicalWorkspace?.reviewStatus === 'Draft' ||
-    canonicalWorkspace?.reviewStatus === 'Pending';
+  const isPending = canonicalWorkspace?.reviewStatus === 'Pending';
+  const isRejected = canonicalWorkspace?.reviewStatus === 'Rejected';
+  const isDraft = canonicalWorkspace?.reviewStatus === 'Draft' || activeWorkspace?.status === 'DRAFT';
+  const isDraftOrPending = isDraft || isPending;
   const isArchived = activeWorkspace?.status === 'ARCHIVED';
   const canToggleVisibility = !isDetailError && !isDraftOrPending && !isSuspended && activeWorkspace?.status === 'ACTIVE' && Boolean(canonicalWorkspace);
 
@@ -274,6 +278,28 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
     );
   };
 
+  const handleSubmitForReview = () => {
+    if (!canonicalWorkspace?.id) return;
+    submitMutation.mutate(
+      {
+        id: canonicalWorkspace.id,
+        dto: {
+          expectedVersion: canonicalWorkspace.version,
+          agreementConfirmed: true
+        },
+        workspaceName: activeWorkspace.name
+      },
+      {
+        onSuccess: () => {
+          updateWorkspaceStatus(activeWorkspace.id, 'UNDER_REVIEW');
+          toast.success('Workspace Submitted for Review', {
+            description: `Listing ${activeWorkspace.name} has been submitted for administrative review.`
+          });
+        }
+      }
+    );
+  };
+
   if (isDetailLoading && !activeWorkspace) {
     return (
       <div className='flex flex-col items-center justify-center min-h-[50vh] p-8 text-center'>
@@ -371,6 +397,45 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
           </div>
         )}
 
+        {/* Submission Rejected Banner */}
+        {isRejected && (
+          <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400'>
+            <div className='flex items-start gap-3'>
+              <AlertCircle className='size-5 shrink-0 mt-0.5' />
+              <div>
+                <h4 className='font-bold text-sm'>Workspace Review Rejected (Yêu cầu chỉnh sửa hồ sơ)</h4>
+                <p className='text-xs mt-1 text-rose-600/90 dark:text-rose-300'>
+                  <strong>Phản hồi từ Quản trị viên:</strong>{' '}
+                  {canonicalWorkspace?.reviewFeedback || 'Vui lòng bổ sung hoặc điều chỉnh thông tin hồ sơ theo yêu cầu trước khi nộp duyệt lại.'}
+                </p>
+              </div>
+            </div>
+            <Button
+              asChild
+              size='sm'
+              className='bg-rose-600 hover:bg-rose-700 text-white shrink-0 text-xs gap-1.5 shadow-xs font-semibold'
+            >
+              <Link to='/dashboard/organizer/workspaces/create' search={{ id: activeWorkspace.id, mode: 'edit' }}>
+                <Edit className='size-3.5' />
+                <span>Chỉnh sửa theo phản hồi</span>
+              </Link>
+            </Button>
+          </div>
+        )}
+
+        {/* Pending Review Banner */}
+        {isPending && (
+          <div className='flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'>
+            <Clock className='size-5 shrink-0 mt-0.5' />
+            <div>
+              <h4 className='font-bold text-sm'>Pending Administrative Review</h4>
+              <p className='text-xs mt-1 text-amber-600/90 dark:text-amber-300'>
+                This listing was submitted on {canonicalWorkspace?.submittedAt ? new Date(canonicalWorkspace.submittedAt).toLocaleDateString() : 'recently'}. An administrator will review your workspace before marketplace publication.
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* ==================== TOP HERO STATUS BANNER ==================== */}
         <section className='bg-card rounded-xl border border-border p-6 shadow-2xs flex flex-col lg:flex-row lg:items-center justify-between gap-6'>
           {/* Left: Workspace Identity & Live State */}
@@ -442,6 +507,21 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
 
           {/* Right Actions: Preview + Emergency Kill Switch Controls */}
           <div className='flex flex-wrap items-center gap-2.5 shrink-0'>
+            {activeWorkspace.status !== 'ARCHIVED' && (
+              <Button
+                variant='outline'
+                asChild
+                className={`h-10 text-xs sm:text-sm font-semibold gap-1.5 border-border hover:bg-muted ${
+                  isRejected ? 'text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/30' : 'text-foreground'
+                }`}
+              >
+                <Link to='/dashboard/organizer/workspaces/create' search={{ id: activeWorkspace.id, mode: 'edit' }}>
+                  <Edit className='size-4' />
+                  <span>{isRejected ? 'Chỉnh sửa theo phản hồi' : 'Chỉnh sửa thông tin'}</span>
+                </Link>
+              </Button>
+            )}
+
             <Button
               variant='outline'
               onClick={() => setIsPreviewModalOpen(true)}
@@ -451,8 +531,30 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
               <span>Preview Public Page</span>
             </Button>
 
-            {/* Emergency Kill Switch / Toggle */}
-            {activeWorkspace.status === 'ACTIVE' ? (
+            {/* Emergency Kill Switch / Toggle / Submission */}
+            {isDraft || isRejected ? (
+              <Button
+                onClick={handleSubmitForReview}
+                disabled={submitMutation.isPending || isDetailError || !canonicalWorkspace}
+                className='h-10 text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-2xs'
+              >
+                {submitMutation.isPending ? (
+                  <Loader2 className='size-4 animate-spin' />
+                ) : (
+                  <ShieldCheck className='size-4' />
+                )}
+                <span>{isRejected ? 'Resubmit for Review' : 'Submit for Review'}</span>
+              </Button>
+            ) : isPending ? (
+              <Button
+                variant='outline'
+                disabled
+                className='h-10 text-xs sm:text-sm font-semibold border-amber-300 dark:border-amber-800 text-amber-600 opacity-80 gap-1.5'
+              >
+                <Clock className='size-4 text-amber-500 animate-pulse' />
+                <span>Pending Admin Approval</span>
+              </Button>
+            ) : activeWorkspace.status === 'ACTIVE' ? (
               <Button
                 variant='outline'
                 onClick={() => setIsPauseModalOpen(true)}

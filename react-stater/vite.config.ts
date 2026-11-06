@@ -23,6 +23,7 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
             url.startsWith('/api/auth/') ||
             url.startsWith('/api/organizer/') ||
             url.startsWith('/api/admin/organizer-applications') ||
+            url.startsWith('/api/admin/workspaces') ||
             url.startsWith('/api/v1/') ||
             url.startsWith('/api/workspaces') ||
             url.startsWith('/api/public/');

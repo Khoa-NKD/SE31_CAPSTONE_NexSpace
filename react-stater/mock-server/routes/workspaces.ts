@@ -1116,6 +1116,124 @@ export async function handleGetWorkspaceById(
 }
 
 /**
+ * GET /api/v1/workspaces/:id/amenities
+ * Returns list of amenities assigned to the workspace.
+ */
+export async function handleGetWorkspaceAmenities(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string
+): Promise<void> {
+  try {
+    const allWorkspaces = await getAllNormalizedWorkspaces();
+    const workspace = findWorkspaceByAliasOrId(allWorkspaces, id);
+
+    if (!workspace) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          status: 404,
+          error: 'NotFound',
+          message: `Workspace with identifier '${id}' was not found.`,
+          timestamp: new Date().toISOString()
+        })
+      );
+      return;
+    }
+
+    const rawAmenities = Array.isArray(workspace.amenities)
+      ? workspace.amenities
+      : Array.isArray(workspace.tags)
+      ? workspace.tags
+      : [];
+
+    const amenitiesList = rawAmenities.map((name: string, index: number) => {
+      const lower = name.toLowerCase();
+      let icon = 'Sparkles';
+      let category = 'TECH';
+      let isComplimentary = true;
+      let price = 0;
+
+      if (lower.includes('wifi')) {
+        icon = 'Wifi';
+        category = 'TECH';
+        isComplimentary = false;
+        price = 5;
+      } else if (lower.includes('monitor') || lower.includes('display')) {
+        icon = 'Monitor';
+        category = 'TECH';
+        isComplimentary = false;
+        price = 5;
+      } else if (lower.includes('print')) {
+        icon = 'Printer';
+        category = 'TECH';
+        isComplimentary = false;
+        price = 5;
+      } else if (lower.includes('water')) {
+        icon = 'Droplets';
+        category = 'COMFORT';
+        isComplimentary = true;
+        price = 0;
+      } else if (lower.includes('coffee') || lower.includes('espresso')) {
+        icon = 'Coffee';
+        category = 'COMFORT';
+        isComplimentary = true;
+        price = 0;
+      } else if (lower.includes('phone') || lower.includes('booth')) {
+        icon = 'PhoneCall';
+        category = 'TECH';
+        isComplimentary = false;
+        price = 5;
+      } else if (lower.includes('cast')) {
+        icon = 'Cast';
+        category = 'TECH';
+        isComplimentary = false;
+        price = 5;
+      }
+
+      const numericId = typeof workspace.id === 'number' ? workspace.id : Number(String(workspace.id).replace(/\D/g, '') || 1);
+
+      return {
+        id: (numericId * 10) + index + 1,
+        workspaceId: numericId,
+        amenityId: index + 1,
+        name,
+        category,
+        icon,
+        description: name,
+        addonPricePerHour: price,
+        isComplimentary,
+        complimentary: isComplimentary,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+    });
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: amenitiesList,
+        message: 'Lấy danh sách tiện ích của không gian thành công',
+        statusCode: 200
+      })
+    );
+  } catch (err: unknown) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        status: 500,
+        error: 'InternalServerError',
+        message: err instanceof Error ? err.message : 'Failed to retrieve workspace amenities',
+        timestamp: new Date().toISOString()
+      })
+    );
+  }
+}
+
+/**
  * POST /api/v1/workspaces
  * Creates a new workspace in Draft state. Validates organizerId against users.json.
  */
@@ -2610,4 +2728,42 @@ export async function handleAdminModerationWorkspace(
       })
     );
   }
+}
+
+/**
+ * GET /api/v1/public/workspaces/featured
+ */
+export async function handleGetFeaturedWorkspaces(res: ServerResponse): Promise<void> {
+  const allWorkspaces = await getAllNormalizedWorkspaces();
+  const featured = allWorkspaces.filter(
+    (w) => w.reviewStatus === 'Approved' && w.moderationStatus === 'Normal' && (w as any).isFeatured
+  );
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ success: true, data: featured, timestamp: new Date().toISOString() }));
+}
+
+/**
+ * PATCH/PUT /api/v1/admin/workspaces/:id/featured
+ */
+export async function handleAdminFeaturedWorkspace(
+  req: IncomingMessage,
+  res: ServerResponse,
+  id: string,
+  body: unknown
+): Promise<void> {
+  const allWorkspaces = await getAllNormalizedWorkspaces();
+  const workspace = findWorkspaceByAliasOrId(allWorkspaces, id);
+  if (!workspace) {
+    res.writeHead(404, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, status: 404, error: 'NotFound', message: `Workspace '${id}' not found` }));
+    return;
+  }
+  const payload = (body || {}) as { isFeatured?: boolean; featuredOrder?: number };
+  (workspace as any).isFeatured = Boolean(payload.isFeatured);
+  if (typeof payload.featuredOrder === 'number') {
+    (workspace as any).featuredOrder = payload.featuredOrder;
+  }
+  await persistWorkspaceMutation(workspace);
+  res.writeHead(200, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ success: true, data: workspace, timestamp: new Date().toISOString() }));
 }

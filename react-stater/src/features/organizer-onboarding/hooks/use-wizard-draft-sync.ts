@@ -83,7 +83,7 @@ export function useWizardDraftSync() {
               currentState.serverVersion
             );
             updatedRecord = await workspaceService.updateWorkspace(
-              currentState.canonicalWorkspaceId,
+              String(currentState.canonicalWorkspaceId),
               updateDto
             );
 

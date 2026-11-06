@@ -134,6 +134,8 @@ export interface CanonicalWorkspace {
 
   // 12. Marketplace Visibility, Pricing & Analytics
   isListingVisible: boolean;
+  featuredOrder?: number | null;
+  featuredUntil?: string | null;
   featuredPosition?: number | null;
   featuredFrom?: string | null;
   featuredTo?: string | null;
@@ -369,6 +371,13 @@ export interface AdminModerationWorkspaceDto {
   expectedVersion: number;
 }
 
+export interface AdminFeaturedWorkspaceDto {
+  isFeatured: boolean;
+  featuredOrder?: number;
+  featuredUntil?: string;
+  expectedVersion?: number;
+}
+
 /**
  * Pure predicate evaluating canonical public marketplace eligibility.
  * Authoritative contract:
@@ -553,5 +562,33 @@ export interface PaginatedAssetResponse {
   hasNext: boolean;
   hasPrevious: boolean;
 }
+
+export type AmenityCategoryType =
+  | 'TECH'
+  | 'COMFORT'
+  | 'SPACE'
+  | 'SERVICE'
+  | 'ACCESSIBILITY'
+  | string;
+
+export interface WorkspaceAmenityDto {
+  id: number;
+  workspaceId: number;
+  amenityId: number;
+  name: string;
+  category: AmenityCategoryType;
+  icon?: string;
+  description?: string;
+  addonPricePerHour?: number;
+  isComplimentary?: boolean;
+  complimentary?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface AssignWorkspaceAmenitiesPayload {
+  amenityIds: number[];
+}
+
 
 

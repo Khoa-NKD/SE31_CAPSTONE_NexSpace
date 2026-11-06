@@ -15,6 +15,7 @@ export const workspaceQueryKeys = {
   details: () => [...workspaceQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
   media: (id: string | number) => [...workspaceQueryKeys.all, 'media', String(id)] as const,
+  amenities: (id: string | number) => [...workspaceQueryKeys.all, 'amenities', String(id)] as const,
   assets: (workspaceId: string | number, params?: WorkspaceAssetFilterParams) =>
     [...workspaceQueryKeys.all, 'assets', String(workspaceId), params] as const,
   assetDetail: (workspaceId: string | number, assetId: string | number) =>
@@ -23,6 +24,7 @@ export const workspaceQueryKeys = {
     [...workspaceQueryKeys.all, 'maintenance-logs', String(workspaceId), String(assetId)] as const,
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
+  featured: () => [...workspaceQueryKeys.all, 'featured'] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
 
@@ -120,6 +122,22 @@ export function useAdminWorkspaceKpisQuery(options?: { adminId?: string }) {
 }
 
 /**
+ * TanStack Query options for fetching featured workspaces on Marketplace/Homepage.
+ */
+export const featuredWorkspacesQueryOptions = () =>
+  queryOptions({
+    queryKey: workspaceQueryKeys.featured(),
+    queryFn: () => workspaceService.getFeaturedWorkspaces()
+  });
+
+/**
+ * Hook for querying featured workspaces.
+ */
+export function useFeaturedWorkspacesQuery() {
+  return useQuery(featuredWorkspacesQueryOptions());
+}
+
+/**
  * TanStack Query options for fetching gallery media for a workspace.
  */
 export const workspaceMediaQueryOptions = (workspaceId: number | string | null | undefined) =>
@@ -134,6 +152,25 @@ export const workspaceMediaQueryOptions = (workspaceId: number | string | null |
  */
 export function useWorkspaceMediaQuery(workspaceId: number | string | null | undefined) {
   return useQuery(workspaceMediaQueryOptions(workspaceId));
+}
+
+/**
+ * TanStack Query options for fetching amenities assigned to a workspace.
+ */
+export const workspaceAmenitiesQueryOptions = (workspaceId: number | string | null | undefined) =>
+  queryOptions({
+    queryKey: workspaceId
+      ? workspaceQueryKeys.amenities(workspaceId)
+      : [...workspaceQueryKeys.all, 'amenities', 'none'],
+    queryFn: () => (workspaceId ? workspaceService.getWorkspaceAmenities(workspaceId) : []),
+    enabled: Boolean(workspaceId)
+  });
+
+/**
+ * Hook for querying amenities assigned to a workspace.
+ */
+export function useWorkspaceAmenitiesQuery(workspaceId: number | string | null | undefined) {
+  return useQuery(workspaceAmenitiesQueryOptions(workspaceId));
 }
 
 /**

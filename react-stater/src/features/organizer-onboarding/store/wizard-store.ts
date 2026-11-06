@@ -561,7 +561,7 @@ export const useWizardStore = create<WizardStore>()(
           return {
             ...state,
             ...hydrated,
-            canonicalWorkspaceId: workspace.id,
+            canonicalWorkspaceId: String(workspace.id),
             isEditMode: true,
             serverVersion: workspace.version,
             isDraftSynced: true,

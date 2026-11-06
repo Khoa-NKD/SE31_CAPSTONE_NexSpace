@@ -17,14 +17,23 @@ import { WorkspaceDetailsDrawer } from '@/features/admin-workspaces/components/w
 import {
   useWorkspacesQuery,
   useAdminReviewWorkspaceMutation,
-  useAdminModerateWorkspaceMutation
+  useAdminModerateWorkspaceMutation,
+  useAdminSetFeaturedWorkspaceMutation
 } from '@/features/workspaces/api';
+
+const sanitizeSearchId = (val: unknown) => {
+  if (val == null) return undefined;
+  const s = String(val).replace(/^["']+|["']+$/g, '').trim();
+  return s.length > 0 ? s : undefined;
+};
 
 const directorySearchSchema = z.object({
   search: z.string().optional(),
-  status: z.enum(['all', 'pending', 'active', 'suspended']).optional().default('all'),
+  status: z.enum(['all', 'pending', 'active', 'suspended', 'archived']).optional().default('all'),
   city: z.string().optional().default('all'),
-  hubId: z.string().optional()
+  hubId: z.union([z.string(), z.number()]).transform(sanitizeSearchId).optional(),
+  page: z.coerce.number().optional().default(1),
+  pageSize: z.coerce.number().optional().default(10)
 });
 
 export const Route = createFileRoute('/dashboard/admin/workspaces/directory')({
@@ -67,8 +76,9 @@ function WorkspaceDirectoryPage() {
   // 2. Administrator Review and Moderation mutations
   const reviewMutation = useAdminReviewWorkspaceMutation();
   const moderateMutation = useAdminModerateWorkspaceMutation();
+  const featuredMutation = useAdminSetFeaturedWorkspaceMutation();
 
-  const isSubmitting = reviewMutation.isPending || moderateMutation.isPending;
+  const isSubmitting = reviewMutation.isPending || moderateMutation.isPending || featuredMutation.isPending;
 
   // 3. Map canonical workspaces to directory items
   const content = workspacesResponse?.content;
@@ -80,26 +90,36 @@ function WorkspaceDirectoryPage() {
   // 4. Calculate dynamic summary KPIs from persisted data
   const directoryKpis = useMemo(() => {
     const totalCount = workspaces.length;
-    const pendingReviewCount = workspaces.filter((w) => w.reviewStatus === 'Pending').length;
-    const activeCount = workspaces.filter(
-      (w) => w.reviewStatus === 'Approved' && w.moderationStatus === 'Normal'
+    const pendingReviewCount = workspaces.filter(
+      (w) => w.reviewStatus === 'Pending' || w.status === 'pending'
     ).length;
-    const suspendedCount = workspaces.filter((w) => w.moderationStatus === 'Suspended').length;
+    const activeCount = workspaces.filter((w) => w.status === 'active').length;
+    const suspendedCount = workspaces.filter((w) => w.status === 'suspended').length;
+    const archivedCount = workspaces.filter((w) => w.status === 'archived').length;
     return {
       totalCount,
       pendingReviewCount,
       activeCount,
-      suspendedCount
+      suspendedCount,
+      archivedCount
     };
   }, [workspaces]);
 
   // 5. Drawer selection synced with query param
-  const selectedWorkspace = useMemo(() => {
+  const cleanHubId = useMemo(() => {
     if (!searchParams.hubId) return null;
-    return workspaces.find((w) => w.id === searchParams.hubId) || null;
-  }, [searchParams.hubId, workspaces]);
+    return String(searchParams.hubId).replace(/^["']+|["']+$/g, '').trim() || null;
+  }, [searchParams.hubId]);
 
-  const isDrawerOpen = Boolean(searchParams.hubId);
+  const selectedWorkspace = useMemo(() => {
+    if (!cleanHubId) return null;
+    return (
+      workspaces.find((w) => String(w.id).replace(/^["']+|["']+$/g, '').trim() === cleanHubId) ||
+      null
+    );
+  }, [cleanHubId, workspaces]);
+
+  const isDrawerOpen = Boolean(cleanHubId);
 
   const searchQuery = searchParams.search || '';
   const statusFilter = (searchParams.status as WorkspaceStatus | 'all') || 'all';
@@ -133,33 +153,52 @@ function WorkspaceDirectoryPage() {
   }, [workspaces, searchQuery, statusFilter, selectedCity]);
 
   // Handlers
+  const currentPage = searchParams.page || 1;
+  const currentPageSize = searchParams.pageSize || 10;
+
+  const handlePageChange = (newPage: number) => {
+    navigate({
+      search: (prev) => ({ ...prev, page: newPage }),
+      replace: true,
+      resetScroll: false
+    });
+  };
+
+  const handlePageSizeChange = (newPageSize: number) => {
+    navigate({
+      search: (prev) => ({ ...prev, pageSize: newPageSize, page: 1 }),
+      replace: true,
+      resetScroll: false
+    });
+  };
+
   const handleSearchChange = (value: string) => {
     navigate({
-      search: (prev) => ({ ...prev, search: value || undefined })
+      search: (prev) => ({ ...prev, search: value || undefined, page: 1 })
     });
   };
 
   const handleStatusChange = (status: WorkspaceStatus | 'all') => {
     navigate({
-      search: (prev) => ({ ...prev, status })
+      search: (prev) => ({ ...prev, status, page: 1 })
     });
   };
 
   const handleCityChange = (city: string) => {
     navigate({
-      search: (prev) => ({ ...prev, city })
+      search: (prev) => ({ ...prev, city, page: 1 })
     });
   };
 
   const handleResetFilters = () => {
     navigate({
-      search: () => ({ status: 'all', city: 'all' })
+      search: () => ({ status: 'all', city: 'all', page: 1, pageSize: searchParams.pageSize || 10 })
     });
   };
 
   const handleSelectWorkspace = (workspace: WorkspaceDirectoryItem) => {
     navigate({
-      search: (prev) => ({ ...prev, hubId: workspace.id }),
+      search: (prev) => ({ ...prev, hubId: String(workspace.id) }),
       replace: true,
       resetScroll: false
     });
@@ -255,6 +294,23 @@ function WorkspaceDirectoryPage() {
     }
   };
 
+  const handleToggleFeatured = async (item: WorkspaceDirectoryItem) => {
+    try {
+      const isCurrentlyFeatured = Boolean(item.featuredOrder);
+      await featuredMutation.mutateAsync({
+        id: item.id,
+        dto: {
+          isFeatured: !isCurrentlyFeatured,
+          featuredOrder: !isCurrentlyFeatured ? 1 : undefined,
+          expectedVersion: item.version ?? 1
+        },
+        workspaceName: item.name
+      });
+    } catch {
+      // Error handled by mutation onError
+    }
+  };
+
   return (
     <PageContainer>
       <div className='max-w-[1360px] mx-auto w-full'>
@@ -341,17 +397,23 @@ function WorkspaceDirectoryPage() {
             items={filteredWorkspaces}
             selectedWorkspaceId={selectedWorkspace?.id}
             onSelectWorkspace={handleSelectWorkspace}
+            page={currentPage}
+            pageSize={currentPageSize}
+            onPageChange={handlePageChange}
+            onPageSizeChange={handlePageSizeChange}
           />
         )}
 
         {/* Slide-over Inspection Drawer */}
         <WorkspaceDetailsDrawer
           workspace={selectedWorkspace}
+          workspaceId={cleanHubId}
           isOpen={isDrawerOpen}
           onClose={handleCloseDrawer}
           onApprove={handleApprove}
           onReject={handleReject}
           onToggleSuspend={handleToggleSuspend}
+          onToggleFeatured={handleToggleFeatured}
           isSubmitting={isSubmitting}
         />
       </div>

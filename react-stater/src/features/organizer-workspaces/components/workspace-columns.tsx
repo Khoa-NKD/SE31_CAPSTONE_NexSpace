@@ -22,7 +22,8 @@ import {
   MapPin,
   Building2,
   Users,
-  Star
+  Star,
+  Edit
 } from 'lucide-react';
 import type { OrganizerWorkspace, WorkspaceStatus } from '../types';
 import { getWorkspaceResumeRoute } from '../utils/workspace-routing';
@@ -66,6 +67,31 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
           <>
             <DropdownMenuGroup>
               <DropdownMenuLabel>Actions</DropdownMenuLabel>
+              {workspace.status === 'REJECTED' ? (
+                <DropdownMenuItem asChild>
+                  <Link
+                    to='/dashboard/organizer/workspaces/create'
+                    search={{ id: workspace.id, mode: 'edit' }}
+                    className='cursor-pointer flex items-center text-rose-600 dark:text-rose-400 font-semibold focus:text-rose-700'
+                  >
+                    <Edit className='mr-2 h-4 w-4 text-rose-600' />
+                    <span>Chỉnh sửa theo phản hồi</span>
+                  </Link>
+                </DropdownMenuItem>
+              ) : (
+                workspace.status !== 'ARCHIVED' && (
+                  <DropdownMenuItem asChild>
+                    <Link
+                      to='/dashboard/organizer/workspaces/create'
+                      search={{ id: workspace.id, mode: 'edit' }}
+                      className='cursor-pointer flex items-center text-indigo-600 dark:text-indigo-400 font-medium'
+                    >
+                      <Edit className='mr-2 h-4 w-4' />
+                      <span>Chỉnh sửa hồ sơ</span>
+                    </Link>
+                  </DropdownMenuItem>
+                )
+              )}
               <DropdownMenuItem asChild>
                 <Link
                   to='/dashboard/organizer/workspaces/lifecycle'
@@ -163,6 +189,11 @@ const statusConfig: Record<
     label: 'ARCHIVED',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive border-destructive/20'
+  },
+  REJECTED: {
+    label: 'NEEDS REVISION',
+    variant: 'destructive',
+    className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
   }
 };
 
@@ -234,6 +265,11 @@ export function getWorkspaceColumns(
             <Badge variant={config.variant} className={`border font-semibold text-2xs ${config.className}`}>
               {config.label}
             </Badge>
+            {status === 'REJECTED' && row.original.reviewFeedback && (
+              <span className='text-2xs text-rose-600 dark:text-rose-400 max-w-[200px] truncate font-medium' title={row.original.reviewFeedback}>
+                Lý do: {row.original.reviewFeedback}
+              </span>
+            )}
             {status === 'DRAFT' && row.original.draftProgress !== undefined && (
               <span className='text-2xs text-muted-foreground'>
                 {row.original.draftProgress}% complete

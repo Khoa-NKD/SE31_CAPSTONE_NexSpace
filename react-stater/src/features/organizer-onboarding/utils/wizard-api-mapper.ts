@@ -379,6 +379,8 @@ export function mapCanonicalToWizardState(
         ? 'under_review'
         : cw.reviewStatus === 'Approved'
           ? 'published'
-          : 'draft'
+          : 'draft',
+    reviewStatus: cw.reviewStatus,
+    reviewFeedback: cw.reviewFeedback || null
   };
 }
