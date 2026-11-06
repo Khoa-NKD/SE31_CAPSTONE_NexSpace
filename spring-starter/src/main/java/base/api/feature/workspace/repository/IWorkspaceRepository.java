@@ -10,9 +10,15 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
+import java.util.List;
 
 @Repository
 public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long> {
+    List<WorkspaceModel> findByOrganizerIdOrderByIdDesc(Long organizerId);
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from WorkspaceModel w where w.id = :id and w.organizer.id = :actorId")
+    Optional<WorkspaceModel> findOwnedForResourceUpdate(@Param("id") Long id, @Param("actorId") Long actorId);
 
     @Query("""
             SELECT w FROM WorkspaceModel w

@@ -62,4 +62,10 @@ public class ResourceTypeModel extends BaseModel {
 
     @Column(name = "is_active", nullable = false)
     private boolean active = true;
+
+    /** NULL preserves unknown legacy prices until the owner explicitly confirms their denomination. */
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(length = 3)
+    private base.api.shared.enums.ResourceCurrency currency;
 }
