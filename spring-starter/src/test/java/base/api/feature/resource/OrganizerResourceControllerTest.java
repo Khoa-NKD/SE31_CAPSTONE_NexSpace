@@ -14,10 +14,13 @@ import base.api.shared.entity.*;
 import base.api.shared.security.*;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.AfterEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -29,6 +32,13 @@ import org.springframework.test.web.servlet.MockMvc;
         properties = "spring.profiles.active=test")
 @Import({SecurityConfig.class, JwtAuthenticationFilter.class, CurrentUserProvider.class})
 class OrganizerResourceControllerTest {
+    // Standalone controller/filter tests may run on the same thread before this slice.
+    @BeforeEach
+    @AfterEach
+    void clearAuthentication() {
+        SecurityContextHolder.clearContext();
+    }
+
     @Autowired MockMvc mvc;
     @MockitoBean OrganizerResourceService service;
     @MockitoBean base.api.feature.resource.service.PublicFloorMapService publicMaps;
