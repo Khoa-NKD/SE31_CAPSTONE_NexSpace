@@ -214,6 +214,7 @@ class OrganizerBusinessProfileServiceTest {
     }
 
     @Test
+    @SuppressWarnings("deprecation")
     void persistenceFailureRollsBackTheAnnotatedServiceTransaction() {
         var commits = new AtomicInteger();
         var rollbacks = new AtomicInteger();

@@ -3,16 +3,12 @@ package base.api.shared.config;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.workspace.repository.IAmenityRepository;
-import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.AmenityModel;
-import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.AmenityCategory;
 import base.api.shared.enums.UserRole;
 import base.api.shared.enums.UserStatus;
-import base.api.shared.enums.WorkspaceCategory;
-import base.api.shared.enums.WorkspaceStatus;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,7 +18,6 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -39,7 +34,6 @@ public class DataInitializer implements ApplicationRunner {
     private final IRoleRepository roleRepository;
     private final IUserRepository userRepository;
     private final IAmenityRepository amenityRepository;
-    private final IWorkspaceRepository workspaceRepository;
     private final PasswordEncoder passwordEncoder;
 
     @Value("${app.seed.admin.enabled:false}")

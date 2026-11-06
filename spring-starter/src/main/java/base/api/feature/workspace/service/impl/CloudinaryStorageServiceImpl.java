@@ -113,6 +113,7 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     }
 
     /** Server-only signed delivery. Neither the signed URL nor upstream errors are exposed to callers. */
+    @SuppressWarnings("unchecked")
     public byte[] readPrivateDocument(String reference) {
         String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
         if (!isCloudinaryConfigured() || reference == null
@@ -248,6 +249,7 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         }
     }
 
+    @SuppressWarnings("unchecked")
     private MediaUploadResponseDto uploadToCloudinary(MultipartFile file, String folder, Long actorId) {
         try {
             Cloudinary cloudinary = createCloudinaryClient();
