@@ -3,6 +3,7 @@ package base.api.feature.auth.service.impl;
 import base.api.feature.auth.dto.request.ChangePasswordDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
+import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.repository.IUserSessionRepository;
 import base.api.feature.governance.service.IAuditService;
@@ -46,6 +47,7 @@ class UserServiceImplTest {
     private IUserSessionRepository userSessionRepository;
     private IAuditService auditService;
     private IMediaStorageService mediaStorageService;
+    private IRoleRepository roleRepository;
     private UserServiceImpl service;
     private UserModel user;
     private UserModel admin;
@@ -56,7 +58,8 @@ class UserServiceImplTest {
         userSessionRepository = mock(IUserSessionRepository.class);
         auditService = mock(IAuditService.class);
         mediaStorageService = mock(IMediaStorageService.class);
-        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService);
+        roleRepository = mock(IRoleRepository.class);
+        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService, roleRepository);
 
         user = new UserModel();
         user.setId(1L);
@@ -543,5 +546,110 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.updateUserStatus(2L, 1L, UserStatus.LOCKED, "Lỗi thời gian", past))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("tương lai");
+    }
+
+    @Test
+    @DisplayName("Admin thay đổi vai trò người dùng từ USER sang ORGANIZER thành công và thu hồi phiên")
+    void adminCanChangeUserRoleSuccessfully() {
+        RoleModel organizerRole = new RoleModel(UserRole.ORGANIZER.name(), "Organizer Role");
+        when(roleRepository.findByName(UserRole.ORGANIZER.name())).thenReturn(Optional.of(organizerRole));
+
+        UserSessionModel activeSession = new UserSessionModel();
+        activeSession.setId(100L);
+        activeSession.setUser(user);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of(activeSession));
+
+        UserDto result = service.updateUserRole(2L, 1L, UserRole.ORGANIZER, "Phê duyệt làm đối tác Organizer");
+
+        assertThat(result.getRole()).isEqualTo(UserRole.ORGANIZER);
+        assertThat(user.getRoleEntity().getName()).isEqualTo(UserRole.ORGANIZER.name());
+        assertThat(activeSession.getRevokedAt()).isNotNull();
+        verify(userSessionRepository).saveAll(any());
+        verify(auditService).log(
+                eq(admin),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_ROLE_CHANGED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("USER"),
+                eq("ORGANIZER"),
+                eq("Phê duyệt làm đối tác Organizer"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Admin không thể tự thay đổi vai trò của chính mình")
+    void adminCannotChangeOwnRole() {
+        assertThatThrownBy(() -> service.updateUserRole(2L, 2L, UserRole.USER, "Tự hạ quyền"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Không thể tự thay đổi vai trò của chính mình");
+    }
+
+    @Test
+    @DisplayName("Thay đổi vai trò thất bại nếu thiếu lý do")
+    void changeRoleFailsWhenReasonIsBlank() {
+        assertThatThrownBy(() -> service.updateUserRole(2L, 1L, UserRole.ORGANIZER, "   "))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Vui lòng nhập lý do");
+    }
+
+    @Test
+    @DisplayName("Thay đổi vai trò thất bại nếu role bị null")
+    void changeRoleFailsWhenRoleIsNull() {
+        assertThatThrownBy(() -> service.updateUserRole(2L, 1L, null, "Lý do hợp lệ"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Vai trò không được để trống");
+    }
+
+    @Test
+    @DisplayName("Không thể hạ quyền Quản trị viên (ADMIN) đang hoạt động duy nhất")
+    void cannotDemoteLastActiveAdmin() {
+        UserModel anotherAdmin = new UserModel();
+        anotherAdmin.setId(3L);
+        anotherAdmin.setUserName("admin3");
+        anotherAdmin.setEmail("admin3@example.com");
+        anotherAdmin.setStatus(UserStatus.ACTIVE);
+        anotherAdmin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), "Admin"));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(anotherAdmin));
+
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.updateUserRole(2L, 3L, UserRole.USER, "Hạ quyền admin"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("duy nhất");
+    }
+
+    @Test
+    @DisplayName("Admin có thể hạ quyền một Admin khác nếu còn Admin đang hoạt động khác")
+    void canDemoteAdminWhenMultipleActiveAdminsExist() {
+        UserModel targetAdmin = new UserModel();
+        targetAdmin.setId(3L);
+        targetAdmin.setUserName("admin3");
+        targetAdmin.setEmail("admin3@example.com");
+        targetAdmin.setStatus(UserStatus.ACTIVE);
+        targetAdmin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), "Admin"));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(targetAdmin));
+
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(2L);
+        RoleModel userRole = new RoleModel(UserRole.USER.name(), "User");
+        when(roleRepository.findByName(UserRole.USER.name())).thenReturn(Optional.of(userRole));
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(3L)).thenReturn(List.of());
+
+        UserDto result = service.updateUserRole(2L, 3L, UserRole.USER, "Miễn nhiệm quản trị viên");
+
+        assertThat(result.getRole()).isEqualTo(UserRole.USER);
+        assertThat(targetAdmin.getRoleEntity().getName()).isEqualTo(UserRole.USER.name());
+    }
+
+    @Test
+    @DisplayName("Thay đổi vai trò ném NotFoundException nếu role không tồn tại trong DB")
+    void changeRoleFailsWhenRoleNotFoundInDb() {
+        when(roleRepository.findByName(UserRole.ORGANIZER.name())).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.updateUserRole(2L, 1L, UserRole.ORGANIZER, "Lý do"))
+                .isInstanceOf(NotFoundException.class)
+                .hasMessageContaining("Không tìm thấy vai trò");
     }
 }
