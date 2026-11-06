@@ -1,0 +1,48 @@
+# Build outputs
+target/
+build/
+
+# Local config / secrets
+.env
+.env*.local
+application-local.properties
+application-local.yml
+application-local.yaml
+
+# Secret Sync
+.gist-url
+sync-config.bat
+sync-config.ps1
+sync-config.sh
+
+# IDEs and OS
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.iws
+*.iml
+*.ipr
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs & Python verification scripts
+logs
+*.log
+__pycache__/
+*.pyc
+
+# Agent Rules & Skills
+.agent/
+.agents/
+.claude/
+skills-lock.json
+AGENTS.md
+
+# Documentation & References
+docs/
+mentor-references/
