@@ -1,5 +1,6 @@
 package base.api.feature.auth.controller;
 
+import base.api.feature.auth.dto.request.UpdateUserRoleDto;
 import base.api.feature.auth.dto.request.UpdateUserStatusDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.service.IUserService;
@@ -23,6 +24,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.enums.UserGender;
 import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -38,6 +40,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -314,5 +317,138 @@ class AdminUserControllerTest {
                                 .andExpect(jsonPath("$.success").value(true))
                                 .andExpect(jsonPath("$.data.content.length()").value(1))
                                 .andExpect(jsonPath("$.data.content[0].userName").value("admin_boss"));
+        }
+
+        @Test
+        @DisplayName("PATCH /api/admin/users/{id}/role - Thay đổi vai trò người dùng thành công")
+        void updateRole_Success() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .role(UserRole.ORGANIZER)
+                                .reason("Nâng cấp tài khoản thành đối tác Organizer")
+                                .build();
+
+                UserDto userDto = UserDto.builder()
+                                .id(10L)
+                                .userName("partner_user")
+                                .status(UserStatus.ACTIVE)
+                                .role(UserRole.ORGANIZER)
+                                .build();
+
+                when(userService.updateUserRole(eq(1L), eq(10L), eq(UserRole.ORGANIZER),
+                                eq("Nâng cấp tài khoản thành đối tác Organizer")))
+                                .thenReturn(userDto);
+
+                mockMvc.perform(patch("/api/admin/users/10/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.message").value("Cập nhật vai trò thành công"))
+                                .andExpect(jsonPath("$.data.role").value("ORGANIZER"));
+
+                verify(userService).updateUserRole(1L, 10L, UserRole.ORGANIZER,
+                                "Nâng cấp tài khoản thành đối tác Organizer");
+        }
+
+        @Test
+        @DisplayName("PUT /api/admin/users/{id}/role - Hỗ trợ phương thức PUT thay đổi vai trò người dùng")
+        void updateRole_PutMethod_Success() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .role(UserRole.ADMIN)
+                                .reason("Thăng cấp lên Quản trị viên")
+                                .build();
+
+                UserDto userDto = UserDto.builder()
+                                .id(10L)
+                                .userName("new_admin")
+                                .status(UserStatus.ACTIVE)
+                                .role(UserRole.ADMIN)
+                                .build();
+
+                when(userService.updateUserRole(eq(1L), eq(10L), eq(UserRole.ADMIN),
+                                eq("Thăng cấp lên Quản trị viên")))
+                                .thenReturn(userDto);
+
+                mockMvc.perform(put("/api/admin/users/10/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.message").value("Cập nhật vai trò thành công"))
+                                .andExpect(jsonPath("$.data.role").value("ADMIN"));
+
+                verify(userService).updateUserRole(1L, 10L, UserRole.ADMIN,
+                                "Thăng cấp lên Quản trị viên");
+        }
+
+        @Test
+        @DisplayName("PATCH /api/admin/users/{id}/role - Thiếu trường role trả về 400 Bad Request")
+        void updateRole_MissingRole_BadRequest() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .reason("Có lý do nhưng không có vai trò")
+                                .build();
+
+                mockMvc.perform(patch("/api/admin/users/10/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.statusCode").value(400));
+        }
+
+        @Test
+        @DisplayName("PATCH /api/admin/users/{id}/role - Thiếu lý do trả về 400 Bad Request")
+        void updateRole_MissingReason_BadRequest() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .role(UserRole.ORGANIZER)
+                                .reason("")
+                                .build();
+
+                mockMvc.perform(patch("/api/admin/users/10/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.statusCode").value(400));
+        }
+
+        @Test
+        @DisplayName("PATCH /api/admin/users/{id}/role - Admin tự đổi role của mình trả về 400 Bad Request")
+        void updateRole_SelfRoleChange_BadRequest() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .role(UserRole.USER)
+                                .reason("Tự hạ quyền chính mình")
+                                .build();
+
+                when(userService.updateUserRole(eq(1L), eq(1L), eq(UserRole.USER), eq("Tự hạ quyền chính mình")))
+                                .thenThrow(new BadRequestException("Không thể tự thay đổi vai trò của chính mình"));
+
+                mockMvc.perform(patch("/api/admin/users/1/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isBadRequest())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.statusCode").value(400))
+                                .andExpect(jsonPath("$.message").value("Không thể tự thay đổi vai trò của chính mình"));
+        }
+
+        @Test
+        @DisplayName("PATCH /api/admin/users/{id}/role - Hạ quyền Admin duy nhất trả về 409 Conflict")
+        void updateRole_DemoteOnlyAdmin_Conflict() throws Exception {
+                UpdateUserRoleDto dto = UpdateUserRoleDto.builder()
+                                .role(UserRole.USER)
+                                .reason("Hạ quyền admin")
+                                .build();
+
+                when(userService.updateUserRole(eq(1L), eq(2L), eq(UserRole.USER), eq("Hạ quyền admin")))
+                                .thenThrow(new ConflictException("Không thể hạ quyền Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống"));
+
+                mockMvc.perform(patch("/api/admin/users/2/role")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(dto)))
+                                .andExpect(status().isConflict())
+                                .andExpect(jsonPath("$.success").value(false))
+                                .andExpect(jsonPath("$.statusCode").value(409))
+                                .andExpect(jsonPath("$.message").value("Không thể hạ quyền Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống"));
         }
 }

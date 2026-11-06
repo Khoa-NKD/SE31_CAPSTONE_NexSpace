@@ -1,5 +1,6 @@
 package base.api.feature.auth.controller;
 
+import base.api.feature.auth.dto.request.UpdateUserRoleDto;
 import base.api.feature.auth.dto.request.UpdateUserStatusDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.service.IUserService;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -59,5 +61,22 @@ public class AdminUserController extends BaseAPIController {
             @Valid @RequestBody UpdateUserStatusDto dto) {
         return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus(), dto.getReason(), dto.getLockedUntil()),
                 "Cập nhật trạng thái thành công");
+    }
+
+    @Operation(summary = "Gán và thay đổi vai trò người dùng (chỉ ADMIN)", description = "Thay đổi vai trò người dùng (USER, ORGANIZER, ADMIN), thu hồi các phiên đăng nhập hiện tại và tự động ghi vết Audit Log")
+    @PatchMapping("/{id}/role")
+    public ResponseEntity<ApiResponse<UserDto>> updateRole(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserRoleDto dto) {
+        return success(userService.updateUserRole(getCurrentUserId(), id, dto.getRole(), dto.getReason()),
+                "Cập nhật vai trò thành công");
+    }
+
+    @Operation(summary = "Gán và thay đổi vai trò người dùng (chỉ ADMIN) - Hỗ trợ phương thức PUT", hidden = true)
+    @PutMapping("/{id}/role")
+    public ResponseEntity<ApiResponse<UserDto>> updateRolePut(
+            @PathVariable Long id,
+            @Valid @RequestBody UpdateUserRoleDto dto) {
+        return updateRole(id, dto);
     }
 }

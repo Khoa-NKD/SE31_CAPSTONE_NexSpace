@@ -36,4 +36,6 @@ public interface IUserService {
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason);
 
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason, LocalDateTime lockedUntil);
+
+    UserDto updateUserRole(Long actorId, Long targetUserId, UserRole role, String reason);
 }
