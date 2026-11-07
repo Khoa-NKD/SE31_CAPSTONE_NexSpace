@@ -1,3 +1,9 @@
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { BuildingAllocationFields } from './building-allocation-fields';
+import { FloorAllocationDialog } from './floor-allocation-dialog';
+import { buildingsOptions, allocationError, type AllocationInput } from '../api/buildings';
+import { floorLayoutOptions } from '../api/resources';
 import { useState } from 'react';
 import { MoreHorizontal, Pencil, Copy, Trash2, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
@@ -23,7 +29,6 @@ import {
   deleteResourceFloor,
   type FloorOption
 } from '../api/resources';
-import { nextFloorNumber, isDuplicateFloorNumber } from '../utils/floor-number';
 
 export function FloorActions({
   workspaceId,
@@ -44,36 +49,43 @@ export function FloorActions({
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
-  const [action, setAction] = useState<'rename' | 'copy' | 'delete' | null>(null);
+  const [action, setAction] = useState<'rename' | 'copy' | 'delete' | 'map' | null>(null);
   const [target, setTarget] = useState(floor);
   const [name, setName] = useState('');
-  const [number, setNumber] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const open = (value: typeof action) => {
     setTarget(floor);
+    setArea(null);
     setAction(value);
     setError('');
     setName(
       value === 'copy' ? `${floor.name} (${c('copy', 'bản sao')})`.slice(0, 100) : floor.name
     );
-    setNumber(String(nextFloorNumber(floors) ?? ''));
   };
-  const duplicate = action === 'copy' && isDuplicateFloorNumber(floors, number);
+  const actor = useAuthStore((s) => s.user?.id ?? 0);
+  const [area, setArea] = useState<AllocationInput | null>(null);
+  const locations = useQuery({ ...buildingsOptions(actor), enabled: action === 'copy' });
+  const source = useQuery({
+    ...floorLayoutOptions(actor, workspaceId, target.id),
+    enabled: action === 'copy'
+  });
+  const physical = locations.data
+    ?.flatMap((b) => b.floors)
+    .find((f) => f.id === area?.buildingFloorId);
+  const duplicate = !!area && !!physical && !!allocationError(area, physical, workspaceId);
+
   async function save() {
-    if (!action || busy || disabled) return;
+    if (!action || action === 'map' || busy || disabled) return;
     if (action !== 'delete' && (!name.trim() || name.trim().length > 100)) {
       setError(c('Enter a name up to 100 characters.', 'Nhập tên tối đa 100 ký tự.'));
       return;
     }
-    if (
-      action === 'copy' &&
-      (!/^-?\d+$/.test(number) || Number(number) < -20 || Number(number) > 500 || duplicate)
-    ) {
+    if (action === 'copy' && (!area || !physical || !source.data || duplicate)) {
       setError(
         c(
-          'Choose an unused floor number between -20 and 500.',
-          'Chọn số tầng chưa sử dụng từ -20 đến 500.'
+          'Choose a destination physical floor and a valid workspace area.',
+          'Chọn tầng vật lý đích và khu vực workspace hợp lệ.'
         )
       );
       return;
@@ -84,7 +96,10 @@ export function FloorActions({
       let created: FloorOption | undefined;
       if (action === 'rename') await renameResourceFloor(workspaceId, target, name.trim());
       else if (action === 'copy')
-        created = await copyResourceFloor(workspaceId, target, name.trim(), Number(number));
+        created = await copyResourceFloor(workspaceId, target, name.trim(), physical!.floorNumber, {
+          ...area!,
+          name: name.trim()
+        });
       else {
         await deleteResourceFloor(workspaceId, target);
         onDeleted?.();
@@ -100,7 +115,7 @@ export function FloorActions({
                 'Floor copied as draft. No bookings or calendar blocks were copied.',
                 'Đã sao chép tầng nháp, không sao chép booking hay lịch khóa.'
               )
-            : c('Empty floor deleted.', 'Đã xóa tầng trống.')
+            : c('Workspace area removed from the floor.', 'Đã gỡ khu vực workspace khỏi tầng.')
       );
     } catch (failure) {
       setError(
@@ -128,9 +143,15 @@ export function FloorActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
+          {!floor.location && (
+            <DropdownMenuItem onSelect={() => open('map')}>
+              <Pencil className='size-4' />
+              {c('Link physical floor', 'Liên kết tầng vật lý')}
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => open('rename')}>
             <Pencil className='size-4' />
-            {c('Rename floor', 'Đổi tên tầng')}
+            {c('Rename workspace layout', 'Đổi tên sơ đồ workspace')}
           </DropdownMenuItem>
           <DropdownMenuItem onSelect={() => open('copy')}>
             <Copy className='size-4' />
@@ -138,12 +159,21 @@ export function FloorActions({
           </DropdownMenuItem>
           <DropdownMenuItem className='text-destructive' onSelect={() => open('delete')}>
             <Trash2 className='size-4' />
-            {c('Delete empty floor', 'Xóa tầng trống')}
+            {c('Remove workspace area from floor', 'Gỡ khu vực khỏi tầng')}
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      {action === 'map' && (
+        <FloorAllocationDialog
+          workspaceId={workspaceId}
+          current={target}
+          floors={floors}
+          onSaved={onSaved}
+          onClose={() => setAction(null)}
+        />
+      )}
       <Dialog
-        open={!!action}
+        open={!!action && action !== 'map'}
         onOpenChange={(value) => {
           if (!value && !busy) setAction(null);
         }}
@@ -155,7 +185,7 @@ export function FloorActions({
                 ? c('Rename floor', 'Đổi tên tầng')
                 : action === 'copy'
                   ? c('Copy floor layout', 'Sao chép bố trí tầng')
-                  : c('Delete empty floor?', 'Xóa tầng trống?')}
+                  : c('Remove this workspace area?', 'Gỡ khu vực workspace này khỏi tầng?')}
             </DialogTitle>
             <DialogDescription>
               {action === 'rename'
@@ -169,8 +199,8 @@ export function FloorActions({
                       'Sao chép bố trí hiện tại cùng ghế/phòng trong workspace này. Tầng mới và mọi chỗ đều là nháp; booking và lịch khóa giữ tại tầng gốc.'
                     )
                   : c(
-                      'Deletion is permanent and allowed only when the floor has no resources (including archived ones), furniture, background or other layout data. Nothing is deleted automatically.',
-                      'Xóa vĩnh viễn chỉ khi tầng không còn chỗ (kể cả đã lưu trữ), đồ bố trí, ảnh nền hoặc dữ liệu sơ đồ khác. Không tự xóa dữ liệu con.'
+                      'Remove only this workspace’s empty layout. The physical floor and other workspaces remain intact.',
+                      'Chỉ gỡ sơ đồ trống của workspace này. Tầng vật lý và các workspace khác được giữ nguyên.'
                     )}
             </DialogDescription>
           </DialogHeader>
@@ -195,21 +225,32 @@ export function FloorActions({
                 />
               </label>
             )}
-            {action === 'copy' && (
-              <label className='block space-y-2 text-sm'>
-                {c('New floor number', 'Số tầng mới')}
-                <Input
-                  inputMode='numeric'
-                  value={number}
-                  onChange={(event) => setNumber(event.target.value)}
-                  disabled={busy}
-                />
-                {duplicate && (
-                  <span className='text-xs text-destructive'>
-                    {c('This floor number is already used.', 'Số tầng này đã được sử dụng.')}
-                  </span>
-                )}
-              </label>
+            {action === 'copy' && source.isPending && (
+              <p className='text-sm text-muted-foreground'>
+                {c('Loading source canvas…', 'Đang tải sơ đồ gốc…')}
+              </p>
+            )}
+            {action === 'copy' && source.isSuccess && (
+              <BuildingAllocationFields
+                workspaceId={workspaceId}
+                disabled={busy}
+                buildingId={
+                  target.location?.buildingId ??
+                  floors.find((f) => f.location)?.location?.buildingId
+                }
+                value={area}
+                onChange={setArea}
+                fixedSize={
+                  source.data?.width && source.data.height
+                    ? { width: source.data.width, height: source.data.height }
+                    : undefined
+                }
+              />
+            )}
+            {action === 'copy' && source.isError && (
+              <p role='alert' className='text-sm text-destructive'>
+                {source.error.message}
+              </p>
             )}
             {error && (
               <p role='alert' className='rounded-xl bg-destructive/5 p-3 text-xs text-destructive'>
@@ -228,11 +269,13 @@ export function FloorActions({
               <Button
                 type='submit'
                 variant={action === 'delete' ? 'destructive' : 'default'}
-                disabled={busy || duplicate}
+                disabled={
+                  busy || duplicate || (action === 'copy' && (!area || !physical || !source.data))
+                }
               >
                 {busy && <LoaderCircle className='size-4 animate-spin' />}
                 {action === 'delete'
-                  ? c('Delete floor', 'Xóa tầng')
+                  ? c('Remove area', 'Gỡ khu vực')
                   : action === 'copy'
                     ? c('Create draft copy', 'Tạo bản sao nháp')
                     : c('Save name', 'Lưu tên')}

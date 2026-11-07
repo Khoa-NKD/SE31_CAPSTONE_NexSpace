@@ -44,6 +44,7 @@ import {
 } from '../api/resources';
 import type { ResourceDetail, ResourceFilters, TypeOption } from '../api/resources';
 import { ResourceEditor, ResourceSetupDialog } from './resource-editor';
+import { WorkspaceSelector } from './workspace-selector';
 
 const subscribe = () => () => {};
 const initialFilters: ResourceFilters = {
@@ -150,6 +151,17 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
     );
   if (workspaces.isPending)
     return <p role='status'>{c('Loading your resources…', 'Đang tải ghế/phòng…')}</p>;
+  if (editor && options.data && writable)
+    return (
+      <ResourceEditor
+        key={editor === 'new' ? `new-${selectedId}` : editor.id}
+        workspaceId={selectedId}
+        options={options.data}
+        current={editor === 'new' ? undefined : editor}
+        onClose={() => setEditor(null)}
+        onSaved={saved}
+      />
+    );
   const statusLabel = (status: string) =>
     ({
       DRAFT: c('Draft', 'Nháp'),
@@ -214,27 +226,21 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
       ) : (
         <>
           <div className='border-border bg-card flex flex-wrap items-end justify-between gap-4 rounded-xl border p-4 sm:p-5'>
-            <label className='min-w-56 flex-1 space-y-2'>
+            <div className='min-w-56 flex-1 space-y-2'>
               <span className='text-muted-foreground text-xs font-medium'>
                 {c('Workspace', 'Không gian làm việc')}
               </span>
-              <select
-                className={`${selectClass} block w-full`}
+              <WorkspaceSelector
+                workspaces={workspaces.data ?? []}
                 value={selectedId}
-                onChange={(e) => {
-                  setWorkspaceId(Number(e.target.value));
+                onChange={(id) => {
+                  setWorkspaceId(id);
                   setFilters(initialFilters);
                   setSearch('');
                   setEditor(null);
                 }}
-              >
-                {workspaces.data?.map((w) => (
-                  <option key={w.id} value={w.id}>
-                    {w.name || `#${w.id}`} · {w.status}
-                  </option>
-                ))}
-              </select>
-            </label>
+              />
+            </div>
             <div className='flex flex-wrap gap-2'>
               <Button
                 variant='outline'
@@ -474,16 +480,6 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
             )}
           </p>
         </>
-      )}
-      {editor && options.data && writable && (
-        <ResourceEditor
-          key={editor === 'new' ? `new-${selectedId}` : editor.id}
-          workspaceId={selectedId}
-          options={options.data}
-          current={editor === 'new' ? undefined : editor}
-          onClose={() => setEditor(null)}
-          onSaved={saved}
-        />
       )}
       {floorManager && options.data && (
         <ResourceFloorManager

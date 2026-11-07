@@ -8,6 +8,7 @@ import { BuildingFloorPlate } from './building-floor-plate';
 /** One persistent 3D node moves from the building stack to the inspection position. */
 export function BuildingStorey({
   floor,
+  label = floor.name,
   index,
   gap,
   camera,
@@ -21,6 +22,7 @@ export function BuildingStorey({
   onOpen
 }: {
   floor: FloorOption;
+  label?: string;
   index: number;
   gap: number;
   camera: { angle: number; tilt: number; zoom: number };
@@ -53,7 +55,8 @@ export function BuildingStorey({
       <button
         type='button'
         className='nexspace-storey-pick'
-        aria-label={`${c('Inspect floor', 'Xem thông tin tầng')} ${floor.name}, ${c('Floor', 'Tầng')} ${floor.floorNumber}`}
+        title={label}
+        aria-label={`${c('Inspect floor', 'Xem thông tin tầng')} ${label}, ${c('Floor', 'Tầng')} ${floor.floorNumber}`}
         aria-pressed={picked}
         onFocus={() => onHover(floor.id)}
         onClick={onPick}
@@ -72,7 +75,7 @@ export function BuildingStorey({
               ) : layout ? (
                 <BuildingFloorPlate
                   layout={layout}
-                  label={`${c('Floor layout', 'Bố trí tầng')}: ${floor.name}`}
+                  label={`${c('Floor layout', 'Bố trí tầng')}: ${label}`}
                 />
               ) : (
                 <span className='flex h-full items-center justify-center text-primary/50'>
@@ -94,7 +97,9 @@ export function BuildingStorey({
         <span className='nexspace-building-floor-front'>
           <span className='nexspace-building-windows' />
           {(gap >= 18 || hovered || picked) && (
-            <span className='nexspace-building-floor-tag'>{floor.name}</span>
+            <span className='nexspace-building-floor-tag' title={label}>
+              {label}
+            </span>
           )}
         </span>
         <span className='nexspace-building-floor-side'>
@@ -121,7 +126,9 @@ export function BuildingStorey({
                 <X className='size-3.5' />
               </button>
             </div>
-            <h3 className='truncate text-sm font-semibold text-foreground'>{floor.name}</h3>
+            <h3 className='truncate text-sm font-semibold text-foreground' title={label}>
+              {label}
+            </h3>
             <p className='mt-1 text-[9px] text-muted-foreground'>
               {floor.status === 'PUBLISHED'
                 ? c('Published layout', 'Sơ đồ đã xuất bản')

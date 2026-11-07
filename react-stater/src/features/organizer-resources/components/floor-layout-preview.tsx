@@ -1,5 +1,16 @@
-import { useId, useRef, useState, type PointerEvent } from 'react';
-import { ZoomIn, ZoomOut, Focus, Maximize2, Hand, Layers3, Armchair, DoorOpen } from 'lucide-react';
+import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import {
+  ZoomIn,
+  ZoomOut,
+  Focus,
+  Maximize2,
+  Minimize2,
+  Hand,
+  Layers3,
+  Armchair,
+  DoorOpen
+} from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { FloorLayout, LayoutItem, AvailabilityState } from '../api/resources';
@@ -7,6 +18,11 @@ import { availabilityColors, availabilityLabel } from '../utils/availability';
 import { DecorationLayer } from './decoration-visual';
 import { ResourceMapSymbol } from './resource-map-symbol';
 import { useCanvasWheel } from './use-canvas-wheel';
+import {
+  SharedFloorLayer,
+  SharedFloorTooltip,
+  useSharedFloorContext
+} from './shared-floor-context';
 
 interface Box {
   x: number;
@@ -63,6 +79,7 @@ export function FloorLayoutPreview({
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
+  const shared = useSharedFloorContext(layout, presentation === 'workspace');
   const width = Number.isFinite(requestedWidth) && requestedWidth > 0 ? requestedWidth : 1200;
   const height = Number.isFinite(requestedHeight) && requestedHeight > 0 ? requestedHeight : 800;
   const id = useId().replaceAll(':', '');
@@ -78,8 +95,47 @@ export function FloorLayoutPreview({
   const moved = useRef(false);
   const [cameraState, setCameraState] = useState<{ sequence: number; box: Box } | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const sync = () => setExpanded(document.fullscreenElement === container.current);
+    document.addEventListener('fullscreenchange', sync);
+    return () => document.removeEventListener('fullscreenchange', sync);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && document.fullscreenElement !== container.current)
+        setExpanded(false);
+    };
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener('keydown', escape);
+    };
+  }, [expanded]);
+  async function toggleFullscreen() {
+    shared.clearHover();
+    if (expanded) {
+      try {
+        if (document.fullscreenElement === container.current) await document.exitFullscreen();
+        else setExpanded(false);
+      } catch {
+        toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
+      }
+      return;
+    }
+    try {
+      if (document.fullscreenEnabled && container.current?.requestFullscreen)
+        await container.current.requestFullscreen();
+      else setExpanded(true);
+    } catch {
+      setExpanded(true);
+    }
+  }
   const [panning, setPanning] = useState(false);
-  const floor = { x: 0, y: 0, width, height };
+  const floor = shared.bounds ?? { x: 0, y: 0, width, height };
   const resources = layout.resources.filter(
     (item): item is LayoutItem & { posX: number; posY: number; width: number; height: number } =>
       item.posX !== null && item.posY !== null && !!item.width && !!item.height
@@ -99,7 +155,11 @@ export function FloorLayoutPreview({
   const selected = objects.find((object) => object.key === focus.key);
   const cameraSequence = availability ? 0 : focus.sequence;
   const initial = frame(
-    !availability && selected ? [selected.box] : objects.map((object) => object.box),
+    !availability && selected
+      ? [selected.box]
+      : shared.bounds
+        ? [shared.bounds]
+        : objects.map((object) => object.box),
     floor
   );
   const camera = cameraState?.sequence === cameraSequence ? cameraState.box : initial;
@@ -222,13 +282,17 @@ export function FloorLayoutPreview({
   }
   return (
     <div
+      ref={container}
       className={
-        presentation === 'workspace'
-          ? 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
-          : 'overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
+        expanded
+          ? 'fixed inset-0 z-[80] flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background'
+          : presentation === 'workspace'
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
+            : 'overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
-      <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background p-4'>
+      <SharedFloorTooltip context={shared} />
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background p-4'>
         <div>
           <p className='flex items-center gap-2 text-sm font-semibold'>
             <span className='flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary'>
@@ -299,17 +363,30 @@ export function FloorLayoutPreview({
             size='icon'
             variant='ghost'
             className='size-8 rounded-lg'
-            aria-label={c('Expand preview', 'Mở rộng sơ đồ')}
-            title={c('Expand preview', 'Mở rộng sơ đồ')}
+            aria-label={
+              expanded
+                ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
+                : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
+            }
+            title={
+              expanded
+                ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
+                : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
+            }
             aria-pressed={expanded}
-            onClick={() => setExpanded(!expanded)}
+            onClick={() => void toggleFullscreen()}
           >
-            <Maximize2 className='size-4' />
+            {expanded ? <Minimize2 className='size-4' /> : <Maximize2 className='size-4' />}
           </Button>
+          {expanded && (
+            <span className='px-2 text-xs text-muted-foreground'>
+              {c('Esc to exit', 'Esc để thu gọn')}
+            </span>
+          )}
         </div>
       </div>
       <div
-        className={`relative overflow-hidden bg-muted/30 ${presentation === 'workspace' ? 'flex min-h-0 flex-1' : ''}`}
+        className={`relative overflow-hidden bg-muted/30 ${presentation === 'workspace' || expanded ? 'flex min-h-0 flex-1' : ''}`}
       >
         <div className='pointer-events-none absolute left-3 top-3 z-10 flex gap-2'>
           <span className='flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur'>
@@ -321,9 +398,14 @@ export function FloorLayoutPreview({
           data-floor-canvas='true'
           ref={svg}
           viewBox={`${camera.x} ${camera.y} ${camera.width} ${camera.height}`}
-          className={`block w-full touch-none select-none ${presentation === 'workspace' ? 'h-full min-h-0 flex-1' : expanded ? 'h-[34rem]' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`block w-full touch-none select-none ${presentation === 'workspace' || expanded ? 'absolute inset-0 h-full' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : 'cursor-grab'}`}
           aria-label={c('Zoomable floor preview', 'Sơ đồ tầng có thể phóng to thu nhỏ')}
-          onPointerDown={point}
+          onPointerDown={(event) => {
+            shared.clearHover();
+            point(event);
+          }}
+          onPointerLeave={shared.clearHover}
+          onWheel={shared.clearHover}
           onPointerUp={() => {
             const current = drag.current;
             stop();
@@ -332,6 +414,7 @@ export function FloorLayoutPreview({
           onPointerCancel={stop}
           onLostPointerCapture={stop}
           onPointerMove={(event) => {
+            shared.inspectArea(event);
             const current = drag.current;
             if (!current || event.pointerId !== current.pointerId) return;
             const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(
@@ -352,10 +435,13 @@ export function FloorLayoutPreview({
               <path d='M25 0H0V25' fill='none' className='stroke-border/45' strokeWidth='.6' />
             </pattern>
           </defs>
+          <SharedFloorLayer context={shared} />
           <rect
             width={width}
             height={height}
-            className='fill-background stroke-border'
+            className={
+              shared.bounds ? 'fill-background stroke-primary' : 'fill-background stroke-border'
+            }
             strokeWidth='1'
             vectorEffect='non-scaling-stroke'
           />
@@ -404,7 +490,7 @@ export function FloorLayoutPreview({
           {resources.filter((item) => item.category !== 'ROOM').map(resource)}
         </svg>
       </div>
-      <div className='flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 text-xs'>
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 text-xs'>
         <div className='flex flex-wrap gap-3 text-muted-foreground'>
           <span className='flex items-center gap-1.5'>
             <DoorOpen className='size-3.5' />

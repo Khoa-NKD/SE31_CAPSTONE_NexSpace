@@ -178,6 +178,9 @@ export function ResourceFloorManager({
                 >
                   {floors.map((floor) => (
                     <option key={floor.id} value={floor.id}>
+                      {floor.location
+                        ? `${floor.location.buildingName} / ${floor.location.physicalFloorName} / `
+                        : ''}
                       {floor.name} · {floor.status}
                     </option>
                   ))}
@@ -192,7 +195,12 @@ export function ResourceFloorManager({
                   <Input
                     inputMode='decimal'
                     value={String(value)}
-                    disabled={busy || !writable || !query.data?.editableLayout}
+                    disabled={
+                      busy ||
+                      !writable ||
+                      !query.data?.editableLayout ||
+                      !!query.data?.floor.location
+                    }
                     onChange={(e) => {
                       (setValue as (v: string) => void)(e.target.value);
                       setConfirmed(false);
