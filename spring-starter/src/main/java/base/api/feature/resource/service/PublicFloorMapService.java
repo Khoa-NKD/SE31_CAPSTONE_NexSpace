@@ -42,7 +42,8 @@ public class PublicFloorMapService {
             BigDecimal width,
             BigDecimal height,
             List<ObjectView> resources,
-            List<FloorDecorations.Item> decorations) {}
+            List<FloorDecorations.Item> decorations,
+            base.api.feature.resource.dto.BuildingResponses.Location location) {}
 
     public List<FloorView> maps(Long workspaceId) {
         var workspace =
@@ -131,7 +132,8 @@ public class PublicFloorMapService {
                                     bounds.width(),
                                     bounds.height(),
                                     objects,
-                                    ResourceCanvas.decorations(f, false));
+                                    ResourceCanvas.decorations(f, false),
+                                    base.api.feature.resource.dto.ResourceResponses.floorOption(f).location());
                         })
                 .toList();
     }

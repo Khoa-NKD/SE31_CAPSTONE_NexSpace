@@ -26,9 +26,27 @@ import java.time.LocalDateTime;
 @Setter
 @Entity
 @Table(name = "floor_plan", uniqueConstraints = {
-        @UniqueConstraint(name = "ux_floor_plan_workspace_floor", columnNames = {"workspace_id", "floor_number"})
+        @UniqueConstraint(name = "ux_floor_plan_workspace_floor", columnNames = {"workspace_id", "floor_number"}),
+        @UniqueConstraint(name = "ux_floor_plan_workspace_physical", columnNames = {"workspace_id", "building_floor_id"})
 })
 public class FloorPlanModel extends BaseModel {
+
+    /** NULL only for retained layouts that have not been explicitly mapped yet. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "building_floor_id")
+    private BuildingFloorModel buildingFloor;
+
+    @Column(name = "usage_x", precision = 10, scale = 2)
+    private java.math.BigDecimal usageX;
+
+    @Column(name = "usage_y", precision = 10, scale = 2)
+    private java.math.BigDecimal usageY;
+
+    @Column(name = "usage_width", precision = 10, scale = 2)
+    private java.math.BigDecimal usageWidth;
+
+    @Column(name = "usage_height", precision = 10, scale = 2)
+    private java.math.BigDecimal usageHeight;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "workspace_id", nullable = false)

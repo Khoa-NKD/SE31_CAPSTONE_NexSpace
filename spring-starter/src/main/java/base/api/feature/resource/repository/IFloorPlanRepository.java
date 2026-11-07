@@ -9,7 +9,16 @@ import java.util.List;
 
 @Repository
 public interface IFloorPlanRepository extends JpaRepository<FloorPlanModel, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"workspace", "buildingFloor", "buildingFloor.building"})
+    List<FloorPlanModel> findByBuildingFloorId(Long buildingFloorId);
+
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"workspace", "buildingFloor", "buildingFloor.building"})
+    List<FloorPlanModel> findByWorkspaceOrganizerIdAndBuildingFloorIsNotNull(Long organizerId);
+
+    boolean existsByBuildingFloorId(Long buildingFloorId);
+
     boolean existsByWorkspaceIdAndFloorNumber(Long workspaceId, int floorNumber);
 
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"buildingFloor", "buildingFloor.building"})
     List<FloorPlanModel> findByWorkspaceIdOrderByFloorNumberAsc(Long workspaceId);
 }

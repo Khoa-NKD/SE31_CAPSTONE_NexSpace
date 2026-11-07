@@ -39,6 +39,7 @@ public class OrganizerResourceService {
     private final IResourceTypeRepository types;
     private final IBookableResourceRepository resources;
     private final ResourceUsageRepository usage;
+    private final BuildingService buildings;
     private final EntityManager em;
     private final Clock organizerApplicationClock;
 
@@ -58,12 +59,7 @@ public class OrganizerResourceService {
                 floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId).stream()
                         .map(
                                 f ->
-                                        new FloorOption(
-                                                f.getId(),
-                                                f.getName(),
-                                                f.getFloorNumber(),
-                                                f.getStatus(),
-                                                ResourceResponses.revision(f)))
+                                        ResourceResponses.floorOption(f))
                         .toList(),
                 types.findByWorkspaceId(workspaceId).stream()
                         .map(
@@ -190,12 +186,7 @@ public class OrganizerResourceService {
                                                         : r.getParentRoom().getId()))
                         .toList();
         return new FloorLayout(
-                new FloorOption(
-                        floorId,
-                        floor.getName(),
-                        floor.getFloorNumber(),
-                        floor.getStatus(),
-                        ResourceResponses.revision(floor)),
+                ResourceResponses.floorOption(floor),
                 bounds == null ? null : bounds.width(),
                 bounds == null ? null : bounds.height(),
                 editable,
@@ -300,6 +291,76 @@ public class OrganizerResourceService {
         return save(resource);
     }
 
+    /** Temporary client links are resolved inside one transaction and never become database IDs. */
+    @Transactional
+    public List<BatchResult> saveBatch(Long actorId, Long workspaceId, Long floorId, Batch request) {
+        eligible(actorId);
+        owned(actorId, workspaceId, true);
+        var floor = lockFloorRevision(workspaceId, floorId, request.expectedFloorRevision());
+        var byClient = new LinkedHashMap<String, BatchItem>();
+        var existingIds = new HashSet<Long>();
+        for (var item : request.items()) {
+            if (byClient.putIfAbsent(item.clientId(), item) != null)
+                throw new BadRequestException("Duplicate temporary resource key");
+            if (!Objects.equals(item.input().floorPlanId(), floorId))
+                throw new BadRequestException("Every resource must belong to the selected floor");
+            if (item.parentClientId() != null && item.input().parentRoomId() != null)
+                throw new BadRequestException("Choose either a saved room or a temporary room");
+            if (item.id() != null) {
+                if (!existingIds.add(item.id())) throw new BadRequestException("Duplicate resource ID");
+                var resource = lockOwned(actorId, item.id());
+                if (!resource.getFloorPlan().getId().equals(floorId))
+                    throw new BadRequestException("The resource belongs to another floor");
+                revision(resource, item.input().expectedRevision());
+            }
+        }
+        for (var item : request.items())
+            if (item.parentClientId() != null && !byClient.containsKey(item.parentClientId()))
+                throw new BadRequestException("Temporary parent room not found");
+        var mapped = new LinkedHashMap<String, Long>();
+        var pending = new ArrayList<>(request.items());
+        while (!pending.isEmpty()) {
+            boolean progressed = false;
+            var iterator = pending.iterator();
+            while (iterator.hasNext()) {
+                var item = iterator.next();
+                if (item.parentClientId() != null && !mapped.containsKey(item.parentClientId())) continue;
+                var source = item.input();
+                Long parentId = item.parentClientId() == null ? source.parentRoomId() : mapped.get(item.parentClientId());
+                // Revisions were checked before any parent/child updates could touch their timestamps.
+                String expected = null;
+                if (item.id() != null) {
+                    em.flush();
+                    expected = ResourceResponses.revision(lockOwned(actorId, item.id()));
+                }
+                var input = new Input(floorId, source.resourceTypeId(), source.code(), source.name(),
+                        source.zoneName(), source.noiseLevel(), source.capacityOverride(), source.pricePerHour(),
+                        source.description(), source.posX(), source.posY(), source.width(), source.height(),
+                        source.rotation(), expected, parentId);
+                var saved = item.id() == null ? create(actorId, workspaceId, input) : update(actorId, item.id(), input);
+                mapped.put(item.clientId(), saved.id());
+                iterator.remove();
+                progressed = true;
+            }
+            if (!progressed) throw new BadRequestException("Temporary room links contain a cycle");
+        }
+        if (request.decorations() != null) {
+            var bounds = ResourceCanvas.editorBounds(floor);
+            if (bounds == null) throw new ConflictException("The floor needs canvas dimensions first");
+            saveDecorations(actorId, workspaceId, floorId,
+                    new base.api.feature.resource.dto.FloorDecorations.Save(ResourceResponses.revision(floor),
+                            bounds.width(), bounds.height(), request.decorations()));
+        }
+        // Consume the floor revision, including batches that only create resources, to reject retries.
+        var now = LocalDateTime.ofInstant(organizerApplicationClock.instant(), ZoneOffset.UTC);
+        floor.setUpdatedAt(floor.getUpdatedAt() != null && !now.isAfter(floor.getUpdatedAt())
+                ? floor.getUpdatedAt().plusSeconds(1) : now);
+        floors.saveAndFlush(floor);
+        return mapped.entrySet().stream()
+                .map(entry -> new BatchResult(entry.getKey(), detail(actorId, entry.getValue())))
+                .toList();
+    }
+
     @Transactional
     public Detail update(Long actorId, Long id, Input request) {
         eligible(actorId);
@@ -355,20 +416,16 @@ public class OrganizerResourceService {
     public FloorOption createFloor(Long actorId, Long workspaceId, Floor request) {
         eligible(actorId);
         var workspace = owned(actorId, workspaceId, true);
-        if (floors.existsByWorkspaceIdAndFloorNumber(workspaceId, request.floorNumber()))
-            throw new ConflictException("This floor number already exists in the workspace");
+        if (request.allocation() == null) throw new BadRequestException("Select a physical building floor and workspace area first");
         var floor = new FloorPlanModel();
         floor.setWorkspace(workspace);
         floor.setName(request.name());
         floor.setFloorNumber(request.floorNumber());
+        buildings.bind(actorId, workspaceId, floor, request.allocation());
+        floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor, new ResourceCanvas.Bounds(request.allocation().width(), request.allocation().height()), List.of()));
         floors.saveAndFlush(floor);
         em.refresh(floor);
-        return new FloorOption(
-                floor.getId(),
-                floor.getName(),
-                floor.getFloorNumber(),
-                floor.getStatus(),
-                ResourceResponses.revision(floor));
+        return ResourceResponses.floorOption(floor);
     }
 
     private FloorPlanModel lockFloorRevision(Long workspaceId, Long floorId, String revision) {
@@ -388,12 +445,7 @@ public class OrganizerResourceService {
         floor.setName(input.name());
         floors.saveAndFlush(floor);
         em.refresh(floor);
-        return new FloorOption(
-                floor.getId(),
-                floor.getName(),
-                floor.getFloorNumber(),
-                floor.getStatus(),
-                ResourceResponses.revision(floor));
+        return ResourceResponses.floorOption(floor);
     }
 
     @Transactional
@@ -421,8 +473,7 @@ public class OrganizerResourceService {
         eligible(actorId);
         var workspace = owned(actorId, workspaceId, true);
         var source = lockFloorRevision(workspaceId, floorId, input.expectedRevision());
-        if (floors.existsByWorkspaceIdAndFloorNumber(workspaceId, input.floorNumber()))
-            throw new ConflictException("This floor number already exists in the workspace");
+        if (input.allocation() == null) throw new BadRequestException("Select the physical destination floor and workspace area for the copy");
         if (!ResourceCanvas.simpleLayout(source.getLayoutJson(), false)
                 || !ResourceCanvas.simpleLayout(source.getDraftLayoutJson(), false))
             throw new ConflictException(
@@ -460,6 +511,8 @@ public class OrganizerResourceService {
                             .toList();
             target.setDraftLayoutJson(ResourceCanvas.writeDecorations(source, bounds, objects));
         }
+        buildings.bind(actorId, workspaceId, target, input.allocation());
+        if (bounds == null) target.setDraftLayoutJson(ResourceCanvas.writeDecorations(target, new ResourceCanvas.Bounds(input.allocation().width(), input.allocation().height()), List.of()));
         floors.saveAndFlush(target);
         var mapped = new HashMap<Long, BookableResourceModel>();
         for (var original : sourceResources) {
@@ -494,12 +547,7 @@ public class OrganizerResourceService {
             }
         em.flush();
         em.refresh(target);
-        return new FloorOption(
-                target.getId(),
-                target.getName(),
-                target.getFloorNumber(),
-                target.getStatus(),
-                ResourceResponses.revision(target));
+        return ResourceResponses.floorOption(target);
     }
 
     public FloorManagement.Availability availability(
@@ -643,6 +691,8 @@ public class OrganizerResourceService {
         if (floor.getStatus() == FloorPlanStatus.PUBLISHED)
             throw new ConflictException(
                     "Published floors must be edited through the Floor Plan workflow");
+        if (floor.getBuildingFloor() != null && floor.getFloorNumber() != request.floorNumber())
+            throw new ConflictException("Physical floor numbers are managed in the building, not in a workspace layout");
         if (floor.getFloorNumber() != request.floorNumber()
                 && floors.existsByWorkspaceIdAndFloorNumber(workspaceId, request.floorNumber()))
             throw new ConflictException("This floor number already exists");
@@ -650,12 +700,7 @@ public class OrganizerResourceService {
         floor.setFloorNumber(request.floorNumber());
         floors.saveAndFlush(floor);
         em.refresh(floor);
-        return new FloorOption(
-                floor.getId(),
-                floor.getName(),
-                floor.getFloorNumber(),
-                floor.getStatus(),
-                ResourceResponses.revision(floor));
+        return ResourceResponses.floorOption(floor);
     }
 
     @Transactional
