@@ -21,6 +21,12 @@ if [ -f "$URL_FILE" ]; then
     GIST_URL=$(head -n 1 "$URL_FILE" | tr -d '\r\n[:space:]')
 fi
 
+# Tự động trích xuất Gist ID và chuẩn hóa sang URL raw nếu URL trong cache chứa Gist ID
+CACHED_ID=$(echo "$GIST_URL" | grep -o -E '[a-f0-9]{32}' | head -n 1 || true)
+if [ -n "$CACHED_ID" ]; then
+    GIST_URL="https://gist.githubusercontent.com/raw/$CACHED_ID"
+fi
+
 if [ -z "$GIST_URL" ]; then
     echo ""
     echo "Chưa có cấu hình link Gist của nhóm!"
@@ -45,12 +51,16 @@ if [ -z "$GIST_URL" ]; then
     GIST_URL="$INPUT_URL"
 fi
 
-# Chuyển đổi link gist.github.com sang raw format nếu người dùng dán link gist UI
-if [[ "$GIST_URL" =~ gist\.github\.com/([^/]+)/([a-f0-9]+) ]]; then
-    USER="${BASH_REMATCH[1]}"
-    GIST_ID="${BASH_REMATCH[2]}"
-    GIST_URL="https://gist.githubusercontent.com/$USER/$GIST_ID/raw/application-local.properties"
-    echo "[*] Đã tự động chuyển đổi sang Raw Gist URL: $GIST_URL"
+# Tự động trích xuất 32 ký tự hex Gist ID từ bất kỳ định dạng link nào:
+# - https://gist.github.com/username/bf010dc4e367e183b305958477486f6b
+# - https://gist.github.com/bf010dc4e367e183b305958477486f6b.git
+# - https://gist.githubusercontent.com/username/bf010dc4e367e183b305958477486f6b/raw/...
+# - hoặc nhập trực tiếp ID
+EXTRACTED_ID=$(echo "$GIST_URL" | grep -o -E '[a-f0-9]{32}' | head -n 1 || true)
+if [ -n "$EXTRACTED_ID" ]; then
+    GIST_URL="https://gist.githubusercontent.com/raw/$EXTRACTED_ID"
+    echo "[*] Nhận diện Gist ID: $EXTRACTED_ID"
+    echo "[*] Tự động chuyển đổi sang URL tải trực tiếp: $GIST_URL"
 fi
 
 echo ""
@@ -66,9 +76,18 @@ TMP_FILE=$(mktemp)
 if curl -sSL -H "Cache-Control: no-cache" -H "Pragma: no-cache" "$FETCH_URL" -o "$TMP_FILE"; then
     if [ ! -s "$TMP_FILE" ]; then
         echo "[-] Lỗi: Nội dung tải về rỗng."
-        rm -f "$TMP_FILE"
+        rm -f "$TMP_FILE" "$URL_FILE"
         exit 1
     fi
+
+    # Kiểm tra nếu nội dung tải về là HTML hoặc chứa thông báo 404
+    if grep -q -i -E "<!DOCTYPE html>|<html|404: Not Found" "$TMP_FILE"; then
+        echo "[-] Lỗi 404: Không tìm thấy file trong Gist hoặc link không hợp lệ."
+        echo "[-] Vui lòng kiểm tra lại Gist ID."
+        rm -f "$TMP_FILE" "$URL_FILE"
+        exit 1
+    fi
+
     mv "$TMP_FILE" "$TARGET_FILE"
     echo "$GIST_URL" > "$URL_FILE"
     echo ""

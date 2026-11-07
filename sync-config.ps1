@@ -25,6 +25,11 @@ if (Test-Path $UrlFile) {
     $GistUrl = (Get-Content $UrlFile -Raw).Trim()
 }
 
+# Tu dong trich xuat Gist ID tu URL cache neu co
+if ($GistUrl -match "([a-f0-9]{32})") {
+    $GistUrl = "https://gist.githubusercontent.com/raw/$($Matches[1])"
+}
+
 if ([string]::IsNullOrWhiteSpace($GistUrl)) {
     Write-Host "`nChua co cau hinh link Gist cua nhom!" -ForegroundColor Yellow
     Write-Host "1. Nhap link Secret Gist hoac Raw URL cua nhom (chi can nhap 1 lan duy nhat):"
@@ -47,12 +52,12 @@ if ([string]::IsNullOrWhiteSpace($GistUrl)) {
     $GistUrl = $InputUrl
 }
 
-# Tu dong chuan hoa neu nguoi dung nhap link gist.github.com thay vi raw
-if ($GistUrl -match "gist\.github\.com/([^/]+)/([a-f0-9]+)") {
-    $User = $Matches[1]
-    $GistId = $Matches[2]
-    $GistUrl = "https://gist.githubusercontent.com/$User/$GistId/raw/application-local.properties"
-    Write-Host "[*] Da tu dong chuyen doi sang Raw Gist URL: $GistUrl" -ForegroundColor Gray
+# Tu dong trich xuat 32 ky tu hex Gist ID tu bat ky link Gist nao
+if ($GistUrl -match "([a-f0-9]{32})") {
+    $GistId = $Matches[1]
+    $GistUrl = "https://gist.githubusercontent.com/raw/$GistId"
+    Write-Host "[*] Nhan dien Gist ID: $GistId" -ForegroundColor Gray
+    Write-Host "[*] Tu dong chuyen doi sang Raw Gist URL: $GistUrl" -ForegroundColor Gray
 }
 
 # 3. Tai noi dung moi nhat tu Gist (kem timestamp tranh cache)
@@ -65,6 +70,10 @@ try {
 
     if ([string]::IsNullOrWhiteSpace($Content)) {
         throw "Noi dung tai ve rong."
+    }
+
+    if ($Content -match "<!DOCTYPE html>|<html|404: Not Found") {
+        throw "Link Gist tra ve ma loi hoac trang web HTML (404 Not Found). Kiem tra lai Gist ID."
     }
 
     # Luu file application-local.properties
