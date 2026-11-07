@@ -45,3 +45,10 @@ build/
 ### Uploads ###
 uploads/
 
+### Agent Skills & Rules ###
+.agent/
+.agents/
+AGENTS.md
+**/AGENTS.md
+skills-lock.json
+

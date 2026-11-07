@@ -45,6 +45,10 @@ public final class WorkspaceMapper {
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace) {
+        return toDto(workspace, null);
+    }
+
+    public static WorkspaceDto toDto(WorkspaceModel workspace, Double distanceKm) {
         if (workspace == null) {
             return null;
         }
@@ -101,6 +105,8 @@ public final class WorkspaceMapper {
             }
         }
 
+        Double roundedDistance = distanceKm != null ? Math.round(distanceKm * 100.0) / 100.0 : null;
+
         return WorkspaceDto.builder()
                 .id(workspace.getId())
                 .name(workspace.getName())
@@ -112,6 +118,7 @@ public final class WorkspaceMapper {
                 .city(workspace.getCity())
                 .latitude(workspace.getLatitude())
                 .longitude(workspace.getLongitude())
+                .distanceKm(roundedDistance)
                 .areaSqm(workspace.getAreaSqm())
                 .usableAreaSqm(workspace.getAreaSqm())
                 .supportPhone(workspace.getSupportPhone())

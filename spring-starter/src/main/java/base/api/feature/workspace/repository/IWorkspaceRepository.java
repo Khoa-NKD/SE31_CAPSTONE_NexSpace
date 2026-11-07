@@ -79,5 +79,30 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY w.featuredOrder ASC, w.createdAt DESC
             """)
     java.util.List<WorkspaceModel> findFeaturedWorkspaces(@Param("status") WorkspaceStatus status);
+
+    @Query(value = """
+            SELECT w.id AS id,
+                   (ST_Distance_Sphere(POINT(w.longitude, w.latitude), POINT(:targetLng, :targetLat)) / 1000.0) AS distanceKm
+            FROM workspace w
+            WHERE w.status = 'ACTIVE'
+              AND w.latitude IS NOT NULL
+              AND w.longitude IS NOT NULL
+              AND (ST_Distance_Sphere(POINT(w.longitude, w.latitude), POINT(:targetLng, :targetLat)) / 1000.0) <= :radiusKm
+            ORDER BY distanceKm ASC
+            """,
+            countQuery = """
+            SELECT COUNT(*)
+            FROM workspace w
+            WHERE w.status = 'ACTIVE'
+              AND w.latitude IS NOT NULL
+              AND w.longitude IS NOT NULL
+              AND (ST_Distance_Sphere(POINT(w.longitude, w.latitude), POINT(:targetLng, :targetLat)) / 1000.0) <= :radiusKm
+            """,
+            nativeQuery = true)
+    Page<WorkspaceDistanceProjection> findNearbyWorkspaceIds(
+            @Param("targetLat") Double targetLat,
+            @Param("targetLng") Double targetLng,
+            @Param("radiusKm") Double radiusKm,
+            Pageable pageable);
 }
 
