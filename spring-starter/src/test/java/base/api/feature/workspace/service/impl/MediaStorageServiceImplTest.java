@@ -31,7 +31,8 @@ class MediaStorageServiceImplTest {
         ReflectionTestUtils.setField(storageService, "cloudName", "");
         ReflectionTestUtils.setField(storageService, "apiKey", "");
         ReflectionTestUtils.setField(storageService, "apiSecret", "");
-        ReflectionTestUtils.setField(storageService, "defaultFolder", "test-workspaces");
+        ReflectionTestUtils.setField(storageService, "rootFolder", "nexspace");
+        ReflectionTestUtils.setField(storageService, "workspaceFolderPattern", "test-workspaces/{id}");
         ReflectionTestUtils.setField(storageService, "apiUrl", "http://localhost:8080");
     }
 

@@ -48,9 +48,6 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     @Value("${cloudinary.api-secret:}")
     private String apiSecret;
 
-    @Value("${cloudinary.folder:nexspace/workspaces}")
-    private String defaultFolder;
-
     @Value("${cloudinary.folder.nexspace:nexspace}")
     private String rootFolder;
 
@@ -75,7 +72,8 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
                 return fallback;
             }
         }
-        return StringUtils.hasText(defaultFolder) ? defaultFolder.trim() : "nexspace/workspaces";
+        String base = StringUtils.hasText(rootFolder) ? rootFolder.trim() : "nexspace";
+        return base + "/workspaces";
     }
 
     @Override
