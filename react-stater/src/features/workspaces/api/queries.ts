@@ -3,6 +3,7 @@ import { workspaceService } from './service';
 import type {
   WorkspaceFilterParams,
   PublicWorkspaceFilterParams,
+  NearbyWorkspacesParams,
   WorkspaceAssetFilterParams
 } from './types';
 
@@ -25,6 +26,7 @@ export const workspaceQueryKeys = {
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
   featured: () => [...workspaceQueryKeys.all, 'featured'] as const,
+  nearby: (params: NearbyWorkspacesParams) => [...workspaceQueryKeys.all, 'nearby', params] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
 
@@ -44,6 +46,16 @@ export const publicWorkspacesQueryOptions = (params: PublicWorkspaceFilterParams
   queryOptions({
     queryKey: workspaceQueryKeys.publicList(params),
     queryFn: () => workspaceService.getPublicWorkspaces(params)
+  });
+
+/**
+ * TanStack Query options for the public marketplace nearby workspaces list.
+ */
+export const nearbyWorkspacesQueryOptions = (params: NearbyWorkspacesParams) =>
+  queryOptions({
+    queryKey: workspaceQueryKeys.nearby(params),
+    queryFn: () => workspaceService.getNearbyWorkspaces(params),
+    enabled: typeof params.lat === 'number' && typeof params.lng === 'number'
   });
 
 /**
@@ -86,6 +98,19 @@ export function useWorkspacesQuery(params: WorkspaceFilterParams = {}) {
  */
 export function usePublicWorkspacesQuery(params: PublicWorkspaceFilterParams = {}) {
   return useQuery(publicWorkspacesQueryOptions(params));
+}
+
+/**
+ * Hook for querying nearby workspaces by coordinates and radius.
+ */
+export function useNearbyWorkspacesQuery(
+  params: NearbyWorkspacesParams,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    ...nearbyWorkspacesQueryOptions(params),
+    enabled: (options?.enabled ?? true) && typeof params.lat === 'number' && typeof params.lng === 'number'
+  });
 }
 
 /**

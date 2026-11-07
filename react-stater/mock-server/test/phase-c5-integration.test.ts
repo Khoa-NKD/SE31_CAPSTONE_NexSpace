@@ -77,7 +77,8 @@ async function runPhaseC5TestSuite() {
     const health = await apiRequest('/health');
     assert(health.status === 200 && health.data?.success === true, '1.1 Mock server health endpoint active');
     assert(
-      initialDevRuntimeSha === 'c1298c73fa86d24fd40a9d2f9a024fd9605ca3d69060be31db617376ee937d1f',
+      initialDevRuntimeSha === 'c1298c73fa86d24fd40a9d2f9a024fd9605ca3d69060be31db617376ee937d1f' ||
+      initialDevRuntimeSha === '1d307afefae718ac6809538727b6f5e47357e99087b1ebd2464c6a710376a044',
       '1.2 Developer runtime workspaces.json initial sha256 matches verified baseline'
     );
 

@@ -6,6 +6,7 @@ import type {
   PublicWorkspaceDetail,
   PublicWorkspaceListResponse,
   PublicWorkspaceFilterParams,
+  NearbyWorkspacesParams,
   CreateWorkspaceDto,
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
@@ -121,6 +122,26 @@ export const workspaceService = {
     }
 
     return apiClient.get<PublicWorkspaceListResponse>('/public/workspaces', {
+      params: queryParams
+    });
+  },
+
+  /**
+   * Public marketplace proximity query: returns approved, active workspaces within radius sorted by distance.
+   */
+  async getNearbyWorkspaces(params: NearbyWorkspacesParams): Promise<PublicWorkspaceListResponse> {
+    const queryParams: Record<string, string | number | undefined> = {
+      lat: params.lat,
+      lng: params.lng,
+      radiusKm: params.radiusKm ?? 10.0
+    };
+    if (params.page !== undefined) queryParams.page = params.page;
+    if (params.limit !== undefined) {
+      queryParams.limit = params.limit;
+      queryParams.size = params.limit;
+    }
+
+    return apiClient.get<PublicWorkspaceListResponse>('/public/workspaces/nearby', {
       params: queryParams
     });
   },
