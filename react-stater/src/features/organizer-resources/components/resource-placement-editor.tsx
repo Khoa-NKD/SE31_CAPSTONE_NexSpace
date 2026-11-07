@@ -1,5 +1,6 @@
 import {
   useId,
+  useEffect,
   useRef,
   useState,
   type PointerEvent,
@@ -7,6 +8,7 @@ import {
   type ReactNode
 } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   Move,
   Hand,
@@ -19,13 +21,19 @@ import {
   Undo2,
   Redo2,
   RotateCcwSquare,
-  Maximize2
+  Maximize2,
+  Minimize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResourceMapSymbol } from './resource-map-symbol';
 import { DecorationLayer, DecorationVisual } from './decoration-visual';
 import { useCanvasWheel } from './use-canvas-wheel';
-import type { FloorDecoration } from '../api/resources';
+import {
+  SharedFloorLayer,
+  SharedFloorTooltip,
+  useSharedFloorContext
+} from './shared-floor-context';
+import type { FloorDecoration, FloorLayout } from '../api/resources';
 import { decorationPresets } from '../utils/decoration-presets';
 import { previewLayout } from '../utils/layout-placement';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -110,7 +118,11 @@ export function ResourcePlacementEditor({
   canUndo,
   canRedo,
   presentation = 'form',
-  onSelect
+  onSelect,
+  draftLayout,
+  actions,
+  onCopy,
+  onPaste
 }: {
   decoration?: FloorDecoration;
   workspaceId: number;
@@ -129,15 +141,22 @@ export function ResourcePlacementEditor({
   canRedo: boolean;
   presentation?: 'form' | 'workspace';
   onSelect?: (key: string) => void;
+  draftLayout?: FloorLayout;
+  actions?: ReactNode;
+  onCopy?: () => void;
+  onPaste?: () => void;
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
   const actorId = useAuthStore((state) => state.user?.id ?? 0);
-  const query = useQuery({
+  const fetched = useQuery({
     ...floorLayoutOptions(actorId, workspaceId, floorId),
     enabled: floorId > 0 && actorId > 0
   });
+  const query = { ...fetched, data: draftLayout ?? fetched.data };
   const svgRef = useRef<SVGSVGElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const shared = useSharedFloorContext(query.data, presentation === 'workspace');
   const gesture = useRef<Gesture | null>(null);
   const [dragging, setDragging] = useState(false);
   const [mode, setMode] = useState<'move' | 'pan'>('move');
@@ -147,6 +166,45 @@ export function ResourcePlacementEditor({
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [expanded, setExpanded] = useState(false);
+  useEffect(() => {
+    const syncFullscreen = () => setExpanded(document.fullscreenElement === containerRef.current);
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
+  useEffect(() => {
+    if (!expanded) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const escape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape' && document.fullscreenElement !== containerRef.current)
+        setExpanded(false);
+    };
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.body.style.overflow = overflow;
+      document.removeEventListener('keydown', escape);
+    };
+  }, [expanded]);
+  async function toggleFullscreen() {
+    shared.clearHover();
+    if (expanded) {
+      try {
+        if (document.fullscreenElement === containerRef.current) await document.exitFullscreen();
+        else setExpanded(false);
+      } catch {
+        toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
+      }
+      return;
+    }
+    try {
+      if (document.fullscreenEnabled && containerRef.current?.requestFullscreen)
+        await containerRef.current.requestFullscreen();
+      else setExpanded(true);
+    } catch {
+      // Embedded browsers may deny fullscreen. Keep an expanded in-page editor available.
+      setExpanded(true);
+    }
+  }
   useCanvasWheel(
     svgRef,
     (factor) => setZoom((current) => Math.max(0.5, Math.min(12, current * factor))),
@@ -181,6 +239,29 @@ export function ResourcePlacementEditor({
     item.height > 0 &&
     (!parentRoomId || !!room);
   const locked = disabled || dragging;
+  useEffect(() => {
+    const container = containerRef.current;
+    const copyPaste = (event: globalThis.KeyboardEvent) => {
+      if (event.defaultPrevented || locked || !(event.ctrlKey || event.metaKey)) return;
+      if (
+        !(event.target instanceof Element) ||
+        event.target.closest('input, textarea, select, [contenteditable="true"]')
+      )
+        return;
+      const action =
+        event.key.toLowerCase() === 'c'
+          ? onCopy
+          : event.key.toLowerCase() === 'v'
+            ? onPaste
+            : undefined;
+      if (action) {
+        event.preventDefault();
+        action();
+      }
+    };
+    container?.addEventListener('keydown', copyPaste);
+    return () => container?.removeEventListener('keydown', copyPaste);
+  }, [locked, onCopy, onPaste]);
   const peers = query.data?.resources.filter((peer) => peer.id !== resourceId) ?? [];
   const rendered = peers.map((peer) => {
     const position = geometry(peer);
@@ -209,12 +290,22 @@ export function ResourcePlacementEditor({
   const focusedHeight = room
     ? Math.abs(Math.sin(roomAngle)) * room.width + Math.abs(Math.cos(roomAngle)) * room.height + 60
     : canvas.height;
-  const baseWidth = roomView && room ? focusedWidth : canvas.width;
-  const baseHeight = roomView && room ? focusedHeight : canvas.height;
+  const baseWidth = roomView && room ? focusedWidth : (shared.bounds?.width ?? canvas.width);
+  const baseHeight = roomView && room ? focusedHeight : (shared.bounds?.height ?? canvas.height);
   const viewWidth = baseWidth / zoom,
     viewHeight = baseHeight / zoom;
-  const centerX = (roomView && room ? room.x + room.width / 2 : canvas.width / 2) + pan.x;
-  const centerY = (roomView && room ? room.y + room.height / 2 : canvas.height / 2) + pan.y;
+  const centerX =
+    (roomView && room
+      ? room.x + room.width / 2
+      : shared.bounds
+        ? shared.bounds.x + shared.bounds.width / 2
+        : canvas.width / 2) + pan.x;
+  const centerY =
+    (roomView && room
+      ? room.y + room.height / 2
+      : shared.bounds
+        ? shared.bounds.y + shared.bounds.height / 2
+        : canvas.height / 2) + pan.y;
   const viewBox = `${centerX - viewWidth / 2} ${centerY - viewHeight / 2} ${viewWidth} ${viewHeight}`;
   const handleRadius = viewWidth / 95;
   const transform = `rotate(${item.rotation} ${item.x + item.width / 2} ${item.y + item.height / 2})`;
@@ -337,7 +428,37 @@ export function ResourcePlacementEditor({
     setPan({ x: 0, y: 0 });
     setZoom(1);
   }
+  function focusItem() {
+    const floor = shared.bounds ?? { x: 0, y: 0, ...canvas };
+    setRoomView(false);
+    setZoom(
+      Math.max(
+        1,
+        Math.min(
+          12,
+          Math.min(floor.width, floor.height) / Math.max(item.width * 3, item.height * 3, 200)
+        )
+      )
+    );
+    setPan({
+      x: item.x + item.width / 2 - (floor.x + floor.width / 2),
+      y: item.y + item.height / 2 - (floor.y + floor.height / 2)
+    });
+  }
   function command(event: KeyboardEvent<SVGElement>): boolean {
+    if (event.defaultPrevented) return true;
+    if (
+      !locked &&
+      (event.ctrlKey || event.metaKey) &&
+      ['c', 'v'].includes(event.key.toLowerCase())
+    ) {
+      const action = event.key.toLowerCase() === 'c' ? onCopy : onPaste;
+      if (action) {
+        event.preventDefault();
+        action();
+        return true;
+      }
+    }
     if (gesture.current && event.key === 'Escape') {
       event.preventDefault();
       event.stopPropagation();
@@ -443,15 +564,19 @@ export function ResourcePlacementEditor({
 
   return (
     <div
+      ref={containerRef}
       role='region'
       aria-label={c('Resource placement controls', 'Điều khiển bố trí ghế/phòng')}
       className={
-        presentation === 'workspace'
-          ? 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
-          : 'mt-5 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
+        expanded
+          ? 'fixed inset-0 z-[80] flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background p-0'
+          : presentation === 'workspace'
+            ? 'flex min-h-0 flex-1 flex-col overflow-hidden bg-background'
+            : 'mt-5 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
-      <div className='space-y-3 border-b border-border bg-gradient-to-br from-primary/[0.06] via-background to-background px-4 py-4'>
+      <SharedFloorTooltip context={shared} />
+      <div className='shrink-0 space-y-3 border-b border-border bg-gradient-to-br from-primary/[0.06] via-background to-background px-4 py-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div>
             <p className='flex items-center gap-2 text-sm font-semibold'>
@@ -594,14 +719,34 @@ export function ResourcePlacementEditor({
             <Tool label={c('Fit canvas', 'Vừa khung xem')} disabled={locked} onClick={fitView}>
               <Focus className='size-4' />
             </Tool>
+            <Button
+              type='button'
+              size='sm'
+              variant='outline'
+              className='h-8 rounded-lg text-xs'
+              disabled={locked || !query.data}
+              onClick={focusItem}
+            >
+              <Focus className='size-3.5' />
+              {c('Focus object', 'Phóng tới đối tượng')}
+            </Button>
             <Tool
-              label={c('Expand/collapse preview', 'Mở rộng/thu gọn sơ đồ')}
+              label={
+                expanded
+                  ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
+                  : c('Fullscreen design', 'Thiết kế toàn màn hình')
+              }
               pressed={expanded}
               disabled={locked}
-              onClick={() => setExpanded(!expanded)}
+              onClick={() => void toggleFullscreen()}
             >
-              <Maximize2 className='size-4' />
+              {expanded ? <Minimize2 className='size-4' /> : <Maximize2 className='size-4' />}
             </Tool>
+            {expanded && (
+              <span className='px-2 text-xs text-muted-foreground'>
+                {c('Esc to exit', 'Esc để thu gọn')}
+              </span>
+            )}
           </div>
         </div>
         {room && (
@@ -622,6 +767,9 @@ export function ResourcePlacementEditor({
           </Button>
         )}
       </div>
+      {actions && (
+        <div className='shrink-0 border-b border-border bg-card px-4 py-3'>{actions}</div>
+      )}
       {!floorId ? (
         <p className='p-4 text-sm text-muted-foreground'>
           {c('Choose a floor to start.', 'Chọn tầng để bắt đầu.')}
@@ -644,15 +792,21 @@ export function ResourcePlacementEditor({
             ref={svgRef}
             viewBox={viewBox}
             data-floor-canvas='true'
-            className={`block w-full touch-none select-none bg-muted/20 ${presentation === 'workspace' ? 'min-h-[380px] flex-1' : expanded ? 'h-[30rem]' : 'h-72 sm:h-80'} ${mode === 'pan' ? 'cursor-grab active:cursor-grabbing' : ''}`}
+            className={`block w-full touch-none select-none bg-muted/20 ${presentation === 'workspace' || expanded ? 'h-0 min-h-0 flex-1' : 'h-72 sm:h-80'} ${mode === 'pan' ? 'cursor-grab active:cursor-grabbing' : ''}`}
             aria-label={c(
               'Interactive resource positioning canvas',
               'Sơ đồ kéo thả vị trí ghế/phòng'
             )}
             onPointerDown={(event) => {
+              shared.clearHover();
               if (mode === 'pan') begin(event, 'pan');
             }}
-            onPointerMove={move}
+            onPointerMove={(event) => {
+              shared.inspectArea(event);
+              move(event);
+            }}
+            onPointerLeave={shared.clearHover}
+            onWheel={shared.clearHover}
             onPointerUp={() => stop()}
             onPointerCancel={() => stop(true)}
             onLostPointerCapture={() => stop()}
@@ -672,12 +826,13 @@ export function ResourcePlacementEditor({
                 />
               </pattern>
             </defs>
+            <SharedFloorLayer context={shared} />
             <rect width={canvas.width} height={canvas.height} className='fill-background' />
             <rect
               width={canvas.width}
               height={canvas.height}
               fill={`url(#${gridId})`}
-              className='stroke-border'
+              className={shared.bounds ? 'stroke-primary' : 'stroke-border'}
               strokeWidth='1'
             />
             {staticPeers.filter((entry) => entry.peer.category === 'ROOM').map(drawPeer)}
@@ -913,7 +1068,7 @@ export function ResourcePlacementEditor({
             )}
           </svg>
           <div
-            className='space-y-1.5 border-t border-border px-4 py-3 text-xs text-muted-foreground'
+            className={`shrink-0 space-y-1.5 border-t border-border bg-background px-4 py-3 text-xs text-muted-foreground ${presentation === 'workspace' || expanded ? 'max-h-[35%] overflow-y-auto' : ''}`}
             aria-live='polite'
           >
             <p className='font-mono tabular-nums'>

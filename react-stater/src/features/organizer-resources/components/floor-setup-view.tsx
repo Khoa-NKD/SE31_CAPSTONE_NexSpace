@@ -1,3 +1,5 @@
+import { buildingsOptions } from '../api/buildings';
+import { FloorActions } from './floor-actions';
 import { useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoaderCircle, ArrowLeft } from 'lucide-react';
@@ -44,6 +46,10 @@ export function FloorSetupView({
     ...resourceOptions(actorId, selected?.id ?? 0),
     enabled: allowed && !!selected
   });
+  const locations = useQuery({ ...buildingsOptions(actorId), enabled: allowed });
+  const physicalBuilding = locations.data?.find((b) =>
+    options.data?.floors.some((f) => f.location?.buildingId === b.id)
+  );
   const [dialog, setDialog] = useState<{
     kind: 'floor' | 'type' | 'resource';
     floorId: number;
@@ -100,8 +106,59 @@ export function FloorSetupView({
         </Button>
       </div>
     );
+  if (dialog?.kind === 'resource')
+    return (
+      <ResourceEditor
+        workspaceId={selected.id}
+        options={
+          dialog.resource
+            ? options.data
+            : {
+                ...options.data,
+                floors: options.data.floors.filter((item) => item.id === dialog.floorId)
+              }
+        }
+        current={dialog.resource}
+        onSaved={saved}
+        onClose={() => setDialog(null)}
+      />
+    );
   return (
     <>
+      {!floor && physicalBuilding && options.data.floors.some((f) => !f.location) && (
+        <section className='mb-4 space-y-3 rounded-2xl border border-amber-500/20 bg-amber-500/5 p-4'>
+          <p className='text-sm font-semibold'>
+            {c(
+              'Existing layouts awaiting physical location',
+              'Sơ đồ cũ chờ liên kết vị trí vật lý'
+            )}
+          </p>
+          {options.data.floors
+            .filter((f) => !f.location)
+            .map((f) => (
+              <div
+                key={f.id}
+                className='flex flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3'
+              >
+                <button
+                  type='button'
+                  className='text-sm font-medium hover:text-primary'
+                  onClick={() => onNavigate({ workspaceId: selected.id, floorId: f.id })}
+                >
+                  {f.name} · {f.floorNumber}
+                </button>
+                <FloorActions
+                  workspaceId={selected.id}
+                  floor={f}
+                  floors={options.data!.floors}
+                  disabled={!canConfigureWorkspaceResources(selected.status)}
+                  onSaved={saved}
+                  onCopied={(copy) => onNavigate({ workspaceId: selected.id, floorId: copy.id })}
+                />
+              </div>
+            ))}
+        </section>
+      )}
       {floor ? (
         <FloorCanvasWorkspace
           key={`${selected.id}:${floor.id}`}
@@ -125,37 +182,24 @@ export function FloorSetupView({
           onSaved={saved}
           actorId={actorId}
           workspace={selected}
+          building={physicalBuilding}
           floors={options.data.floors}
           onBack={() => onNavigate({})}
-          onOpenFloor={(floorId) => onNavigate({ workspaceId: selected.id, floorId })}
+          onOpenFloor={(floorId, workspaceId) =>
+            onNavigate({ workspaceId: workspaceId ?? selected.id, floorId })
+          }
           onAddFloor={() => setDialog({ kind: 'floor', floorId: 0 })}
         />
       )}
-      {dialog &&
-        (dialog.kind === 'resource' ? (
-          <ResourceEditor
-            workspaceId={selected.id}
-            options={
-              dialog.resource
-                ? options.data
-                : {
-                    ...options.data,
-                    floors: options.data.floors.filter((item) => item.id === dialog.floorId)
-                  }
-            }
-            current={dialog.resource}
-            onSaved={saved}
-            onClose={() => setDialog(null)}
-          />
-        ) : (
-          <ResourceSetupDialog
-            workspaceId={selected.id}
-            kind={dialog.kind}
-            floors={options.data.floors}
-            onSaved={saved}
-            onClose={() => setDialog(null)}
-          />
-        ))}
+      {dialog && (
+        <ResourceSetupDialog
+          workspaceId={selected.id}
+          kind={dialog.kind}
+          floors={options.data.floors}
+          onSaved={saved}
+          onClose={() => setDialog(null)}
+        />
+      )}
     </>
   );
 }

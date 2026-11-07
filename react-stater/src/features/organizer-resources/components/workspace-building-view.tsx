@@ -1,3 +1,4 @@
+import type { Building } from '../api/buildings';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -37,6 +38,7 @@ import './workspace-building.css';
 
 export function WorkspaceBuildingView({
   workspace,
+  building,
   actorId,
   floors,
   onBack,
@@ -45,10 +47,11 @@ export function WorkspaceBuildingView({
   onSaved
 }: {
   workspace: WorkspaceOption;
+  building?: Building;
   actorId: number;
   floors: FloorOption[];
   onBack: () => void;
-  onOpenFloor: (id: number) => void;
+  onOpenFloor: (id: number, workspaceId?: number) => void;
   onAddFloor: () => void;
   onSaved: () => Promise<void>;
 }) {
@@ -56,10 +59,49 @@ export function WorkspaceBuildingView({
   const vi = language === 'vi';
   const c = (en: string, local: string) => (vi ? local : en);
   // Sort a copy to preserve query data and the project's pre-ES2023 browser target.
+  const physicalEntries: Array<FloorOption & { workspaceId?: number; displayName?: string }> =
+    building
+      ? building.floors.map((f) => {
+          const occupant =
+            f.occupants.find((o) => o.workspaceId === workspace.id) ?? f.occupants[0];
+          const own = floors.find((l) => l.location?.buildingFloorId === f.id);
+          const linkedNames = [
+            ...new Set(
+              f.occupants
+                .map((o) =>
+                  o.layoutName.trim().replace(new RegExp(` – (?:Tầng|Floor) ${f.floorNumber}$`), '')
+                )
+                .filter(Boolean)
+            )
+          ];
+          return {
+            ...(own ?? {
+              id: occupant?.floorPlanId ?? -f.id,
+              name: f.name,
+              floorNumber: f.floorNumber,
+              status: occupant?.status ?? 'DRAFT',
+              revision: ''
+            }),
+            workspaceId: occupant?.workspaceId,
+            name: f.name,
+            displayName: linkedNames.length ? `${f.name} (${linkedNames.join(', ')})` : f.name
+          };
+        })
+      : floors;
+  const openFloor = (id: number) => {
+    const f = physicalEntries.find((v) => v.id === id);
+    if (id > 0) onOpenFloor(id, f?.workspaceId);
+    else onAddFloor();
+  };
   // oxlint-disable-next-line unicorn/no-array-sort
-  const ordered = [...floors].sort((a, b) => a.floorNumber - b.floorNumber || a.id - b.id);
+  const ordered = [...physicalEntries].sort((a, b) => a.floorNumber - b.floorNumber || a.id - b.id);
   // oxlint-disable-next-line unicorn/no-array-reverse
   const descendingFloors = [...ordered].reverse();
+  const linkedFloorCount = building
+    ? building.floors.filter((floor) =>
+        floor.occupants.some((area) => area.workspaceId === workspace.id)
+      ).length
+    : floors.length;
   const [hovered, setHovered] = useState<number | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [camera, setCamera] = useState({ angle: -32, tilt: 58, zoom: 1 });
@@ -71,11 +113,11 @@ export function WorkspaceBuildingView({
   const selected = ordered.find((floor) => floor.id === selectedId);
   const active = selected ?? ordered.find((floor) => floor.id === hovered) ?? ordered.at(-1);
   const detail = useQuery({
-    ...floorLayoutOptions(actorId, workspace.id, selected?.id ?? 0),
-    enabled: !!selected
+    ...floorLayoutOptions(actorId, selected?.workspaceId ?? workspace.id, selected?.id ?? 0),
+    enabled: !!selected && selected.id > 0
   });
   const writable = canConfigureWorkspaceResources(workspace.status);
-  const gap = Math.max(4, Math.min(exploded ? 72 : 34, 260 / Math.max(1, floors.length)));
+  const gap = Math.max(4, Math.min(exploded ? 72 : 34, 260 / Math.max(1, ordered.length)));
   const selectFloor = (id: number) => {
     setSelectedId(id);
     setHovered(id);
@@ -139,7 +181,11 @@ export function WorkspaceBuildingView({
             <div>
               <h2 className='flex items-center gap-2 text-sm font-semibold'>
                 <Move3D className='size-4 text-primary' />
-                {c('Explore your building', 'Khám phá tòa nhà')}
+                {building?.name ??
+                  c(
+                    'Workspace layouts awaiting location mapping',
+                    'Sơ đồ workspace chưa liên kết vị trí'
+                  )}
               </h2>
               <p className='mt-1 text-[11px] text-muted-foreground'>
                 {c(
@@ -224,13 +270,33 @@ export function WorkspaceBuildingView({
                 ? c('Floor extracted · Esc to return', 'Đã rút tầng · Esc để đưa về')
                 : c('Drag background to orbit', 'Kéo nền để xoay góc nhìn')}
             </div>
-            <div className='pointer-events-none absolute right-5 top-5 z-10 text-right'>
-              <p className='text-2xl font-semibold tabular-nums tracking-tight'>
-                {floors.length.toString().padStart(2, '0')}
+            <div className='pointer-events-none absolute right-5 top-5 z-10 w-48 rounded-2xl border border-primary/20 bg-card/95 p-4 shadow-lg backdrop-blur-md'>
+              <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
+                <span className='flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary'>
+                  <Layers3 className='size-4' />
+                </span>
+                {c('Workspace uses', 'Workspace sử dụng')}
+              </div>
+              <p className='mt-3 flex items-baseline gap-2'>
+                <span className='text-4xl font-semibold tabular-nums tracking-tight text-primary'>
+                  {linkedFloorCount}
+                </span>
+                <span className='text-sm font-medium text-foreground'>
+                  {c(linkedFloorCount === 1 ? 'floor' : 'floors', 'tầng')}
+                </span>
               </p>
-              <p className='text-[10px] uppercase tracking-widest text-muted-foreground'>
-                {c('Floors', 'Tầng')}
-              </p>
+              {building && (
+                <div className='mt-3 flex items-center justify-between gap-2 border-t border-border pt-3 text-xs'>
+                  <span className='flex items-center gap-1.5 text-muted-foreground'>
+                    <Building2 className='size-3.5' />
+                    {c('Building total', 'Tổng tòa nhà')}
+                  </span>
+                  <span className='whitespace-nowrap font-semibold text-foreground'>
+                    {building.floors.length}{' '}
+                    {c(building.floors.length === 1 ? 'floor' : 'floors', 'tầng')}
+                  </span>
+                </div>
+              )}
             </div>
             {floors.length ? (
               <>
@@ -259,17 +325,18 @@ export function WorkspaceBuildingView({
                   <BuildingStorey
                     key={floor.id}
                     floor={floor}
+                    label={floor.displayName ?? floor.name}
                     index={index}
                     gap={gap}
                     camera={camera}
                     hovered={hovered === floor.id && selectedId !== floor.id}
                     picked={selectedId === floor.id}
                     layout={selectedId === floor.id ? detail.data : undefined}
-                    loading={selectedId === floor.id && detail.isPending}
+                    loading={selectedId === floor.id && floor.id > 0 && detail.isPending}
                     onHover={setHovered}
                     onPick={() => selectFloor(floor.id)}
                     onReturn={() => setSelectedId(null)}
-                    onOpen={() => onOpenFloor(floor.id)}
+                    onOpen={() => openFloor(floor.id)}
                   />
                 ))}
                 <div
@@ -422,9 +489,17 @@ export function WorkspaceBuildingView({
                 <div className='mb-4 flex justify-end'>
                   <FloorActions
                     workspaceId={workspace.id}
-                    floor={active}
+                    floor={
+                      detail.data?.floor.id === active.id
+                        ? detail.data.floor
+                        : (floors.find((f) => f.id === active.id) ?? active)
+                    }
                     floors={floors}
-                    disabled={!writable}
+                    disabled={
+                      !writable ||
+                      active.id <= 0 ||
+                      (!!active.workspaceId && active.workspaceId !== workspace.id)
+                    }
                     onSaved={onSaved}
                     onDeleted={() => {
                       setSelectedId(null);
@@ -438,7 +513,28 @@ export function WorkspaceBuildingView({
                     <p className='text-[11px] text-muted-foreground'>
                       {c('Floor', 'Tầng')} {active.floorNumber}
                     </p>
-                    <h2 className='mt-1 text-xl font-semibold tracking-tight'>{active.name}</h2>
+                    <h2 className='mt-1 break-words text-xl font-semibold tracking-tight'>
+                      {active.displayName ?? active.name}
+                    </h2>
+                    {building && (
+                      <div className='mt-3 space-y-2'>
+                        {building.floors
+                          .find((f) => f.floorNumber === active.floorNumber)
+                          ?.occupants.map((o) => (
+                            <button
+                              key={o.floorPlanId}
+                              type='button'
+                              onClick={() => onOpenFloor(o.floorPlanId, o.workspaceId)}
+                              className='block w-full rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-left text-xs'
+                            >
+                              <strong>{o.workspaceName ?? `Workspace #${o.workspaceId}`}</strong>
+                              <span className='mt-1 block text-muted-foreground'>
+                                {o.layoutName} · {o.width} × {o.height} px
+                              </span>
+                            </button>
+                          ))}
+                      </div>
+                    )}
                   </div>
                   <span className='flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary'>
                     <Layers3 className='size-5' />
@@ -499,7 +595,7 @@ export function WorkspaceBuildingView({
                 <Button
                   className='mt-5 w-full rounded-xl'
                   size='sm'
-                  onClick={() => (selected ? onOpenFloor(selected.id) : selectFloor(active.id))}
+                  onClick={() => (selected ? openFloor(selected.id) : selectFloor(active.id))}
                 >
                   {selected
                     ? c('View floor plan', 'Xem sơ đồ')
@@ -515,9 +611,13 @@ export function WorkspaceBuildingView({
           </section>
           <section className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card'>
             <div className='flex items-center justify-between border-b border-border px-4 py-3'>
-              <h2 className='text-xs font-semibold'>{c('Floor directory', 'Danh sách tầng')}</h2>
+              <h2 className='text-xs font-semibold'>
+                {building
+                  ? c('Building floors', 'Các tầng của tòa nhà')
+                  : c('Floor directory', 'Danh sách tầng')}
+              </h2>
               <span className='text-[10px] tabular-nums text-muted-foreground'>
-                {floors.length}
+                {descendingFloors.length}
               </span>
             </div>
             <div className='max-h-[350px] space-y-1 overflow-y-auto p-2'>
@@ -536,7 +636,12 @@ export function WorkspaceBuildingView({
                     {floor.floorNumber.toString().padStart(2, '0')}
                   </span>
                   <span className='min-w-0 flex-1'>
-                    <span className='block truncate text-xs font-medium'>{floor.name}</span>
+                    <span
+                      className='block truncate text-xs font-medium'
+                      title={floor.displayName ?? floor.name}
+                    >
+                      {floor.displayName ?? floor.name}
+                    </span>
                     <span className='mt-1 block text-[10px] text-muted-foreground'>
                       {floor.status === 'PUBLISHED'
                         ? c('Published', 'Đã xuất bản')

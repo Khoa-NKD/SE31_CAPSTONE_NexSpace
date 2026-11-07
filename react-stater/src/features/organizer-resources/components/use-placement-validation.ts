@@ -1,6 +1,11 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { floorLayoutOptions, type Category, type FloorDecoration } from '../api/resources';
+import {
+  floorLayoutOptions,
+  type Category,
+  type FloorDecoration,
+  type FloorLayout
+} from '../api/resources';
 import { previewLayout } from '../utils/layout-placement';
 import type { PlacementFields } from '../utils/placement';
 
@@ -13,7 +18,8 @@ export function usePlacementValidation(
     parentRoomId?: number;
     category?: Category;
     decoration?: FloorDecoration;
-  }
+  },
+  draftLayout?: FloorLayout
 ) {
   const actorId = useAuthStore((state) => state.user?.id ?? 0);
   const query = useQuery({
@@ -23,10 +29,11 @@ export function usePlacementValidation(
   const complete = [fields.posX, fields.posY, fields.width, fields.height].every(
     (value) => value.trim() !== ''
   );
+  const layout = draftLayout ?? query.data;
   const result =
-    complete && query.data
+    complete && layout
       ? previewLayout(
-          query.data,
+          layout,
           {
             x: Number(fields.posX),
             y: Number(fields.posY),
@@ -38,8 +45,7 @@ export function usePlacementValidation(
         )
       : undefined;
   return {
-    blocked:
-      complete && (!query.data || query.isError || !query.data.editableLayout || !result?.valid),
+    blocked: complete && (!layout || query.isError || !layout.editableLayout || !result?.valid),
     result
   };
 }

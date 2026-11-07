@@ -1,3 +1,4 @@
+import type { FloorLocation } from '@/features/organizer-resources/api/buildings';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Layers3 } from 'lucide-react';
@@ -21,6 +22,7 @@ interface MapResource {
   selectable: boolean;
 }
 interface CustomerFloor {
+  location?: FloorLocation | null;
   id: number;
   name: string;
   width: number;
@@ -160,7 +162,7 @@ export function PublicFloorMap({
           >
             {query.data?.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name}
+                {item.location ? `${item.location.physicalFloorName} · ${item.name}` : item.name}
               </option>
             ))}
           </select>

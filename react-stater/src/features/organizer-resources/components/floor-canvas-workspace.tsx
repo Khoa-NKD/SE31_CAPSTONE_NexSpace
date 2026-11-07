@@ -1,3 +1,4 @@
+import { FloorLocationBanner } from './floor-location-banner';
 import { useRef, useState } from 'react';
 import { useBlocker } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -39,6 +40,8 @@ import {
   floorLayoutOptions,
   getResource,
   saveResource,
+  saveResourceBatch,
+  resourcePayload,
   saveFloorDecorations,
   publishResourceFloor,
   resourceFormSchema,
@@ -113,7 +116,19 @@ export function FloorCanvasWorkspace({
     ...floorLayoutOptions(actorId, workspaceId, floorId),
     enabled: floorId > 0
   });
-  const layout = query.data;
+  const [pendingObjects, setPendingObjects] = useState<FloorDecoration[]>([]);
+  const [objectClipboard, setObjectClipboard] = useState<FloorDecoration | null>(null);
+  const layout = query.data
+    ? {
+        ...query.data,
+        decorations: [
+          ...(query.data.decorations ?? []).filter(
+            (item) => !pendingObjects.some((draft) => draft.id === item.id)
+          ),
+          ...pendingObjects
+        ]
+      }
+    : undefined;
   const [selection, setSelection] = useState<Selection | null>(null);
   const [availabilityMode, setAvailabilityMode] = useState(false);
   const [calendarFocus, setCalendarFocus] = useState({ key: null as string | null, sequence: 0 });
@@ -143,7 +158,7 @@ export function FloorCanvasWorkspace({
   const dirtyDimensions =
     !!dimensions &&
     (Number(dimensions.width) !== layout?.width || Number(dimensions.height) !== layout?.height);
-  const dirty = dirtySelection || dirtyDimensions;
+  const dirty = dirtySelection || dirtyDimensions || pendingObjects.length > 0;
   const navigation = useBlocker({
     shouldBlockFn: () => dirty || busy,
     enableBeforeUnload: () => dirty || busy,
@@ -158,7 +173,8 @@ export function FloorCanvasWorkspace({
       parentRoomId: selection?.resource?.parentRoomId ?? undefined,
       category: selection?.resource?.category,
       decoration: selection?.object
-    }
+    },
+    layout
   );
   const editable = writable && !!layout?.editableLayout && !availabilityMode;
   const width = dimensions?.width ?? String(layout?.width ?? 1200);
@@ -249,14 +265,50 @@ export function FloorCanvasWorkspace({
       focusCalendar(key);
       return;
     }
+    if (
+      selection?.object &&
+      key.startsWith('decoration:') &&
+      key !== selection.key &&
+      !busy &&
+      !loadingSelection
+    ) {
+      const object = selectedObject();
+      if (object)
+        setPendingObjects((items) => [...items.filter((item) => item.id !== object.id), object]);
+      void choose(key);
+      return;
+    }
     if (key !== selection?.key)
       act(() => {
         setDimensions(null);
         void choose(key);
       });
   };
+  function selectedObject() {
+    if (!selection?.object) return;
+    return {
+      ...selection.object,
+      posX: Number(selection.fields.posX),
+      posY: Number(selection.fields.posY),
+      width: Number(selection.fields.width),
+      height: Number(selection.fields.height),
+      rotation: Number(selection.fields.rotation)
+    };
+  }
+  function copyObject() {
+    const object = selectedObject();
+    if (!object) return;
+    setObjectClipboard({ ...object });
+    toast.success(c('Layout object copied.', 'Đã sao chép đồ bố trí.'));
+  }
   function addObject(kind: DecorationKind, copy?: FloorDecoration) {
-    act(() => {
+    const add = () => {
+      if ((layout?.decorations?.length ?? 0) >= 500) {
+        toast.error(
+          c('A floor supports up to 500 furnishings.', 'Mỗi sơ đồ tối đa 500 đồ bố trí.')
+        );
+        return;
+      }
       const preset = decorationPresets[kind];
       const object: FloorDecoration = copy
         ? {
@@ -278,13 +330,21 @@ export function FloorCanvasWorkspace({
             color: preset.color
           };
       const fields = canvasPosition(object);
+      const previous = selectedObject();
+      setPendingObjects((items) => [
+        ...items.filter((item) => item.id !== previous?.id),
+        ...(previous ? [previous] : []),
+        object
+      ]);
       setSelection({ key: `decoration:${object.id}`, object, initial: fields, fields });
       setUndo([]);
       setRedo([]);
       setSettings(false);
       setDimensions(null);
       setError('');
-    });
+    };
+    if (selection?.resource && dirtySelection) act(add);
+    else if (!busy && !loadingSelection && editable) add();
   }
   async function save() {
     if (!selection || !layout || busy || loadingSelection || !editable || validation.blocked)
@@ -296,7 +356,21 @@ export function FloorCanvasWorkspace({
         const form = resourceFormSchema.parse(
           canvasResourceForm(selection.resource, selection.fields)
         );
-        await saveResource(workspaceId, form, selection.resource);
+        if (pendingObjects.length)
+          await saveResourceBatch(
+            workspaceId,
+            floorId,
+            layout.floor.revision,
+            [
+              {
+                clientId: `r_${selection.resource.id}`,
+                id: selection.resource.id,
+                input: resourcePayload(form, selection.resource)
+              }
+            ],
+            layout.decorations
+          );
+        else await saveResource(workspaceId, form, selection.resource);
       } else if (selection.object) {
         const object = {
           ...selection.object,
@@ -323,6 +397,7 @@ export function FloorCanvasWorkspace({
       clearSelection();
       setDimensions(null);
       await onSaved();
+      setPendingObjects([]);
       toast.success(
         c(
           'Saved. Seats & Rooms now uses these coordinates.',
@@ -388,6 +463,13 @@ export function FloorCanvasWorkspace({
   }
   async function removeObject() {
     if (!selection?.object || !layout || busy || !editable) return;
+    if (!query.data?.decorations?.some((item) => item.id === selection.object!.id)) {
+      const id = selection.object.id;
+      setPendingObjects((items) => items.filter((item) => item.id !== id));
+      clearSelection();
+      setRemove(false);
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -607,6 +689,7 @@ export function FloorCanvasWorkspace({
           </Button>
         </div>
       </header>
+      {layout && <FloorLocationBanner floor={layout.floor} />}
       <div className='flex flex-wrap items-center gap-2 border-b border-border/80 bg-muted/20 px-4 py-2.5'>
         <select
           aria-label={c('Workspace', 'Không gian')}
@@ -685,9 +768,9 @@ export function FloorCanvasWorkspace({
           </button>
         </div>
       )}
-      <div className='grid min-h-0 flex-1 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[190px_minmax(0,1fr)_250px] 2xl:grid-cols-[210px_minmax(0,1fr)_270px]'>
-        <aside className='flex min-h-0 flex-col border-b border-border bg-muted/10 lg:border-b-0 lg:border-r'>
-          <div className='space-y-3 p-3'>
+      <div className='grid min-h-0 flex-1 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-cols-[190px_minmax(0,1fr)_250px] xl:grid-rows-[minmax(0,1fr)] 2xl:grid-cols-[210px_minmax(0,1fr)_270px]'>
+        <aside className='flex min-h-0 flex-col overflow-hidden border-b border-border bg-muted/10 lg:border-b-0 lg:border-r'>
+          <div className='shrink-0 space-y-3 p-3'>
             <div className='flex items-center justify-between text-xs font-semibold'>
               <span>{c('Layers & objects', 'Lớp & đối tượng')}</span>
               <span className='rounded-md bg-muted px-1.5 py-0.5 text-[10px] tabular-nums'>
@@ -766,7 +849,7 @@ export function FloorCanvasWorkspace({
               </p>
             )}
           </div>
-          <div className='space-y-2 border-t border-border p-3'>
+          <div className='shrink-0 space-y-2 border-t border-border bg-card p-3'>
             <p className='text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
               {c('Add to floor', 'Thêm vào sơ đồ')}
             </p>
@@ -809,7 +892,7 @@ export function FloorCanvasWorkspace({
         </aside>
         <section
           aria-label={c('Floor canvas', 'Canvas sơ đồ tầng')}
-          className='relative flex min-h-[550px] min-w-0 flex-col overflow-hidden bg-muted/20'
+          className='relative flex min-h-[360px] min-w-0 flex-col overflow-hidden bg-muted/20 xl:min-h-0'
         >
           {loadingSelection && (
             <div
@@ -854,6 +937,61 @@ export function FloorCanvasWorkspace({
             ) : selection && editable ? (
               <ResourcePlacementEditor
                 presentation='workspace'
+                draftLayout={layout}
+                onCopy={selection.object ? copyObject : undefined}
+                onPaste={
+                  objectClipboard
+                    ? () => addObject(objectClipboard.kind, objectClipboard)
+                    : undefined
+                }
+                actions={
+                  selection.object ? (
+                    <div className='flex flex-wrap items-center gap-2'>
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        disabled={busy}
+                        onClick={copyObject}
+                      >
+                        <Copy className='size-4' />
+                        {c('Copy', 'Sao chép')}
+                      </Button>
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        disabled={busy || !objectClipboard}
+                        onClick={() =>
+                          objectClipboard && addObject(objectClipboard.kind, objectClipboard)
+                        }
+                      >
+                        <Copy className='size-4' />
+                        {c('Paste', 'Dán')}
+                      </Button>
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='secondary'
+                        disabled={busy}
+                        onClick={() => {
+                          const object = selectedObject();
+                          if (object) addObject(object.kind, object);
+                        }}
+                      >
+                        <Plus className='size-4' />
+                        {c('Duplicate', 'Nhân bản')}
+                      </Button>
+                      <span className='text-xs text-muted-foreground'>
+                        {pendingObjects.length}{' '}
+                        {c(
+                          'pending changes · Save to apply together',
+                          'đồ bố trí chưa lưu · Lưu để áp dụng cùng lúc'
+                        )}
+                      </span>
+                    </div>
+                  ) : undefined
+                }
                 workspaceId={workspaceId}
                 floorId={floorId}
                 resourceId={selection.resource?.id}
@@ -1094,7 +1232,7 @@ export function FloorCanvasWorkspace({
                     <Input
                       inputMode='decimal'
                       value={key === 'width' ? width : height}
-                      disabled={busy || !editable}
+                      disabled={busy || !editable || !!layout?.floor.location}
                       onChange={(event) =>
                         setDimensions({ width, height, [key]: event.target.value })
                       }
@@ -1185,7 +1323,11 @@ export function FloorCanvasWorkspace({
                 className='w-full rounded-xl'
                 size='sm'
                 disabled={
-                  busy || !editable || !dirtySelection || validation.blocked || loadingSelection
+                  busy ||
+                  !editable ||
+                  (!dirtySelection && !pendingObjects.length) ||
+                  validation.blocked ||
+                  loadingSelection
                 }
                 onClick={() => void save()}
               >
@@ -1210,13 +1352,10 @@ export function FloorCanvasWorkspace({
           )}
         </aside>
       </div>
-      <footer className='flex flex-wrap items-center justify-between gap-2 border-t border-border bg-muted/20 px-4 py-2 text-[10px] text-muted-foreground'>
+      <footer className='relative flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground'>
         <span className='flex items-center gap-1.5'>
           <CheckCircle2 className='size-3.5 text-primary' />
-          {c(
-            'Same resources. Same coordinates. No duplicate layout data.',
-            'Chung dữ liệu ghế/phòng và tọa độ với trang quản lý.'
-          )}
+          {c('Synced with Seats & Rooms.', 'Đồng bộ với Quản lý ghế & phòng.')}
         </span>
         <span>
           {c(
@@ -1262,6 +1401,7 @@ export function FloorCanvasWorkspace({
                 const action = pending;
                 setPending(null);
                 clearSelection();
+                setPendingObjects([]);
                 setDimensions(null);
                 if (navigation.status === 'blocked') navigation.proceed();
                 else action?.();

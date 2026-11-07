@@ -1,3 +1,4 @@
+import type { AllocationInput, FloorLocation } from './buildings';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { backendRequest } from '../../auth/api/session.ts';
@@ -20,6 +21,7 @@ export interface FloorOption {
   floorNumber: number;
   status: 'DRAFT' | 'PUBLISHED';
   revision: string;
+  location?: FloorLocation | null;
 }
 
 export type AvailabilityState = 'AVAILABLE' | 'LOCKED' | 'BOOKED' | 'DISABLED' | 'MAINTENANCE';
@@ -45,11 +47,13 @@ export const copyResourceFloor = (
   workspaceId: number,
   floor: FloorOption,
   name: string,
-  floorNumber: number
+  floorNumber: number,
+  allocation?: AllocationInput
 ) =>
   backendRequest<FloorOption>(`${floorPath(workspaceId, floor.id)}/copy`, 'POST', {
     name,
     floorNumber,
+    allocation,
     expectedRevision: floor.revision
   });
 export function floorAvailabilityOptions(
@@ -258,6 +262,25 @@ export function resourceWorkspacesOptions(actorId: number) {
     refetchOnWindowFocus: false
   });
 }
+
+export function saveResourceBatch(
+  workspaceId: number,
+  floorId: number,
+  expectedFloorRevision: string,
+  items: Array<{
+    clientId: string;
+    id?: number;
+    parentClientId?: string;
+    input: ReturnType<typeof resourcePayload>;
+  }>,
+  decorations?: FloorDecoration[]
+) {
+  return backendRequest<Array<{ clientId: string; resource: ResourceDetail }>>(
+    `/organizer/workspaces/${workspaceId}/resource-floors/${floorId}/resources/batch`,
+    'POST',
+    { expectedFloorRevision, items, ...(decorations ? { decorations } : {}) }
+  );
+}
 export function resourceOptions(actorId: number, workspaceId: number) {
   return queryOptions({
     queryKey: ['organizer-resources', actorId, workspaceId, 'options'],
@@ -316,7 +339,7 @@ export const deleteResource = (resource: ResourceDetail) =>
   );
 export const createResourceFloor = (
   workspaceId: number,
-  value: { name: string; floorNumber: number }
+  value: { name: string; floorNumber: number; allocation?: AllocationInput }
 ) =>
   backendRequest<FloorOption>(
     `/organizer/workspaces/${workspaceId}/resource-floors`,
