@@ -30,13 +30,16 @@ public class MediaUploadController extends BaseAPIController {
 
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("isAuthenticated()")
-    @Operation(summary = "Tải lên một file ảnh (tối đa 5MB, JPG/PNG/WebP)")
+    @Operation(summary = "Tải lên một file ảnh (tối đa 5MB, JPG/PNG/WebP). Nếu truyền workspaceId, tự động lưu vào nexspace/workspaces/{workspaceId}")
     public ResponseEntity<ApiResponse<MediaUploadResponseDto>> uploadMedia(
             @Parameter(description = "File ảnh tải lên") @RequestParam("file") MultipartFile file,
-            @Parameter(description = "Thư mục lưu trữ tùy chọn") @RequestParam(value = "folder", required = false) String folder
+            @Parameter(description = "Thư mục lưu trữ tùy chọn") @RequestParam(value = "folder", required = false) String folder,
+            @Parameter(description = "ID không gian làm việc (tùy chọn)") @RequestParam(value = "workspaceId", required = false) Long workspaceId
     ) {
         Long actorId = getCurrentUserId();
-        MediaUploadResponseDto response = mediaStorageService.uploadImage(file, folder, actorId);
+        MediaUploadResponseDto response = (workspaceId != null && workspaceId > 0)
+                ? mediaStorageService.uploadWorkspaceImage(file, workspaceId, actorId)
+                : mediaStorageService.uploadImage(file, folder, actorId);
         return success(response, "Tải lên ảnh thành công");
     }
 

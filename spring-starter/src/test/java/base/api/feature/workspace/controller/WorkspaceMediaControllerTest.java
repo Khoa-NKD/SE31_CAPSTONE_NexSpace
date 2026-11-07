@@ -203,4 +203,34 @@ class WorkspaceMediaControllerTest {
 
         verify(workspaceMediaService).deleteMedia(eq(1L), eq(101L), eq(10L));
     }
+
+    @Test
+    @DisplayName("POST /api/workspaces/{id}/media/upload: tải lên ảnh multipart trực tiếp trả về 201 Created")
+    void uploadWorkspaceMedia_returnsCreated() throws Exception {
+        mockAuth(10L);
+
+        org.springframework.mock.web.MockMultipartFile file = new org.springframework.mock.web.MockMultipartFile(
+                "file", "office.jpg", "image/jpeg", "image bytes".getBytes()
+        );
+
+        WorkspaceMediaResponseDto responseDto = WorkspaceMediaResponseDto.builder()
+                .id(105L)
+                .workspaceId(1L)
+                .url("https://res.cloudinary.com/test/nexspace/workspaces/1/office.jpg")
+                .cover(true)
+                .build();
+
+        when(workspaceMediaService.uploadAndAddMedia(eq(1L), any(), eq(true), eq(10L)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart("/api/workspaces/1/media/upload")
+                        .file(file)
+                        .param("isCover", "true"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(105L))
+                .andExpect(jsonPath("$.data.url").value("https://res.cloudinary.com/test/nexspace/workspaces/1/office.jpg"));
+
+        verify(workspaceMediaService).uploadAndAddMedia(eq(1L), any(), eq(true), eq(10L));
+    }
 }

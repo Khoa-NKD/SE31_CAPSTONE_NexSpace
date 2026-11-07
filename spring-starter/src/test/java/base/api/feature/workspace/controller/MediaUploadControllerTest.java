@@ -93,6 +93,37 @@ class MediaUploadControllerTest {
     }
 
     @Test
+    @DisplayName("POST /api/media/upload: khi truyền param workspaceId thì gọi uploadWorkspaceImage")
+    void uploadMedia_withWorkspaceId_success() throws Exception {
+        mockAuth(10L);
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file",
+                "room.jpg",
+                "image/jpeg",
+                "content".getBytes()
+        );
+
+        MediaUploadResponseDto responseDto = MediaUploadResponseDto.builder()
+                .id("nexspace/workspaces/5/room")
+                .publicId("nexspace/workspaces/5/room")
+                .url("https://res.cloudinary.com/demo/image/upload/v1/nexspace/workspaces/5/room.jpg")
+                .build();
+
+        when(mediaStorageService.uploadWorkspaceImage(any(), eq(5L), eq(10L)))
+                .thenReturn(responseDto);
+
+        mockMvc.perform(multipart("/api/media/upload")
+                        .file(file)
+                        .param("workspaceId", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.publicId").value("nexspace/workspaces/5/room"));
+
+        verify(mediaStorageService).uploadWorkspaceImage(any(), eq(5L), eq(10L));
+    }
+
+    @Test
     @DisplayName("POST /api/media/upload: ném 400 Bad Request khi file không hợp lệ")
     void uploadMedia_invalidFile_returnsBadRequest() throws Exception {
         mockAuth(10L);

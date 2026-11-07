@@ -29,6 +29,8 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # cloudinary.api-key=your_api_key
 # cloudinary.api-secret=your_api_secret
 # cloudinary.folder=nexspace/workspaces
+# cloudinary.folder.nexspace=nexspace
+# cloudinary.folder.nexspace.workspace=nexspace/workspaces/{id}
 
 # ── Mail Service (SMTP) ──────────────────────────────────────────────────────
 # Optional — only needed when app.auth.email-verification-enabled=true or for password reset
