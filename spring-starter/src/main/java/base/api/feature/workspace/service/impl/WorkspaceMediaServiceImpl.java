@@ -37,6 +37,7 @@ public class WorkspaceMediaServiceImpl implements IWorkspaceMediaService {
     private final IMediaRepository mediaRepository;
     private final IBookableResourceRepository resourceRepository;
     private final CurrentUserProvider currentUserProvider;
+    private final base.api.feature.workspace.service.IMediaStorageService mediaStorageService;
 
     @Override
     @Transactional(readOnly = true)
@@ -105,6 +106,41 @@ public class WorkspaceMediaServiceImpl implements IWorkspaceMediaService {
         MediaModel saved = mediaRepository.save(media);
         log.info("Added media ID: {} to workspace ID: {} (cover={}) by actor ID: {}",
                 saved.getId(), workspaceId, isCover, actorId);
+
+        return WorkspaceMediaMapper.toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public WorkspaceMediaResponseDto uploadAndAddMedia(Long workspaceId, org.springframework.web.multipart.MultipartFile file, Boolean isCover, Long actorId) {
+        WorkspaceModel workspace = getWorkspaceWithOwnershipCheck(workspaceId, actorId);
+
+        base.api.feature.workspace.dto.response.MediaUploadResponseDto uploadResult =
+                mediaStorageService.uploadWorkspaceImage(file, workspaceId, actorId);
+
+        int count = mediaRepository.countByWorkspaceId(workspaceId);
+        boolean makeCover = Boolean.TRUE.equals(isCover) || count == 0;
+
+        if (makeCover && count > 0) {
+            List<MediaModel> existing = mediaRepository.findByWorkspaceIdOrderByDisplayOrderAsc(workspaceId);
+            for (MediaModel m : existing) {
+                if (m.isCover()) {
+                    m.setCover(false);
+                    mediaRepository.save(m);
+                }
+            }
+        }
+
+        MediaModel media = new MediaModel();
+        media.setWorkspace(workspace);
+        media.setUrl(uploadResult.getUrl().trim());
+        media.setMediaType(MediaType.IMAGE);
+        media.setCover(makeCover);
+        media.setDisplayOrder(count);
+
+        MediaModel saved = mediaRepository.save(media);
+        log.info("Uploaded and added media ID: {} to workspace ID: {} (cover={}) by actor ID: {}",
+                saved.getId(), workspaceId, makeCover, actorId);
 
         return WorkspaceMediaMapper.toDto(saved);
     }

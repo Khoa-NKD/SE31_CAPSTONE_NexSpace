@@ -31,7 +31,8 @@ class MediaStorageServiceImplTest {
         ReflectionTestUtils.setField(storageService, "cloudName", "");
         ReflectionTestUtils.setField(storageService, "apiKey", "");
         ReflectionTestUtils.setField(storageService, "apiSecret", "");
-        ReflectionTestUtils.setField(storageService, "defaultFolder", "test-workspaces");
+        ReflectionTestUtils.setField(storageService, "rootFolder", "nexspace");
+        ReflectionTestUtils.setField(storageService, "workspaceFolderPattern", "test-workspaces/{id}");
         ReflectionTestUtils.setField(storageService, "apiUrl", "http://localhost:8080");
     }
 
@@ -138,6 +139,45 @@ class MediaStorageServiceImplTest {
         storageService.deleteImage("non-existing-public-id", 42L);
         storageService.deleteImage(null, 42L);
         storageService.deleteImage("", 42L);
+    }
+
+    @Test
+    @DisplayName("resolveWorkspaceFolder: thay thế {id} bằng workspaceId thực tế")
+    void resolveWorkspaceFolder_withWorkspaceId_replacesPattern() {
+        ReflectionTestUtils.setField(storageService, "rootFolder", "nexspace");
+        ReflectionTestUtils.setField(storageService, "workspaceFolderPattern", "nexspace/workspaces/{id}");
+
+        String folder = storageService.resolveWorkspaceFolder(99L);
+        assertThat(folder).isEqualTo("nexspace/workspaces/99");
+    }
+
+    @Test
+    @DisplayName("resolveWorkspaceFolder: khi workspaceId null thì trả về thư mục workspaces chung")
+    void resolveWorkspaceFolder_withoutWorkspaceId_returnsFallback() {
+        ReflectionTestUtils.setField(storageService, "rootFolder", "nexspace");
+        ReflectionTestUtils.setField(storageService, "workspaceFolderPattern", "nexspace/workspaces/{id}");
+
+        String folder = storageService.resolveWorkspaceFolder(null);
+        assertThat(folder).isEqualTo("nexspace/workspaces");
+    }
+
+    @Test
+    @DisplayName("uploadWorkspaceImage: tải lên file cục bộ vào thư mục phân cấp theo workspaceId")
+    void uploadWorkspaceImage_success() {
+        ReflectionTestUtils.setField(storageService, "rootFolder", "test-root");
+        ReflectionTestUtils.setField(storageService, "workspaceFolderPattern", "test-workspaces/{id}");
+
+        MockMultipartFile validFile = new MockMultipartFile(
+                "file",
+                "workspace-room.jpg",
+                "image/jpeg",
+                "image byte content".getBytes()
+        );
+
+        MediaUploadResponseDto result = storageService.uploadWorkspaceImage(validFile, 123L, 1L);
+        assertThat(result).isNotNull();
+        assertThat(result.getUrl()).contains("test-workspaces/123/");
+        assertThat(result.getPublicId()).startsWith("test-workspaces/123/");
     }
 }
 

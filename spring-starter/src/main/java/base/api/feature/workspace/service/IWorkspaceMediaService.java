@@ -13,6 +13,8 @@ public interface IWorkspaceMediaService {
 
     WorkspaceMediaResponseDto addMedia(Long workspaceId, AddWorkspaceMediaDto dto, Long actorId);
 
+    WorkspaceMediaResponseDto uploadAndAddMedia(Long workspaceId, org.springframework.web.multipart.MultipartFile file, Boolean isCover, Long actorId);
+
     List<WorkspaceMediaResponseDto> syncMedia(Long workspaceId, SyncWorkspaceMediaDto dto, Long actorId);
 
     WorkspaceMediaResponseDto setCover(Long workspaceId, Long mediaId, Long actorId);

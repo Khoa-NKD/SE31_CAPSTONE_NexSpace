@@ -28,9 +28,15 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # cloudinary.cloud-name=your_cloud_name
 # cloudinary.api-key=your_api_key
 # cloudinary.api-secret=your_api_secret
-# cloudinary.folder=nexspace/workspaces
+# cloudinary.folder.nexspace=nexspace
+# cloudinary.folder.nexspace.workspace=nexspace/workspaces/{id}
 
 # ── Mail Service (SMTP) ──────────────────────────────────────────────────────
 # Optional — only needed when app.auth.email-verification-enabled=true or for password reset
 # spring.mail.username=your-email@gmail.com
 # spring.mail.password=your-gmail-app-password
+
+# ── Application URLs & Features (Optional overrides) ─────────────────────────
+# app.auth.email-verification-enabled=true
+# app.client-url=http://localhost:3000
+# app.api-url=http://localhost:8080

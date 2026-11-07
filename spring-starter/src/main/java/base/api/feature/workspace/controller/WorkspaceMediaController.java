@@ -58,6 +58,19 @@ public class WorkspaceMediaController extends BaseAPIController {
         return created(created, "Thêm ảnh vào không gian thành công");
     }
 
+    @PostMapping(value = "/upload", consumes = org.springframework.http.MediaType.MULTIPART_FORM_DATA_VALUE)
+    @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
+    @Operation(summary = "Tải lên trực tiếp ảnh cho không gian làm việc (tự động lưu vào nexspace/workspaces/{workspaceId})")
+    public ResponseEntity<ApiResponse<WorkspaceMediaResponseDto>> uploadWorkspaceMedia(
+            @Parameter(description = "ID không gian làm việc") @PathVariable Long workspaceId,
+            @Parameter(description = "File ảnh tải lên") @org.springframework.web.bind.annotation.RequestParam("file") org.springframework.web.multipart.MultipartFile file,
+            @Parameter(description = "Đặt làm ảnh bìa") @org.springframework.web.bind.annotation.RequestParam(value = "isCover", required = false) Boolean isCover
+    ) {
+        Long actorId = getCurrentUserId();
+        WorkspaceMediaResponseDto created = workspaceMediaService.uploadAndAddMedia(workspaceId, file, isCover, actorId);
+        return created(created, "Tải lên và thêm ảnh vào không gian thành công");
+    }
+
     @PutMapping("/sync")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
     @Operation(summary = "Đồng bộ / lưu hàng loạt bộ sưu tập ảnh của không gian làm việc")

@@ -48,17 +48,45 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     @Value("${cloudinary.api-secret:}")
     private String apiSecret;
 
-    @Value("${cloudinary.folder:nexspace/workspaces}")
-    private String defaultFolder;
+    @Value("${cloudinary.folder.nexspace:nexspace}")
+    private String rootFolder;
+
+    @Value("${cloudinary.folder.nexspace.workspace:${cloudinary.folder.nexspace:nexspace}/workspaces/{id}}")
+    private String workspaceFolderPattern;
 
     @Value("${app.api-url:http://localhost:8080}")
     private String apiUrl;
 
     @Override
+    public String resolveWorkspaceFolder(Long workspaceId) {
+        if (workspaceId != null && workspaceId > 0) {
+            if (StringUtils.hasText(workspaceFolderPattern) && workspaceFolderPattern.contains("{id}")) {
+                return workspaceFolderPattern.replace("{id}", String.valueOf(workspaceId));
+            }
+            String base = StringUtils.hasText(rootFolder) ? rootFolder.trim() : "nexspace";
+            return base + "/workspaces/" + workspaceId;
+        }
+        if (StringUtils.hasText(workspaceFolderPattern)) {
+            String fallback = workspaceFolderPattern.replace("/{id}", "").replace("{id}", "").trim();
+            if (StringUtils.hasText(fallback)) {
+                return fallback;
+            }
+        }
+        String base = StringUtils.hasText(rootFolder) ? rootFolder.trim() : "nexspace";
+        return base + "/workspaces";
+    }
+
+    @Override
+    public MediaUploadResponseDto uploadWorkspaceImage(MultipartFile file, Long workspaceId, Long actorId) {
+        String targetFolder = resolveWorkspaceFolder(workspaceId);
+        return uploadImage(file, targetFolder, actorId);
+    }
+
+    @Override
     public MediaUploadResponseDto uploadImage(MultipartFile file, String folder, Long actorId) {
         validateFile(file);
 
-        String targetFolder = (folder != null && !folder.isBlank()) ? folder : defaultFolder;
+        String targetFolder = (folder != null && !folder.isBlank()) ? folder : resolveWorkspaceFolder(null);
 
         if (isCloudinaryConfigured()) {
             return uploadToCloudinary(file, targetFolder, actorId);

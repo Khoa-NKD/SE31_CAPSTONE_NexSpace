@@ -49,6 +49,9 @@ class WorkspaceMediaServiceImplTest {
     @Mock
     private CurrentUserProvider currentUserProvider;
 
+    @Mock
+    private base.api.feature.workspace.service.IMediaStorageService mediaStorageService;
+
     @InjectMocks
     private WorkspaceMediaServiceImpl workspaceMediaService;
 
@@ -305,5 +308,37 @@ class WorkspaceMediaServiceImplTest {
         assertThatThrownBy(() -> workspaceMediaService.deleteMedia(1L, 101L, 999L))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Không tìm thấy không gian làm việc với ID: 1");
+    }
+
+    @Test
+    @DisplayName("uploadAndAddMedia: tải lên và thêm ảnh thành công vào gallery của workspace")
+    void uploadAndAddMedia_success() {
+        when(workspaceRepository.findById(1L)).thenReturn(Optional.of(activeWorkspace));
+        when(currentUserProvider.isAdmin()).thenReturn(false);
+
+        org.springframework.mock.web.MockMultipartFile file = new org.springframework.mock.web.MockMultipartFile(
+                "file", "room.jpg", "image/jpeg", "image bytes".getBytes()
+        );
+
+        base.api.feature.workspace.dto.response.MediaUploadResponseDto uploadResult =
+                base.api.feature.workspace.dto.response.MediaUploadResponseDto.builder()
+                        .url("https://res.cloudinary.com/test/nexspace/workspaces/1/room.jpg")
+                        .publicId("nexspace/workspaces/1/room")
+                        .build();
+
+        when(mediaStorageService.uploadWorkspaceImage(any(), eq(1L), eq(10L))).thenReturn(uploadResult);
+        when(mediaRepository.countByWorkspaceId(1L)).thenReturn(0);
+        when(mediaRepository.save(any(MediaModel.class))).thenAnswer(invocation -> {
+            MediaModel m = invocation.getArgument(0);
+            m.setId(201L);
+            return m;
+        });
+
+        WorkspaceMediaResponseDto result = workspaceMediaService.uploadAndAddMedia(1L, file, true, 10L);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getUrl()).isEqualTo("https://res.cloudinary.com/test/nexspace/workspaces/1/room.jpg");
+        assertThat(result.isCover()).isTrue();
+        verify(mediaStorageService).uploadWorkspaceImage(any(), eq(1L), eq(10L));
     }
 }

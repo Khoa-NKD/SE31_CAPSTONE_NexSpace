@@ -22,7 +22,8 @@ Mở file `spring-starter/src/main/resources/application-local.properties` và t
 cloudinary.cloud-name=your_cloud_name_here
 cloudinary.api-key=your_api_key_here
 cloudinary.api-secret=your_api_secret_here
-cloudinary.folder=nexspace/workspaces
+cloudinary.folder.nexspace=nexspace
+cloudinary.folder.nexspace.workspace=nexspace/workspaces/{id}
 ```
 
 *(Lưu ý: File `application-local.properties` được `.gitignore` bảo vệ, tuyệt đối không commit lên Git).*
