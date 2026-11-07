@@ -4,6 +4,7 @@ import base.api.feature.auth.dto.request.ChangePasswordDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.mapper.UserMapper;
+import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.repository.IUserSessionRepository;
 import base.api.feature.auth.service.IUserService;
@@ -11,6 +12,7 @@ import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
 import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.identity.UserSessionModel;
 import base.api.shared.enums.AuditActorType;
@@ -51,6 +53,7 @@ public class UserServiceImpl implements IUserService {
     private final PasswordEncoder passwordEncoder;
     private final IAuditService auditService;
     private final IMediaStorageService mediaStorageService;
+    private final IRoleRepository roleRepository;
 
     @Override
     @Transactional(readOnly = true)
@@ -395,6 +398,59 @@ public class UserServiceImpl implements IUserService {
                 oldStatus != null ? oldStatus.name() : null,
                 status.name(),
                 auditDetail,
+                null
+        );
+
+        return UserMapper.toDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public UserDto updateUserRole(Long actorId, Long targetUserId, UserRole role, String reason) {
+        if (actorId.equals(targetUserId)) {
+            throw new BadRequestException("Không thể tự thay đổi vai trò của chính mình");
+        }
+        if (role == null) {
+            throw new BadRequestException("Vai trò không được để trống");
+        }
+        if (reason == null || reason.isBlank()) {
+            throw new BadRequestException("Vui lòng nhập lý do khi thay đổi vai trò người dùng");
+        }
+
+        UserModel actor = findUser(actorId);
+        UserModel target = findUser(targetUserId);
+        UserRole oldRole = target.getRole();
+
+        if (oldRole == UserRole.ADMIN && role != UserRole.ADMIN) {
+            long activeAdminCount = userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE);
+            if (activeAdminCount <= 1 && target.getStatus() == UserStatus.ACTIVE) {
+                throw new ConflictException("Không thể hạ quyền Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống");
+            }
+        }
+
+        RoleModel roleEntity = roleRepository.findByName(role.name())
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy vai trò: " + role.name()));
+
+        target.setRoleEntity(roleEntity);
+        UserModel saved = userRepository.saveAndFlush(target);
+
+        List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
+        if (!activeSessions.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+            activeSessions.forEach(session -> session.setRevokedAt(now));
+            userSessionRepository.saveAll(activeSessions);
+        }
+
+        auditService.log(
+                actor,
+                AuditActorType.USER,
+                "USER",
+                "USER_ROLE_CHANGED",
+                "UserModel",
+                targetUserId,
+                oldRole != null ? oldRole.name() : null,
+                role.name(),
+                reason.trim(),
                 null
         );
 
