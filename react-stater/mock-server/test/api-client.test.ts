@@ -359,6 +359,20 @@ async function runClientTests() {
     assert(Array.isArray(publicFeatured) && publicFeatured.length > 0, 'apiClient GET /public/workspaces/featured returns items');
     assert(publicFeatured.some((w) => w.id === 'WS-101'), 'public featured includes WS-101');
 
+    // 20c. Proximity Search: GET /public/workspaces/nearby
+    console.log('\n--- Client Test 20c: Nearby Workspaces via apiClient ---');
+    // Ben Thanh Market coordinates (District 1, HCMC)
+    const nearbyRes = await apiClient.get<any>('/public/workspaces/nearby', {
+      params: { lat: 10.7725, lng: 106.6980, radiusKm: 15.0 }
+    });
+    assert(nearbyRes?.content && Array.isArray(nearbyRes.content), 'nearby returns content array');
+    assert(nearbyRes.content.length > 0, 'nearby finds active workspaces in HCM');
+    assert(typeof nearbyRes.content[0].distanceKm === 'number', 'nearby items have distanceKm property');
+    assert(nearbyRes.content[0].distanceKm <= 15.0, 'nearby item distance is within 15km');
+    if (nearbyRes.content.length > 1) {
+      assert(nearbyRes.content[0].distanceKm <= nearbyRes.content[1].distanceKm, 'nearby results are sorted by distance ascending');
+    }
+
     // 21. Cleanup reset
     console.log('\n--- Client Test 21: Reset via apiClient ---');
     const resetResult = await apiClient.post<any>('/dev/reset');

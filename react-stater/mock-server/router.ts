@@ -32,6 +32,7 @@ import {
   handleAdminModerationWorkspace,
   handleGetFeaturedWorkspaces,
   handleAdminFeaturedWorkspace,
+  handleGetNearbyWorkspaces,
   handleGetWorkspaceAmenities
 } from './routes/workspaces.ts';
 import {
@@ -75,7 +76,10 @@ export async function handleRequest(
   const method = req.method?.toUpperCase() || 'GET';
   const rawUrl = req.url || '/';
   const urlObj = new URL(rawUrl, `http://${req.headers.host || 'localhost:4000'}`);
-  const pathname = urlObj.pathname;
+  let pathname = urlObj.pathname;
+  if (pathname.startsWith('/api/') && !pathname.startsWith('/api/v1/')) {
+    pathname = pathname.replace(/^\/api\//, '/api/v1/');
+  }
   const searchParams = urlObj.searchParams;
 
   // Handle CORS Preflight
@@ -275,6 +279,12 @@ export async function handleRequest(
   // 11b. Public Featured Workspaces: GET /api/v1/public/workspaces/featured
   if (pathname === '/api/v1/public/workspaces/featured' && method === 'GET') {
     await handleGetFeaturedWorkspaces(res);
+    return;
+  }
+
+  // 11c. Public Nearby Workspaces: GET /api/v1/public/workspaces/nearby
+  if (pathname === '/api/v1/public/workspaces/nearby' && method === 'GET') {
+    await handleGetNearbyWorkspaces(res, searchParams);
     return;
   }
 

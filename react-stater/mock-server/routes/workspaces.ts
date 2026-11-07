@@ -79,6 +79,7 @@ export interface CanonicalWorkspace {
   postalCode?: string;
   latitude: number | null;
   longitude: number | null;
+  distanceKm?: number | null;
   timezone: string;
   entryInstructions?: string;
   operatingHours: WorkspaceOperatingHour[];
@@ -170,6 +171,7 @@ export function toPublicWorkspaceSummary(w: CanonicalWorkspace) {
     operatingHours: w.operatingHours,
     bookingConfirmationMode: w.bookingConfirmationMode,
     featuredPosition: w.featuredPosition,
+    distanceKm: (w as any).distanceKm,
     publicUrl: w.publicUrl
   };
 }
@@ -2766,4 +2768,154 @@ export async function handleAdminFeaturedWorkspace(
   await persistWorkspaceMutation(workspace);
   res.writeHead(200, { 'Content-Type': 'application/json' });
   res.end(JSON.stringify({ success: true, data: workspace, timestamp: new Date().toISOString() }));
+}
+
+/**
+ * Haversine formula to compute great-circle distance between two points in km.
+ */
+function calculateHaversineDistanceKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Earth's mean radius in kilometers
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return Math.round(R * c * 100) / 100;
+}
+
+/**
+ * GET /api/v1/public/workspaces/nearby
+ * Proximity distance search using native coordinate math.
+ */
+export async function handleGetNearbyWorkspaces(
+  res: ServerResponse,
+  searchParams: URLSearchParams
+): Promise<void> {
+  try {
+    const latParam = searchParams.get('lat');
+    const lngParam = searchParams.get('lng');
+    const radiusParam = searchParams.get('radiusKm') || '10.0';
+
+    if (!latParam || !lngParam) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          statusCode: 400,
+          error: 'BadRequest',
+          message: 'Tọa độ tìm kiếm (lat, lng) không được để trống'
+        })
+      );
+      return;
+    }
+
+    const lat = parseFloat(latParam);
+    const lng = parseFloat(lngParam);
+    const radiusKm = parseFloat(radiusParam);
+
+    if (isNaN(lat) || lat < -90 || lat > 90) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          statusCode: 400,
+          error: 'BadRequest',
+          message: 'Vĩ độ (latitude) phải nằm trong phạm vi [-90, 90]'
+        })
+      );
+      return;
+    }
+
+    if (isNaN(lng) || lng < -180 || lng > 180) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          statusCode: 400,
+          error: 'BadRequest',
+          message: 'Kinh độ (longitude) phải nằm trong phạm vi [-180, 180]'
+        })
+      );
+      return;
+    }
+
+    if (isNaN(radiusKm) || radiusKm < 0.5 || radiusKm > 50.0) {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(
+        JSON.stringify({
+          success: false,
+          statusCode: 400,
+          error: 'BadRequest',
+          message: 'Bán kính tìm kiếm (radiusKm) phải nằm trong khoảng [0.5, 50.0] km'
+        })
+      );
+      return;
+    }
+
+    const allWorkspaces = await getAllNormalizedWorkspaces();
+
+    const withDistances: { workspace: CanonicalWorkspace; distanceKm: number }[] = [];
+
+    for (const w of allWorkspaces) {
+      if (!isPubliclyEligible(w)) continue;
+      if (typeof w.latitude !== 'number' || typeof w.longitude !== 'number') continue;
+      if (w.latitude === 0 && w.longitude === 0) continue;
+
+      const dist = calculateHaversineDistanceKm(lat, lng, w.latitude, w.longitude);
+      if (dist <= radiusKm) {
+        withDistances.push({ workspace: { ...w, distanceKm: dist }, distanceKm: dist });
+      }
+    }
+
+    // Sort by distance ascending
+    withDistances.sort((a, b) => a.distanceKm - b.distanceKm);
+
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10));
+    const limit = Math.max(1, Math.min(100, parseInt(searchParams.get('limit') || '12', 10)));
+    const totalElements = withDistances.length;
+    const totalPages = Math.ceil(totalElements / limit) || 1;
+    const offset = (page - 1) * limit;
+
+    const paginated = withDistances
+      .slice(offset, offset + limit)
+      .map((item) => ({
+        ...toPublicWorkspaceSummary(item.workspace),
+        distanceKm: item.distanceKm
+      }));
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          content: paginated,
+          pagination: {
+            page,
+            limit,
+            totalElements,
+            totalPages
+          },
+          listObjects: paginated,
+          totalRecords: totalElements,
+          pageNumber: page,
+          pageSize: limit
+        },
+        timestamp: new Date().toISOString()
+      })
+    );
+  } catch {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: false,
+        statusCode: 500,
+        error: 'InternalServerError',
+        message: 'Lỗi hệ thống khi tìm kiếm không gian lân cận'
+      })
+    );
+  }
 }

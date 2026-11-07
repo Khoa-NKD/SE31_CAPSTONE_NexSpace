@@ -79,6 +79,7 @@ export interface CanonicalWorkspace {
   postalCode?: string;
   latitude: number | null;
   longitude: number | null;
+  distanceKm?: number | null;
   timezone: string;
   entryInstructions?: string;
 
@@ -190,6 +191,7 @@ export interface PublicWorkspaceSummary {
   city: string;
   latitude: number;
   longitude: number;
+  distanceKm?: number;
   coverImageUrl: string;
   images: WorkspaceMediaItem[];
   capacityDesks: number;
@@ -254,6 +256,14 @@ export interface PublicWorkspaceFilterParams {
   limit?: number;
   sortBy?: 'name' | 'rating' | 'pricePerHour' | 'featuredPosition';
   sortOrder?: 'asc' | 'desc';
+}
+
+export interface NearbyWorkspacesParams {
+  lat: number;
+  lng: number;
+  radiusKm?: number;
+  page?: number;
+  limit?: number;
 }
 
 export interface CreateWorkspaceDto {
