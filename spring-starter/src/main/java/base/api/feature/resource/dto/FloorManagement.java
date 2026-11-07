@@ -26,7 +26,9 @@ public final class FloorManagement {
     public record Copy(
             @NotBlank @Size(max = 100) String name,
             @NotNull @Min(-20) @Max(500) Integer floorNumber,
-            @NotBlank @Size(max = 100) String expectedRevision) {
+            @NotBlank @Size(max = 100) String expectedRevision,
+            @jakarta.validation.Valid BuildingRequests.Allocation allocation) {
+        public Copy(String name, Integer floorNumber, String expectedRevision) { this(name, floorNumber, expectedRevision, null); }
         public Copy {
             name = name == null ? null : name.trim();
         }

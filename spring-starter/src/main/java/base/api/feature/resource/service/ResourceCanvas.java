@@ -84,6 +84,9 @@ public final class ResourceCanvas {
             Bounds bounds,
             java.util.List<base.api.feature.resource.dto.FloorDecorations.Item> decorations,
             boolean editor) {
+        if (floor.getBuildingFloor() != null && (floor.getUsageWidth().compareTo(bounds.width()) != 0
+                || floor.getUsageHeight().compareTo(bounds.height()) != 0))
+            throw new ConflictException("Canvas dimensions must match this workspace's allocated area on the physical floor");
         var mapper = new ObjectMapper();
         var existing =
                 readJson(

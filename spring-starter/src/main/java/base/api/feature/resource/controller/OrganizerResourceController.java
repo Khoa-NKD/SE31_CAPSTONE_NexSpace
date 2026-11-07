@@ -71,6 +71,15 @@ public class OrganizerResourceController extends BaseAPIController {
         return success(service.detail(getCurrentUserId(), id));
     }
 
+    @PostMapping("/workspaces/{workspaceId}/resource-floors/{floorId}/resources/batch")
+    public ResponseEntity<ApiResponse<List<BatchResult>>> batch(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long floorId,
+            @Valid @RequestBody Batch input) {
+        return created(service.saveBatch(getCurrentUserId(), workspaceId, floorId, input),
+                "Resources saved atomically");
+    }
+
     @PutMapping("/resources/{id}")
     public ResponseEntity<ApiResponse<Detail>> update(
             @PathVariable @Positive Long id, @Valid @RequestBody Input input) {

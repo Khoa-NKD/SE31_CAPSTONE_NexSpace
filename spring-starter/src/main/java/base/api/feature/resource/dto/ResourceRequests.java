@@ -1,6 +1,7 @@
 package base.api.feature.resource.dto;
 
 import base.api.shared.enums.*;
+import base.api.feature.resource.dto.FloorDecorations.Item;
 
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 
@@ -90,8 +91,31 @@ public final class ResourceRequests {
         }
     }
 
+    public record BatchItem(
+            @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{1,64}") String clientId,
+            @Positive Long id,
+            @Pattern(regexp = "[A-Za-z0-9_-]{1,64}") String parentClientId,
+            @NotNull @jakarta.validation.Valid Input input) {
+        @JsonAnySetter
+        public void unsupported(String name, Object value) {
+            throw new IllegalArgumentException("Unsupported batch resource field");
+        }
+    }
+
+    public record Batch(
+            @NotBlank @Size(max = 100) String expectedFloorRevision,
+            @NotEmpty @Size(max = 100) java.util.List<@NotNull @jakarta.validation.Valid BatchItem> items,
+            @Size(max = 500) java.util.List<@NotNull @jakarta.validation.Valid Item> decorations) {
+        @JsonAnySetter
+        public void unsupported(String name, Object value) {
+            throw new IllegalArgumentException("Unsupported resource batch field");
+        }
+    }
+
     public record Floor(
-            @NotBlank @Size(max = 100) String name, @Min(-20) @Max(500) int floorNumber) {
+            @NotBlank @Size(max = 100) String name, @Min(-20) @Max(500) int floorNumber,
+            @jakarta.validation.Valid BuildingRequests.Allocation allocation) {
+        public Floor(String name, int floorNumber) { this(name, floorNumber, null); }
         public Floor {
             name = trim(name);
         }

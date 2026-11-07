@@ -9,10 +9,25 @@ import java.util.List;
 public final class ResourceResponses {
     private ResourceResponses() {}
 
+    public record BatchResult(String clientId, Detail resource) {}
+
     public record WorkspaceOption(Long id, String name, WorkspaceStatus status) {}
 
     public record FloorOption(
-            Long id, String name, int floorNumber, FloorPlanStatus status, String revision) {}
+            Long id, String name, int floorNumber, FloorPlanStatus status, String revision,
+            BuildingResponses.Location location) {
+        public FloorOption(Long id, String name, int floorNumber, FloorPlanStatus status, String revision) {
+            this(id, name, floorNumber, status, revision, null);
+        }
+    }
+
+    public static FloorOption floorOption(FloorPlanModel f) {
+        var physical = f.getBuildingFloor();
+        var b = physical == null ? null : physical.getBuilding();
+        var location = physical == null ? null : new BuildingResponses.Location(b.getId(), b.getName(), b.getAddress(),
+            physical.getId(), physical.getName(), physical.getFloorNumber(), f.getUsageX(), f.getUsageY(), f.getUsageWidth(), f.getUsageHeight());
+        return new FloorOption(f.getId(), f.getName(), f.getFloorNumber(), f.getStatus(), revision(f), location);
+    }
 
     public record TypeOption(
             Long id,

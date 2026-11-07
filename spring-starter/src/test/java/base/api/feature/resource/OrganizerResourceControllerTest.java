@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(
         value = {
             OrganizerResourceController.class,
+            base.api.feature.resource.controller.OrganizerBuildingController.class,
             base.api.feature.resource.controller.PublicFloorMapController.class
         },
         properties = "spring.profiles.active=test")
@@ -41,6 +42,7 @@ class OrganizerResourceControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean OrganizerResourceService service;
+    @MockitoBean base.api.feature.resource.service.BuildingService buildings;
     @MockitoBean base.api.feature.resource.service.PublicFloorMapService publicMaps;
     @MockitoBean JwtUtil jwt;
     @MockitoBean CustomUserDetailsService accounts;
@@ -85,6 +87,21 @@ class OrganizerResourceControllerTest {
                     .andExpect(status().isForbidden());
         }
         verifyNoInteractions(service);
+    }
+
+    @Test
+    void buildingCatalogRequiresOrganizerAndAllocationRejectsOwnershipFields() throws Exception {
+        mvc.perform(get("/api/organizer/buildings")).andExpect(status().isUnauthorized());
+        mvc.perform(get("/api/organizer/buildings").with(user(actor("USER")))).andExpect(status().isForbidden());
+        mvc.perform(get("/api/organizer/buildings").with(user(actor("ADMIN")))).andExpect(status().isForbidden());
+        when(buildings.catalog(7L)).thenReturn(java.util.List.of());
+        mvc.perform(get("/api/organizer/buildings").with(user(actor("ORGANIZER")))).andExpect(status().isOk());
+        verify(buildings).catalog(7L);
+        mvc.perform(post("/api/organizer/workspaces/1/floor-allocations").with(user(actor("ORGANIZER")))
+            .contentType(MediaType.APPLICATION_JSON)
+            .content("{\"buildingFloorId\":1,\"x\":0,\"y\":0,\"width\":600,\"height\":800,\"name\":\"Area\",\"organizerId\":9}"))
+            .andExpect(status().isBadRequest());
+        verifyNoMoreInteractions(buildings);
     }
 
     @Test
