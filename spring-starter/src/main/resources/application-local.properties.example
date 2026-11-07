@@ -35,3 +35,8 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # Optional — only needed when app.auth.email-verification-enabled=true or for password reset
 # spring.mail.username=your-email@gmail.com
 # spring.mail.password=your-gmail-app-password
+
+# ── Application URLs & Features (Optional overrides) ─────────────────────────
+# app.auth.email-verification-enabled=true
+# app.client-url=http://localhost:3000
+# app.api-url=http://localhost:8080
