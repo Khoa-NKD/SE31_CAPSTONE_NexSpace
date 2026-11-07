@@ -93,6 +93,18 @@ public interface IWorkspaceService {
     Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest);
 
     /**
+     * Tìm kiếm không gian làm việc lân cận theo tọa độ GPS và bán kính (km).
+     * Chỉ áp dụng cho các không gian đang hoạt động (ACTIVE).
+     *
+     * @param lat Vĩ độ người dùng (phạm vi [-90.0, 90.0])
+     * @param lng Kinh độ người dùng (phạm vi [-180.0, 180.0])
+     * @param radiusKm Bán kính tìm kiếm theo km (từ 0.5 đến 50.0 km)
+     * @param pageRequest Tham số phân trang
+     * @return Trang danh sách WorkspaceDto kèm khoảng cách distanceKm
+     */
+    Page<WorkspaceDto> findNearbyWorkspaces(Double lat, Double lng, Double radiusKm, PageRequestDTO pageRequest);
+
+    /**
      * Lấy cấu hình giờ hoạt động cho workspace.
      * Áp dụng Strict Ownership Defense (ném NotFoundException nếu không sở hữu).
      *

@@ -22,6 +22,7 @@ public class WorkspaceDto {
     String city;
     BigDecimal latitude;
     BigDecimal longitude;
+    Double distanceKm;
     BigDecimal areaSqm;
     BigDecimal usableAreaSqm;
     String supportPhone;

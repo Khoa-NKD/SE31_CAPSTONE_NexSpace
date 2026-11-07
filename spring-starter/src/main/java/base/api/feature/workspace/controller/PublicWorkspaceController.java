@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -32,6 +33,17 @@ public class PublicWorkspaceController extends BaseAPIController {
     public ResponseEntity<ApiResponse<java.util.List<WorkspaceDto>>> getFeaturedWorkspaces() {
         java.util.List<WorkspaceDto> list = workspaceService.getFeaturedWorkspaces();
         return success(list);
+    }
+
+    @Operation(summary = "Tìm kiếm không gian lân cận theo cự ly GPS", description = "Tìm kiếm các không gian làm việc đang hoạt động gần vị trí người dùng nhất theo bán kính (km)")
+    @GetMapping("/nearby")
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getNearbyWorkspaces(
+            @RequestParam Double lat,
+            @RequestParam Double lng,
+            @RequestParam(required = false, defaultValue = "10.0") Double radiusKm,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        Page<WorkspaceDto> page = workspaceService.findNearbyWorkspaces(lat, lng, radiusKm, pageRequest);
+        return successPage(page);
     }
 
     @Operation(summary = "Xem chi tiết không gian công khai", description = "Khách hàng xem thông tin không gian làm việc đang hoạt động (ACTIVE)")

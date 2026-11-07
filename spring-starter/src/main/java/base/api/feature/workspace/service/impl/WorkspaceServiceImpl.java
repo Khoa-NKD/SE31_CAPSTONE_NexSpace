@@ -14,6 +14,7 @@ import base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
+import base.api.feature.workspace.repository.WorkspaceDistanceProjection;
 import base.api.feature.workspace.service.IWorkspaceService;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
@@ -25,6 +26,7 @@ import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
@@ -35,7 +37,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -224,6 +229,53 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         Page<WorkspaceModel> page = workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
         return page.map(WorkspaceMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<WorkspaceDto> findNearbyWorkspaces(Double lat, Double lng, Double radiusKm, PageRequestDTO pageRequest) {
+        if (lat == null || lat < -90.0 || lat > 90.0) {
+            throw new BadRequestException("Tọa độ vĩ độ (lat) không hợp lệ, phải nằm trong khoảng [-90.0, 90.0]");
+        }
+        if (lng == null || lng < -180.0 || lng > 180.0) {
+            throw new BadRequestException("Tọa độ kinh độ (lng) không hợp lệ, phải nằm trong khoảng [-180.0, 180.0]");
+        }
+
+        double effectiveRadius = radiusKm != null ? radiusKm : 10.0;
+        if (effectiveRadius < 0.5 || effectiveRadius > 50.0) {
+            throw new BadRequestException("Bán kính tìm kiếm (radiusKm) phải từ 0.5 km đến 50.0 km");
+        }
+
+        int pageNumber = pageRequest != null && pageRequest.getPage() > 0
+                ? pageRequest.getPage() - 1
+                : 0;
+        int pageSize = pageRequest != null && pageRequest.getSize() > 0
+                ? Math.min(pageRequest.getSize(), 100)
+                : 20;
+        Pageable pageable = PageRequest.of(pageNumber, pageSize);
+
+        Page<WorkspaceDistanceProjection> projectionPage = workspaceRepository.findNearbyWorkspaceIds(lat, lng, effectiveRadius, pageable);
+        if (projectionPage.isEmpty()) {
+            return new PageImpl<>(Collections.emptyList(), pageable, projectionPage.getTotalElements());
+        }
+
+        List<Long> ids = projectionPage.getContent().stream()
+                .map(WorkspaceDistanceProjection::getId)
+                .toList();
+
+        Map<Long, WorkspaceModel> workspaceMap = workspaceRepository.findAllById(ids).stream()
+                .collect(Collectors.toMap(WorkspaceModel::getId, w -> w));
+
+        List<WorkspaceDto> dtos = projectionPage.getContent().stream()
+                .map(proj -> {
+                    WorkspaceModel model = workspaceMap.get(proj.getId());
+                    if (model == null) return null;
+                    return WorkspaceMapper.toDto(model, proj.getDistanceKm());
+                })
+                .filter(Objects::nonNull)
+                .toList();
+
+        return new PageImpl<>(dtos, pageable, projectionPage.getTotalElements());
     }
 
     @Override
