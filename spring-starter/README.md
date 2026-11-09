@@ -11,7 +11,7 @@ cp src/main/resources/application-local.properties.example src/main/resources/ap
 ```
 
 - Swagger UI: http://localhost:8080/swagger-ui.html
-- Lần chạy đầu: Hibernate tự tạo bảng (`ddl-auto=update`), `DataInitializer` seed role `ADMIN`, `USER` và tài khoản admin (`app.seed.admin.*`).
+- Lần chạy đầu: Flyway tự động chạy migration (`src/main/resources/db/migration/V1__init_schema.sql`). Để nạp dữ liệu mẫu (Master + Accounts + Workspaces + Bookings), chạy `python3 scripts/db/init_data.py` (xem chi tiết tại [scripts/db/README.md](scripts/db/README.md)).
 
 ## Cấu trúc
 
