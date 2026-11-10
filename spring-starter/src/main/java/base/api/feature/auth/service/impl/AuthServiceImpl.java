@@ -59,6 +59,7 @@ public class AuthServiceImpl implements IAuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
+    private final EmailDeliverabilityValidator emailDeliverabilityValidator;
 
     @Value("${app.auth.email-verification-enabled:false}")
     private boolean emailVerificationEnabled;
@@ -80,28 +81,30 @@ public class AuthServiceImpl implements IAuthService {
     public AuthResponse login(AuthRequest dto) {
         String login = dto.getUsername().trim();
 
-        // Kiểm tra trạng thái tài khoản trước khi xác thực thông tin đăng nhập
+        // Kiểm tra tài khoản có tồn tại hay không
         Optional<UserModel> userOpt = userRepository.findByLogin(login);
-        if (userOpt.isPresent()) {
-            UserModel candidate = userOpt.get();
+        if (userOpt.isEmpty()) {
+            throw new UnauthorizedException("Tài khoản không tồn tại");
+        }
 
-            // 1. Kiểm tra tài khoản bị quản trị viên khóa
-            if (candidate.getStatus() == UserStatus.LOCKED) {
-                throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
-            }
+        UserModel candidate = userOpt.get();
 
-            // 2. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
-            if (candidate.getLockedUntil() != null) {
-                LocalDateTime now = LocalDateTime.now();
-                if (now.isBefore(candidate.getLockedUntil())) {
-                    long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
-                    throw new UnauthorizedException("Tài khoản đang bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau " + remainingMinutes + " phút");
-                } else {
-                    // Đã hết thời gian tạm khóa => tự động mở lại
-                    candidate.setLockedUntil(null);
-                    candidate.setFailedLoginCount(0);
-                    userRepository.save(candidate);
-                }
+        // 1. Kiểm tra tài khoản bị quản trị viên khóa
+        if (candidate.getStatus() == UserStatus.LOCKED) {
+            throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
+        }
+
+        // 2. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
+        if (candidate.getLockedUntil() != null) {
+            LocalDateTime now = LocalDateTime.now();
+            if (now.isBefore(candidate.getLockedUntil())) {
+                long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
+                throw new UnauthorizedException("Tài khoản đang bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau " + remainingMinutes + " phút");
+            } else {
+                // Đã hết thời gian tạm khóa => tự động mở lại
+                candidate.setLockedUntil(null);
+                candidate.setFailedLoginCount(0);
+                userRepository.save(candidate);
             }
         }
 
@@ -110,24 +113,19 @@ public class AuthServiceImpl implements IAuthService {
         } catch (DisabledException ex) {
             throw new UnauthorizedException("Tài khoản đã bị khóa");
         } catch (AuthenticationException ex) {
-            // Ghi nhận số lần đăng nhập sai nếu tài khoản có tồn tại
-            if (userOpt.isPresent()) {
-                UserModel candidate = userOpt.get();
-                int currentFailures = candidate.getFailedLoginCount() + 1;
-                candidate.setFailedLoginCount(currentFailures);
-                if (currentFailures >= MAX_FAILED_LOGIN_ATTEMPTS) {
-                    candidate.setLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_DURATION_MINUTES));
-                    userRepository.save(candidate);
-                    throw new UnauthorizedException("Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp");
-                }
+            // Ghi nhận số lần đăng nhập sai
+            int currentFailures = candidate.getFailedLoginCount() + 1;
+            candidate.setFailedLoginCount(currentFailures);
+            if (currentFailures >= MAX_FAILED_LOGIN_ATTEMPTS) {
+                candidate.setLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_DURATION_MINUTES));
                 userRepository.save(candidate);
+                throw new UnauthorizedException("Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp");
             }
-            throw new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu");
+            userRepository.save(candidate);
+            throw new UnauthorizedException("Mật khẩu không chính xác");
         }
 
-        UserModel user = userOpt.orElseGet(() -> userRepository.findByLogin(login)
-                .orElseThrow(() -> new UnauthorizedException("Sai tên đăng nhập hoặc mật khẩu")));
-
+        UserModel user = candidate;
         if (!user.isVerified()) {
             throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
         }
@@ -152,6 +150,9 @@ public class AuthServiceImpl implements IAuthService {
     public UserDto register(RegisterDto dto) {
         String userName = dto.getUserName().trim().toLowerCase(Locale.ROOT);
         String email = dto.getEmail().trim().toLowerCase(Locale.ROOT);
+
+        // Xác thực email hợp lệ và tồn tại trên hệ thống
+        emailDeliverabilityValidator.validateEmailDeliverability(email);
 
         if (userRepository.existsByUserNameIgnoreCase(userName)) {
             throw new ConflictException("Tên đăng nhập đã tồn tại");
@@ -219,35 +220,43 @@ public class AuthServiceImpl implements IAuthService {
     @Transactional
     public void resendVerificationEmail(String contactInfo) {
         if (contactInfo == null || contactInfo.isBlank()) {
-            return;
+            throw new BadRequestException("Vui lòng cung cấp email hoặc tên đăng nhập");
         }
-        // Không tiết lộ tài khoản có tồn tại hay không
-        userRepository.findByLogin(contactInfo.trim())
-                .filter(user -> !user.isVerified())
-                .ifPresent(this::sendVerificationEmail);
+        UserModel user = userRepository.findByLogin(contactInfo.trim())
+                .orElseThrow(() -> new BadRequestException("Tài khoản không tồn tại"));
+        if (user.isVerified()) {
+            throw new BadRequestException("Tài khoản này đã được xác thực trước đó");
+        }
+        sendVerificationEmail(user);
     }
 
     @Override
     @Transactional
     public void initiateForgotPassword(String contactInfo) {
         if (contactInfo == null || contactInfo.isBlank()) {
-            return;
+            throw new BadRequestException("Vui lòng cung cấp email hoặc tên đăng nhập");
         }
-        // Không tiết lộ tài khoản có tồn tại hay không
-        userRepository.findByLogin(contactInfo.trim()).ifPresent(user -> {
-            passwordResetTokenRepository.deleteByUserId(user.getId());
+        UserModel user = userRepository.findByLogin(contactInfo.trim())
+                .orElseThrow(() -> new BadRequestException("Tài khoản không tồn tại"));
+        if (!user.isVerified()) {
+            throw new BadRequestException("Tài khoản chưa được xác thực email. Vui lòng xác thực trước khi đặt lại mật khẩu.");
+        }
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new BadRequestException("Tài khoản đã bị khóa bởi Quản trị viên");
+        }
 
-            PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
-            tokenModel.setToken(UUID.randomUUID().toString());
-            tokenModel.setUserId(user.getId());
-            tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(resetTtlMinutes));
-            passwordResetTokenRepository.save(tokenModel);
+        passwordResetTokenRepository.deleteByUserId(user.getId());
 
-            log.info("[AUTH] Đã tạo Password Reset Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
-            String resetUrl = clientUrl + "/reset-password?token=" + tokenModel.getToken();
-            emailService.sendHtmlEmail(user.getEmail(), "Đặt lại mật khẩu",
-                    AuthEmailTemplates.resetPassword(user.getFullName(), resetUrl, resetTtlMinutes));
-        });
+        PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
+        tokenModel.setToken(UUID.randomUUID().toString());
+        tokenModel.setUserId(user.getId());
+        tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(resetTtlMinutes));
+        passwordResetTokenRepository.save(tokenModel);
+
+        log.info("[AUTH] Đã tạo Password Reset Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
+        String resetUrl = clientUrl + "/reset-password?token=" + tokenModel.getToken();
+        emailService.sendHtmlEmail(user.getEmail(), "Đặt lại mật khẩu",
+                AuthEmailTemplates.resetPassword(user.getFullName(), resetUrl, resetTtlMinutes));
     }
 
     @Override
