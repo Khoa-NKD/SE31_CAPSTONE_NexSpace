@@ -75,19 +75,54 @@ public class AuthController extends BaseAPIController {
         return created(authService.register(dto), "Đăng ký thành công");
     }
 
-    @Operation(summary = "Xác thực email (Redirect)", description = "**Public.** Link trong email. "
-            + "Redirect về {client-url}/auth/sign-up?verified=true&email=... để tự trở về trang sign up và chuyển sang login.")
+    @Operation(summary = "Xác thực email (Redirect)", description = "**Public.** Link trong email. Kích hoạt tài khoản và tự động đồng bộ về tab đang mở hoặc chuyển đến login.")
     @SecurityRequirements
-    @GetMapping("/verify-email")
-    public ResponseEntity<Void> verifyEmail(@Parameter(description = "Token trong email") @RequestParam String token) {
-        String target;
+    @GetMapping(value = "/verify-email", produces = "text/html;charset=UTF-8")
+    public ResponseEntity<String> verifyEmail(@Parameter(description = "Token trong email") @RequestParam String token) {
+        boolean success;
+        String email = "";
         try {
-            String email = authService.verifyEmail(token);
-            target = clientUrl + "/auth/sign-up?verified=true&email=" + java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8);
+            email = authService.verifyEmail(token);
+            success = true;
         } catch (RuntimeException ex) {
-            target = clientUrl + "/auth/sign-up?verified=false";
+            success = false;
         }
-        return ResponseEntity.status(HttpStatus.FOUND).header(HttpHeaders.LOCATION, target).build();
+
+        String targetUrl = clientUrl + (success ? "/auth/sign-in?verified=true" : "/auth/sign-in?verified=false");
+
+        String html = "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'>"
+                + "<title>Xác thực tài khoản - NexSpace</title>"
+                + "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+                + "<style>"
+                + "body{background:#0b0f19;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
+                + "display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:16px;box-sizing:border-box}"
+                + ".card{background:#111827;border:1px solid #1f2937;border-radius:16px;padding:32px;max-width:440px;width:100%;text-align:center;box-shadow:0 10px 25px rgba(0,0,0,0.5)}"
+                + ".icon{width:56px;height:56px;border-radius:50%;margin:0 auto 16px;display:flex;align-items:center;justify-content:center;font-size:24px;"
+                + (success ? "background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)" : "background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)")
+                + "}"
+                + "h2{font-size:20px;margin:0 0 12px;font-weight:600}"
+                + "p{font-size:14px;color:#94a3b8;line-height:1.6;margin:0 0 24px}"
+                + ".btn{display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:500;font-size:14px;transition:background 0.2s}"
+                + ".btn:hover{background:#4338ca}"
+                + "</style></head><body>"
+                + "<div class='card'>"
+                + "<div class='icon'>" + (success ? "✓" : "✕") + "</div>"
+                + "<h2>" + (success ? "Xác thực email thành công!" : "Xác thực không thành công") + "</h2>"
+                + "<p>" + (success ? "Tài khoản của bạn đã được kích hoạt thành công. Đang đồng bộ và chuyển hướng..." : "Liên kết xác thực không hợp lệ hoặc đã hết hạn.") + "</p>"
+                + "<a class='btn' href='" + targetUrl + "'>Tiếp tục đến Đăng nhập</a>"
+                + "</div>"
+                + "<script>"
+                + (success
+                   ? "try{var bc=new BroadcastChannel('nexspace_auth_sync');bc.postMessage({type:'EMAIL_VERIFIED_SUCCESS'});}catch(e){}"
+                     + "try{localStorage.setItem('nexspace_auth_sync_event',JSON.stringify({type:'EMAIL_VERIFIED_SUCCESS',timestamp:Date.now()}));}catch(e){}"
+                     + "try{window.close();}catch(e){}"
+                     + "setTimeout(function(){window.location.replace('" + targetUrl + "');},1000);"
+                   : "setTimeout(function(){window.location.replace('" + targetUrl + "');},3000);")
+                + "</script></body></html>";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_TYPE, "text/html; charset=UTF-8")
+                .body(html);
     }
 
     @Operation(summary = "Xác thực email (JSON API)", description = "**Public.** Nhận JSON body cho SPA hoặc Mobile App xác thực trực tiếp.")
@@ -112,7 +147,7 @@ public class AuthController extends BaseAPIController {
     @PostMapping("/resend-verification")
     public ResponseEntity<ApiResponse<Void>> resendVerification(@Valid @RequestBody InitiateForgotPasswordDto dto) {
         authService.resendVerificationEmail(dto.getContactInfo());
-        return success(null, GENERIC_EMAIL_MESSAGE);
+        return success(null, "Đã gửi lại email xác thực. Vui lòng kiểm tra hộp thư.");
     }
 
     @Operation(summary = "Quên mật khẩu — gửi link", description = "**Public.** Gửi link đặt lại mật khẩu "
@@ -121,7 +156,7 @@ public class AuthController extends BaseAPIController {
     @PostMapping("/forgot-password/initiate")
     public ResponseEntity<ApiResponse<Void>> initiateForgotPassword(@Valid @RequestBody InitiateForgotPasswordDto dto) {
         authService.initiateForgotPassword(dto.getContactInfo());
-        return success(null, GENERIC_EMAIL_MESSAGE);
+        return success(null, "Đã gửi email hướng dẫn đặt lại mật khẩu. Vui lòng kiểm tra hộp thư.");
     }
 
     @Operation(summary = "Kiểm tra token đặt lại mật khẩu", description = "**Public.** Kiểm tra tính hợp lệ của token trước khi hiển thị form nhập mật khẩu mới trên Frontend.")
