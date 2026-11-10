@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/sonner';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { ActiveThemeProvider } from '@/components/themes/active-theme';
 import ThemeProvider from '@/components/themes/theme-provider';
-import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
+import { DEFAULT_THEME } from '@/components/themes/theme.config';
 import { seo } from '@/lib/seo';
 import { LanguageProvider } from '@/features/landing/context/language-context';
 import { CurrencyProvider } from '@/features/landing/context/currency-context';
@@ -21,45 +21,7 @@ const META_THEME_COLORS = {
 
 const getActiveTheme = createServerFn({ method: 'GET' })
   .validator((d: { pathname?: string } | undefined) => d)
-  .handler(async ({ data }) => {
-    let pathname = data?.pathname;
-    let cookieValue: string | null = null;
-    const isAdmin = pathname ? pathname.startsWith('/dashboard') : false;
-    const cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
-
-    // 1. Try server-side resolution via TanStack Start server helpers
-    try {
-      const serverModule = await import('@tanstack/react-start/server');
-      if (!pathname && typeof serverModule?.getRequestUrl === 'function') {
-        const reqUrl = serverModule.getRequestUrl();
-        if (reqUrl) {
-          pathname = new URL(reqUrl).pathname;
-        }
-      }
-      if (typeof serverModule?.getCookie === 'function') {
-        const val = serverModule.getCookie(cookieName);
-        if (val) cookieValue = val;
-      }
-    } catch {
-      // Ignore server-only import failures in browser/client environment
-    }
-
-    // 2. Client-side browser fallback (during client hydration or SPA navigation)
-    if (!cookieValue && typeof document !== 'undefined') {
-      try {
-        const match = document.cookie.match(new RegExp('(^|;\\s*)' + cookieName + '=([^;]*)'));
-        if (match?.[2]) {
-          cookieValue = decodeURIComponent(match[2]);
-        }
-      } catch {}
-    }
-
-    if (cookieValue) {
-      const isValid = THEMES.some((t) => t.value === cookieValue);
-      if (isValid) return cookieValue;
-    }
-    return DEFAULT_THEME;
-  });
+  .handler(async () => DEFAULT_THEME);
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient;
@@ -122,15 +84,12 @@ function RootDocument() {
                     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.light}');
                   }
                   
-                  // 2. Resolve Palette
+                  // 2. Enforce Single Vercel Palette
                   var cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
-                  var match = document.cookie.match(new RegExp('(^|;\\\\s*)' + cookieName + '=([^;]*)'));
-                  var cookieVal = match ? decodeURIComponent(match[2]) : null;
-                  var storageVal = localStorage.getItem(cookieName);
-                  var palette = storageVal || cookieVal || '${DEFAULT_THEME}';
-                  if (palette) {
-                    root.setAttribute('data-theme', palette);
+                  if (localStorage.getItem(cookieName) !== '${DEFAULT_THEME}') {
+                    localStorage.setItem(cookieName, '${DEFAULT_THEME}');
                   }
+                  root.setAttribute('data-theme', '${DEFAULT_THEME}');
                 } catch (_) {}
               })();
             `

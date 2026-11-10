@@ -3,17 +3,14 @@ import {
   createContext,
   useContext,
   useEffect,
-  useState,
   useCallback,
-  useMemo,
-  useRef
+  useMemo
 } from 'react';
 import { useLocation } from '@tanstack/react-router';
+import { DEFAULT_THEME } from './theme.config';
 import {
   ThemeScope,
   getThemeScope,
-  THEME_KEYS,
-  isValidTheme,
   getStoredPalette,
   setStoredPalette,
   applyPalette
@@ -30,8 +27,7 @@ type ThemeContextType = {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ActiveThemeProvider({
-  children,
-  initialTheme
+  children
 }: {
   children: ReactNode;
   initialTheme?: string;
@@ -39,91 +35,29 @@ export function ActiveThemeProvider({
   const { pathname } = useLocation();
   const activeScope = getThemeScope(pathname);
 
-  // Initialize scoped palettes: on client prefer localStorage; on server/initial SSR use initialTheme
-  const [adminPalette, setAdminPalette] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = getStoredPalette('admin');
-      if (stored) return stored;
-    }
-    if (activeScope === 'admin' && initialTheme && isValidTheme(initialTheme)) {
-      return initialTheme;
-    }
-    return getStoredPalette('admin');
-  });
-
-  const [customerPalette, setCustomerPalette] = useState<string>(() => {
-    if (typeof window !== 'undefined') {
-      const stored = getStoredPalette('customer');
-      if (stored) return stored;
-    }
-    if (activeScope === 'customer' && initialTheme && isValidTheme(initialTheme)) {
-      return initialTheme;
-    }
-    return getStoredPalette('customer');
-  });
-
-
-  const activeTheme = activeScope === 'admin' ? adminPalette : customerPalette;
-
-  // Apply palette to DOM whenever activeTheme changes
+  // Enforce single Vercel palette on mount and scope transitions, and normalize stale storage
   useEffect(() => {
-    applyPalette(activeTheme);
-  }, [activeTheme]);
+    getStoredPalette(activeScope);
+    applyPalette(DEFAULT_THEME);
+  }, [activeScope]);
 
-  // Handle route-level scope transition
-  const prevScopeRef = useRef(activeScope);
-  useEffect(() => {
-    if (prevScopeRef.current !== activeScope) {
-      prevScopeRef.current = activeScope;
-      applyPalette(activeTheme);
-    }
-  }, [activeScope, activeTheme]);
-
-  // Scoped setActiveTheme
   const setActiveTheme = useCallback(
-    (newTheme: string) => {
-      if (!isValidTheme(newTheme)) return;
-      if (activeScope === 'admin') {
-        setAdminPalette(newTheme);
-        setStoredPalette('admin', newTheme);
-      } else {
-        setCustomerPalette(newTheme);
-        setStoredPalette('customer', newTheme);
-      }
+    (_newTheme: string) => {
+      setStoredPalette(activeScope, DEFAULT_THEME);
+      applyPalette(DEFAULT_THEME);
     },
     [activeScope]
   );
 
-  // Cross-tab synchronization via storage event
-  useEffect(() => {
-    const onStorage = (e: StorageEvent) => {
-      if (
-        e.key === THEME_KEYS.admin.paletteStorageKey &&
-        e.newValue &&
-        isValidTheme(e.newValue)
-      ) {
-        setAdminPalette(e.newValue);
-      } else if (
-        e.key === THEME_KEYS.customer.paletteStorageKey &&
-        e.newValue &&
-        isValidTheme(e.newValue)
-      ) {
-        setCustomerPalette(e.newValue);
-      }
-    };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
-
   const value = useMemo<ThemeContextType>(
     () => ({
-      activeTheme,
+      activeTheme: DEFAULT_THEME,
       setActiveTheme,
-      adminTheme: adminPalette,
-      customerTheme: customerPalette,
+      adminTheme: DEFAULT_THEME,
+      customerTheme: DEFAULT_THEME,
       scope: activeScope
     }),
-    [activeTheme, setActiveTheme, adminPalette, customerPalette, activeScope]
+    [setActiveTheme, activeScope]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

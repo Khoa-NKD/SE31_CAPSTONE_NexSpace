@@ -1,7 +1,6 @@
 import React from 'react';
 import { SidebarTrigger } from '../ui/sidebar';
 import SearchInput from '../search-input';
-import { ThemeSelector } from '../themes/theme-selector';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 import { UserNav } from './user-nav';
@@ -72,11 +71,6 @@ export default function Header() {
         {/* Theme Mode Toggle (Light/Dark) */}
         <ThemeModeToggle />
         {role === 'ORGANIZER' && <DashboardLanguageSwitcher />}
-
-        {/* Theme Palette Selector */}
-        <div className='hidden md:block'>
-          <ThemeSelector />
-        </div>
 
         {/* Notification Center */}
         <NotificationCenter />

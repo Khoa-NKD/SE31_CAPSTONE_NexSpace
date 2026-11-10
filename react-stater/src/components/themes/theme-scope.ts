@@ -74,21 +74,27 @@ export function setStoredMode(scope: ThemeScope, mode: 'light' | 'dark' | 'syste
 }
 
 export function getStoredPalette(scope: ThemeScope): string {
-  if (typeof window === 'undefined') return THEME_KEYS[scope].defaultPalette;
-  try {
-    const storageVal = localStorage.getItem(THEME_KEYS[scope].paletteStorageKey);
-    if (isValidTheme(storageVal)) return storageVal!;
-    const cookieVal = getCookie(THEME_KEYS[scope].paletteCookie);
-    if (isValidTheme(cookieVal)) return cookieVal!;
-  } catch {}
+  // Multi-style mode is disabled: always enforce Vercel theme regardless of legacy cookies/storage
+  if (typeof window !== 'undefined') {
+    try {
+      const storageVal = localStorage.getItem(THEME_KEYS[scope].paletteStorageKey);
+      if (storageVal && storageVal !== DEFAULT_THEME) {
+        localStorage.setItem(THEME_KEYS[scope].paletteStorageKey, DEFAULT_THEME);
+      }
+      const cookieVal = getCookie(THEME_KEYS[scope].paletteCookie);
+      if (cookieVal && cookieVal !== DEFAULT_THEME) {
+        setCookie(THEME_KEYS[scope].paletteCookie, DEFAULT_THEME);
+      }
+    } catch {}
+  }
   return THEME_KEYS[scope].defaultPalette;
 }
 
-export function setStoredPalette(scope: ThemeScope, palette: string) {
+export function setStoredPalette(scope: ThemeScope, _palette: string) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(THEME_KEYS[scope].paletteStorageKey, palette);
-    setCookie(THEME_KEYS[scope].paletteCookie, palette);
+    localStorage.setItem(THEME_KEYS[scope].paletteStorageKey, DEFAULT_THEME);
+    setCookie(THEME_KEYS[scope].paletteCookie, DEFAULT_THEME);
   } catch {}
 }
 
@@ -106,10 +112,10 @@ export function applyThemeMode(resolvedMode: 'light' | 'dark') {
   }
 }
 
-export function applyPalette(palette: string) {
+export function applyPalette(_palette?: string) {
   if (typeof document === 'undefined') return;
   const root = document.documentElement;
-  root.setAttribute('data-theme', palette);
+  root.setAttribute('data-theme', DEFAULT_THEME);
   Array.from(document.body.classList)
     .filter((c) => c.startsWith('theme-'))
     .forEach((c) => document.body.classList.remove(c));
