@@ -8,7 +8,7 @@ import type {
 
 /**
  * Fetch paginated & filtered admin users list.
- * Communicates with REST endpoint GET /api/v1/admin/users
+ * Communicates with REST endpoint GET /api/admin/users
  */
 export async function getAdminUsers(
   filters?: AdminUserFilters
@@ -28,7 +28,7 @@ export async function getAdminUsers(
 
 /**
  * Fetch a single admin user by ID.
- * Communicates with REST endpoint GET /api/v1/admin/users/:id
+ * Communicates with REST endpoint GET /api/admin/users/:id
  */
 export async function getAdminUserById(id: string): Promise<AdminUserRecord> {
   return apiClient.get<AdminUserRecord>(`/admin/users/${id}`);
@@ -36,7 +36,7 @@ export async function getAdminUserById(id: string): Promise<AdminUserRecord> {
 
 /**
  * Update an admin user's moderation status (Lock / Unlock / Active).
- * Communicates with REST endpoint PATCH /api/v1/admin/users/:id/status
+ * Communicates with REST endpoint PATCH /api/admin/users/:id/status
  */
 export async function updateAdminUserStatus(
   id: string,

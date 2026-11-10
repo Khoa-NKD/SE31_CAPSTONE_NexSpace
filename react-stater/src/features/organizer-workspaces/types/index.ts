@@ -1,11 +1,9 @@
 export type WorkspaceStatus =
-  | 'ACTIVE'
   | 'DRAFT'
-  | 'PAUSED'
+  | 'PENDING'
+  | 'ACTIVE'
   | 'MAINTENANCE'
-  | 'ARCHIVED'
-  | 'UNDER_REVIEW'
-  | 'REJECTED';
+  | 'ARCHIVED';
 
 export interface OrganizerWorkspace {
   id: string;
@@ -14,6 +12,8 @@ export interface OrganizerWorkspace {
   district: string;
   city: string;
   status: WorkspaceStatus;
+  version?: number;
+  bookingCount?: number;
   draftProgress?: number;
   draftWarningMessage?: string;
   reviewFeedback?: string;
@@ -36,8 +36,7 @@ export interface OrganizerWorkspace {
 export type WorkspaceFilter =
   | 'all'
   | 'active'
-  | 'draft'
-  | 'paused'
+  | 'pending'
   | 'maintenance'
-  | 'archived'
-  | 'rejected';
+  | 'draft'
+  | 'archived';

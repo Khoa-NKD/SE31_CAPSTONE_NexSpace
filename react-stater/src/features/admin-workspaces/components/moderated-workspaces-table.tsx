@@ -8,16 +8,16 @@ interface ModeratedWorkspacesTableProps {
 }
 
 export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTableProps) {
-  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'suspended' | 'rejected' | 'resolved'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'approved' | 'pending' | 'maintenance' | 'suspended'>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedRecord, setSelectedRecord] = useState<ModerationDecisionRecord | null>(null);
 
   const filteredRecords = records.filter((rec) => {
     // Tab filter
     if (activeFilter === 'approved' && rec.actionStatus !== 'approved' && rec.actionStatus !== 'reactivated') return false;
+    if (activeFilter === 'pending' && rec.actionStatus !== 'pending') return false;
+    if (activeFilter === 'maintenance' && rec.actionStatus !== 'maintenance') return false;
     if (activeFilter === 'suspended' && rec.actionStatus !== 'suspended') return false;
-    if (activeFilter === 'rejected' && rec.actionStatus !== 'rejected') return false;
-    if (activeFilter === 'resolved' && rec.actionStatus !== 'resolved') return false;
 
     // Search query
     if (searchQuery.trim()) {
@@ -32,21 +32,21 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
   });
 
   const approvedCount = records.filter((r) => r.actionStatus === 'approved' || r.actionStatus === 'reactivated').length;
+  const pendingCount = records.filter((r) => r.actionStatus === 'pending').length;
+  const maintenanceCount = records.filter((r) => r.actionStatus === 'maintenance').length;
   const suspendedCount = records.filter((r) => r.actionStatus === 'suspended').length;
-  const rejectedCount = records.filter((r) => r.actionStatus === 'rejected').length;
-  const resolvedCount = records.filter((r) => r.actionStatus === 'resolved').length;
 
   return (
     <>
-      <section aria-label='Recently Moderated Workspaces' className='bg-card rounded-xl border border-border shadow-2xs p-6'>
+      <section aria-label='Workspaces & Booking Activity' className='bg-card rounded-xl border border-border shadow-2xs p-6'>
         {/* Table Header & Controls */}
         <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-5 border-b border-border'>
           <div>
             <h2 className='text-base font-bold font-heading text-foreground'>
-              Recent Moderation Decisions &amp; Lifecycle Events
+              Workspaces Status &amp; Booking Activity
             </h2>
             <p className='text-xs text-muted-foreground mt-0.5'>
-              Latest administrative decisions and review records across registered workspaces.
+              Live workspace statuses, booking counts per workspace, and administrative logs.
             </p>
           </div>
 
@@ -90,7 +90,33 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
-                Approved ({approvedCount})
+                Active ({approvedCount})
+              </button>
+              <button
+                type='button'
+                role='tab'
+                aria-selected={activeFilter === 'pending'}
+                onClick={() => setActiveFilter('pending')}
+                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                  activeFilter === 'pending'
+                    ? 'bg-card text-amber-600 dark:text-amber-400 shadow-2xs border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Pending ({pendingCount})
+              </button>
+              <button
+                type='button'
+                role='tab'
+                aria-selected={activeFilter === 'maintenance'}
+                onClick={() => setActiveFilter('maintenance')}
+                className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
+                  activeFilter === 'maintenance'
+                    ? 'bg-card text-indigo-600 dark:text-indigo-400 shadow-2xs border border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Maintenance ({maintenanceCount})
               </button>
               <button
                 type='button'
@@ -105,36 +131,6 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
               >
                 Suspended ({suspendedCount})
               </button>
-              {rejectedCount > 0 && (
-                <button
-                  type='button'
-                  role='tab'
-                  aria-selected={activeFilter === 'rejected'}
-                  onClick={() => setActiveFilter('rejected')}
-                  className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
-                    activeFilter === 'rejected'
-                      ? 'bg-card text-amber-600 dark:text-amber-400 shadow-2xs border border-border'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Rejected ({rejectedCount})
-                </button>
-              )}
-              {resolvedCount > 0 && (
-                <button
-                  type='button'
-                  role='tab'
-                  aria-selected={activeFilter === 'resolved'}
-                  onClick={() => setActiveFilter('resolved')}
-                  className={`px-3 py-1 text-xs font-semibold rounded transition-all ${
-                    activeFilter === 'resolved'
-                      ? 'bg-card text-foreground shadow-2xs border border-border'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Flags Resolved ({resolvedCount})
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -146,8 +142,9 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
               <tr className='border-b border-border text-muted-foreground text-[11px] font-semibold tracking-wider uppercase bg-muted/40 h-9'>
                 <th scope='col' className='py-2.5 px-4'>Workspace Name &amp; Unit</th>
                 <th scope='col' className='py-2.5 px-4'>Organizer / Legal Entity</th>
-                <th scope='col' className='py-2.5 px-4'>Moderation Action</th>
-                <th scope='col' className='py-2.5 px-4'>Admin Handler</th>
+                <th scope='col' className='py-2.5 px-4'>Status</th>
+                <th scope='col' className='py-2.5 px-4 text-right'>Bookings</th>
+                <th scope='col' className='py-2.5 px-4'>Handler</th>
                 <th scope='col' className='py-2.5 px-4 text-right'>Timestamp</th>
                 <th scope='col' className='py-2.5 px-4 text-right'>Audit Trail</th>
               </tr>
@@ -155,20 +152,20 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
             <tbody className='divide-y divide-border text-xs'>
               {records.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className='py-12 text-center text-muted-foreground'>
+                  <td colSpan={7} className='py-12 text-center text-muted-foreground'>
                     <div className='flex flex-col items-center justify-center gap-2'>
                       <History className='size-8 text-muted-foreground/40' aria-hidden='true' />
-                      <p className='font-semibold text-foreground text-sm'>No Moderation Decisions Recorded</p>
+                      <p className='font-semibold text-foreground text-sm'>No Workspaces Recorded</p>
                       <p className='text-xs text-muted-foreground max-w-sm'>
-                        No administrative reviews or suspension actions have been recorded yet. New decisions will appear here automatically.
+                        No workspaces have been registered yet.
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : filteredRecords.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className='py-8 text-center text-muted-foreground'>
-                    No moderation records match your search or filter.
+                  <td colSpan={7} className='py-8 text-center text-muted-foreground'>
+                    No workspace records match your search or filter.
                   </td>
                 </tr>
               ) : (
@@ -212,7 +209,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                             ? 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'
                             : rec.actionStatus === 'suspended'
                             ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
-                            : rec.actionStatus === 'rejected'
+                            : rec.actionStatus === 'pending'
                             ? 'bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'
                             : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'
                         }`}
@@ -223,7 +220,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                               ? 'bg-emerald-500'
                               : rec.actionStatus === 'suspended'
                               ? 'bg-rose-500'
-                              : rec.actionStatus === 'rejected'
+                              : rec.actionStatus === 'pending'
                               ? 'bg-amber-500'
                               : 'bg-indigo-500'
                           }`}
@@ -231,6 +228,9 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                         ></span>
                         {rec.action}
                       </span>
+                    </td>
+                    <td className='py-3.5 px-4 text-right font-mono font-bold text-foreground'>
+                      {(rec.bookingCount ?? 0).toLocaleString('en-US')}
                     </td>
                     <td className='py-3.5 px-4' aria-label={rec.adminHandler.name}>
                       <div className='flex items-center gap-2'>

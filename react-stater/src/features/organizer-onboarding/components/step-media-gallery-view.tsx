@@ -386,16 +386,23 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
 
     setValidationError(null);
     saveDraft();
+    let targetId = activeWorkspaceId;
     if (activeWorkspaceId) {
       await syncMediaToBackend(activeWorkspaceId);
     } else {
       const updated = await saveDraftToServer({ silent: true });
-      const targetId = updated?.id || canonicalWorkspaceId;
+      targetId = updated?.id || canonicalWorkspaceId;
       if (targetId) {
         await syncMediaToBackend(targetId);
       }
     }
-    setIsCompletionModalOpen(true);
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/review',
+      search: (prev) => ({
+        ...prev,
+        ...(targetId ? { id: String(targetId) } : {})
+      })
+    });
   };
 
   return (
@@ -442,7 +449,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
               Development Media Service Active (Local Storage)
             </p>
             <p className='mt-1 text-xs text-indigo-800/90 dark:text-indigo-300/90 leading-relaxed'>
-              Local JPEG, PNG, and WebP photo uploads are securely persisted to the Mock REST Server runtime (/uploads/). Uploaded media receives a durable development URL (/api/v1/media/:mediaId), persists across browser reloads and server restarts, and fully satisfies the workspace submission requirement.
+              Local JPEG, PNG, and WebP photo uploads are securely persisted to the server runtime (/uploads/). Uploaded media receives a durable URL (/api/media/:mediaId), persists across browser reloads and server restarts, and fully satisfies the workspace submission requirement.
             </p>
           </div>
         </div>
@@ -644,7 +651,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
                               <span>Upload Failed</span>
                             </span>
                           )}
-                          {item.url.startsWith('/api/v1/media/') && (
+                          {(item.url.startsWith('/api/media/') || item.url.startsWith('/api/v1/media/')) && (
                             <span className='inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
                               <Check className='size-3' />
                               <span>Local Media Persisted</span>
@@ -877,7 +884,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
             onClick={handleCompleteReview}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
-            <span>Complete &amp; Review Workspace</span>
+            <span>Continue</span>
             {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>

@@ -8,7 +8,6 @@ import type {
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
   SubmitWorkspaceDto,
-  AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto,
   AdminFeaturedWorkspaceDto,
   WorkspaceMediaDto,
@@ -92,51 +91,6 @@ export function useUpdateWorkspaceMutation() {
         }
       }
       toast.error('Failed to Update Workspace', { description });
-    }
-  });
-}
-
-export interface AdminReviewWorkspaceVariables {
-  id: string;
-  dto: AdminReviewWorkspaceDto;
-  workspaceName?: string;
-}
-
-/**
- * TanStack Query mutation hook for Administrator review governance (Approve / Reject).
- */
-export function useAdminReviewWorkspaceMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation<CanonicalWorkspace, Error, AdminReviewWorkspaceVariables>({
-    mutationFn: ({ id, dto }) => workspaceService.adminReviewWorkspace(id, dto),
-
-    onSuccess: (updatedWorkspace, variables) => {
-      queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
-      queryClient.setQueryData(workspaceQueryKeys.detail(updatedWorkspace.id), updatedWorkspace);
-
-      const displayName = variables.workspaceName || updatedWorkspace.name;
-      toast.success('Workspace Review Updated', {
-        description: `Review status for "${displayName}" set to ${updatedWorkspace.reviewStatus}.`
-      });
-    },
-
-    onError: (err: unknown) => {
-      let description = 'Could not submit review decision.';
-      if (err instanceof ApiError) {
-        if (err.status === 409) {
-          queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
-          description = 'Concurrency conflict: this workspace was modified by another session. Latest data refreshed; please reconfirm your decision.';
-        } else if (err.status === 403) {
-          description = err.message || 'You are not authorized to perform administrator review actions.';
-        } else if (err.validationErrors) {
-          const firstErr = Object.values(err.validationErrors)[0];
-          description = firstErr || err.message;
-        } else {
-          description = err.message;
-        }
-      }
-      toast.error('Failed to Submit Review', { description });
     }
   });
 }
@@ -279,7 +233,7 @@ export interface SubmitWorkspaceVariables {
 }
 
 /**
- * TanStack Query mutation hook for Organizer workspace submission for Administrator review.
+ * TanStack Query mutation hook for Organizer workspace publication (auto-approves to ACTIVE).
  */
 export function useSubmitWorkspaceMutation() {
   const queryClient = useQueryClient();
@@ -292,8 +246,8 @@ export function useSubmitWorkspaceMutation() {
       queryClient.setQueryData(workspaceQueryKeys.detail(updatedWorkspace.id), updatedWorkspace);
 
       const displayName = variables.workspaceName || updatedWorkspace.name;
-      toast.success('Workspace Submitted for Review', {
-        description: `"${displayName}" (${updatedWorkspace.id}) has been submitted for platform review.`
+      toast.success('Workspace Published & Active', {
+        description: `"${displayName}" (${updatedWorkspace.id}) is now automatically approved and active on the marketplace.`
       });
     },
 

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict';
 export function isDurableMediaUrl(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
-  if (trimmed.startsWith('/api/v1/media/')) {
-    const filename = trimmed.replace('/api/v1/media/', '').trim();
+  if (trimmed.startsWith('/api/media/') || trimmed.startsWith('/api/v1/media/')) {
+    const filename = trimmed.replace(/^\/api(\/v1)?\/media\//, '').trim();
     return Boolean(filename && !filename.includes('..') && /^[a-zA-Z0-9_.-]+$/.test(filename));
   }
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');

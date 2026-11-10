@@ -9,7 +9,7 @@ import type {
 
 /**
  * Fetch role permission matrix definitions.
- * Endpoint: GET /api/v1/admin/roles/permissions
+ * Endpoint: GET /api/admin/roles/permissions
  */
 export async function getRolePermissions(
   filters?: RolePermissionFilters
@@ -23,7 +23,7 @@ export async function getRolePermissions(
 
 /**
  * Fetch summary KPI metrics for platform roles.
- * Endpoint: GET /api/v1/admin/roles/kpis
+ * Endpoint: GET /api/admin/roles/kpis
  */
 export async function getRoleKpis(): Promise<RoleSummaryKpi[]> {
   return apiClient.get<RoleSummaryKpi[]>('/admin/roles/kpis');
@@ -31,7 +31,7 @@ export async function getRoleKpis(): Promise<RoleSummaryKpi[]> {
 
 /**
  * Save / apply updated role permissions matrix.
- * Endpoint: PUT /api/v1/admin/roles/permissions
+ * Endpoint: PUT /api/admin/roles/permissions
  */
 export async function updateRolePermissions(
   payload: UpdateRolePermissionsPayload | PermissionDefinition[] | UpdateRolePermissionItem[]
@@ -42,7 +42,7 @@ export async function updateRolePermissions(
 
 /**
  * Update a single permission rule by key.
- * Endpoint: PATCH /api/v1/admin/roles/permissions/:key
+ * Endpoint: PATCH /api/admin/roles/permissions/:key
  */
 export async function patchRolePermission(
   key: string,

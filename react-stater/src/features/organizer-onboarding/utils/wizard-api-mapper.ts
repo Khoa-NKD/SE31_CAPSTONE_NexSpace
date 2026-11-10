@@ -127,8 +127,8 @@ export function mapCanonicalScheduleToWizard(hours: WorkspaceOperatingHour[]): D
 export function isDurableMediaUrl(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
-  if (trimmed.startsWith('/api/v1/media/')) {
-    const filename = trimmed.replace('/api/v1/media/', '').trim();
+  if (trimmed.startsWith('/api/media/') || trimmed.startsWith('/api/v1/media/')) {
+    const filename = trimmed.replace(/^\/api(\/v1)?\/media\//, '').trim();
     return Boolean(filename && !filename.includes('..') && /^[a-zA-Z0-9_.-]+$/.test(filename));
   }
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
@@ -137,7 +137,7 @@ export function isDurableMediaUrl(url?: string): boolean {
 /**
  * Maps durable wizard media items to canonical API format.
  * NOTE: Temporary browser blob: URLs are strictly excluded from server persistence.
- * Durable remote URLs (http://, https://) and local development media URLs (/api/v1/media/...) are preserved.
+ * Durable remote URLs (http://, https://) and local development media URLs (/api/media/...) are preserved.
  */
 export function mapWizardMediaToCanonical(
   items: MediaItem[],

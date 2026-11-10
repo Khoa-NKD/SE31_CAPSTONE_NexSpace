@@ -123,12 +123,12 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
   const submitMutation = useSubmitWorkspaceMutation();
 
   const isSuspended = canonicalWorkspace?.moderationStatus === 'Suspended';
-  const isPending = canonicalWorkspace?.reviewStatus === 'Pending';
-  const isRejected = canonicalWorkspace?.reviewStatus === 'Rejected';
-  const isDraft = canonicalWorkspace?.reviewStatus === 'Draft' || activeWorkspace?.status === 'DRAFT';
+  const isPending = activeWorkspace?.status === 'PENDING' || canonicalWorkspace?.operatingStatus === 'Pending';
+  const isMaintenance = activeWorkspace?.status === 'MAINTENANCE' || canonicalWorkspace?.operatingStatus === 'Maintenance';
+  const isDraft = activeWorkspace?.status === 'DRAFT' || canonicalWorkspace?.reviewStatus === 'Draft';
   const isDraftOrPending = isDraft || isPending;
   const isArchived = activeWorkspace?.status === 'ARCHIVED';
-  const canToggleVisibility = !isDetailError && !isDraftOrPending && !isSuspended && activeWorkspace?.status === 'ACTIVE' && Boolean(canonicalWorkspace);
+  const canToggleVisibility = !isDetailError && !isDraftOrPending && !isMaintenance && !isSuspended && activeWorkspace?.status === 'ACTIVE' && Boolean(canonicalWorkspace);
 
   const [activeTab, setActiveTab] = useState<'overview' | 'bookings' | 'settings' | 'audit' | 'assets'>(initialTab);
 
@@ -141,62 +141,42 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Operational Lifecycle Commands via Real HTTP Mutations
-  const handlePauseWorkspace = () => {
+  const handleTransitionStatus = (
+    action: 'DRAFT' | 'PENDING' | 'ACTIVATE' | 'MAINTENANCE',
+    targetStatus: 'DRAFT' | 'PENDING' | 'ACTIVE' | 'MAINTENANCE',
+    reason?: string
+  ) => {
     lifecycleMutation.mutate(
       {
         id: canonicalWorkspace?.id || activeWorkspace.id,
         dto: {
-          action: 'pause',
+          action,
           expectedVersion: canonicalWorkspace?.version,
-          reason: 'Organizer requested workspace pause'
+          reason
         },
         workspaceName: activeWorkspace.name
       },
       {
         onSuccess: () => {
           setIsPauseModalOpen(false);
-          updateWorkspaceStatus(activeWorkspace.id, 'PAUSED');
+          setIsResumeModalOpen(false);
+          setIsMaintenanceModalOpen(false);
+          updateWorkspaceStatus(activeWorkspace.id, targetStatus);
         }
       }
     );
+  };
+
+  const handlePauseWorkspace = () => {
+    handleTransitionStatus('PENDING', 'PENDING', 'Organizer set workspace to pending processing state');
   };
 
   const handleResumeWorkspace = () => {
-    lifecycleMutation.mutate(
-      {
-        id: canonicalWorkspace?.id || activeWorkspace.id,
-        dto: {
-          action: 'resume',
-          expectedVersion: canonicalWorkspace?.version
-        },
-        workspaceName: activeWorkspace.name
-      },
-      {
-        onSuccess: () => {
-          setIsResumeModalOpen(false);
-          updateWorkspaceStatus(activeWorkspace.id, 'ACTIVE');
-        }
-      }
-    );
+    handleTransitionStatus('ACTIVATE', 'ACTIVE');
   };
 
   const handleMaintenanceWorkspace = () => {
-    lifecycleMutation.mutate(
-      {
-        id: canonicalWorkspace?.id || activeWorkspace.id,
-        dto: {
-          action: 'maintenance',
-          expectedVersion: canonicalWorkspace?.version
-        },
-        workspaceName: activeWorkspace.name
-      },
-      {
-        onSuccess: () => {
-          setIsMaintenanceModalOpen(false);
-          updateWorkspaceStatus(activeWorkspace.id, 'MAINTENANCE');
-        }
-      }
-    );
+    handleTransitionStatus('MAINTENANCE', 'MAINTENANCE', 'Scheduled maintenance window');
   };
 
   const handleArchiveWorkspace = () => {
@@ -291,10 +271,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
       },
       {
         onSuccess: () => {
-          updateWorkspaceStatus(activeWorkspace.id, 'UNDER_REVIEW');
-          toast.success('Workspace Submitted for Review', {
-            description: `Listing ${activeWorkspace.name} has been submitted for administrative review.`
-          });
+          updateWorkspaceStatus(activeWorkspace.id, 'ACTIVE');
         }
       }
     );
@@ -397,42 +374,27 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
           </div>
         )}
 
-        {/* Submission Rejected Banner */}
-        {isRejected && (
-          <div className='flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-400'>
+        {/* Pending Activation Banner */}
+        {isPending && (
+          <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'>
             <div className='flex items-start gap-3'>
-              <AlertCircle className='size-5 shrink-0 mt-0.5' />
+              <Clock className='size-5 shrink-0 mt-0.5' />
               <div>
-                <h4 className='font-bold text-sm'>Workspace Review Rejected (Yêu cầu chỉnh sửa hồ sơ)</h4>
-                <p className='text-xs mt-1 text-rose-600/90 dark:text-rose-300'>
-                  <strong>Phản hồi từ Quản trị viên:</strong>{' '}
-                  {canonicalWorkspace?.reviewFeedback || 'Vui lòng bổ sung hoặc điều chỉnh thông tin hồ sơ theo yêu cầu trước khi nộp duyệt lại.'}
+                <h4 className='font-bold text-sm'>Pending — Đang được xử lý khi đang active lên hệ thống</h4>
+                <p className='text-xs mt-1 text-amber-600/90 dark:text-amber-300'>
+                  Không gian làm việc đang ở trạng thái chờ xử lý / tạm dừng nhận khách mới trước khi hoàn tất kích hoạt công khai trên hệ thống.
                 </p>
               </div>
             </div>
             <Button
-              asChild
               size='sm'
-              className='bg-rose-600 hover:bg-rose-700 text-white shrink-0 text-xs gap-1.5 shadow-xs font-semibold'
+              onClick={handleResumeWorkspace}
+              disabled={lifecycleMutation.isPending}
+              className='bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shrink-0'
             >
-              <Link to='/dashboard/organizer/workspaces/create' search={{ id: activeWorkspace.id, mode: 'edit' }}>
-                <Edit className='size-3.5' />
-                <span>Chỉnh sửa theo phản hồi</span>
-              </Link>
+              <Play className='size-3.5 mr-1.5' />
+              <span>Kích hoạt ngay (Active)</span>
             </Button>
-          </div>
-        )}
-
-        {/* Pending Review Banner */}
-        {isPending && (
-          <div className='flex items-start gap-3 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400'>
-            <Clock className='size-5 shrink-0 mt-0.5' />
-            <div>
-              <h4 className='font-bold text-sm'>Pending Administrative Review</h4>
-              <p className='text-xs mt-1 text-amber-600/90 dark:text-amber-300'>
-                This listing was submitted on {canonicalWorkspace?.submittedAt ? new Date(canonicalWorkspace.submittedAt).toLocaleDateString() : 'recently'}. An administrator will review your workspace before marketplace publication.
-              </p>
-            </div>
           </div>
         )}
 
@@ -452,31 +414,31 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
               {activeWorkspace.status === 'ACTIVE' && (
                 <div className='bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
                   <span className='size-2 rounded-full bg-emerald-500 animate-pulse' />
-                  <span>ACTIVE &amp; PUBLISHED</span>
+                  <span>ACTIVE (Đang hoạt động)</span>
                 </div>
               )}
-              {activeWorkspace.status === 'PAUSED' && (
+              {activeWorkspace.status === 'PENDING' && (
                 <div className='bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
-                  <span className='size-2 rounded-full bg-amber-500' />
-                  <span>PAUSED (Listing Inactive)</span>
+                  <span className='size-2 rounded-full bg-amber-500 animate-pulse' />
+                  <span>PENDING (Đang xử lý)</span>
                 </div>
               )}
               {activeWorkspace.status === 'MAINTENANCE' && (
                 <div className='bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
                   <span className='size-2 rounded-full bg-purple-500' />
-                  <span>SCHEDULED MAINTENANCE</span>
+                  <span>MAINTENANCE (Bảo trì)</span>
+                </div>
+              )}
+              {activeWorkspace.status === 'DRAFT' && (
+                <div className='bg-slate-500/15 text-slate-600 dark:text-slate-300 border border-slate-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
+                  <span className='size-2 rounded-full bg-slate-400' />
+                  <span>DRAFT (Bản nháp)</span>
                 </div>
               )}
               {activeWorkspace.status === 'ARCHIVED' && (
                 <div className='bg-slate-500/20 text-slate-400 border border-slate-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
                   <span className='size-2 rounded-full bg-slate-400' />
                   <span>ARCHIVED (Read-Only)</span>
-                </div>
-              )}
-              {activeWorkspace.status === 'UNDER_REVIEW' && (
-                <div className='bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-bold flex items-center gap-2 shadow-2xs'>
-                  <span className='size-2 rounded-full bg-indigo-500 animate-pulse' />
-                  <span>UNDER REVIEW (#NX-VER-2026)</span>
                 </div>
               )}
 
@@ -505,19 +467,17 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             </div>
           </div>
 
-          {/* Right Actions: Preview + Emergency Kill Switch Controls */}
+          {/* Right Actions: Preview + Lifecycle Controls */}
           <div className='flex flex-wrap items-center gap-2.5 shrink-0'>
             {activeWorkspace.status !== 'ARCHIVED' && (
               <Button
                 variant='outline'
                 asChild
-                className={`h-10 text-xs sm:text-sm font-semibold gap-1.5 border-border hover:bg-muted ${
-                  isRejected ? 'text-rose-600 dark:text-rose-400 border-rose-300 dark:border-rose-800 hover:bg-rose-50 dark:hover:bg-rose-950/30' : 'text-foreground'
-                }`}
+                className='h-10 text-xs sm:text-sm font-semibold gap-1.5 border-border hover:bg-muted text-foreground'
               >
                 <Link to='/dashboard/organizer/workspaces/create' search={{ id: activeWorkspace.id, mode: 'edit' }}>
                   <Edit className='size-4' />
-                  <span>{isRejected ? 'Chỉnh sửa theo phản hồi' : 'Chỉnh sửa thông tin'}</span>
+                  <span>Chỉnh sửa thông tin</span>
                 </Link>
               </Button>
             )}
@@ -531,8 +491,8 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
               <span>Preview Public Page</span>
             </Button>
 
-            {/* Emergency Kill Switch / Toggle / Submission */}
-            {isDraft || isRejected ? (
+            {/* Primary Lifecycle Action Button */}
+            {isDraft ? (
               <Button
                 onClick={handleSubmitForReview}
                 disabled={submitMutation.isPending || isDetailError || !canonicalWorkspace}
@@ -543,30 +503,21 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 ) : (
                   <ShieldCheck className='size-4' />
                 )}
-                <span>{isRejected ? 'Resubmit for Review' : 'Submit for Review'}</span>
-              </Button>
-            ) : isPending ? (
-              <Button
-                variant='outline'
-                disabled
-                className='h-10 text-xs sm:text-sm font-semibold border-amber-300 dark:border-amber-800 text-amber-600 opacity-80 gap-1.5'
-              >
-                <Clock className='size-4 text-amber-500 animate-pulse' />
-                <span>Pending Admin Approval</span>
+                <span>Publish &amp; Activate</span>
               </Button>
             ) : activeWorkspace.status === 'ACTIVE' ? (
               <Button
                 variant='outline'
                 onClick={() => setIsPauseModalOpen(true)}
                 disabled={lifecycleMutation.isPending || isDetailError || !canonicalWorkspace}
-                className='h-10 text-xs sm:text-sm font-semibold border-red-300 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 gap-1.5 shadow-2xs'
+                className='h-10 text-xs sm:text-sm font-semibold border-amber-300 dark:border-amber-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1.5 shadow-2xs'
               >
                 {lifecycleMutation.isPending ? (
                   <Loader2 className='size-4 animate-spin' />
                 ) : (
-                  <ShieldAlert className='size-4 text-red-500' />
+                  <Pause className='size-4 text-amber-500' />
                 )}
-                <span>Pause Workspace Listing</span>
+                <span>Set to Pending</span>
               </Button>
             ) : isArchived ? (
               <Button
@@ -589,7 +540,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             ) : (
               <Button
                 onClick={() => setIsResumeModalOpen(true)}
-                disabled={lifecycleMutation.isPending || isDraftOrPending || isDetailError || !canonicalWorkspace}
+                disabled={lifecycleMutation.isPending || isDetailError || !canonicalWorkspace}
                 className='h-10 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs'
               >
                 {lifecycleMutation.isPending ? (
@@ -597,7 +548,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 ) : (
                   <Play className='size-4' />
                 )}
-                <span>Resume Operations</span>
+                <span>Activate Workspace</span>
               </Button>
             )}
 
@@ -608,14 +559,38 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                   <Sliders className='size-4 text-muted-foreground' />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-48'>
+              <DropdownMenuContent align='end' className='w-56'>
+                <DropdownMenuItem
+                  onClick={() => handleTransitionStatus('ACTIVATE', 'ACTIVE')}
+                  disabled={activeWorkspace.status === 'ACTIVE' || isArchived || isSuspended || isDetailError || !canonicalWorkspace}
+                  className='text-xs text-emerald-600 font-medium'
+                >
+                  <Play className='size-3.5 mr-2' />
+                  <span>Activate (Active)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleTransitionStatus('PENDING', 'PENDING')}
+                  disabled={activeWorkspace.status === 'PENDING' || isArchived || isSuspended || isDetailError || !canonicalWorkspace}
+                  className='text-xs text-amber-600'
+                >
+                  <Clock className='size-3.5 mr-2' />
+                  <span>Set Pending (Đang xử lý)</span>
+                </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsMaintenanceModalOpen(true)}
-                  disabled={isArchived || isSuspended || isDetailError || !canonicalWorkspace}
+                  disabled={activeWorkspace.status === 'MAINTENANCE' || isArchived || isSuspended || isDetailError || !canonicalWorkspace}
+                  className='text-xs text-purple-600'
+                >
+                  <Wrench className='size-3.5 mr-2' />
+                  <span>Set Maintenance (Bảo trì)</span>
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => handleTransitionStatus('DRAFT', 'DRAFT')}
+                  disabled={activeWorkspace.status === 'DRAFT' || isArchived || isSuspended || isDetailError || !canonicalWorkspace}
                   className='text-xs'
                 >
-                  <Wrench className='size-3.5 mr-2 text-purple-500' />
-                  <span>Schedule Maintenance</span>
+                  <Edit className='size-3.5 mr-2' />
+                  <span>Move to Draft (Nháp)</span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
                   onClick={() => setIsArchiveModalOpen(true)}
@@ -629,6 +604,83 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             </DropdownMenu>
           </div>
         </section>
+
+        {/* ==================== WORKSPACE STATUS LIFECYCLE FLOW STEPPER ==================== */}
+        {!isArchived && !isSuspended && (
+          <section aria-label='Workspace Status Lifecycle Flow' className='bg-card rounded-xl border border-border p-4 sm:p-5 shadow-2xs'>
+            <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3'>
+              <div>
+                <h2 className='text-xs sm:text-sm font-bold text-foreground'>
+                  Luồng trạng thái không gian làm việc (Workspace Status Flow)
+                </h2>
+                <p className='text-[11px] text-muted-foreground'>
+                  Khi đăng tải, không gian được tự động duyệt sang Active. Nhấn vào trạng thái bên dưới để chuyển đổi nhanh.
+                </p>
+              </div>
+              <Badge variant='outline' className='text-[10px] font-semibold bg-emerald-500/10 text-emerald-600 border-emerald-500/20 w-fit'>
+                Auto-Approved on Publish
+              </Badge>
+            </div>
+
+            <div className='grid grid-cols-1 sm:grid-cols-4 gap-3'>
+              {[
+                {
+                  key: 'DRAFT' as const,
+                  action: 'DRAFT' as const,
+                  title: '1. Draft (Nháp)',
+                  desc: 'Đang thiết lập thông tin, mặt bằng & biểu phí',
+                  activeClass: 'border-slate-500 bg-slate-500/10 text-foreground'
+                },
+                {
+                  key: 'PENDING' as const,
+                  action: 'PENDING' as const,
+                  title: '2. Pending (Đang xử lý)',
+                  desc: 'Đang được xử lý khi đang active lên hệ thống',
+                  activeClass: 'border-amber-500 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                },
+                {
+                  key: 'ACTIVE' as const,
+                  action: 'ACTIVATE' as const,
+                  title: '3. Active (Hoạt động)',
+                  desc: 'Tự động duyệt & mở đặt chỗ công khai trên hệ thống',
+                  activeClass: 'border-emerald-500 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                },
+                {
+                  key: 'MAINTENANCE' as const,
+                  action: 'MAINTENANCE' as const,
+                  title: '4. Maintenance (Bảo trì)',
+                  desc: 'Tạm ngưng nhận đặt chỗ mới để bảo trì cơ sở vật chất',
+                  activeClass: 'border-purple-500 bg-purple-500/10 text-purple-700 dark:text-purple-300'
+                }
+              ].map((step) => {
+                const isCurrent = activeWorkspace.status === step.key;
+                return (
+                  <button
+                    key={step.key}
+                    type='button'
+                    disabled={isCurrent || lifecycleMutation.isPending || isDetailError || !canonicalWorkspace}
+                    onClick={() => handleTransitionStatus(step.action, step.key)}
+                    className={`p-3 rounded-lg border text-left transition-all cursor-pointer disabled:cursor-default ${
+                      isCurrent
+                        ? `${step.activeClass} ring-1 ring-current shadow-2xs`
+                        : 'border-border bg-muted/20 hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <div className='flex items-center justify-between gap-2'>
+                      <span className='text-xs font-bold'>{step.title}</span>
+                      {isCurrent && (
+                        <span className='text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-background/80 border border-border'>
+                          Current
+                        </span>
+                      )}
+                    </div>
+                    <p className='text-[11px] mt-1 opacity-85 leading-snug'>{step.desc}</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ==================== 4 KPI METRIC CARDS ROW ==================== */}
         <section className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6'>
@@ -1256,7 +1308,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             <Button variant='outline' onClick={() => setIsResumeModalOpen(false)}>Cancel</Button>
             <Button
               onClick={handleResumeWorkspace}
-              disabled={lifecycleMutation.isPending || isSuspended || isDraftOrPending}
+              disabled={lifecycleMutation.isPending || isSuspended}
               className='bg-emerald-600 hover:bg-emerald-700 text-white'
             >
               {lifecycleMutation.isPending ? (
