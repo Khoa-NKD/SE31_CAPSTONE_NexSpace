@@ -19,7 +19,7 @@ import { WorkspaceFilterPills } from './workspace-filter-pills';
 import { getWorkspaceColumns } from './workspace-columns';
 import { useWorkspacesStore } from '../store/workspaces-store';
 import { useWizardStore } from '@/features/organizer-onboarding/store/wizard-store';
-import { useWorkspacesQuery } from '@/features/workspaces/api';
+import { useWorkspacesQuery, useWorkspaceLifecycleMutation } from '@/features/workspaces/api';
 import { mapCanonicalToOrganizerWorkspace } from '../utils/workspace-mapper';
 import type { WorkspaceFilter, WorkspaceStatus } from '../types';
 
@@ -88,8 +88,9 @@ export function WorkspacesDashboardView() {
     return {
       all: totalElements,
       active: list.filter((w) => w.status === 'ACTIVE').length,
-      draft: list.filter((w) => w.status === 'DRAFT').length,
-      rejected: list.filter((w) => w.status === 'REJECTED').length
+      pending: list.filter((w) => w.status === 'PENDING').length,
+      maintenance: list.filter((w) => w.status === 'MAINTENANCE').length,
+      draft: list.filter((w) => w.status === 'DRAFT').length
     };
   }, [isError, storeWorkspaces, serverWorkspaces, totalElements]);
 
@@ -97,11 +98,10 @@ export function WorkspacesDashboardView() {
   const filteredWorkspaces = useMemo(() => {
     return workspaces.filter((workspace) => {
       if (filter === 'active' && workspace.status !== 'ACTIVE') return false;
-      if (filter === 'draft' && workspace.status !== 'DRAFT') return false;
-      if (filter === 'paused' && workspace.status !== 'PAUSED') return false;
+      if (filter === 'pending' && workspace.status !== 'PENDING') return false;
       if (filter === 'maintenance' && workspace.status !== 'MAINTENANCE') return false;
+      if (filter === 'draft' && workspace.status !== 'DRAFT') return false;
       if (filter === 'archived' && workspace.status !== 'ARCHIVED') return false;
-      if (filter === 'rejected' && workspace.status !== 'REJECTED') return false;
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -115,13 +115,37 @@ export function WorkspacesDashboardView() {
     });
   }, [workspaces, filter, searchQuery]);
 
+  const lifecycleMutation = useWorkspaceLifecycleMutation();
+
   // Table columns definition with action handlers
   const handleStatusChange = useCallback(
     (id: string, newStatus: WorkspaceStatus) => {
-      updateWorkspaceStatus(id, newStatus);
-      refetch();
+      const targetWs = workspaces.find((w) => w.id === id);
+      const actionMap: Record<WorkspaceStatus, 'ACTIVATE' | 'PENDING' | 'MAINTENANCE' | 'DRAFT' | 'ARCHIVE'> = {
+        ACTIVE: 'ACTIVATE',
+        PENDING: 'PENDING',
+        MAINTENANCE: 'MAINTENANCE',
+        DRAFT: 'DRAFT',
+        ARCHIVED: 'ARCHIVE'
+      };
+      lifecycleMutation.mutate(
+        {
+          id,
+          dto: {
+            action: actionMap[newStatus],
+            expectedVersion: targetWs?.version ?? 1
+          },
+          workspaceName: targetWs?.name
+        },
+        {
+          onSuccess: () => {
+            updateWorkspaceStatus(id, newStatus);
+            refetch();
+          }
+        }
+      );
     },
-    [updateWorkspaceStatus, refetch]
+    [workspaces, lifecycleMutation, updateWorkspaceStatus, refetch]
   );
 
   const columns = useMemo(() => getWorkspaceColumns(handleStatusChange), [handleStatusChange]);

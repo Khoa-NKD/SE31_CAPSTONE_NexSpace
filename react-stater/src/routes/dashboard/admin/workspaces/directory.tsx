@@ -16,7 +16,6 @@ import { WorkspaceDirectoryTable } from '@/features/admin-workspaces/components/
 import { WorkspaceDetailsDrawer } from '@/features/admin-workspaces/components/workspace-details-drawer';
 import {
   useWorkspacesQuery,
-  useAdminReviewWorkspaceMutation,
   useAdminModerateWorkspaceMutation,
   useAdminSetFeaturedWorkspaceMutation
 } from '@/features/workspaces/api';
@@ -29,7 +28,7 @@ const sanitizeSearchId = (val: unknown) => {
 
 const directorySearchSchema = z.object({
   search: z.string().optional(),
-  status: z.enum(['all', 'pending', 'active', 'suspended', 'archived']).optional().default('all'),
+  status: z.enum(['all', 'active', 'pending', 'maintenance', 'draft', 'suspended', 'archived']).optional().default('all'),
   city: z.string().optional().default('all'),
   hubId: z.union([z.string(), z.number()]).transform(sanitizeSearchId).optional(),
   page: z.coerce.number().optional().default(1),
@@ -73,12 +72,11 @@ function WorkspaceDirectoryPage() {
     limit: 100
   });
 
-  // 2. Administrator Review and Moderation mutations
-  const reviewMutation = useAdminReviewWorkspaceMutation();
+  // 2. Administrator Moderation mutations
   const moderateMutation = useAdminModerateWorkspaceMutation();
   const featuredMutation = useAdminSetFeaturedWorkspaceMutation();
 
-  const isSubmitting = reviewMutation.isPending || moderateMutation.isPending || featuredMutation.isPending;
+  const isSubmitting = moderateMutation.isPending || featuredMutation.isPending;
 
   // 3. Map canonical workspaces to directory items
   const content = workspacesResponse?.content;
@@ -90,16 +88,18 @@ function WorkspaceDirectoryPage() {
   // 4. Calculate dynamic summary KPIs from persisted data
   const directoryKpis = useMemo(() => {
     const totalCount = workspaces.length;
-    const pendingReviewCount = workspaces.filter(
-      (w) => w.reviewStatus === 'Pending' || w.status === 'pending'
-    ).length;
     const activeCount = workspaces.filter((w) => w.status === 'active').length;
+    const pendingCount = workspaces.filter((w) => w.status === 'pending').length;
+    const maintenanceCount = workspaces.filter((w) => w.status === 'maintenance').length;
+    const draftCount = workspaces.filter((w) => w.status === 'draft').length;
     const suspendedCount = workspaces.filter((w) => w.status === 'suspended').length;
     const archivedCount = workspaces.filter((w) => w.status === 'archived').length;
     return {
       totalCount,
-      pendingReviewCount,
       activeCount,
+      pendingCount,
+      maintenanceCount,
+      draftCount,
       suspendedCount,
       archivedCount
     };
@@ -214,46 +214,6 @@ function WorkspaceDirectoryPage() {
       replace: true,
       resetScroll: false
     });
-  };
-
-  const handleApprove = async (item: WorkspaceDirectoryItem) => {
-    try {
-      await reviewMutation.mutateAsync({
-        id: item.id,
-        dto: {
-          reviewStatus: 'Approved',
-          reviewedBy: 'USR-1882',
-          reviewFeedback: 'Approved by Administrator.',
-          expectedVersion: item.version ?? 1
-        },
-        workspaceName: item.name
-      });
-    } catch {
-      // Error handled by mutation onError
-    }
-  };
-
-  const handleReject = async (item: WorkspaceDirectoryItem, reason: string) => {
-    if (!reason || reason.trim().length < 5) {
-      toast.error('Rejection Reason Required', {
-        description: 'Please provide at least 5 characters explaining what needs correction.'
-      });
-      return;
-    }
-    try {
-      await reviewMutation.mutateAsync({
-        id: item.id,
-        dto: {
-          reviewStatus: 'Rejected',
-          reviewedBy: 'USR-1882',
-          reviewFeedback: reason.trim(),
-          expectedVersion: item.version ?? 1
-        },
-        workspaceName: item.name
-      });
-    } catch {
-      // Error handled by mutation onError
-    }
   };
 
   const handleToggleSuspend = async (item: WorkspaceDirectoryItem, reason?: string) => {
@@ -410,8 +370,6 @@ function WorkspaceDirectoryPage() {
           workspaceId={cleanHubId}
           isOpen={isDrawerOpen}
           onClose={handleCloseDrawer}
-          onApprove={handleApprove}
-          onReject={handleReject}
           onToggleSuspend={handleToggleSuspend}
           onToggleFeatured={handleToggleFeatured}
           isSubmitting={isSubmitting}

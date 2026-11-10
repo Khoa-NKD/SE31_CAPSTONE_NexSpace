@@ -8,7 +8,13 @@ export type ResourceStatus = 'DRAFT' | 'ACTIVE' | 'DISABLED' | 'ARCHIVED';
 export type Category = 'DESK' | 'ROOM';
 
 export function canConfigureWorkspaceResources(status: string | undefined): boolean {
-  return status === 'DRAFT' || status === 'ACTIVE' || status === 'INACTIVE';
+  return (
+    status === 'DRAFT' ||
+    status === 'PENDING' ||
+    status === 'ACTIVE' ||
+    status === 'MAINTENANCE' ||
+    status === 'INACTIVE'
+  );
 }
 export interface WorkspaceOption {
   id: number;

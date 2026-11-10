@@ -17,6 +17,7 @@ import {
   Eye,
   PlayCircle,
   PauseCircle,
+  Wrench,
   Archive,
   ExternalLink,
   MapPin,
@@ -36,7 +37,8 @@ interface WorkspaceCellActionProps {
 export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCellActionProps) {
   const isDraft = workspace.status === 'DRAFT';
   const isActive = workspace.status === 'ACTIVE';
-  const isPaused = workspace.status === 'PAUSED';
+  const isPending = workspace.status === 'PENDING';
+  const isMaintenance = workspace.status === 'MAINTENANCE';
   const resumeRoute = isDraft ? getWorkspaceResumeRoute(workspace) : '/dashboard/organizer/workspaces/create';
 
   return (
@@ -46,11 +48,10 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
           <MoreHorizontal className='h-4 w-4' />
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align='end' className='w-48'>
-        {isDraft ? (
-          // DRAFT status: ONLY provide Resume Setup / Tiếp tục chỉnh sửa action (resumes at ongoing step)
-          <DropdownMenuGroup>
-            <DropdownMenuLabel>Actions</DropdownMenuLabel>
+      <DropdownMenuContent align='end' className='w-56'>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          {isDraft ? (
             <DropdownMenuItem asChild>
               <Link
                 to={resumeRoute}
@@ -61,94 +62,96 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                 <span>Resume Setup</span>
               </Link>
             </DropdownMenuItem>
-          </DropdownMenuGroup>
-        ) : (
-          // PUBLISHED / ACTIVE / OFFICIAL status: Manage Details, View Public Page, and Lifecycle actions
-          <>
-            <DropdownMenuGroup>
-              <DropdownMenuLabel>Actions</DropdownMenuLabel>
-              {workspace.status === 'REJECTED' ? (
-                <DropdownMenuItem asChild>
-                  <Link
-                    to='/dashboard/organizer/workspaces/create'
-                    search={{ id: workspace.id, mode: 'edit' }}
-                    className='cursor-pointer flex items-center text-rose-600 dark:text-rose-400 font-semibold focus:text-rose-700'
-                  >
-                    <Edit className='mr-2 h-4 w-4 text-rose-600' />
-                    <span>Chỉnh sửa theo phản hồi</span>
-                  </Link>
-                </DropdownMenuItem>
-              ) : (
-                workspace.status !== 'ARCHIVED' && (
-                  <DropdownMenuItem asChild>
-                    <Link
-                      to='/dashboard/organizer/workspaces/create'
-                      search={{ id: workspace.id, mode: 'edit' }}
-                      className='cursor-pointer flex items-center text-indigo-600 dark:text-indigo-400 font-medium'
-                    >
-                      <Edit className='mr-2 h-4 w-4' />
-                      <span>Chỉnh sửa hồ sơ</span>
-                    </Link>
-                  </DropdownMenuItem>
-                )
-              )}
+          ) : (
+            workspace.status !== 'ARCHIVED' && (
               <DropdownMenuItem asChild>
                 <Link
-                  to='/dashboard/organizer/workspaces/lifecycle'
-                  search={{ id: workspace.id }}
-                  className='cursor-pointer flex items-center'
+                  to='/dashboard/organizer/workspaces/create'
+                  search={{ id: workspace.id, mode: 'edit' }}
+                  className='cursor-pointer flex items-center text-indigo-600 dark:text-indigo-400 font-medium'
                 >
-                  <Eye className='mr-2 h-4 w-4 text-muted-foreground' />
-                  <span>Manage Details</span>
+                  <Edit className='mr-2 h-4 w-4' />
+                  <span>Chỉnh sửa hồ sơ</span>
                 </Link>
               </DropdownMenuItem>
+            )
+          )}
+          <DropdownMenuItem asChild>
+            <Link
+              to='/dashboard/organizer/workspaces/lifecycle'
+              search={{ id: workspace.id }}
+              className='cursor-pointer flex items-center'
+            >
+              <Eye className='mr-2 h-4 w-4 text-muted-foreground' />
+              <span>Manage Status &amp; Details</span>
+            </Link>
+          </DropdownMenuItem>
 
-              <DropdownMenuItem asChild>
-                <Link
-                  to='/workspaces/$workspaceId'
-                  params={{ workspaceId: workspace.id }}
-                  className='cursor-pointer flex items-center'
+          {!isDraft && (
+            <DropdownMenuItem asChild>
+              <Link
+                to='/workspaces/$workspaceId'
+                params={{ workspaceId: workspace.id }}
+                className='cursor-pointer flex items-center'
+              >
+                <ExternalLink className='mr-2 h-4 w-4 text-muted-foreground' />
+                <span>View Public Page</span>
+              </Link>
+            </DropdownMenuItem>
+          )}
+        </DropdownMenuGroup>
+
+        {onStatusChange && workspace.status !== 'ARCHIVED' && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className='text-[10px] uppercase tracking-wider text-muted-foreground'>
+                Status Transition
+              </DropdownMenuLabel>
+              {!isActive && (
+                <DropdownMenuItem
+                  onClick={() => onStatusChange(workspace.id, 'ACTIVE')}
+                  className='cursor-pointer text-emerald-600 font-medium'
                 >
-                  <ExternalLink className='mr-2 h-4 w-4 text-muted-foreground' />
-                  <span>View Public Page</span>
-                </Link>
+                  <PlayCircle className='mr-2 h-4 w-4' />
+                  <span>Activate (Active)</span>
+                </DropdownMenuItem>
+              )}
+              {!isPending && (
+                <DropdownMenuItem
+                  onClick={() => onStatusChange(workspace.id, 'PENDING')}
+                  className='cursor-pointer text-amber-600'
+                >
+                  <PauseCircle className='mr-2 h-4 w-4' />
+                  <span>Set Pending (Đang xử lý)</span>
+                </DropdownMenuItem>
+              )}
+              {!isMaintenance && (
+                <DropdownMenuItem
+                  onClick={() => onStatusChange(workspace.id, 'MAINTENANCE')}
+                  className='cursor-pointer text-purple-600'
+                >
+                  <Wrench className='mr-2 h-4 w-4' />
+                  <span>Set Maintenance (Bảo trì)</span>
+                </DropdownMenuItem>
+              )}
+              {!isDraft && (
+                <DropdownMenuItem
+                  onClick={() => onStatusChange(workspace.id, 'DRAFT')}
+                  className='cursor-pointer text-muted-foreground'
+                >
+                  <Edit className='mr-2 h-4 w-4' />
+                  <span>Move to Draft (Nháp)</span>
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                onClick={() => onStatusChange(workspace.id, 'ARCHIVED')}
+                className='cursor-pointer text-destructive'
+              >
+                <Archive className='mr-2 h-4 w-4' />
+                <span>Archive</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
-
-            {onStatusChange && (
-              <>
-                <DropdownMenuSeparator />
-                <DropdownMenuGroup>
-                  {isActive && (
-                    <DropdownMenuItem
-                      onClick={() => onStatusChange(workspace.id, 'PAUSED')}
-                      className='cursor-pointer text-amber-600'
-                    >
-                      <PauseCircle className='mr-2 h-4 w-4' />
-                      <span>Pause Workspace</span>
-                    </DropdownMenuItem>
-                  )}
-                  {isPaused && (
-                    <DropdownMenuItem
-                      onClick={() => onStatusChange(workspace.id, 'ACTIVE')}
-                      className='cursor-pointer text-emerald-600'
-                    >
-                      <PlayCircle className='mr-2 h-4 w-4' />
-                      <span>Activate Workspace</span>
-                    </DropdownMenuItem>
-                  )}
-                  {workspace.status !== 'ARCHIVED' && (
-                    <DropdownMenuItem
-                      onClick={() => onStatusChange(workspace.id, 'ARCHIVED')}
-                      className='cursor-pointer text-destructive'
-                    >
-                      <Archive className='mr-2 h-4 w-4' />
-                      <span>Archive</span>
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuGroup>
-              </>
-            )}
           </>
         )}
       </DropdownMenuContent>
@@ -165,35 +168,25 @@ const statusConfig: Record<
     variant: 'default',
     className: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20'
   },
-  DRAFT: {
-    label: 'DRAFT',
-    variant: 'secondary',
+  PENDING: {
+    label: 'PENDING (ĐANG XỬ LÝ)',
+    variant: 'outline',
     className: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20'
   },
-  UNDER_REVIEW: {
-    label: 'UNDER REVIEW',
-    variant: 'outline',
-    className: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20'
-  },
-  PAUSED: {
-    label: 'PAUSED',
-    variant: 'outline',
-    className: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20'
-  },
   MAINTENANCE: {
-    label: 'MAINTENANCE',
+    label: 'MAINTENANCE (BẢO TRÌ)',
     variant: 'outline',
     className: 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20'
+  },
+  DRAFT: {
+    label: 'DRAFT (NHÁP)',
+    variant: 'secondary',
+    className: 'bg-slate-500/10 text-slate-600 dark:text-slate-400 border-slate-500/20'
   },
   ARCHIVED: {
     label: 'ARCHIVED',
     variant: 'destructive',
     className: 'bg-destructive/10 text-destructive border-destructive/20'
-  },
-  REJECTED: {
-    label: 'NEEDS REVISION',
-    variant: 'destructive',
-    className: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20'
   }
 };
 
@@ -265,9 +258,14 @@ export function getWorkspaceColumns(
             <Badge variant={config.variant} className={`border font-semibold text-2xs ${config.className}`}>
               {config.label}
             </Badge>
-            {status === 'REJECTED' && row.original.reviewFeedback && (
-              <span className='text-2xs text-rose-600 dark:text-rose-400 max-w-[200px] truncate font-medium' title={row.original.reviewFeedback}>
-                Lý do: {row.original.reviewFeedback}
+            {status === 'PENDING' && (
+              <span className='text-2xs text-amber-600 dark:text-amber-400'>
+                Đang được xử lý khi đang active
+              </span>
+            )}
+            {status === 'MAINTENANCE' && (
+              <span className='text-2xs text-purple-600 dark:text-purple-400'>
+                Đang tạm ngưng bảo trì
               </span>
             )}
             {status === 'DRAFT' && row.original.draftProgress !== undefined && (

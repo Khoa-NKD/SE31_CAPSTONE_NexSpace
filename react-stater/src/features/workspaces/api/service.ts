@@ -11,7 +11,6 @@ import type {
   UpdateWorkspaceDto,
   WorkspaceLifecycleDto,
   SubmitWorkspaceDto,
-  AdminReviewWorkspaceDto,
   AdminModerationWorkspaceDto,
   AdminFeaturedWorkspaceDto,
   AdminWorkspaceKpisDto,
@@ -312,7 +311,7 @@ export const workspaceService = {
   },
 
   /**
-   * Dedicated Organizer command endpoint for submitting a complete Draft workspace for Admin review.
+   * Dedicated Organizer command endpoint for publishing and auto-approving a workspace to ACTIVE.
    */
   async submitWorkspace(
     id: string,
@@ -327,26 +326,6 @@ export const workspaceService = {
     return apiClient.post<CanonicalWorkspace>(
       `/workspaces/${encodeURIComponent(resolvedId)}/submit`,
       dto || {},
-      { headers }
-    );
-  },
-
-  /**
-   * Dedicated Admin endpoint for reviewing workspace submission (Approve / Reject).
-   */
-  async adminReviewWorkspace(
-    id: string,
-    dto: AdminReviewWorkspaceDto,
-    options?: { adminId?: string }
-  ): Promise<CanonicalWorkspace> {
-    const resolvedId = resolveWorkspaceId(id);
-    const headers: Record<string, string> = {
-      'x-mock-role': 'Administrator',
-      'x-mock-user-id': options?.adminId || dto.reviewedBy || 'USR-1882'
-    };
-    return apiClient.patch<CanonicalWorkspace>(
-      `/admin/workspaces/${encodeURIComponent(resolvedId)}/review`,
-      dto,
       { headers }
     );
   },

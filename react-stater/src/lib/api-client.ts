@@ -44,13 +44,13 @@ export function setAuthHeaderProvider(provider: AuthHeaderProvider | null): void
 export function getApiBaseUrl(): string {
   // Client-side browser execution
   if (typeof window !== 'undefined') {
-    return import.meta.env.VITE_API_BASE_URL || '/api/v1';
+    return import.meta.env.VITE_API_BASE_URL || '/api';
   }
   // Server-side rendering (SSR) execution inside Node.js / Nitro
   return (
     process.env.INTERNAL_API_URL ||
     process.env.VITE_API_BASE_URL ||
-    'http://localhost:4000/api/v1'
+    'http://localhost:8080/api'
   );
 }
 

@@ -69,19 +69,6 @@ export function WorkspaceDirectoryFilters({
           <button
             type='button'
             role='tab'
-            aria-selected={statusFilter === 'pending'}
-            onClick={() => onStatusChange('pending')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'pending'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Pending Review ({kpis.pendingReviewCount})
-          </button>
-          <button
-            type='button'
-            role='tab'
             aria-selected={statusFilter === 'active'}
             onClick={() => onStatusChange('active')}
             className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
@@ -91,6 +78,45 @@ export function WorkspaceDirectoryFilters({
             }`}
           >
             Active ({kpis.activeCount})
+          </button>
+          <button
+            type='button'
+            role='tab'
+            aria-selected={statusFilter === 'pending'}
+            onClick={() => onStatusChange('pending')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              statusFilter === 'pending'
+                ? 'bg-card text-foreground shadow-2xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Pending ({kpis.pendingCount})
+          </button>
+          <button
+            type='button'
+            role='tab'
+            aria-selected={statusFilter === 'maintenance'}
+            onClick={() => onStatusChange('maintenance')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              statusFilter === 'maintenance'
+                ? 'bg-card text-foreground shadow-2xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Maintenance ({kpis.maintenanceCount})
+          </button>
+          <button
+            type='button'
+            role='tab'
+            aria-selected={statusFilter === 'draft'}
+            onClick={() => onStatusChange('draft')}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
+              statusFilter === 'draft'
+                ? 'bg-card text-foreground shadow-2xs'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Draft ({kpis.draftCount})
           </button>
           <button
             type='button'

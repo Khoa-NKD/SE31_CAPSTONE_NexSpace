@@ -10,15 +10,16 @@ import {
   Layers,
   MapPin,
   Star,
-  Send,
+  ArrowRight,
+  Save,
   Eye,
   Sparkles,
   QrCode,
-  ShieldCheck
+  ShieldCheck,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -30,7 +31,6 @@ import {
 import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
-import { useSubmitWorkspaceMutation } from '@/features/workspaces/api';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
 
 function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolean {
@@ -48,8 +48,7 @@ export function StepReviewChecklistView() {
     amenities,
     media,
     floorPlan,
-    reviewStatus,
-    reviewFeedback,
+    canonicalWorkspaceId,
     saveDraft,
     setSubmissionStatus
   } = useWizardStore();
@@ -59,14 +58,10 @@ export function StepReviewChecklistView() {
     saveDraftToServer
   } = useWizardDraftSync();
 
-  const submitMutation = useSubmitWorkspaceMutation();
-
-  const [hasAgreedTerms, setHasAgreedTerms] = useState(false);
-  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Validation audits
+  // Validation audits for Steps 1–5
   const isBasicInfoValid =
     Boolean(basicInfo.name && basicInfo.category && basicInfo.totalArea > 0 && basicInfo.contactEmail);
   const isLocationValid =
@@ -95,17 +90,11 @@ export function StepReviewChecklistView() {
   const hasOnlyLocalPreviews = media.items.length > 0 && durableMediaCount === 0;
   const isMediaValid = durableMediaCount >= 1 && (hasDurableCover || durableMediaCount > 0);
 
-  const isFloorPlanValid =
-    floorPlan.floors.length >= 1 &&
-    floorPlan.zones.length >= 1 &&
-    floorPlan.zones.every((z) => z.baseHourlyRate >= 0);
-
-  // Calculate audit score
+  // Calculate audit score across the 3 core onboarding sections (Steps 1–5)
   const auditSections = [
     { id: 'basic_loc', name: 'Basic Info & Location', valid: isBasicInfoValid && isLocationValid },
     { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid },
-    { id: 'media_amenities', name: 'Amenities & Media Assets', valid: isAmenitiesValid && isMediaValid },
-    { id: 'floor_plan', name: 'Floor Structure & Zones', valid: isFloorPlanValid }
+    { id: 'media_amenities', name: 'Amenities & Media Assets', valid: isAmenitiesValid && isMediaValid }
   ];
 
   const completedSectionsCount = auditSections.filter((s) => s.valid).length;
@@ -115,51 +104,50 @@ export function StepReviewChecklistView() {
   const totalCapacity = floorPlan.zones.reduce((acc, z) => acc + z.capacity, 0);
   const coverPhoto = media.items.find((item) => item.id === media.coverPhotoId) || media.items[0];
 
-  const handleConfirmSubmit = async () => {
+  const handleSaveAsDraftAndExit = async () => {
     setIsSubmitting(true);
     try {
-      if (!isMediaValid) {
-        toast.error('Submission Blocked: Missing Durable Media', {
-          description: hasOnlyLocalPreviews
-            ? 'Only temporary local previews are present. Please ensure all photographs are uploaded before submitting for review.'
-            : 'At least 1 durable workspace photograph is required before submitting for review.'
-        });
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Always persist current wizard changes to canonical Workspace on server first
       const saved = await saveDraftToServer({ silent: true });
-      if (!saved) {
-        // saveDraftToServer already displayed conflict / validation error toast if save failed
-        setIsSubmitting(false);
-        return;
-      }
-
-      const targetId = String(saved.id);
-      const targetVersion = saved.version;
-
-      await submitMutation.mutateAsync({
-        id: targetId,
-        dto: {
-          expectedVersion: targetVersion,
-          agreementConfirmed: true
-        },
-        workspaceName: basicInfo.name
-      });
-
-      setSubmissionStatus('under_review');
+      setSubmissionStatus('draft');
       saveDraft();
-      setIsSubmitModalOpen(false);
-
-      toast.success('Workspace Submitted for Review!', {
-        description: `Listing ${targetId} submitted for review. An administrator will review your workspace before marketplace publication.`
+      toast.success('Workspace Saved as Draft', {
+        description: `${basicInfo.name || 'Workspace'}${saved?.id ? ` (#${saved.id})` : ''} has been saved in DRAFT status.`
       });
-
       router.navigate({ to: '/dashboard/organizer/workspaces' });
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Submission failed';
-      toast.error('Submission Error', { description: msg });
+      const msg = err instanceof Error ? err.message : 'Failed to save draft';
+      toast.error('Save Draft Error', { description: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoToSetupFloorAndZone = async () => {
+    setIsSubmitting(true);
+    try {
+      const saved = await saveDraftToServer({ silent: true });
+      setSubmissionStatus('draft');
+      saveDraft();
+
+      const rawId = saved?.id || canonicalWorkspaceId;
+      const numericMatch = rawId ? String(rawId).match(/\d+/) : null;
+      const numericWorkspaceId = numericMatch ? Number(numericMatch[0]) : undefined;
+
+      toast.success('Workspace Draft Saved', {
+        description: 'Redirecting to Floor Plan & Zones setup...'
+      });
+
+      if (numericWorkspaceId && Number.isSafeInteger(numericWorkspaceId) && numericWorkspaceId > 0) {
+        router.navigate({
+          to: '/dashboard/organizer/floorplan',
+          search: { workspaceId: numericWorkspaceId }
+        });
+      } else {
+        router.navigate({ to: '/dashboard/organizer/floorplan' });
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Failed to proceed to Floor & Zone setup';
+      toast.error('Navigation Error', { description: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -207,33 +195,17 @@ export function StepReviewChecklistView() {
 
       {/* Main Review Form Area */}
       <main className='flex-1 p-4 sm:p-8 max-w-4xl w-full mx-auto space-y-6'>
-        {/* Rejection Alert Banner */}
-        {reviewStatus === 'Rejected' && (
-          <div className='flex items-start gap-3 p-4 rounded-xl border border-rose-500/40 bg-rose-500/10 text-rose-800 dark:text-rose-300 shadow-2xs'>
-            <AlertTriangle className='size-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5' />
-            <div className='space-y-1 flex-1'>
-              <h3 className='font-bold text-sm text-rose-900 dark:text-rose-200'>Hồ sơ cần điều chỉnh (Yêu cầu từ Quản trị viên)</h3>
-              <p className='text-xs leading-relaxed font-medium text-rose-800 dark:text-rose-300'>
-                {reviewFeedback || 'Quản trị viên đã từ chối hồ sơ này. Vui lòng cập nhật các thông tin theo yêu cầu trước khi nộp lại.'}
-              </p>
-              <p className='text-[11px] text-muted-foreground pt-1'>
-                Sau khi bổ sung đầy đủ thông tin hoặc hình ảnh theo yêu cầu, hãy kiểm tra danh mục kiểm tra bên dưới và nhấn <strong>&quot;Resubmit for Review&quot;</strong> để gửi duyệt lại.
-              </p>
-            </div>
-          </div>
-        )}
-
         {/* Header Block */}
         <div>
           <div className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-1'>
             <CheckCircle2 className='size-4' />
-            <span>Step 5 of 5 • Final Verification</span>
+            <span>Step 5 of 5 • Workspace Overview</span>
           </div>
           <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
-            Workspace Publication Checklist
+            Workspace Overview &amp; Review
           </h1>
           <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-            Review and verify all required operational settings, floor inventory, and pricing policies before going live on the NexSpace marketplace.
+            Review your workspace information, location, operating hours, amenities, and gallery photos. You can save as a draft now or proceed directly to configure your floor plans and zones.
           </p>
 
           {/* Readiness Alert Banner */}
@@ -241,16 +213,16 @@ export function StepReviewChecklistView() {
             <div className='mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm flex items-start gap-3'>
               <ShieldCheck className='size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5' />
               <div>
-                <span className='font-bold text-foreground'>Your workspace is 100% complete! </span>
-                All mandatory operational fields, geolocation coordinates, and floor zones meet platform review and submission requirements.
+                <span className='font-bold text-foreground'>Workspace onboarding details complete! </span>
+                Choose <strong>Save Draft</strong> to return to your workspace list in DRAFT status, or <strong>Go to Setup Floor &amp; Zone</strong> to configure floors, zones, and bookable resources.
               </div>
             </div>
           ) : (
             <div className='mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs sm:text-sm flex items-start gap-3'>
               <AlertTriangle className='size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
               <div>
-                <span className='font-bold text-foreground'>Your workspace is almost ready! </span>
-                Please address pending sections highlighted below to enable submission for administrator review.
+                <span className='font-bold text-foreground'>Some sections are still incomplete. </span>
+                You can still save your workspace as a draft or proceed to setup floors and zones.
               </div>
             </div>
           )}
@@ -519,29 +491,20 @@ export function StepReviewChecklistView() {
                 <Layers className='size-5' />
               </div>
               <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Floor Plan &amp; Resource Pricing Matrix</h2>
-                <p className='text-xs text-muted-foreground'>Configured zones, desk capacities &amp; commercial hourly rates</p>
+                <h2 className='text-sm sm:text-base font-bold text-foreground'>Floor Plan &amp; Zones Setup</h2>
+                <p className='text-xs text-muted-foreground'>Configure building floors, functional zones, desks, rooms &amp; hourly rates</p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
-              <Badge
-                variant='outline'
-                className={`text-xs font-semibold ${
-                  isFloorPlanValid
-                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
-                    : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
-                }`}
-              >
-                {isFloorPlanValid ? 'Complete' : 'Attention Required'}
-              </Badge>
               <Button
-                variant='ghost'
+                variant='outline'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/floor-plan', search: (prev) => prev })}
-                className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
+                disabled={isSaving || isSubmitting}
+                onClick={handleGoToSetupFloorAndZone}
+                className='h-8 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 gap-1.5'
               >
-                <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Floor Plan</span>
+                <Layers className='size-3.5' />
+                <span>Setup Floor &amp; Zone</span>
               </Button>
             </div>
           </div>
@@ -565,32 +528,16 @@ export function StepReviewChecklistView() {
             </div>
           </div>
         </section>
-
-        {/* Declaration and Agreement Checkbox */}
-        <div className='p-4 rounded-xl bg-card border border-border shadow-2xs space-y-3'>
-          <div className='flex items-start gap-3'>
-            <Checkbox
-              id='terms'
-              checked={hasAgreedTerms}
-              onCheckedChange={(checked) => setHasAgreedTerms(Boolean(checked))}
-              className='mt-1'
-            />
-            <label htmlFor='terms' className='text-xs leading-relaxed text-muted-foreground cursor-pointer'>
-              <span className='font-bold text-foreground'>Organizer Platform Agreement Declaration: </span>
-              I confirm that all facility descriptions, safety standards, fire codes, and hourly pricing matrices are accurate and comply with the NexSpace Partner Master Service Agreement. I authorize NexSpace to inspect and verify this listing for administrator review.
-            </label>
-          </div>
-        </div>
       </main>
 
-      {/* ==================== ELEVATED STICKY SUBMISSION BAR ==================== */}
+      {/* ==================== ELEVATED STICKY ACTION BAR ==================== */}
       <div className='fixed bottom-4 left-4 right-4 sm:left-8 sm:right-8 z-30 pointer-events-none'>
         <div className='max-w-4xl mx-auto pointer-events-auto bg-card/95 backdrop-blur-md border border-border rounded-2xl p-4 px-6 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4'>
           {/* Progress Indicator */}
           <div className='flex flex-col w-full sm:w-auto'>
             <div className='flex items-center gap-3'>
               <span className='text-xs sm:text-sm font-bold text-foreground'>
-                {completedSectionsCount} of {auditSections.length} Sections Complete ({auditScorePercent}%)
+                {completedSectionsCount} of {auditSections.length} Overview Sections Ready ({auditScorePercent}%)
               </span>
               <div className='h-2 w-32 bg-muted rounded-full overflow-hidden'>
                 <div
@@ -602,9 +549,7 @@ export function StepReviewChecklistView() {
               </div>
             </div>
             <span className='text-[11px] text-muted-foreground mt-0.5'>
-              {isReadyForSubmission
-                ? 'All mandatory requirements satisfied. Ready for submission.'
-                : 'Complete all steps before submitting for review.'}
+              Save as DRAFT and return to Workspaces, or continue to Setup Floor &amp; Zone.
             </span>
           </div>
 
@@ -614,76 +559,25 @@ export function StepReviewChecklistView() {
               type='button'
               variant='outline'
               disabled={isSaving || isSubmitting}
-              onClick={async () => {
-                await saveDraftToServer({ silent: false });
-              }}
-              className='h-10 text-xs sm:text-sm font-medium border-border'
+              onClick={handleSaveAsDraftAndExit}
+              className='h-10 px-4 text-xs sm:text-sm font-medium border-border gap-1.5'
             >
-              {isSaving ? 'Saving Draft...' : 'Save as Draft'}
+              {isSaving || isSubmitting ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+              <span>{isSaving ? 'Saving Draft...' : 'Save Draft'}</span>
             </Button>
 
             <Button
               type='button'
-              disabled={!isReadyForSubmission || !hasAgreedTerms || isSubmitting || isSaving}
-              onClick={() => setIsSubmitModalOpen(true)}
-              className={`h-10 px-5 text-xs sm:text-sm font-semibold gap-2 shadow-xs transition-all ${
-                isReadyForSubmission && hasAgreedTerms
-                  ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  : 'bg-muted text-muted-foreground cursor-not-allowed'
-              }`}
+              disabled={isSubmitting || isSaving}
+              onClick={handleGoToSetupFloorAndZone}
+              className='h-10 px-5 text-xs sm:text-sm font-semibold gap-2 shadow-xs transition-all bg-indigo-600 hover:bg-indigo-700 text-white'
             >
-              <Send className='size-4' />
-              <span>{reviewStatus === 'Rejected' ? 'Resubmit for Review' : 'Submit for Review'}</span>
+              <span>Go to Setup Floor &amp; Zone</span>
+              {isSubmitting ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
             </Button>
           </div>
         </div>
       </div>
-
-      {/* ==================== MODAL: CONFIRM SUBMISSION ==================== */}
-      <Dialog open={isSubmitModalOpen} onOpenChange={setIsSubmitModalOpen}>
-        <DialogContent className='sm:max-w-md'>
-          <DialogHeader>
-            <DialogTitle className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400'>
-              <Send className='size-5' />
-              <span>{reviewStatus === 'Rejected' ? 'Confirm Resubmission for Review' : 'Confirm Submission for Review'}</span>
-            </DialogTitle>
-            <DialogDescription>
-              {reviewStatus === 'Rejected'
-                ? <span>Nộp lại hồ sơ <strong className='text-foreground'>{basicInfo.name}</strong> sau khi đã điều chỉnh để Quản trị viên thẩm định lại.</span>
-                : <span>Submit <strong className='text-foreground'>{basicInfo.name}</strong> for administrator review. Once approved by our team, the listing will be published to the marketplace.</span>}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-3 py-2 text-xs text-muted-foreground'>
-            <p>
-              Once submitted, administrators will review your workspace details, license records, and safety compliance before approving publication.
-            </p>
-            <div className='p-3 bg-muted/60 rounded-lg border border-border space-y-1.5'>
-              <div className='flex justify-between'>
-                <span>Listing Name:</span>
-                <span className='font-semibold text-foreground'>{basicInfo.name}</span>
-              </div>
-              <div className='flex justify-between'>
-                <span>Floors &amp; Capacity:</span>
-                <span className='font-semibold text-foreground'>{floorPlan.floors.length} Floors • {totalCapacity} Desks</span>
-              </div>
-              <div className='flex justify-between'>
-                <span>Review Status:</span>
-                <span className='font-semibold text-amber-600 dark:text-amber-400'>Pending Administrator Review</span>
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setIsSubmitModalOpen(false)}>Cancel</Button>
-            <Button
-              onClick={handleConfirmSubmit}
-              disabled={isSubmitting || isSaving}
-              className='bg-indigo-600 hover:bg-indigo-700 text-white'
-            >
-              {isSubmitting ? 'Submitting...' : 'Confirm Submission'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* ==================== MODAL: PREVIEW LISTING ==================== */}
       <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>

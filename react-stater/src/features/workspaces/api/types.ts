@@ -12,7 +12,7 @@ export type WorkspaceCategory =
   | 'other';
 
 export type WorkspaceReviewStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected';
-export type WorkspaceOperatingStatus = 'Active' | 'Inactive' | 'Archived';
+export type WorkspaceOperatingStatus = 'Active' | 'Pending' | 'Maintenance' | 'Inactive' | 'Archived';
 export type WorkspaceModerationStatus = 'Normal' | 'Suspended';
 export type BookingConfirmationMode = 'Instant' | 'Manual_Approval';
 
@@ -149,6 +149,8 @@ export interface CanonicalWorkspace {
   occupancyRate?: number;
   grossRevenueMtd?: number;
   totalBookingsMtd?: number;
+  bookingCount?: number;
+  totalBookings?: number;
   tier?: string;
   publicUrl?: string;
 
@@ -354,7 +356,21 @@ export interface UpdateWorkspaceDto {
   version?: number;
 }
 
-export type WorkspaceLifecycleAction = 'pause' | 'resume' | 'maintenance' | 'archive';
+export type WorkspaceLifecycleAction =
+  | 'draft'
+  | 'pending'
+  | 'activate'
+  | 'pause'
+  | 'resume'
+  | 'maintenance'
+  | 'archive'
+  | 'DRAFT'
+  | 'PENDING'
+  | 'ACTIVATE'
+  | 'PAUSE'
+  | 'RESUME'
+  | 'MAINTENANCE'
+  | 'ARCHIVE';
 
 export interface WorkspaceLifecycleDto {
   action: WorkspaceLifecycleAction;
@@ -365,13 +381,6 @@ export interface WorkspaceLifecycleDto {
 export interface SubmitWorkspaceDto {
   expectedVersion?: number;
   agreementConfirmed?: boolean;
-}
-
-export interface AdminReviewWorkspaceDto {
-  reviewStatus: WorkspaceReviewStatus;
-  reviewedBy: string;
-  reviewFeedback?: string;
-  expectedVersion: number;
 }
 
 export interface AdminModerationWorkspaceDto {
@@ -408,15 +417,23 @@ export function isWorkspacePubliclyEligible(
 }
 
 export interface AdminWorkspaceKpisDto {
+  totalPlatformUsers?: number;
+  activeOrganizers?: number;
+  activeWorkspaces?: number;
+  totalBookings?: number;
   totalWorkspaces: number;
-  totalPublishedSpaces: number;
-  publishedMonthlyGrowth: number | null;
-  metroHubsCount: number;
-  pendingModerationCount: number;
-  pendingOldestHours: number;
+  activeCount?: number;
+  pendingCount?: number;
+  maintenanceCount?: number;
+  draftCount?: number;
   suspendedCount: number;
-  suspendedGrievanceDetails: string;
-  partnerDraftsCount: number;
+  totalPublishedSpaces?: number;
+  publishedMonthlyGrowth?: number | null;
+  metroHubsCount?: number;
+  pendingModerationCount?: number;
+  pendingOldestHours?: number;
+  suspendedGrievanceDetails?: string;
+  partnerDraftsCount?: number;
 }
 
 export interface WorkspaceMediaDto {

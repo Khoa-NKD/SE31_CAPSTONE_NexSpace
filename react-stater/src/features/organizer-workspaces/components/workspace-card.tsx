@@ -56,10 +56,10 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
                 <span>ACTIVE</span>
               </div>
             )}
-            {workspace.status === 'PAUSED' && (
+            {workspace.status === 'PENDING' && (
               <div className='absolute top-3 right-3 bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
-                <span className='size-1.5 rounded-full bg-amber-500' />
-                <span>PAUSED</span>
+                <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
+                <span>PENDING</span>
               </div>
             )}
             {workspace.status === 'MAINTENANCE' && (
@@ -72,18 +72,6 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               <div className='absolute top-3 right-3 bg-slate-500/20 text-slate-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
                 <span className='size-1.5 rounded-full bg-slate-400' />
                 <span>ARCHIVED</span>
-              </div>
-            )}
-            {workspace.status === 'UNDER_REVIEW' && (
-              <div className='absolute top-3 right-3 bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-indigo-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
-                <span className='size-1.5 rounded-full bg-indigo-500 animate-pulse' />
-                <span>UNDER REVIEW</span>
-              </div>
-            )}
-            {workspace.status === 'REJECTED' && (
-              <div className='absolute top-3 right-3 bg-rose-500/15 text-rose-600 dark:text-rose-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-rose-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
-                <span className='size-1.5 rounded-full bg-rose-500' />
-                <span>NEEDS REVISION</span>
               </div>
             )}
           </>
@@ -101,18 +89,6 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             <span className='truncate'>{workspace.address}</span>
           </div>
         </div>
-
-        {workspace.status === 'REJECTED' && (
-          <div className='bg-rose-500/10 border border-rose-500/30 rounded-lg p-3 text-xs text-rose-800 dark:text-rose-300 flex items-start gap-2.5'>
-            <AlertTriangle className='size-4 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5' />
-            <div className='flex flex-col gap-0.5 flex-1 min-w-0'>
-              <span className='font-semibold'>Yêu cầu chỉnh sửa từ Quản trị viên:</span>
-              <span className='leading-relaxed font-medium text-rose-900 dark:text-rose-200'>
-                {workspace.reviewFeedback || 'Vui lòng bổ sung thông tin hồ sơ và nộp duyệt lại.'}
-              </span>
-            </div>
-          </div>
-        )}
 
         {isDraft ? (
           <>
@@ -199,40 +175,16 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             </div>
 
             {/* Action Button: Manage Workspace */}
-            {workspace.status === 'REJECTED' ? (
-              <div className='flex items-center gap-2'>
-                <Button
-                  variant='outline'
-                  asChild
-                  className='flex-1 border-rose-300 dark:border-rose-800 text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30 font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs'
-                >
-                  <Link to='/dashboard/organizer/workspaces/create' search={{ id: workspace.id, mode: 'edit' }}>
-                    <Edit className='size-3.5' />
-                    <span>Chỉnh sửa</span>
-                  </Link>
-                </Button>
-                <Button
-                  asChild
-                  className='flex-1 bg-rose-600 hover:bg-rose-700 text-white font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-1.5 text-xs shadow-2xs'
-                >
-                  <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
-                    <span>Phản hồi &amp; Nộp lại</span>
-                    <ArrowRight className='size-3.5' />
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <Button
-                variant='outline'
-                asChild
-                className='w-full font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm border-border hover:bg-muted text-foreground'
-              >
-                <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
-                  <span>Manage Workspace</span>
-                  <ArrowRight className='size-3.5' />
-                </Link>
-              </Button>
-            )}
+            <Button
+              variant='outline'
+              asChild
+              className='w-full font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm border-border hover:bg-muted text-foreground'
+            >
+              <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
+                <span>Manage Workspace</span>
+                <ArrowRight className='size-3.5' />
+              </Link>
+            </Button>
           </>
         )}
       </div>
