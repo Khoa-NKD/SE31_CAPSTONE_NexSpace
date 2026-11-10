@@ -171,7 +171,7 @@ def build_business_ecosystem_sql() -> str:
             108.20910000,
             290.00,
             "INSTANT",
-            "PENDING_REVIEW",
+            "PENDING",
             "02363888555",
             "Check-in tự động tại cổng xoay thông minh tầng 2.",
             None,

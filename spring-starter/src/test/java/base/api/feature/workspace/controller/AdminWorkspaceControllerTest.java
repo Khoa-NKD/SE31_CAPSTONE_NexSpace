@@ -2,7 +2,6 @@ package base.api.feature.workspace.controller;
 
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
-import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
 import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
@@ -79,11 +78,17 @@ class AdminWorkspaceControllerTest {
     }
 
     @Test
-    @DisplayName("Admin GET /api/admin/workspaces/kpis trả về số lượng thống kê theo trạng thái")
+    @DisplayName("Admin GET /api/admin/workspaces/kpis trả về số lượng thống kê hệ thống và theo trạng thái")
     void getAdminWorkspaceKpis_success() throws Exception {
         AdminWorkspaceKpisDto kpis = AdminWorkspaceKpisDto.builder()
+                .totalPlatformUsers(1200)
+                .activeOrganizers(45)
+                .activeWorkspaces(18)
+                .totalBookings(350)
                 .totalWorkspaces(25)
-                .pendingReviewCount(4)
+                .pendingCount(4)
+                .maintenanceCount(2)
+                .draftCount(1)
                 .activeCount(18)
                 .suspendedCount(3)
                 .build();
@@ -93,8 +98,13 @@ class AdminWorkspaceControllerTest {
         mockMvc.perform(get("/api/admin/workspaces/kpis"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.totalPlatformUsers").value(1200))
+                .andExpect(jsonPath("$.data.activeOrganizers").value(45))
+                .andExpect(jsonPath("$.data.activeWorkspaces").value(18))
+                .andExpect(jsonPath("$.data.totalBookings").value(350))
                 .andExpect(jsonPath("$.data.totalWorkspaces").value(25))
-                .andExpect(jsonPath("$.data.pendingReviewCount").value(4))
+                .andExpect(jsonPath("$.data.pendingCount").value(4))
+                .andExpect(jsonPath("$.data.maintenanceCount").value(2))
                 .andExpect(jsonPath("$.data.activeCount").value(18))
                 .andExpect(jsonPath("$.data.suspendedCount").value(3));
     }
@@ -106,10 +116,12 @@ class AdminWorkspaceControllerTest {
                 .id(101L)
                 .name("Saigon Central")
                 .description("Modern workspace")
-                .status(WorkspaceStatus.PENDING_REVIEW)
+                .status(WorkspaceStatus.PENDING)
                 .reviewStatus("Pending")
-                .operatingStatus("Inactive")
+                .operatingStatus("Pending")
                 .moderationStatus("Normal")
+                .bookingCount(14L)
+                .totalBookings(14L)
                 .version(1)
                 .build();
 
@@ -120,33 +132,8 @@ class AdminWorkspaceControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.id").value(101))
                 .andExpect(jsonPath("$.data.name").value("Saigon Central"))
-                .andExpect(jsonPath("$.data.reviewStatus").value("Pending"));
-    }
-
-    @Test
-    @DisplayName("Admin PATCH /api/admin/workspaces/{id}/review phê duyệt thành công")
-    void adminReviewWorkspace_approve_success() throws Exception {
-        AdminReviewWorkspaceDto dto = new AdminReviewWorkspaceDto();
-        dto.setReviewStatus("Approved");
-        dto.setReviewFeedback("Hồ sơ hoàn chỉnh");
-
-        WorkspaceDetailDto result = WorkspaceDetailDto.builder()
-                .id(101L)
-                .name("Saigon Central")
-                .status(WorkspaceStatus.ACTIVE)
-                .reviewStatus("Approved")
-                .build();
-
-        when(workspaceService.adminReviewWorkspace(eq(99L), eq(101L), any(AdminReviewWorkspaceDto.class)))
-                .thenReturn(result);
-
-        mockMvc.perform(patch("/api/admin/workspaces/101/review")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
-                .andExpect(jsonPath("$.data.reviewStatus").value("Approved"));
+                .andExpect(jsonPath("$.data.reviewStatus").value("Pending"))
+                .andExpect(jsonPath("$.data.bookingCount").value(14));
     }
 
     @Test

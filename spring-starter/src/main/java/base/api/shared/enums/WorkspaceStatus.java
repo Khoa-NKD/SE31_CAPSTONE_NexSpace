@@ -2,9 +2,9 @@ package base.api.shared.enums;
 
 public enum WorkspaceStatus {
     DRAFT,
-    PENDING_REVIEW,
-    REJECTED,
+    PENDING,
     ACTIVE,
+    MAINTENANCE,
     INACTIVE,
     SUSPENDED,
     ARCHIVED

@@ -205,7 +205,13 @@ public class BuildingService {
         var w = workspaces.findById(id).filter(v -> v.getOrganizer().getId().equals(actor))
             .orElseThrow(() -> new NotFoundException("Workspace not found"));
         em.refresh(w, LockModeType.PESSIMISTIC_WRITE);
-        if (!Set.of(WorkspaceStatus.DRAFT, WorkspaceStatus.ACTIVE, WorkspaceStatus.INACTIVE).contains(w.getStatus()))
+        if (!Set.of(
+                        WorkspaceStatus.DRAFT,
+                        WorkspaceStatus.PENDING,
+                        WorkspaceStatus.ACTIVE,
+                        WorkspaceStatus.MAINTENANCE,
+                        WorkspaceStatus.INACTIVE)
+                .contains(w.getStatus()))
             throw new ConflictException("This workspace is read-only in its current state");
         return w;
     }

@@ -125,7 +125,7 @@ public class WorkspaceController extends BaseAPIController {
         return success(archived, "Lưu trữ không gian làm việc thành công");
     }
 
-    @Operation(summary = "Quản lý vòng đời vận hành (PATCH /lifecycle)", description = "Chuyển đổi trạng thái vận hành: archive, pause, resume, maintenance")
+    @Operation(summary = "Quản lý vòng đời vận hành (PATCH /lifecycle)", description = "Chuyển đổi trạng thái vận hành: draft, pending, activate, pause, resume, maintenance, archive")
     @PatchMapping("/{id}/lifecycle")
     @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<WorkspaceDetailDto>> updateLifecycle(
@@ -137,7 +137,7 @@ public class WorkspaceController extends BaseAPIController {
         return success(result, "Cập nhật vòng đời không gian làm việc thành công");
     }
 
-    @Operation(summary = "Gửi duyệt không gian làm việc (POST /submit)", description = "Organizer nộp duyệt không gian làm việc để Admin phê duyệt (chuyển DRAFT/REJECTED sang PENDING_REVIEW)")
+    @Operation(summary = "Đăng và tự động kích hoạt không gian làm việc (POST /submit)", description = "Organizer đăng không gian làm việc lên hệ thống (mặc định tự động duyệt sang ACTIVE)")
     @PostMapping("/{id}/submit")
     @PreAuthorize("hasRole('ORGANIZER')")
     public ResponseEntity<ApiResponse<WorkspaceDetailDto>> submitWorkspace(
@@ -145,7 +145,7 @@ public class WorkspaceController extends BaseAPIController {
         Long organizerId = getCurrentUserId();
         Long workspaceId = parseWorkspaceId(id);
         WorkspaceDetailDto result = workspaceService.submitWorkspace(organizerId, workspaceId);
-        return success(result, "Gửi duyệt hồ sơ không gian làm việc thành công");
+        return success(result, "Đăng và kích hoạt không gian làm việc thành công");
     }
 
     @Operation(summary = "Lấy giờ hoạt động của workspace", description = "Xem cấu hình 7 ngày trong tuần của workspace")
