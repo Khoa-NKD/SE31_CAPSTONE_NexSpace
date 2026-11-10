@@ -800,11 +800,13 @@ public class OrganizerResourceService {
         if (write) em.refresh(workspace, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
         if (write
                 && workspace.getStatus() != WorkspaceStatus.DRAFT
+                && workspace.getStatus() != WorkspaceStatus.PENDING
                 && workspace.getStatus() != WorkspaceStatus.ACTIVE
+                && workspace.getStatus() != WorkspaceStatus.MAINTENANCE
                 && workspace.getStatus() != WorkspaceStatus.INACTIVE)
             throw new ConflictException(
-                    "Floors, resource types and resources can only be changed in a DRAFT, ACTIVE or"
-                            + " INACTIVE workspace");
+                    "Floors, resource types and resources can only be changed in a DRAFT, PENDING,"
+                            + " ACTIVE, MAINTENANCE or INACTIVE workspace");
         return workspace;
     }
 

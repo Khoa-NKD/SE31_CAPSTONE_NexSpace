@@ -6,9 +6,15 @@ import lombok.Value;
 @Value
 @Builder
 public class AdminWorkspaceKpisDto {
+    long totalPlatformUsers;
+    long activeOrganizers;
+    long activeWorkspaces;
+    long totalBookings;
     long totalWorkspaces;
-    long pendingReviewCount;
     long activeCount;
+    long pendingCount;
+    long maintenanceCount;
+    long draftCount;
     long suspendedCount;
 }
 

@@ -696,7 +696,7 @@ class OrganizerResourceDatabaseTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkspaceStatus.class,
-            names = {"PENDING_REVIEW", "REJECTED", "SUSPENDED", "ARCHIVED"})
+            names = {"PENDING", "MAINTENANCE", "SUSPENDED", "ARCHIVED"})
     void readOnlyWorkspaceStatesRejectAllConfigurationWrites(WorkspaceStatus status) {
         var created = service.create(owner.getId(), workspace.getId(), input("LOCKED-01", null));
         var newFloor =
@@ -1634,7 +1634,7 @@ class OrganizerResourceDatabaseTest {
                                                 java.util.List.of(
                                                         tableDecoration("Table", "1190")))))
                 .isInstanceOf(ConflictException.class);
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
+        workspace.setStatus(WorkspaceStatus.PENDING);
         em.flush();
         assertThatThrownBy(
                         () ->

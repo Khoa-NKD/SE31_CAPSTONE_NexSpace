@@ -1,40 +1,35 @@
 package base.api.feature.workspace.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
-import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
-import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
-import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.BookingConfirmationMode;
+import base.api.shared.enums.UserRole;
+import base.api.shared.enums.UserStatus;
 import base.api.shared.enums.WorkspaceCategory;
+import base.api.shared.enums.WorkspaceLifecycleAction;
 import base.api.shared.enums.WorkspaceStatus;
-import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.Pageable;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.Collections;
-import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -44,6 +39,7 @@ class WorkspaceLifecycleModerationTest {
     private IWorkspaceRepository workspaceRepository;
     private IUserRepository userRepository;
     private IWorkspaceOperatingHourRepository operatingHourRepository;
+    private IBookingRepository bookingRepository;
     private WorkspaceServiceImpl service;
 
     private UserModel organizer;
@@ -55,7 +51,8 @@ class WorkspaceLifecycleModerationTest {
         workspaceRepository = mock(IWorkspaceRepository.class);
         userRepository = mock(IUserRepository.class);
         operatingHourRepository = mock(IWorkspaceOperatingHourRepository.class);
-        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository);
+        bookingRepository = mock(IBookingRepository.class);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository);
 
         organizer = new UserModel();
         organizer.setId(10L);
@@ -83,33 +80,38 @@ class WorkspaceLifecycleModerationTest {
     }
 
     @Test
-    @DisplayName("Submit: Chuyển từ DRAFT sang PENDING_REVIEW thành công")
-    void submitWorkspace_fromDraft_success() {
+    @DisplayName("Submit: Đăng tải từ DRAFT tự động kích hoạt sang ACTIVE thành công")
+    void submitWorkspace_fromDraft_autoApprovesToActive() {
         when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
         when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        when(bookingRepository.countByWorkspaceId(101L)).thenReturn(5L);
 
         WorkspaceDetailDto result = service.submitWorkspace(10L, 101L);
 
         assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.PENDING_REVIEW);
-        assertThat(result.getReviewStatus()).isEqualTo("Pending");
+        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(result.getReviewStatus()).isEqualTo("Approved");
+        assertThat(result.getOperatingStatus()).isEqualTo("Active");
+        assertThat(result.isListingVisible()).isTrue();
         assertThat(result.getSubmittedAt()).isNotNull();
+        assertThat(result.getReviewedAt()).isNotNull();
+        assertThat(result.getBookingCount()).isEqualTo(5L);
         verify(workspaceRepository).save(workspace);
     }
 
     @Test
-    @DisplayName("Submit: Chuyển từ REJECTED sang PENDING_REVIEW (Submit lại) thành công")
-    void submitWorkspace_fromRejected_success() {
-        workspace.setStatus(WorkspaceStatus.REJECTED);
-        workspace.setReviewFeedback("Cần cập nhật lại ảnh");
+    @DisplayName("Submit: Đăng tải từ PENDING tự động kích hoạt sang ACTIVE thành công")
+    void submitWorkspace_fromPending_autoApprovesToActive() {
+        workspace.setStatus(WorkspaceStatus.PENDING);
 
         when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
         when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         WorkspaceDetailDto result = service.submitWorkspace(10L, 101L);
 
-        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.PENDING_REVIEW);
-        assertThat(result.getReviewFeedback()).isNull();
+        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(result.getReviewStatus()).isEqualTo("Approved");
+        assertThat(result.isListingVisible()).isTrue();
     }
 
     @Test
@@ -130,64 +132,50 @@ class WorkspaceLifecycleModerationTest {
 
         assertThatThrownBy(() -> service.submitWorkspace(10L, 101L))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("Chỉ có thể nộp duyệt không gian ở trạng thái DRAFT hoặc REJECTED");
+                .hasMessageContaining("Chỉ có thể đăng kích hoạt không gian ở trạng thái DRAFT, PENDING hoặc MAINTENANCE");
     }
 
     @Test
-    @DisplayName("Admin Review: Approve thành công -> ACTIVE")
-    void adminReview_approve_success() {
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
+    @DisplayName("Lifecycle: Chuyển đổi trạng thái giữa DRAFT -> PENDING -> ACTIVE -> MAINTENANCE -> ACTIVE")
+    void updateLifecycle_organizerStatusFlow_success() {
         when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
-        when(userRepository.findById(99L)).thenReturn(Optional.of(adminUser));
         when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        AdminReviewWorkspaceDto dto = new AdminReviewWorkspaceDto();
-        dto.setReviewStatus("Approved");
-        dto.setReviewFeedback("Hồ sơ hợp lệ");
+        // 1. DRAFT -> PENDING
+        WorkspaceLifecycleDto toPending = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.PENDING)
+                .build();
+        WorkspaceDetailDto pendingResult = service.updateLifecycle(10L, 101L, toPending);
+        assertThat(pendingResult.getStatus()).isEqualTo(WorkspaceStatus.PENDING);
+        assertThat(pendingResult.getOperatingStatus()).isEqualTo("Pending");
+        assertThat(pendingResult.isListingVisible()).isFalse();
 
-        WorkspaceDetailDto result = service.adminReviewWorkspace(99L, 101L, dto);
+        // 2. PENDING -> ACTIVE
+        WorkspaceLifecycleDto toActive = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.ACTIVATE)
+                .build();
+        WorkspaceDetailDto activeResult = service.updateLifecycle(10L, 101L, toActive);
+        assertThat(activeResult.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(activeResult.getOperatingStatus()).isEqualTo("Active");
+        assertThat(activeResult.isListingVisible()).isTrue();
 
-        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
-        assertThat(result.getReviewStatus()).isEqualTo("Approved");
-        assertThat(result.isListingVisible()).isTrue();
-        assertThat(workspace.getReviewedBy()).isEqualTo(adminUser);
-        assertThat(workspace.getReviewedAt()).isNotNull();
-    }
+        // 3. ACTIVE -> MAINTENANCE
+        WorkspaceLifecycleDto toMaintenance = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.MAINTENANCE)
+                .reason("Bảo trì định kỳ điều hòa")
+                .build();
+        WorkspaceDetailDto maintenanceResult = service.updateLifecycle(10L, 101L, toMaintenance);
+        assertThat(maintenanceResult.getStatus()).isEqualTo(WorkspaceStatus.MAINTENANCE);
+        assertThat(maintenanceResult.getOperatingStatus()).isEqualTo("Maintenance");
+        assertThat(maintenanceResult.isListingVisible()).isFalse();
 
-    @Test
-    @DisplayName("Admin Review: Reject thành công -> REJECTED kèm lý do")
-    void adminReview_reject_success() {
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
-        when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
-        when(userRepository.findById(99L)).thenReturn(Optional.of(adminUser));
-        when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
-
-        AdminReviewWorkspaceDto dto = new AdminReviewWorkspaceDto();
-        dto.setReviewStatus("Rejected");
-        dto.setReviewFeedback("Thiếu ảnh giấy phép phòng cháy chữa cháy");
-
-        WorkspaceDetailDto result = service.adminReviewWorkspace(99L, 101L, dto);
-
-        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.REJECTED);
-        assertThat(result.getReviewStatus()).isEqualTo("Rejected");
-        assertThat(result.getReviewFeedback()).isEqualTo("Thiếu ảnh giấy phép phòng cháy chữa cháy");
-        assertThat(result.isListingVisible()).isFalse();
-    }
-
-    @Test
-    @DisplayName("Admin Review: Reject thất bại khi lý do dưới 5 ký tự")
-    void adminReview_reject_tooShortFeedback_throwsBadRequest() {
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
-        when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
-        when(userRepository.findById(99L)).thenReturn(Optional.of(adminUser));
-
-        AdminReviewWorkspaceDto dto = new AdminReviewWorkspaceDto();
-        dto.setReviewStatus("Rejected");
-        dto.setReviewFeedback("sai");
-
-        assertThatThrownBy(() -> service.adminReviewWorkspace(99L, 101L, dto))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Lý do từ chối phải có ít nhất 5 ký tự");
+        // 4. MAINTENANCE -> ACTIVE (RESUME)
+        WorkspaceLifecycleDto toResume = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.RESUME)
+                .build();
+        WorkspaceDetailDto resumedResult = service.updateLifecycle(10L, 101L, toResume);
+        assertThat(resumedResult.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(resumedResult.isListingVisible()).isTrue();
     }
 
     @Test
@@ -261,19 +249,30 @@ class WorkspaceLifecycleModerationTest {
     }
 
     @Test
-    @DisplayName("Admin KPIs: Thống kê số lượng theo trạng thái chính xác")
+    @DisplayName("Admin KPIs: Thống kê số lượng hệ thống và theo trạng thái chính xác")
     void getAdminWorkspaceKpis_returnsAccurateCounts() {
+        when(userRepository.count()).thenReturn(1500L);
+        when(userRepository.countByRoleNameAndStatus(UserRole.ORGANIZER.name(), UserStatus.ACTIVE)).thenReturn(42L);
+        when(bookingRepository.count()).thenReturn(680L);
         when(workspaceRepository.count()).thenReturn(20L);
-        when(workspaceRepository.countByStatus(WorkspaceStatus.PENDING_REVIEW)).thenReturn(5L);
+        when(workspaceRepository.countByStatus(WorkspaceStatus.PENDING)).thenReturn(3L);
+        when(workspaceRepository.countByStatus(WorkspaceStatus.MAINTENANCE)).thenReturn(2L);
+        when(workspaceRepository.countByStatus(WorkspaceStatus.DRAFT)).thenReturn(1L);
         when(workspaceRepository.countByStatus(WorkspaceStatus.ACTIVE)).thenReturn(12L);
-        when(workspaceRepository.countByStatus(WorkspaceStatus.SUSPENDED)).thenReturn(3L);
+        when(workspaceRepository.countByStatus(WorkspaceStatus.SUSPENDED)).thenReturn(2L);
 
         AdminWorkspaceKpisDto kpis = service.getAdminWorkspaceKpis();
 
+        assertThat(kpis.getTotalPlatformUsers()).isEqualTo(1500L);
+        assertThat(kpis.getActiveOrganizers()).isEqualTo(42L);
+        assertThat(kpis.getActiveWorkspaces()).isEqualTo(12L);
+        assertThat(kpis.getTotalBookings()).isEqualTo(680L);
         assertThat(kpis.getTotalWorkspaces()).isEqualTo(20L);
-        assertThat(kpis.getPendingReviewCount()).isEqualTo(5L);
+        assertThat(kpis.getPendingCount()).isEqualTo(3L);
+        assertThat(kpis.getMaintenanceCount()).isEqualTo(2L);
+        assertThat(kpis.getDraftCount()).isEqualTo(1L);
         assertThat(kpis.getActiveCount()).isEqualTo(12L);
-        assertThat(kpis.getSuspendedCount()).isEqualTo(3L);
+        assertThat(kpis.getSuspendedCount()).isEqualTo(2L);
     }
 }
 

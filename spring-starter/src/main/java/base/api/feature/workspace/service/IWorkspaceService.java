@@ -2,7 +2,6 @@ package base.api.feature.workspace.service;
 
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
-import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
@@ -137,7 +136,7 @@ public interface IWorkspaceService {
     java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> getPublicOperatingHours(Long workspaceId);
 
     /**
-     * Organizer gửi duyệt hồ sơ không gian làm việc (DRAFT hoặc REJECTED -> PENDING_REVIEW).
+     * Organizer đăng không gian làm việc lên hệ thống (DRAFT hoặc PENDING -> mặc định tự duyệt thành ACTIVE).
      * Áp dụng Strict Ownership Defense (ném NotFoundException nếu không sở hữu).
      *
      * @param organizerId ID của Organizer từ authenticated JWT
@@ -145,16 +144,6 @@ public interface IWorkspaceService {
      * @return WorkspaceDetailDto chi tiết sau khi cập nhật
      */
     WorkspaceDetailDto submitWorkspace(Long organizerId, Long workspaceId);
-
-    /**
-     * Admin thẩm định hồ sơ không gian làm việc (PENDING_REVIEW -> ACTIVE hoặc REJECTED).
-     *
-     * @param adminId ID của Admin
-     * @param workspaceId ID không gian làm việc
-     * @param dto DTO chứa trạng thái duyệt và lý do phản hồi
-     * @return WorkspaceDetailDto chi tiết sau khi duyệt
-     */
-    WorkspaceDetailDto adminReviewWorkspace(Long adminId, Long workspaceId, AdminReviewWorkspaceDto dto);
 
     /**
      * Admin điều hành/đình chỉ không gian làm việc (ACTIVE <-> SUSPENDED).
