@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
@@ -43,6 +43,26 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       rememberMe: false
     }
   });
+
+  const verifiedHandled = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || verifiedHandled.current) return;
+    verifiedHandled.current = true;
+
+    const params = new URLSearchParams(window.location.search);
+    const verified = params.get('verified');
+    const emailParam = params.get('email');
+
+    if (emailParam) {
+      form.setValue('email', emailParam);
+    }
+
+    if (verified === 'true') {
+      toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập.');
+    } else if (verified === 'false') {
+      toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
+    }
+  }, [form]);
 
   const onSubmit = async (values: SignInValues) => {
     if (submitting.current) return;
