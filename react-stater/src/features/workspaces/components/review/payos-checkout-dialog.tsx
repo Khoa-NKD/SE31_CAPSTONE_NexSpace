@@ -31,7 +31,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
-import { usePaymentStatus, useCancelPayment } from '@/features/payments/api';
+import { usePaymentStatus, useCancelPayment, paymentService } from '@/features/payments/api';
 import { toast } from 'sonner';
 
 interface PayOSCheckoutDialogProps {
@@ -59,6 +59,7 @@ export function PayOSCheckoutDialog({
   const { formatPrice } = useCurrency();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isManualSuccess, setIsManualSuccess] = useState(false);
+  const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   const hasNotifiedSuccessRef = useRef(false);
   const hasNotifiedExpiryRef = useRef(false);
@@ -144,6 +145,22 @@ export function PayOSCheckoutDialog({
       );
     } else {
       handleOpenChange(false);
+    }
+  };
+
+  const handleDownloadInvoice = async () => {
+    if (!bookingId) return;
+    try {
+      setIsDownloadingInvoice(true);
+      toast.info('Đang tạo và tải hóa đơn điện tử VAT...');
+      await paymentService.downloadInvoicePdf(bookingId);
+      toast.success('Hóa đơn VAT đã được tải về máy thành công');
+    } catch (err: unknown) {
+      toast.error('Lỗi khi tải hóa đơn', {
+        description: err instanceof Error ? err.message : 'Vui lòng thử lại sau.'
+      });
+    } finally {
+      setIsDownloadingInvoice(false);
     }
   };
 
@@ -285,15 +302,16 @@ export function PayOSCheckoutDialog({
                 <Button
                   type='button'
                   variant='outline'
-                  onClick={() => {
-                    if (bookingId) {
-                      window.open(`/api/customer/bookings/${bookingId}/receipt/download`, '_blank');
-                    }
-                  }}
+                  disabled={isDownloadingInvoice}
+                  onClick={handleDownloadInvoice}
                   className='w-1/2 cursor-pointer h-10 text-xs font-medium border-border'
                 >
-                  <FileText className='mr-1.5 h-3.5 w-3.5 text-primary' />
-                  Tải Hóa Đơn (PDF)
+                  {isDownloadingInvoice ? (
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin text-primary' />
+                  ) : (
+                    <FileText className='mr-1.5 h-3.5 w-3.5 text-primary' />
+                  )}
+                  {isDownloadingInvoice ? 'Đang tải...' : 'Tải Hóa Đơn (PDF)'}
                 </Button>
                 <Button
                   onClick={() => {

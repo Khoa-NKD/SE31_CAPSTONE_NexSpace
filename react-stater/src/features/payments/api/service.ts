@@ -1,4 +1,5 @@
 import { apiClient } from '@/lib/api-client';
+import { useAuthStore } from '@/features/auth/store/auth-store';
 import type {
   PaymentCheckoutResponse,
   PaymentStatusResponse,
@@ -71,6 +72,43 @@ export const paymentService = {
    */
   getInvoice: (bookingId: number): Promise<InvoiceResponse> =>
     apiClient.get<InvoiceResponse>(`/customer/bookings/${bookingId}/receipt`),
+
+  /**
+   * Tải trực tiếp file hóa đơn VAT định dạng PDF có kèm Bearer token xác thực.
+   */
+  downloadInvoicePdf: async (bookingId: number): Promise<void> => {
+    const session = useAuthStore.getState();
+    const token = session.accessToken;
+    const headers: Record<string, string> = {};
+    if (token) {
+      headers.Authorization = `Bearer ${token}`;
+    }
+    const response = await fetch(`/api/customer/bookings/${bookingId}/receipt/download`, {
+      method: 'GET',
+      headers
+    });
+
+    if (!response.ok) {
+      let errorMsg = 'Không thể tải hóa đơn PDF';
+      try {
+        const errJson = await response.json();
+        if (errJson?.message) errorMsg = errJson.message;
+      } catch {
+        // Non-JSON error
+      }
+      throw new Error(errorMsg);
+    }
+
+    const blob = await response.blob();
+    const blobUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = blobUrl;
+    anchor.download = `Hoa-don-NexSpace-#${bookingId}.pdf`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
+  },
 
   /**
    * Organizer xem lịch sử thanh toán của workspace thuộc quyền quản lý.
