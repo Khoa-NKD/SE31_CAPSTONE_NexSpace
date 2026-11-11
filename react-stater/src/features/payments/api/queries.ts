@@ -8,12 +8,14 @@ import type {
   PaymentTransactionResponse,
   InvoiceResponse,
   ReconciliationSummary,
-  PageResponse
+  PageResponse,
+  BookingHoldResponse
 } from './types';
 
 export const paymentKeys = {
   all: ['payments'] as const,
   exchangeRate: () => [...paymentKeys.all, 'exchange-rate'] as const,
+  pendingHold: () => [...paymentKeys.all, 'pending-hold'] as const,
   status: (bookingId: number) => [...paymentKeys.all, 'status', bookingId] as const,
   customerList: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer', params] as const,
   organizerList: (workspaceId: number, params?: Record<string, unknown>) =>
@@ -33,6 +35,17 @@ export const exchangeRateQueryOptions = () =>
 
 export function useExchangeRate() {
   return useQuery(exchangeRateQueryOptions());
+}
+
+export const pendingHoldQueryOptions = () =>
+  queryOptions<BookingHoldResponse>({
+    queryKey: paymentKeys.pendingHold(),
+    queryFn: () => paymentService.getCurrentPendingBooking(),
+    staleTime: 10 * 1000 // 10 seconds
+  });
+
+export function useCurrentPendingBooking() {
+  return useQuery(pendingHoldQueryOptions());
 }
 
 export function usePaymentStatus(bookingId?: number, enabled = true) {

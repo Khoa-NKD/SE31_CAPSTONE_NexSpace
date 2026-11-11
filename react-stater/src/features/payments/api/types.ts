@@ -10,6 +10,16 @@ export type BookingStatus =
   | 'EXPIRED'
   | 'NO_SHOW';
 
+export interface BookingHoldResponse {
+  bookingId: number;
+  bookingCode: string;
+  seatCode: string;
+  resourceName: string;
+  workspaceName: string;
+  holdExpiresAt: string;
+  remainingSeconds: number;
+}
+
 export interface PaymentCheckoutResponse {
   orderCode: number;
   bookingId: number;

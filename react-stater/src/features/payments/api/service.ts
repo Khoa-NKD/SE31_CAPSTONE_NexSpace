@@ -10,7 +10,8 @@ import type {
   ReconciliationResult,
   BatchReconciliationResponse,
   ReconciliationSummary,
-  PageResponse
+  PageResponse,
+  BookingHoldResponse
 } from './types';
 
 export const paymentService = {
@@ -21,10 +22,18 @@ export const paymentService = {
     apiClient.post<PaymentCheckoutResponse>(`/customer/bookings/${bookingId}/payments`),
 
   /**
-   * Lấy hoặc tự động tạo phiên đặt chỗ đang chờ thanh toán của khách hàng hiện tại.
+   * Lấy hoặc tự động tạo phiên đặt chỗ đang chờ thanh toán của khách hàng hiện tại (kèm mốc holdExpiresAt).
    */
-  getCurrentPendingBookingId: (): Promise<number> =>
-    apiClient.get<number>('/customer/bookings/current-pending'),
+  getCurrentPendingBooking: (): Promise<BookingHoldResponse> =>
+    apiClient.get<BookingHoldResponse>('/customer/bookings/current-pending'),
+
+  /**
+   * Lấy ID phiên đặt chỗ đang chờ thanh toán (tương thích backward).
+   */
+  getCurrentPendingBookingId: async (): Promise<number> => {
+    const hold = await apiClient.get<BookingHoldResponse>('/customer/bookings/current-pending');
+    return hold.bookingId;
+  },
 
   /**
    * Kiểm tra trạng thái thanh toán và đặt chỗ thời gian thực (hỗ trợ polling).

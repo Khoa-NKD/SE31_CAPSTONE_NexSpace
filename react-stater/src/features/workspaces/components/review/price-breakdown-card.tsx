@@ -11,13 +11,20 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
-import { useCreatePaymentCheckout, useExchangeRate, paymentService, paymentKeys } from '@/features/payments/api';
+import {
+  useCreatePaymentCheckout,
+  useExchangeRate,
+  useCurrentPendingBooking,
+  paymentService,
+  paymentKeys
+} from '@/features/payments/api';
 import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export function PriceBreakdownCard() {
   const queryClient = useQueryClient();
+  const { data: holdData } = useCurrentPendingBooking();
   const { formatPrice, currency } = useCurrency();
   const [promoCode, setPromoCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
@@ -53,7 +60,8 @@ export function PriceBreakdownCard() {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
 
       // 1. Tự động lấy hoặc tạo phiên đặt chỗ hợp lệ thuộc quyền sở hữu của khách hàng đang đăng nhập
-      const targetBookingId = await paymentService.getCurrentPendingBookingId();
+      const hold = await paymentService.getCurrentPendingBooking();
+      const targetBookingId = hold.bookingId;
 
       // 2. Khởi tạo phiên thanh toán PayOS với mã đặt chỗ chính xác
       createPaymentMutation.mutate(targetBookingId, {
@@ -222,8 +230,9 @@ export function PriceBreakdownCard() {
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         totalAmountUsd={totalAmountUsd}
+        seatCode={holdData?.seatCode || 'Desk A-12'}
         checkoutData={checkoutData}
-        orderRef={checkoutData?.bookingCode}
+        orderRef={checkoutData?.bookingCode || holdData?.bookingCode}
         isLoading={createPaymentMutation.isPending}
         onRetry={handleProceedPayOS}
       />
