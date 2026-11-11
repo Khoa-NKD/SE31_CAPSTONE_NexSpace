@@ -23,6 +23,9 @@ interface DigitalPassCardProps {
   pinCode?: string;
   wifiSsid?: string;
   wifiPass?: string;
+  dateStr?: string;
+  timeSlot?: string;
+  qrTokenHash?: string | null;
 }
 
 export function DigitalPassCard({
@@ -32,7 +35,10 @@ export function DigitalPassCard({
   address = '72 Le Thanh Ton, District 1, HCMC',
   pinCode = '8492',
   wifiSsid = 'NexSpace-5G',
-  wifiPass = 'sprint2026'
+  wifiPass = 'sprint2026',
+  dateStr = 'Friday, Jan 25, 2026',
+  timeSlot = '09:00 AM – 05:00 PM',
+  qrTokenHash
 }: DigitalPassCardProps) {
   const [pinVisible, setPinVisible] = useState(true);
   const [copiedPin, setCopiedPin] = useState(false);
@@ -129,7 +135,7 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Date &amp; Schedule</div>
           <div className='text-foreground text-sm font-medium'>
-            Friday, Jan 25, 2026
+            {dateStr}
           </div>
         </div>
 
@@ -137,10 +143,10 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Time Slot</div>
           <div className='text-foreground text-sm font-medium'>
-            09:00 AM – 01:00 PM
+            {timeSlot}
           </div>
           <span className='text-muted-foreground text-[11px] block'>
-            4 Hours Reserved
+            Reserved &amp; Guaranteed
           </span>
         </div>
 
@@ -275,6 +281,11 @@ export function DigitalPassCard({
             <p className='text-foreground text-xs leading-relaxed font-medium'>
               Scan at speed gate turnstile or concierge tablet on Level 14 for automatic door release.
             </p>
+            {qrTokenHash && (
+              <div className='font-mono text-[10px] text-muted-foreground/80 mt-1 truncate max-w-[260px]'>
+                Token: {qrTokenHash}
+              </div>
+            )}
             <div className='text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-[11px] sm:justify-start'>
               <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
               <span>Valid for entry 15 mins prior to reserved slot</span>
