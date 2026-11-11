@@ -160,7 +160,7 @@ export function normalizeAdminUserRecord(raw: RawAdminUserInput): AdminUserRecor
 
 /**
  * Fetch paginated & filtered admin users list.
- * Communicates with REST endpoint GET /api/v1/admin/users
+ * Communicates with REST endpoint GET /api/admin/users
  */
 export async function getAdminUsers(
   filters?: AdminUserFilters
@@ -202,7 +202,7 @@ export async function getAdminUsers(
 
 /**
  * Fetch a single admin user by ID.
- * Communicates with REST endpoint GET /api/v1/admin/users/:id
+ * Communicates with REST endpoint GET /api/admin/users/:id
  */
 export async function getAdminUserById(id: string): Promise<AdminUserRecord> {
   const res = await apiClient.get<RawAdminUserInput>(`/admin/users/${id}`);

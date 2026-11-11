@@ -86,8 +86,6 @@ interface WorkspaceDetailsDrawerProps {
   workspaceId?: string | number | null;
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (workspace: WorkspaceDirectoryItem) => void;
-  onReject: (workspace: WorkspaceDirectoryItem, reason: string) => void;
   onToggleSuspend: (workspace: WorkspaceDirectoryItem, reason?: string) => void;
   onToggleFeatured?: (workspace: WorkspaceDirectoryItem) => void;
   isSubmitting?: boolean;
@@ -100,14 +98,11 @@ export function WorkspaceDetailsDrawer({
   workspaceId,
   isOpen,
   onClose,
-  onApprove,
-  onReject,
   onToggleSuspend,
   onToggleFeatured,
   isSubmitting = false
 }: WorkspaceDetailsDrawerProps) {
   const [activeTab, setActiveTab] = useState<'general' | 'media' | 'floor' | 'audit'>('general');
-  const [rejectionNotes, setRejectionNotes] = useState('');
   const [isSuspendModalOpen, setIsSuspendModalOpen] = useState(false);
   const [suspendReasonInput, setSuspendReasonInput] = useState('');
   const [previewImageUrl, setPreviewImageUrl] = useState<{ url: string; label: string } | null>(null);
@@ -295,7 +290,19 @@ export function WorkspaceDetailsDrawer({
               {activeWorkspace?.status === 'pending' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'>
                   <span className='w-1.5 h-1.5 rounded-full bg-amber-500' aria-hidden='true'></span>
-                  Pending Moderation (Chờ duyệt)
+                  Pending (Đang xử lý)
+                </span>
+              )}
+              {activeWorkspace?.status === 'maintenance' && (
+                <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800'>
+                  <span className='w-1.5 h-1.5 rounded-full bg-indigo-500' aria-hidden='true'></span>
+                  Maintenance (Đang bảo trì)
+                </span>
+              )}
+              {activeWorkspace?.status === 'draft' && (
+                <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'>
+                  <span className='w-1.5 h-1.5 rounded-full bg-slate-400' aria-hidden='true'></span>
+                  Draft (Bản nháp)
                 </span>
               )}
               {activeWorkspace?.status === 'active' && (
@@ -457,7 +464,13 @@ export function WorkspaceDetailsDrawer({
                   </div>
                 )}
 
-                <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1'>
+                <div className='grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1'>
+                  <div className='p-3 rounded-lg border border-border bg-card text-xs'>
+                    <span className='text-[11px] text-muted-foreground block'>Số lượng Booking</span>
+                    <span className='font-bold font-mono text-foreground mt-0.5 block'>
+                      {(detailData?.bookingCount ?? detailData?.totalBookings ?? activeWorkspace?.bookingCount ?? 0).toLocaleString('en-US')} lượt đặt
+                    </span>
+                  </div>
                   <div className='p-3 rounded-lg border border-border bg-card text-xs'>
                     <span className='text-[11px] text-muted-foreground block'>Hình thức xác nhận đặt chỗ</span>
                     <span className='font-semibold text-foreground mt-0.5 block'>{bookingModeLabel}</span>
@@ -651,27 +664,6 @@ export function WorkspaceDetailsDrawer({
                   <div className='p-6 rounded-xl border border-dashed border-border text-center text-xs text-muted-foreground'>
                     <ImageIcon className='size-6 mx-auto mb-1.5 opacity-40' />
                     <span>Không gian này chưa có ảnh tải lên trong hệ thống.</span>
-                  </div>
-                )}
-              </section>
-
-              {/* SECTION: MODERATION REVIEW NOTES */}
-              <section aria-label='Moderation Notes' className='space-y-2 pt-2'>
-                <label htmlFor='moderatorNotes' className='text-xs font-bold text-foreground flex items-center justify-between'>
-                  <span>Ghi chú phản hồi / Lý do từ chối (Moderator Review Note)</span>
-                  <span className='text-[10px] font-normal text-muted-foreground'>(Bắt buộc nếu Từ chối; tối thiểu 5 ký tự)</span>
-                </label>
-                <Textarea
-                  id='moderatorNotes'
-                  value={rejectionNotes}
-                  onChange={(e) => setRejectionNotes(e.target.value)}
-                  placeholder='Nhập lý do cần hoàn thiện (ví dụ: Thiếu sơ đồ thoát hiểm PCCC, ảnh chụp khu vực làm việc bị mờ)...'
-                  rows={3}
-                  className='text-xs bg-background'
-                />
-                {activeWorkspace?.reviewFeedback && (
-                  <div className='p-2.5 rounded bg-muted/60 border border-border text-[11px] text-muted-foreground'>
-                    <strong className='text-foreground font-semibold'>Ghi chú kiểm duyệt trước đó:</strong> {activeWorkspace.reviewFeedback}
                   </div>
                 )}
               </section>
@@ -956,43 +948,11 @@ export function WorkspaceDetailsDrawer({
                 Canonical Hub: <strong className='font-mono text-foreground'>#{targetId}</strong> • Version: <strong className='font-mono text-foreground'>v{activeWorkspace.version}</strong>
               </span>
               <span className='text-[10px] text-muted-foreground'>
-                {activeWorkspace.reviewStatus === 'Pending' ? 'Awaiting Review Decision' : `Status: ${activeWorkspace.status}`}
+                Status: {activeWorkspace.status} • Auto-Approval Enabled
               </span>
             </div>
 
             <div className='flex items-center gap-3'>
-              {activeWorkspace.status === 'pending' && (
-                <>
-                  <Button
-                    type='button'
-                    variant='outline'
-                    disabled={isSubmitting}
-                    onClick={() => {
-                      if (!rejectionNotes || rejectionNotes.trim().length < 5) {
-                        toast.error('Rejection Reason Required', {
-                          description: 'Please enter a rejection reason (minimum 5 characters) explaining what needs correction.'
-                        });
-                        return;
-                      }
-                      onReject(activeWorkspace, rejectionNotes.trim());
-                    }}
-                    className='flex-1 h-10 border-rose-300 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/50 text-xs font-semibold'
-                  >
-                    <AlertTriangle className='size-3.5 mr-1.5' aria-hidden='true' />
-                    <span>{isSubmitting ? 'Rejecting...' : 'Reject with Feedback'}</span>
-                  </Button>
-                  <Button
-                    type='button'
-                    disabled={isSubmitting}
-                    onClick={() => onApprove(activeWorkspace)}
-                    className='flex-1 h-10 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs'
-                  >
-                    <ShieldCheck className='size-3.5 mr-1.5' aria-hidden='true' />
-                    <span>{isSubmitting ? 'Approving...' : 'Approve Workspace'}</span>
-                  </Button>
-                </>
-              )}
-
               {activeWorkspace.status === 'active' && (
                 <div className='flex items-center gap-2 w-full'>
                   <Button

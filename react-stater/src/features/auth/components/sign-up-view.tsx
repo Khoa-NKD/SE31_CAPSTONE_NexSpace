@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link, useSearch, useRouter } from '@tanstack/react-router';
 import { InteractiveGridPattern } from './interactive-grid';
 import SignUpForm from './sign-up-form';
 import { NexSpaceLogo } from '@/components/brand/logo';
@@ -26,45 +26,29 @@ function SignUpContent() {
   const isVerifiedFromUrl = verifiedParam === true || verifiedParam === 'true';
   const emailParam = search?.email ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('email') : undefined);
 
+  const router = useRouter();
   const [manualEmail, setManualEmail] = useState<string | null>(null);
   const [isModalDismissed, setIsModalDismissed] = useState(false);
 
-  // Derive verification email without setState in effect
-  const verificationEmail = isModalDismissed
-    ? null
-    : isVerifiedFromUrl
-      ? (emailParam || (typeof window !== 'undefined' ? localStorage.getItem('nexspace_pending_verification_email') : null) || 'tài khoản của bạn')
-      : manualEmail;
+  const verificationEmail = isModalDismissed ? null : manualEmail;
 
   useEffect(() => {
+    if (isVerifiedFromUrl) {
+      // Broadcast to any waiting tab
+      broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS' });
+      // Redirect this verification tab directly to sign-in
+      router.navigate({
+        to: '/auth/sign-in',
+        search: { verified: 'true', email: emailParam || undefined }
+      });
+      return;
+    }
+
     if (verifiedParam === false || verifiedParam === 'false') {
       toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
+      router.navigate({ to: '/auth/sign-in', search: { verified: 'false' } });
     }
-  }, [verifiedParam]);
-
-  useEffect(() => {
-    if (!isVerifiedFromUrl) return;
-
-    // 1. Notify the original sign up tab
-    broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS' });
-
-    // 2. Inquire if another sign-up tab is already active
-    broadcastAuthSync({ type: 'CHECK_EXISTING_SIGNUP_TAB' });
-
-    // 3. If another tab is active, attempt to close this tab so user stays on original tab
-    const unsubscribe = subscribeAuthSync((event) => {
-      if (event.type === 'SIGNUP_TAB_ALREADY_ACTIVE') {
-        try {
-          window.open('', '_self', '');
-          window.close();
-        } catch {
-          // Ignored if browser blocks window.close
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, [isVerifiedFromUrl]);
+  }, [isVerifiedFromUrl, verifiedParam, emailParam, router]);
 
   const handleSuccess = (email: string) => {
     setManualEmail(email);

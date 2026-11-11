@@ -15,18 +15,32 @@ interface WorkspaceDirectoryTableProps {
 
 function getStatusBadge(status: WorkspaceDirectoryItem['status']) {
   switch (status) {
-    case 'pending':
-      return (
-        <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'>
-          <span className='w-1.5 h-1.5 rounded-full bg-amber-500' aria-hidden='true'></span>
-          Pending Review
-        </span>
-      );
     case 'active':
       return (
         <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'>
           <span className='w-1.5 h-1.5 rounded-full bg-emerald-500' aria-hidden='true'></span>
           Active &amp; Bookable
+        </span>
+      );
+    case 'pending':
+      return (
+        <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800'>
+          <span className='w-1.5 h-1.5 rounded-full bg-amber-500' aria-hidden='true'></span>
+          Pending (Đang xử lý)
+        </span>
+      );
+    case 'maintenance':
+      return (
+        <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-800 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800'>
+          <span className='w-1.5 h-1.5 rounded-full bg-indigo-500' aria-hidden='true'></span>
+          Maintenance (Bảo trì)
+        </span>
+      );
+    case 'draft':
+      return (
+        <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-300 dark:border-slate-700'>
+          <span className='w-1.5 h-1.5 rounded-full bg-slate-400' aria-hidden='true'></span>
+          Draft (Nháp)
         </span>
       );
     case 'suspended':
@@ -130,8 +144,9 @@ export function WorkspaceDirectoryTable({
               <th scope='col' className='px-4 py-3.5'>Organizer Legal Entity</th>
               <th scope='col' className='px-4 py-3.5'>Location</th>
               <th scope='col' className='px-4 py-3.5'>Capacity</th>
+              <th scope='col' className='px-4 py-3.5 text-right'>Bookings</th>
               <th scope='col' className='px-4 py-3.5'>Status</th>
-              <th scope='col' className='px-4 py-3.5'>Submitted</th>
+              <th scope='col' className='px-4 py-3.5'>Updated</th>
               <th scope='col' className='px-4 py-3.5 text-right'>Action</th>
             </tr>
           </thead>
@@ -194,6 +209,11 @@ export function WorkspaceDirectoryTable({
                   {/* Capacity */}
                   <td className='px-4 py-4 font-medium text-foreground'>
                     <span>{workspace.capacityLabel}</span>
+                  </td>
+
+                  {/* Bookings */}
+                  <td className='px-4 py-4 text-right font-mono font-bold text-foreground'>
+                    {(workspace.bookingCount ?? 0).toLocaleString('en-US')}
                   </td>
 
                   {/* Status */}

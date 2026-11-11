@@ -134,17 +134,6 @@ export function WorkspaceMap({
         await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl.css');
         mapLibreModuleRef.current = maplibregl;
 
-        try {
-          const workerUrl = (
-            await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')
-          ).default;
-          if (workerUrl) {
-            maplibregl.setWorkerUrl(workerUrl);
-          }
-        } catch {
-          maplibregl.setWorkerUrl('https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl-worker.js');
-        }
-
         if (!isMountedRef.current || !mapContainerRef.current) return;
 
         const initialStyle = resolveStyle('streets');

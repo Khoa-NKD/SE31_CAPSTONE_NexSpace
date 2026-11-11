@@ -173,7 +173,7 @@ function WorkspaceAdminOverviewPage() {
         <section aria-label='Operational Workload & Compliance' className='grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6'>
           <ModerationWorkloadCard
             items={workloadItems}
-            awaitingCount={kpis.pendingModerationCount}
+            awaitingCount={kpis.pendingCount ?? 0}
           />
           <QualityComplianceCard metrics={MOCK_QUALITY_HEALTH_METRICS} />
         </section>
