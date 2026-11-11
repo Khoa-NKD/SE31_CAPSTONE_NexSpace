@@ -9,13 +9,17 @@ import type {
   InvoiceResponse,
   ReconciliationSummary,
   PageResponse,
-  BookingHoldResponse
+  BookingHoldResponse,
+  CustomerBookingItemResponse,
+  BookingStatus
 } from './types';
 
 export const paymentKeys = {
   all: ['payments'] as const,
   exchangeRate: () => [...paymentKeys.all, 'exchange-rate'] as const,
   pendingHold: () => [...paymentKeys.all, 'pending-hold'] as const,
+  customerBookings: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer-bookings', params] as const,
+  bookingDetail: (bookingId: number) => [...paymentKeys.all, 'booking-detail', bookingId] as const,
   status: (bookingId: number) => [...paymentKeys.all, 'status', bookingId] as const,
   customerList: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer', params] as const,
   organizerList: (workspaceId: number, params?: Record<string, unknown>) =>
@@ -32,6 +36,39 @@ export const exchangeRateQueryOptions = () =>
     queryFn: () => paymentService.getExchangeRate(),
     staleTime: 5 * 60 * 1000 // 5 minutes
   });
+
+export const customerBookingsQueryOptions = (params?: {
+  status?: BookingStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}) =>
+  queryOptions<PageResponse<CustomerBookingItemResponse>>({
+    queryKey: paymentKeys.customerBookings(params),
+    queryFn: () => paymentService.getCustomerBookings(params),
+    staleTime: 10 * 1000
+  });
+
+export function useCustomerBookings(params?: {
+  status?: BookingStatus;
+  page?: number;
+  size?: number;
+  sort?: string;
+}) {
+  return useQuery(customerBookingsQueryOptions(params));
+}
+
+export const bookingDetailQueryOptions = (bookingId: number) =>
+  queryOptions<CustomerBookingItemResponse>({
+    queryKey: paymentKeys.bookingDetail(bookingId),
+    queryFn: () => paymentService.getBookingConfirmationDetail(bookingId),
+    enabled: bookingId > 0,
+    staleTime: 30 * 1000
+  });
+
+export function useBookingDetail(bookingId: number) {
+  return useQuery(bookingDetailQueryOptions(bookingId));
+}
 
 export function useExchangeRate() {
   return useQuery(exchangeRateQueryOptions());

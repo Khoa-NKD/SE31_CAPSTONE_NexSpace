@@ -20,6 +20,22 @@ export interface BookingHoldResponse {
   remainingSeconds: number;
 }
 
+export interface CustomerBookingItemResponse {
+  bookingId: number;
+  bookingCode: string;
+  workspaceName: string;
+  workspaceAddress: string;
+  seatCode: string;
+  resourceName: string;
+  status: BookingStatus;
+  startTime: string;
+  endTime: string;
+  totalAmount: number;
+  qrTokenHash: string | null;
+  pinCode: string | null;
+  createdAt: string;
+}
+
 export interface PaymentCheckoutResponse {
   orderCode: number;
   bookingId: number;

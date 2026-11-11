@@ -316,7 +316,11 @@ export function PayOSCheckoutDialog({
                 <Button
                   onClick={() => {
                     handleOpenChange(false);
-                    navigate({ to: '/workspaces/confirmation' });
+                    const bId = checkoutData?.bookingId ?? statusData?.bookingId;
+                    navigate({
+                      to: '/workspaces/confirmation',
+                      search: bId ? { bookingId: bId } : undefined
+                    });
                   }}
                   className='w-1/2 cursor-pointer h-10 text-xs font-semibold shadow-md'
                 >

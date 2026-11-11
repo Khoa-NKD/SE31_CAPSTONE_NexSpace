@@ -1,15 +1,18 @@
 import React from 'react';
-import { Globe, ChevronDown, Check, DoorClosed, DoorOpen } from 'lucide-react';
+import { Globe, ChevronDown, Check } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Icons } from '@/components/icons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { UserNav } from '@/components/layout/user-nav';
 
 export function WorkspaceHeader() {
   const { language, setLanguage } = useLanguage();
   const { currency, setCurrency } = useCurrency();
+  const user = useAuthStore((state) => state.user);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/90 shadow-sm backdrop-blur-md dark:bg-card/90 dark:shadow-none">
@@ -28,6 +31,12 @@ export function WorkspaceHeader() {
               className="border-b-2 border-[#4b41e1] pb-1 text-sm font-semibold text-[#4b41e1] transition-all duration-200 hover:text-[#3d34b8] active:scale-[0.98]"
             >
               Workspaces
+            </Link>
+            <Link
+              to="/workspaces/my-bookings"
+              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+            >
+              {language === 'vi' ? 'Đơn của tôi' : 'My Bookings'}
             </Link>
             <Link
               to="/"
@@ -167,29 +176,19 @@ export function WorkspaceHeader() {
             List Your Space
           </Link>
           
-          {/* Primary Action: Logout */}
-          <Link
-            to='/auth/sign-in'
-            className='group flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:-translate-y-0.5 active:scale-95 active:translate-y-0'
-          >
-            <span>Logout</span>
-            <div className="relative h-4 w-4">
-              <DoorOpen className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-              <DoorClosed className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+          {/* User Nav Profile / Sign In */}
+          {user ? (
+            <div className="ml-2 flex items-center">
+              <UserNav />
             </div>
-          </Link>
-          
-          {/* Profile Avatar Link */}
-          <button
-            aria-label="User account menu"
-            className="ml-2 h-9 w-9 overflow-hidden rounded-full p-0.5 ring-2 ring-border transition-all duration-200 hover:ring-[#4b41e1] hover:shadow-md focus:outline-none focus:ring-[#4b41e1] active:scale-95"
-          >
-            <img
-              alt="User account menu"
-              className="h-full w-full rounded-full object-cover transition-transform duration-300 hover:scale-110"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBNr5Wsv0UwoDkrxmkfmLZpvKFqEr7XKmnlYlRHT0QAiWY80-zXmslj8ot1-8k2CuWr8GFIpsi0TrtVDuIVRYRzXY4DNd3C5nJGMYoU54luMUYv2V8dB4poxznpdVMC-ufXwAqeVirz3p9NhEzqKadujIppwe2zigny4K6qQskHOr-bYnjP2nIXmoWK4726jd7a6DqcU1Eh8Ih2dj434YnJCqe0R2Im_Hryh3EF9ji6Da5PQYLEDiVCw"
-            />
-          </button>
+          ) : (
+            <Link
+              to='/auth/sign-in'
+              className='flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white shadow-sm transition-all hover:bg-indigo-500'
+            >
+              <span>{language === 'vi' ? 'Đăng nhập' : 'Sign in'}</span>
+            </Link>
+          )}
         </div>
       </div>
     </header>

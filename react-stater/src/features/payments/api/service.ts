@@ -12,7 +12,9 @@ import type {
   BatchReconciliationResponse,
   ReconciliationSummary,
   PageResponse,
-  BookingHoldResponse
+  BookingHoldResponse,
+  CustomerBookingItemResponse,
+  BookingStatus
 } from './types';
 
 export const paymentService = {
@@ -109,6 +111,23 @@ export const paymentService = {
     anchor.remove();
     setTimeout(() => window.URL.revokeObjectURL(blobUrl), 10000);
   },
+
+  /**
+   * Xem danh sách các đơn đặt chỗ của khách hàng cá nhân.
+   */
+  getCustomerBookings: (params?: {
+    status?: BookingStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }): Promise<PageResponse<CustomerBookingItemResponse>> =>
+    apiClient.get<PageResponse<CustomerBookingItemResponse>>('/customer/bookings', { params }),
+
+  /**
+   * Xem chi tiết xác nhận đơn đặt chỗ và vé kỹ thuật số.
+   */
+  getBookingConfirmationDetail: (bookingId: number): Promise<CustomerBookingItemResponse> =>
+    apiClient.get<CustomerBookingItemResponse>(`/customer/bookings/${bookingId}`),
 
   /**
    * Organizer xem lịch sử thanh toán của workspace thuộc quyền quản lý.
