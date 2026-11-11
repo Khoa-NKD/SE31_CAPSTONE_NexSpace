@@ -40,6 +40,8 @@ public class WorkspaceDto {
     LocalDateTime featuredUntil;
     Long organizerId;
     String organizerName;
+    Long bookingCount;
+    Long totalBookings;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

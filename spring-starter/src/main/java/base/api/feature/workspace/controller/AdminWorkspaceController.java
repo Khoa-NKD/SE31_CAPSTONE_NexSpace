@@ -2,7 +2,6 @@ package base.api.feature.workspace.controller;
 
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
-import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
 import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
@@ -62,17 +61,6 @@ public class AdminWorkspaceController extends BaseAPIController {
         Long workspaceId = parseWorkspaceId(id);
         WorkspaceDetailDto result = workspaceService.getWorkspaceDetail(null, workspaceId);
         return success(result);
-    }
-
-    @Operation(summary = "Thẩm định duyệt hồ sơ không gian làm việc", description = "Admin phê duyệt (Approved -> ACTIVE) hoặc từ chối (Rejected -> REJECTED kèm lý do)")
-    @PatchMapping("/{id}/review")
-    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> adminReviewWorkspace(
-            @PathVariable String id,
-            @Valid @RequestBody AdminReviewWorkspaceDto dto) {
-        Long adminId = getCurrentUserId();
-        Long workspaceId = parseWorkspaceId(id);
-        WorkspaceDetailDto result = workspaceService.adminReviewWorkspace(adminId, workspaceId, dto);
-        return success(result, "Kiểm duyệt hồ sơ không gian làm việc thành công");
     }
 
     @Operation(summary = "Điều hành và đình chỉ không gian làm việc", description = "Admin đình chỉ (Suspended -> SUSPENDED) hoặc khôi phục (Normal -> ACTIVE)")

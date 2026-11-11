@@ -10,6 +10,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -21,6 +22,16 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
     Page<BookingModel> findByCustomerId(Long customerId, Pageable pageable);
 
     Page<BookingModel> findByWorkspaceId(Long workspaceId, Pageable pageable);
+
+    long countByWorkspaceId(Long workspaceId);
+
+    @Query("""
+            SELECT b.workspace.id, COUNT(b.id)
+            FROM BookingModel b
+            WHERE b.workspace.id IN :workspaceIds
+            GROUP BY b.workspace.id
+            """)
+    List<Object[]> countBookingsByWorkspaceIds(@Param("workspaceIds") Collection<Long> workspaceIds);
 
     @Query("""
             SELECT b FROM BookingModel b

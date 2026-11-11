@@ -4,6 +4,9 @@ import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
 
 public enum WorkspaceLifecycleAction {
+    DRAFT,
+    PENDING,
+    ACTIVATE,
     ARCHIVE,
     PAUSE,
     RESUME,

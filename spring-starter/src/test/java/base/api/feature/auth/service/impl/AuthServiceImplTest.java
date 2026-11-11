@@ -58,6 +58,7 @@ class AuthServiceImplTest {
     private ITokenRevocationService tokenRevocationService;
     private JwtUtil jwtUtil;
     private EmailService emailService;
+    private EmailDeliverabilityValidator emailDeliverabilityValidator;
 
     private AuthServiceImpl authService;
     private UserModel activeUser;
@@ -72,6 +73,7 @@ class AuthServiceImplTest {
         tokenRevocationService = mock(ITokenRevocationService.class);
         jwtUtil = mock(JwtUtil.class);
         emailService = mock(EmailService.class);
+        emailDeliverabilityValidator = mock(EmailDeliverabilityValidator.class);
 
         authService = new AuthServiceImpl(
                 authenticationManager,
@@ -82,7 +84,8 @@ class AuthServiceImplTest {
                 tokenRevocationService,
                 passwordEncoder,
                 jwtUtil,
-                emailService
+                emailService,
+                emailDeliverabilityValidator
         );
 
         ReflectionTestUtils.setField(authService, "emailVerificationEnabled", false);
@@ -219,6 +222,20 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("Đăng nhập tài khoản không tồn tại: ném UnauthorizedException với thông báo Tài khoản không tồn tại")
+    void login_NonExistingUser_ThrowsUnauthorized() {
+        AuthRequest req = new AuthRequest();
+        req.setUsername("ghostuser");
+        req.setPassword("Password@123");
+
+        when(userRepository.findByLogin("ghostuser")).thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> authService.login(req))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Tài khoản không tồn tại");
+    }
+
+    @Test
     @DisplayName("Đăng nhập sai mật khẩu: tăng failedLoginCount")
     void login_WrongPassword_IncrementsFailedCount() {
         AuthRequest req = new AuthRequest();
@@ -232,7 +249,7 @@ class AuthServiceImplTest {
 
         assertThatThrownBy(() -> authService.login(req))
                 .isInstanceOf(UnauthorizedException.class)
-                .hasMessageContaining("Sai tên đăng nhập hoặc mật khẩu");
+                .hasMessageContaining("Mật khẩu không chính xác");
 
         assertThat(activeUser.getFailedLoginCount()).isEqualTo(3);
         assertThat(activeUser.getLockedUntil()).isNull();
@@ -360,10 +377,30 @@ class AuthServiceImplTest {
 
     @Test
     @DisplayName("Quên mật khẩu với tài khoản không tồn tại: hoàn thành trong im lặng (chống user enumeration)")
-    void initiateForgotPassword_NonExistingUser_SilentSuccess() {
+    void initiateForgotPassword_NonExistingUser_ThrowsBadRequest() {
         when(userRepository.findByLogin("unknown@nexspace.vn")).thenReturn(Optional.empty());
 
-        authService.initiateForgotPassword("unknown@nexspace.vn");
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authService.initiateForgotPassword("unknown@nexspace.vn"))
+                .isInstanceOf(base.api.shared.exception.BadRequestException.class)
+                .hasMessageContaining("Tài khoản không tồn tại");
+
+        verify(passwordResetTokenRepository, never()).deleteByUserId(any());
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Quên mật khẩu với tài khoản chưa xác thực email: ném BadRequestException")
+    void initiateForgotPassword_UnverifiedUser_ThrowsBadRequest() {
+        UserModel unverifiedUser = new UserModel();
+        unverifiedUser.setId(20L);
+        unverifiedUser.setEmail("unverified@nexspace.vn");
+        unverifiedUser.setVerified(false);
+
+        when(userRepository.findByLogin("unverified@nexspace.vn")).thenReturn(Optional.of(unverifiedUser));
+
+        org.assertj.core.api.Assertions.assertThatThrownBy(() -> authService.initiateForgotPassword("unverified@nexspace.vn"))
+                .isInstanceOf(base.api.shared.exception.BadRequestException.class)
+                .hasMessageContaining("chưa được xác thực email");
 
         verify(passwordResetTokenRepository, never()).deleteByUserId(any());
         verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
