@@ -36,14 +36,14 @@ export function PriceBreakdownCard() {
 
   const createPaymentMutation = useCreatePaymentCheckout();
 
-  const baseRate = 10.00; // 4 hrs * $2.50
-  const platformFee = 1.00;
-  const vat = 0.88;
-  const discountAmount = discountApplied ? 1.00 : 0;
+  const baseRate = 0.08; // 2.000 VNĐ test transfer
+  const platformFee = 0.00;
+  const vat = 0.00;
+  const discountAmount = discountApplied ? 0.01 : 0;
   const totalAmountUsd = Math.max(0, baseRate + platformFee + vat - discountAmount);
 
-  // Exact rounded VND equivalent
-  const totalAmountVnd = Math.round((totalAmountUsd * exchangeRate) / 1000) * 1000;
+  // Exact rounded VND test equivalent: 2,000 VND
+  const totalAmountVnd = 2000;
 
   const handleApplyPromo = () => {
     if (promoCode.trim().toUpperCase() === 'NEXFIRST') {
@@ -104,7 +104,7 @@ export function PriceBreakdownCard() {
         <div className='border-border/60 space-y-3 border-b py-2 text-xs sm:text-sm'>
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Base Rate (4 hrs × $2.50)
+              Base Rate (Test mode • 2.000 VNĐ)
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
             <span className='font-medium'>{formatPrice(baseRate)}</span>
@@ -112,14 +112,14 @@ export function PriceBreakdownCard() {
 
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Platform Service Fee &amp; Ultra-Fast WiFi
+              Platform Service Fee
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
             <span className='font-medium'>{formatPrice(platformFee)}</span>
           </div>
 
           <div className='flex items-center justify-between text-foreground'>
-            <span className='text-muted-foreground'>Value Added Tax (VAT 8% included)</span>
+            <span className='text-muted-foreground'>Value Added Tax (VAT 0%)</span>
             <span className='text-muted-foreground font-medium'>{formatPrice(vat)}</span>
           </div>
 
