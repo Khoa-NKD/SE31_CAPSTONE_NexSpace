@@ -3,26 +3,50 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, HelpCircle } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, HelpCircle, Phone, UserCog } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AdminUserRecord } from '../api/types';
-import { PLATFORM_TOTAL_ACCOUNTS } from '../data/mock-users';
+import { getUserInitial } from '../api/service';
+import { ChangeRoleDialog } from './change-role-dialog';
 
 interface UserAccountsTableProps {
   users: AdminUserRecord[];
   selectedUserId?: string;
   onSelectUser: (user: AdminUserRecord) => void;
   isLoading?: boolean;
+  totalElements?: number;
+  totalPages?: number;
+  currentPage?: number;
+  onPageChange?: (page: number) => void;
 }
 
 export function UserAccountsTable({
   users,
   selectedUserId,
   onSelectUser,
-  isLoading = false
+  isLoading = false,
+  totalElements,
+  totalPages,
+  currentPage: propCurrentPage,
+  onPageChange
 }: UserAccountsTableProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [internalPage, setInternalPage] = useState<number>(1);
+  const [roleTargetUser, setRoleTargetUser] = useState<AdminUserRecord | null>(null);
+  const [isRoleModalOpen, setIsRoleModalOpen] = useState<boolean>(false);
+
+  const currentPage = propCurrentPage ?? internalPage;
+  const resolvedTotalPages = totalPages ?? 1;
+  const resolvedTotalAccounts = totalElements ?? users.length;
+
+  const handlePageChange = (newPage: number) => {
+    if (onPageChange) {
+      onPageChange(newPage);
+    } else {
+      setInternalPage(newPage);
+    }
+  };
 
   const handleSelectAll = (checked: boolean) => {
     if (checked) {
@@ -45,21 +69,23 @@ export function UserAccountsTable({
       <div className='px-4 py-3 bg-muted/60 border-b border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3'>
         <div className='flex items-center gap-3 text-xs text-muted-foreground'>
           <span>
-            Showing <strong className='text-foreground font-semibold'>{users.length}</strong> sample records
-            (simulated from {PLATFORM_TOTAL_ACCOUNTS.toLocaleString()} total platform accounts)
+            Hiển thị <strong className='text-foreground font-semibold'>{users.length}</strong> tài khoản
+            {resolvedTotalAccounts > users.length
+              ? ` (trên tổng số ${resolvedTotalAccounts.toLocaleString()} tài khoản hệ thống)`
+              : ''}
           </span>
           <span className='inline-block size-1 rounded-full bg-border' />
           <button
             type='button'
             onClick={() => {
               setSelectedIds(users.map((u) => u.id));
-              toast.info('Batch Selection Simulated', {
-                description: `All sample records selected for bulk operations.`
+              toast.info('Đã chọn hàng loạt', {
+                description: `Đã chọn ${users.length} tài khoản trên trang hiện tại.`
               });
             }}
             className='text-primary font-semibold hover:underline cursor-pointer'
           >
-            Select sample set
+            Chọn tất cả trang này
           </button>
         </div>
 
@@ -70,27 +96,23 @@ export function UserAccountsTable({
             size='icon'
             className='size-7'
             disabled={currentPage <= 1}
-            onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-            aria-label='Previous page'
+            onClick={() => handlePageChange(Math.max(1, currentPage - 1))}
+            aria-label='Trang trước'
           >
             <ChevronLeft className='size-4' aria-hidden='true' />
           </Button>
 
           <span className='font-mono text-xs font-semibold text-foreground px-2'>
-            Page {currentPage} of 1,842
+            Trang {currentPage} / {resolvedTotalPages || 1}
           </span>
 
           <Button
             variant='ghost'
             size='icon'
             className='size-7'
-            onClick={() => {
-              setCurrentPage((p) => p + 1);
-              toast.info('Pagination Note', {
-                description: 'Page advance simulated across the sample dataset.'
-              });
-            }}
-            aria-label='Next page'
+            disabled={currentPage >= resolvedTotalPages}
+            onClick={() => handlePageChange(currentPage + 1)}
+            aria-label='Trang tiếp'
           >
             <ChevronRight className='size-4' aria-hidden='true' />
           </Button>
@@ -115,7 +137,7 @@ export function UserAccountsTable({
               <th className='w-32 px-3 py-2 font-semibold'>Role</th>
               <th className='w-32 px-3 py-2 font-semibold'>Account Status</th>
               <th className='w-32 px-3 py-2 font-semibold'>Verification</th>
-              <th className='w-36 px-3 py-2 font-semibold'>Registered</th>
+              <th className='w-36 px-3 py-2 font-semibold'>Số điện thoại</th>
             </tr>
           </thead>
 
@@ -123,8 +145,19 @@ export function UserAccountsTable({
             {users.map((user) => {
               const isSelected = selectedUserId === user.id;
               const isChecked = selectedIds.includes(user.id);
-              const isLocked = user.status === 'Locked';
-              const isActive = user.status === 'Active';
+
+              const rawStatusUpper = String(user.status || '').toUpperCase();
+              const isLocked = rawStatusUpper === 'LOCKED';
+              const isActive = rawStatusUpper === 'ACTIVE';
+              const isInactive = rawStatusUpper === 'INACTIVE';
+              const isDeleted = rawStatusUpper === 'DELETED';
+
+              const rawRoleUpper = String(user.role || '').toUpperCase();
+              const isOrg = rawRoleUpper === 'ORGANIZER';
+              const isAdmin = rawRoleUpper === 'ADMIN' || rawRoleUpper === 'ADMINISTRATOR';
+
+              const displayName = user.name || user.fullName || user.userName || user.email || `User #${user.id}`;
+              const displayCompany = user.company || (isOrg ? 'Nhà tổ chức' : isAdmin ? 'Quản trị viên' : 'Thành viên');
 
               return (
                 <tr
@@ -162,7 +195,7 @@ export function UserAccountsTable({
                         );
                       }}
                       onClick={(e) => e.stopPropagation()}
-                      aria-label={`Select ${user.name}`}
+                      aria-label={`Chọn ${displayName}`}
                     />
                   </td>
 
@@ -172,21 +205,26 @@ export function UserAccountsTable({
                     </span>
                   </td>
 
-                  <td className='px-3 py-3' aria-label={user.name}>
+                  <td className='px-3 py-3' aria-label={displayName}>
                     <div className='flex items-center gap-2.5'>
-                      <div className='size-7 rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden shrink-0'>
-                        <img
-                          src={user.avatarUrl}
-                          alt={user.name}
-                          className='w-full h-full object-cover'
-                        />
-                      </div>
+                      <Avatar className='size-8 shrink-0 rounded-full border border-border/80 shadow-2xs'>
+                        {user.avatarUrl ? (
+                          <AvatarImage
+                            src={user.avatarUrl}
+                            alt={displayName}
+                            className='w-full h-full object-cover'
+                          />
+                        ) : null}
+                        <AvatarFallback className='rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-bold text-xs select-none'>
+                          {getUserInitial(displayName, user.email)}
+                        </AvatarFallback>
+                      </Avatar>
                       <div className='min-w-0'>
-                        <span className='font-medium text-foreground block truncate leading-tight'>
-                          {user.name}
+                        <span className='font-semibold text-foreground block truncate leading-tight'>
+                          {displayName}
                         </span>
                         <span className='text-[10px] text-muted-foreground block truncate'>
-                          {user.company}
+                          {displayCompany}
                         </span>
                       </div>
                     </div>
@@ -197,18 +235,45 @@ export function UserAccountsTable({
                   </td>
 
                   <td className='px-3 py-3'>
-                    <Badge
-                      variant='outline'
-                      className={`text-[11px] font-semibold ${
-                        user.role === 'Organizer'
-                          ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300'
-                          : user.role === 'Administrator'
-                          ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300'
-                          : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300'
+                    <button
+                      type='button'
+                      disabled={isDeleted}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isDeleted) return;
+                        setRoleTargetUser(user);
+                        setIsRoleModalOpen(true);
+                      }}
+                      title={
+                        isDeleted
+                          ? 'Không thể đổi vai trò của tài khoản đã xóa'
+                          : 'Bấm để đổi vai trò của người dùng'
+                      }
+                      aria-label={
+                        isDeleted
+                          ? `Không thể đổi vai trò của ${displayName}`
+                          : `Đổi vai trò của ${displayName}`
+                      }
+                      className={`inline-flex items-center gap-1 group/role focus:outline-hidden focus-visible:ring-1 focus-visible:ring-primary rounded-full ${
+                        isDeleted ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'
                       }`}
                     >
-                      {user.role}
-                    </Badge>
+                      <Badge
+                        variant='outline'
+                        className={`text-[11px] font-semibold transition-all flex items-center gap-1 ${
+                          !isDeleted ? 'group-hover/role:shadow-xs group-hover/role:scale-105 cursor-pointer ' : ''
+                        }${
+                          isOrg
+                            ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 group-hover/role:border-indigo-400'
+                            : isAdmin
+                            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 group-hover/role:border-purple-400'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-900 dark:text-slate-300 group-hover/role:border-slate-400'
+                        }`}
+                      >
+                        <span>{isAdmin ? 'Quản trị viên' : isOrg ? 'Nhà tổ chức' : 'Khách hàng'}</span>
+                        {!isDeleted && <UserCog className='size-2.5 opacity-60 group-hover/role:opacity-100 transition-opacity' />}
+                      </Badge>
+                    </button>
                   </td>
 
                   <td className='px-3 py-3'>
@@ -218,40 +283,66 @@ export function UserAccountsTable({
                           ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300'
                           : isLocked
                           ? 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300'
+                          : isInactive
+                          ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300'
+                          : isDeleted
+                          ? 'bg-slate-200/80 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 line-through'
                           : 'bg-muted text-muted-foreground border-border'
                       }`}
                     >
                       <span
                         className={`size-1.5 rounded-full ${
-                          isActive ? 'bg-emerald-500' : isLocked ? 'bg-red-500' : 'bg-slate-400'
+                          isActive
+                            ? 'bg-emerald-500'
+                            : isLocked
+                            ? 'bg-red-500'
+                            : isInactive
+                            ? 'bg-amber-500'
+                            : isDeleted
+                            ? 'bg-slate-500'
+                            : 'bg-slate-400'
                         }`}
                       />
-                      {user.status}
+                      {isActive
+                        ? 'Hoạt động'
+                        : isLocked
+                        ? 'Đã khóa'
+                        : isInactive
+                        ? 'Tạm ngưng'
+                        : isDeleted
+                        ? 'Đã xóa'
+                        : user.status}
                     </span>
                   </td>
 
                   <td className='px-3 py-3'>
-                    {user.kycStatus === 'Verified KYC' ? (
+                    {user.kycStatus === 'Verified KYC' || user.verified === true ? (
                       <span className='inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-300 font-medium'>
                         <CheckCircle2 className='size-3.5 text-emerald-600' />
-                        <span>Verified</span>
+                        <span>Đã xác minh</span>
                       </span>
                     ) : user.kycStatus === 'Pending KYC' ? (
                       <span className='inline-flex items-center gap-1 text-amber-700 dark:text-amber-300 font-medium'>
                         <Clock className='size-3.5 text-amber-500' />
-                        <span>KYC Pending</span>
+                        <span>Chờ KYC</span>
                       </span>
                     ) : (
                       <span className='inline-flex items-center gap-1 text-muted-foreground font-medium'>
                         <HelpCircle className='size-3.5 text-slate-400' />
-                        <span>Unverified</span>
+                        <span>Chưa xác minh</span>
                       </span>
                     )}
                   </td>
 
-                  <td className='px-3 py-3 text-muted-foreground'>
-                    <span className='block text-foreground font-medium'>{user.registeredDate}</span>
-                    <span className='text-[10px] font-mono'>{user.registeredTimeUtc}</span>
+                  <td className='px-3 py-3 text-muted-foreground font-mono text-[11px]'>
+                    {user.phone && user.phone !== 'Chưa cập nhật' ? (
+                      <span className='text-foreground font-medium flex items-center gap-1.5'>
+                        <Phone className='size-3 text-muted-foreground shrink-0' />
+                        <span>{user.phone}</span>
+                      </span>
+                    ) : (
+                      <span className='text-muted-foreground/60 italic'>Chưa cập nhật</span>
+                    )}
                   </td>
                 </tr>
               );
@@ -282,14 +373,24 @@ export function UserAccountsTable({
       {/* Footer Info */}
       <div className='px-4 py-3 bg-card border-t border-border flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2'>
         <div>
-          <span>Showing {users.length} sample accounts of {PLATFORM_TOTAL_ACCOUNTS.toLocaleString()} total platform records</span>
+          <span>
+            Đang hiển thị {users.length} tài khoản{' '}
+            {resolvedTotalAccounts > users.length ? `trong tổng số ${resolvedTotalAccounts.toLocaleString()} tài khoản` : ''}
+          </span>
         </div>
         <div className='flex items-center gap-1 font-mono text-[11px]'>
-          <span>Dataset: Deterministic Sample</span>
+          <span>Cơ sở dữ liệu NexSpace</span>
           <span>•</span>
-          <span>Filter State: Local</span>
+          <span>Phân trang máy chủ</span>
         </div>
       </div>
+
+      {/* Pop-up xác nhận đổi vai trò trực tiếp từ bảng */}
+      <ChangeRoleDialog
+        user={roleTargetUser}
+        open={isRoleModalOpen}
+        onOpenChange={setIsRoleModalOpen}
+      />
     </Card>
   );
 }

@@ -58,11 +58,6 @@ const routeMapping: Record<string, BreadcrumbItem[]> = {
     { title: 'Overview', link: '/dashboard/overview' },
     { title: 'Administrator Dashboard', link: '' }
   ],
-  '/dashboard/admin/roles': [
-    { title: 'Platform Ops', link: '/dashboard/overview' },
-    { title: 'Access & Identity', link: '' },
-    { title: 'Users & Role Permissions', link: '' }
-  ],
   '/dashboard/admin/users': [
     { title: 'Platform Ops', link: '/dashboard/overview' },
     { title: 'Access & Identity', link: '' },

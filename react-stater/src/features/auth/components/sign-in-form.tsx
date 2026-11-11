@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowRight, Eye, EyeOff, AlertCircle, X } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, AlertCircle, X, MailCheck } from 'lucide-react';
 import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -34,6 +34,29 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
   const submitting = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
   const [globalError, setGlobalError] = useState<string | null>(null);
+  const [resendingVerification, setResendingVerification] = useState(false);
+
+  const needsEmailVerification = Boolean(
+    globalError &&
+      (globalError.toLowerCase().includes('xác thực email') ||
+        globalError.toUpperCase().includes('INACTIVE'))
+  );
+
+  const handleResendVerification = async () => {
+    const contactInfo = form.getValues('email')?.trim();
+    if (!contactInfo || resendingVerification) return;
+    setResendingVerification(true);
+    try {
+      await authService.resendVerification(contactInfo);
+      toast.success('Đã gửi lại email xác thực', {
+        description: 'Nếu tài khoản hợp lệ, liên kết xác thực đã được gửi tới email của bạn. Vui lòng kiểm tra hộp thư.'
+      });
+    } catch {
+      toast.error('Không thể gửi lại email xác thực. Vui lòng thử lại sau.');
+    } finally {
+      setResendingVerification(false);
+    }
+  };
 
   const form = useForm<SignInValues>({
     resolver: zodResolver(signInSchema),
@@ -148,6 +171,19 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
             <p className='font-body-sm text-body-sm text-error/90 mt-0.5'>
               {globalError || t('auth.signIn.errorDesc')}
             </p>
+            {needsEmailVerification && (
+              <button
+                type='button'
+                disabled={resendingVerification}
+                onClick={() => void handleResendVerification()}
+                className='mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer disabled:opacity-60'
+              >
+                <MailCheck className='w-3.5 h-3.5' />
+                <span>
+                  {resendingVerification ? 'Đang gửi email xác thực...' : 'Gửi lại email xác thực'}
+                </span>
+              </button>
+            )}
           </div>
           <button
             type='button'

@@ -60,13 +60,6 @@ export const navGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Role Permissions',
-        url: '/dashboard/admin/roles',
-        icon: 'lock',
-        shortcut: ['r', 'r'],
-        isActive: false
-      },
-      {
         title: 'Bookings Ledger',
         url: '/dashboard/admin/bookings',
         icon: 'calendar',

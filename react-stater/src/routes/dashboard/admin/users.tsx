@@ -30,7 +30,8 @@ const usersSearchSchema = z.object({
   role: z.string().optional(),
   status: z.string().optional(),
   kyc: z.string().optional(),
-  userId: z.string().optional()
+  userId: z.string().optional(),
+  page: z.coerce.number().optional()
 });
 
 export const Route = createFileRoute('/dashboard/admin/users')({
@@ -49,6 +50,7 @@ function AdminUsersListPage() {
   const navigate = Route.useNavigate();
 
   // Filter UI state
+  const currentPage = searchParams.page ? Math.max(1, Number(searchParams.page)) : 1;
   const [searchQuery, setSearchQuery] = useState<string>(searchParams.search || '');
   const [selectedRole, setSelectedRole] = useState<string>(searchParams.role || 'all');
   const [selectedStatus, setSelectedStatus] = useState<string>(searchParams.status || 'all');
@@ -57,15 +59,17 @@ function AdminUsersListPage() {
   // Defer search input to throttle live API queries
   const deferredSearch = useDeferredValue(searchQuery);
 
-  // Active query filters passed to Mock REST API
+  // Active query filters passed to Mock REST API / Real Backend
   const queryFilters = useMemo(
     () => ({
       search: deferredSearch.trim() || undefined,
       role: selectedRole !== 'all' ? selectedRole : undefined,
       status: selectedStatus !== 'all' ? selectedStatus : undefined,
-      kyc: selectedKyc !== 'all' ? selectedKyc : undefined
+      kyc: selectedKyc !== 'all' ? selectedKyc : undefined,
+      page: currentPage - 1,
+      size: 20
     }),
-    [deferredSearch, selectedRole, selectedStatus, selectedKyc]
+    [deferredSearch, selectedRole, selectedStatus, selectedKyc, currentPage]
   );
 
   // Query live user accounts from Mock REST API
@@ -137,7 +141,8 @@ function AdminUsersListPage() {
         search: undefined,
         role: undefined,
         status: undefined,
-        kyc: undefined
+        kyc: undefined,
+        page: undefined
       }),
       replace: true,
       resetScroll: false
@@ -227,6 +232,16 @@ function AdminUsersListPage() {
           selectedUserId={selectedUserId || undefined}
           onSelectUser={handleSelectUser}
           isLoading={isLoading}
+          totalElements={usersPage?.totalElements}
+          totalPages={usersPage?.totalPages}
+          currentPage={currentPage}
+          onPageChange={(newPage) => {
+            navigate({
+              search: (prev) => ({ ...prev, page: newPage }),
+              replace: true,
+              resetScroll: false
+            });
+          }}
         />
 
         {/* 5. Slide-Over Detail Drawer (560px Wide) */}
