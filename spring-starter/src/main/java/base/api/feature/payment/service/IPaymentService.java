@@ -30,4 +30,13 @@ public interface IPaymentService {
     Long getOrCreatePendingBookingId(Long actorId);
 
     base.api.feature.payment.dto.response.BookingHoldResponseDTO getOrCreatePendingBookingHold(Long actorId);
+
+    Page<base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO> getCustomerBookings(
+            Long customerId,
+            base.api.shared.enums.BookingStatus status,
+            PageRequestDTO pageRequest);
+
+    base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO getBookingConfirmationDetail(
+            Long bookingId,
+            Long actorId);
 }

@@ -46,6 +46,27 @@ public class CustomerPaymentController extends BaseAPIController {
         return success(hold, "Lấy phiên đặt chỗ thành công");
     }
 
+    @GetMapping("/bookings")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Xem danh sách các đơn đặt chỗ của khách hàng cá nhân")
+    public ResponseEntity<ApiResponse<base.api.shared.dto.PageResponseDTO<base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO>>> getMyBookings(
+            @RequestParam(required = false) base.api.shared.enums.BookingStatus status,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        Long actorId = getCurrentUserId();
+        var page = paymentService.getCustomerBookings(actorId, status, pageRequest);
+        return successPage(page);
+    }
+
+    @GetMapping("/bookings/{bookingId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Xem chi tiết xác nhận đơn đặt chỗ và vé điện tử")
+    public ResponseEntity<ApiResponse<base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO>> getBookingDetail(
+            @PathVariable Long bookingId) {
+        Long actorId = getCurrentUserId();
+        var detail = paymentService.getBookingConfirmationDetail(bookingId, actorId);
+        return success(detail, "Lấy thông tin đơn đặt chỗ thành công");
+    }
+
     @PostMapping("/bookings/{bookingId}/payments")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Khởi tạo thanh toán PayOS và lấy mã VietQR động")

@@ -3,6 +3,7 @@ package base.api.feature.payment.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.BookingHoldResponseDTO;
+import base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO;
 import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
@@ -408,6 +409,66 @@ public class PaymentServiceImpl implements IPaymentService {
                 .workspaceName(workspaceName)
                 .holdExpiresAt(holdExpiresAt)
                 .remainingSeconds(remainingSeconds)
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<CustomerBookingItemResponseDTO> getCustomerBookings(
+            Long customerId,
+            BookingStatus status,
+            PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest != null
+                ? pageRequest.toPageable("createdAt", Sort.Direction.DESC, Set.of("createdAt", "startTime", "status", "finalPrice"))
+                : org.springframework.data.domain.PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
+
+        Page<BookingModel> bookings = bookingRepository.findCustomerBookingsWithDetails(customerId, status, pageable);
+        return bookings.map(this::mapToCustomerBookingItem);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CustomerBookingItemResponseDTO getBookingConfirmationDetail(Long bookingId, Long actorId) {
+        BookingModel booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId));
+
+        if (actorId != null && booking.getCustomer() != null && !booking.getCustomer().getId().equals(actorId)) {
+            throw new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId);
+        }
+
+        return mapToCustomerBookingItem(booking);
+    }
+
+    private CustomerBookingItemResponseDTO mapToCustomerBookingItem(BookingModel booking) {
+        String pinCode = null;
+        if (booking.getStatus() == BookingStatus.CONFIRMED && StringUtils.hasText(booking.getBookingCode())) {
+            int hash = Math.abs(booking.getBookingCode().hashCode());
+            pinCode = String.format("%04d", hash % 10000);
+        }
+
+        String seatCode = (booking.getResource() != null && booking.getResource().getName() != null)
+                ? booking.getResource().getName()
+                : "Desk A-12";
+        String resourceName = (booking.getResource() != null) ? booking.getResource().getName() : "Hot Desk";
+        String workspaceName = (booking.getWorkspace() != null) ? booking.getWorkspace().getName() : "NexSpace Central Tower";
+        String workspaceAddress = (booking.getWorkspace() != null && booking.getWorkspace().getAddress() != null)
+                ? booking.getWorkspace().getAddress()
+                : "72 Le Thanh Ton, District 1, Ho Chi Minh City";
+
+        return CustomerBookingItemResponseDTO.builder()
+                .bookingId(booking.getId())
+                .bookingCode(booking.getBookingCode())
+                .workspaceName(workspaceName)
+                .workspaceAddress(workspaceAddress)
+                .seatCode(seatCode)
+                .resourceName(resourceName)
+                .status(booking.getStatus())
+                .startTime(booking.getStartTime())
+                .endTime(booking.getEndTime())
+                .totalAmount(booking.getFinalPrice())
+                .qrTokenHash(booking.getQrTokenHash())
+                .pinCode(pinCode)
+                .createdAt(booking.getCreatedAt())
                 .build();
     }
 
