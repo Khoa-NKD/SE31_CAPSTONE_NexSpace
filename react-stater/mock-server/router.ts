@@ -10,7 +10,8 @@ import {
 import {
   handleGetAdminUsers,
   handleGetAdminUserById,
-  handleUpdateAdminUserStatus
+  handleUpdateAdminUserStatus,
+  handleUpdateAdminUserRole
 } from './routes/admin-users.ts';
 import {
   handleGetRolePermissions,
@@ -226,6 +227,16 @@ export async function handleRequest(
     const userId = adminUserStatusMatch[1];
     if (method === 'PATCH') {
       await handleUpdateAdminUserStatus(res, userId, body);
+      return;
+    }
+  }
+
+  // 6b. Admin User Role Update: PATCH or PUT /api/v1/admin/users/:id/role
+  const adminUserRoleMatch = pathname.match(/^\/api\/v1\/admin\/users\/([a-zA-Z0-9_-]+)\/role$/);
+  if (adminUserRoleMatch) {
+    const userId = adminUserRoleMatch[1];
+    if (method === 'PATCH' || method === 'PUT') {
+      await handleUpdateAdminUserRole(res, userId, body);
       return;
     }
   }

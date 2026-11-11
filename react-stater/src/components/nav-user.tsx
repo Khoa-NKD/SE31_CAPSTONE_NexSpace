@@ -27,6 +27,7 @@ export function NavUser({
   };
 }) {
   const { isMobile } = useSidebar();
+  const initial = (user.name?.[0] || user.email?.[0] || 'U').toUpperCase();
 
   return (
     <SidebarMenu>
@@ -39,7 +40,9 @@ export function NavUser({
             >
               <Avatar className='h-8 w-8 rounded-lg'>
                 <AvatarImage src={user.avatar} alt={user.name} />
-                <AvatarFallback className='rounded-lg'>CN</AvatarFallback>
+                <AvatarFallback className='rounded-lg bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
+                  {initial}
+                </AvatarFallback>
               </Avatar>
               <div className='grid flex-1 text-left text-sm leading-tight'>
                 <span className='truncate font-semibold'>{user.name}</span>
@@ -59,7 +62,9 @@ export function NavUser({
                 <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
                   <Avatar className='h-8 w-8 rounded-lg'>
                     <AvatarImage src={user.avatar} alt={user.name} />
-                    <AvatarFallback className='rounded-lg'>CN</AvatarFallback>
+                    <AvatarFallback className='rounded-lg bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
+                      {initial}
+                    </AvatarFallback>
                   </Avatar>
                   <div className='grid flex-1 text-left text-sm leading-tight'>
                     <span className='truncate font-semibold'>{user.name}</span>

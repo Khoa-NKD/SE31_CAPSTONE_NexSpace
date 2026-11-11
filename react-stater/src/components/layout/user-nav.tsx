@@ -14,7 +14,7 @@ import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, LayoutDashboard, LogOut, ClipboardList } from 'lucide-react';
+import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';
@@ -54,14 +54,21 @@ export function UserNav() {
     ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userName
     : 'User';
   const displayEmail = user?.email || 'user@example.com';
-  const initial = (user?.firstName?.[0] || user?.userName?.[0] || 'U').toUpperCase();
+  const initial = (user?.firstName?.[0] || user?.lastName?.[0] || user?.userName?.[0] || user?.email?.[0] || 'U').toUpperCase();
 
   const handleDashboardClick = () => {
     if (role === 'ORGANIZER') {
       router.navigate({ to: '/dashboard/organizer/workspaces' });
     } else {
+      useAuthStore.getState().setAdminViewMode('admin');
       router.navigate({ to: '/dashboard/overview' });
     }
+  };
+
+  const handleSwitchToCustomerView = () => {
+    setOpen(false);
+    useAuthStore.getState().setAdminViewMode('customer');
+    router.navigate({ to: '/?view=customer' });
   };
 
   return (
@@ -70,7 +77,9 @@ export function UserNav() {
         <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
           <Avatar className='h-8 w-8'>
             {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
-            <AvatarFallback>{initial}</AvatarFallback>
+            <AvatarFallback className='bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
+              {initial}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
@@ -94,6 +103,15 @@ export function UserNav() {
               {role === 'ORGANIZER' && language === 'vi' ? 'Bảng điều khiển' : 'Dashboard'}
             </span>
           </DropdownMenuItem>
+          {role === 'ADMIN' && (
+            <DropdownMenuItem
+              className='cursor-pointer flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium'
+              onClick={handleSwitchToCustomerView}
+            >
+              <Eye className='w-4 h-4 text-indigo-500' />
+              <span>{language === 'vi' ? 'Xem giao diện Khách hàng' : 'Customer View'}</span>
+            </DropdownMenuItem>
+          )}
           {showApplicationStatus && (
             <DropdownMenuItem
               className='cursor-pointer flex items-center gap-2'

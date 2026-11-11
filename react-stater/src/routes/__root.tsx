@@ -11,6 +11,7 @@ import { DEFAULT_THEME, THEMES } from '@/components/themes/theme.config';
 import { seo } from '@/lib/seo';
 import { LanguageProvider } from '@/features/landing/context/language-context';
 import { CurrencyProvider } from '@/features/landing/context/currency-context';
+import { AdminPreviewBanner } from '@/components/layout/admin-preview-banner';
 
 import appCss from '@/styles/globals.css?url';
 
@@ -150,6 +151,7 @@ function RootDocument() {
               <CurrencyProvider>
                 <TooltipProvider>
                   <Toaster />
+                  <AdminPreviewBanner />
                   <Outlet />
                 </TooltipProvider>
               </CurrencyProvider>

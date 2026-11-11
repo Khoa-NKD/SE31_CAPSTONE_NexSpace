@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen } from 'lucide-react';
+import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
 import { useCurrency } from '../context/currency-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
 
 export function Navbar() {
@@ -241,6 +242,19 @@ export function Navbar() {
           {/* Zone 3: Sole Radiant CTA Button OR Authenticated User Profile */}
           {isAuthenticated ? (
             <div className='flex items-center gap-2 pl-1'>
+              {getUserRole(user) === 'ADMIN' && (
+                <button
+                  type='button'
+                  onClick={() => {
+                    useAuthStore.getState().setAdminViewMode('admin');
+                    navigate({ to: '/dashboard/overview' });
+                  }}
+                  className='hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer active:scale-95'
+                >
+                  <ShieldCheck className='size-3.5' />
+                  <span>Về Trang Quản trị</span>
+                </button>
+              )}
               <UserNav />
             </div>
           ) : (

@@ -10,8 +10,10 @@ export interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  adminViewMode: 'admin' | 'customer';
   setAuth: (data: { user: UserDto; accessToken: string }) => void;
   setUser: (user: UserDto) => void;
+  setAdminViewMode: (mode: 'admin' | 'customer') => void;
   clearAuth: () => void;
   setLoading: (isLoading: boolean) => void;
 }
@@ -23,13 +25,15 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       isAuthenticated: false,
       isLoading: false,
+      adminViewMode: 'admin',
 
       setAuth: ({ user, accessToken }) =>
         set({
           user,
           accessToken,
           isAuthenticated: true,
-          isLoading: false
+          isLoading: false,
+          adminViewMode: 'admin'
         }),
 
       setUser: (user) =>
@@ -38,12 +42,18 @@ export const useAuthStore = create<AuthState>()(
           user
         })),
 
+      setAdminViewMode: (mode) =>
+        set({
+          adminViewMode: mode
+        }),
+
       clearAuth: () =>
         set({
           user: null,
           accessToken: null,
           isAuthenticated: false,
-          isLoading: false
+          isLoading: false,
+          adminViewMode: 'admin'
         }),
 
       setLoading: (isLoading) => set({ isLoading })
@@ -58,7 +68,8 @@ export const useAuthStore = create<AuthState>()(
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated
+        isAuthenticated: state.isAuthenticated,
+        adminViewMode: state.adminViewMode
       })
     }
   )

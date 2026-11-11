@@ -79,9 +79,10 @@ export function UserFiltersBar({
             className='w-full h-9 pl-3 pr-8 text-xs bg-card border border-border rounded-lg text-foreground focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer'
           >
             <option value='all'>All Statuses</option>
-            <option value='Active'>Active</option>
-            <option value='Locked'>Locked</option>
-            <option value='Inactive'>Inactive</option>
+            <option value='Active'>Hoạt động (Active)</option>
+            <option value='Inactive'>Không hoạt động (Inactive)</option>
+            <option value='Locked'>Đã khóa (Locked)</option>
+            <option value='Deleted'>Đã xóa mềm (Deleted)</option>
           </select>
         </div>
 

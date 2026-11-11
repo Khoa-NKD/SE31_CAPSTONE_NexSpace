@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   Dialog,
   DialogContent,
@@ -14,33 +15,46 @@ import {
   Lock,
   Unlock,
   RotateCcw,
-  UserMinus,
   CheckCircle2,
   Shield,
   BadgeCheck,
   User,
+  UserCog,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Calendar,
+  Trash2,
+  Clock
 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { AdminUserRecord } from '../api/types';
+import { getUserInitial } from '../api/service';
+import { useUpdateUserStatusMutation } from '../api/mutations';
+import { LockUserDialog } from './lock-user-dialog';
+import { UnlockUserDialog } from './unlock-user-dialog';
+import { ChangeRoleDialog } from './change-role-dialog';
+import { DeleteUserDialog } from './delete-user-dialog';
 
 interface UserDetailsDrawerProps {
   user: AdminUserRecord | null;
   onClose: () => void;
-  onToggleStatus: (userId: string) => void;
+  onToggleStatus?: (userId: string) => void;
   isUpdatingStatus?: boolean;
 }
 
 export function UserDetailsDrawer({
   user,
   onClose,
-  onToggleStatus,
+  onToggleStatus: _onToggleStatus,
   isUpdatingStatus = false
 }: UserDetailsDrawerProps) {
   const [resetModalOpen, setResetModalOpen] = useState(false);
-  const [deactivateModalOpen, setDeactivateModalOpen] = useState(false);
+  const [lockModalOpen, setLockModalOpen] = useState(false);
+  const [unlockModalOpen, setUnlockModalOpen] = useState(false);
+  const [roleModalOpen, setRoleModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const drawerStatusMutation = useUpdateUserStatusMutation();
 
   useEffect(() => {
     if (user) {
@@ -52,7 +66,14 @@ export function UserDetailsDrawer({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.defaultPrevented) return;
-      if (e.key === 'Escape' && !resetModalOpen && !deactivateModalOpen) {
+      if (
+        e.key === 'Escape' &&
+        !resetModalOpen &&
+        !lockModalOpen &&
+        !unlockModalOpen &&
+        !roleModalOpen &&
+        !deleteModalOpen
+      ) {
         onClose();
         triggerRef.current?.focus?.({ preventScroll: true });
       }
@@ -61,24 +82,30 @@ export function UserDetailsDrawer({
       window.addEventListener('keydown', handleKeyDown);
     }
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [user, resetModalOpen, deactivateModalOpen, onClose]);
+  }, [user, resetModalOpen, lockModalOpen, unlockModalOpen, roleModalOpen, deleteModalOpen, onClose]);
 
   if (!user) return null;
 
-  const isLocked = user.status === 'Locked';
-  const isActive = user.status === 'Active';
+  const rawStatusUpper = String(user.status || '').toUpperCase();
+  const isLocked = rawStatusUpper === 'LOCKED';
+  const isActive = rawStatusUpper === 'ACTIVE';
+  const isInactive = rawStatusUpper === 'INACTIVE';
+  const isDeleted = rawStatusUpper === 'DELETED';
+  const displayName = user.name || user.fullName || user.userName || user.email || `User #${user.id}`;
+  const displayCompany = user.company || (user.role === 'Organizer' ? 'Nhà tổ chức' : user.role === 'Administrator' ? 'Quản trị viên' : 'Thành viên');
+  const displayDate = user.registeredDate && user.registeredDate !== '—'
+    ? user.registeredDate
+    : user.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('vi-VN')
+    : '—';
+  const displayTime = user.registeredTimeUtc || (user.createdAt
+    ? new Date(user.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+    : '');
 
   const handlePasswordReset = () => {
     setResetModalOpen(false);
     toast.success(`Password Reset Link Dispatched (Simulated)`, {
       description: `Dispatched cryptographically sealed one-time login link to ${user.email}.`
-    });
-  };
-
-  const handleDeactivate = () => {
-    setDeactivateModalOpen(false);
-    toast.error(`Account Deactivated (Simulated)`, {
-      description: `Account ${user.id} permanently flagged for decommission in SOC2 queue.`
     });
   };
 
@@ -100,17 +127,22 @@ export function UserDetailsDrawer({
         {/* Drawer Header (Sticky) */}
         <div className='px-6 py-5 border-b border-border flex items-center justify-between sticky top-0 bg-background/95 backdrop-blur-sm z-10'>
           <div className='flex items-center gap-3'>
-            <div className='w-12 h-12 rounded-full overflow-hidden border-2 border-indigo-200 dark:border-indigo-800 shadow-2xs relative shrink-0'>
-              <img
-                src={user.avatarUrl}
-                alt={user.name}
-                className='w-full h-full object-cover'
-              />
-            </div>
+            <Avatar className='size-12 rounded-full border-2 border-indigo-200 dark:border-indigo-800 shadow-2xs relative shrink-0'>
+              {user.avatarUrl ? (
+                <AvatarImage
+                  src={user.avatarUrl}
+                  alt={displayName}
+                  className='w-full h-full object-cover'
+                />
+              ) : null}
+              <AvatarFallback className='rounded-full bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-bold text-base select-none'>
+                {getUserInitial(displayName, user.email)}
+              </AvatarFallback>
+            </Avatar>
             <div>
               <div className='flex items-center gap-2'>
                 <h2 className='text-lg font-bold font-heading text-foreground'>
-                  {user.name}
+                  {displayName}
                 </h2>
                 <Badge
                   variant='outline'
@@ -119,6 +151,10 @@ export function UserDetailsDrawer({
                       ? 'bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
                       : isLocked
                       ? 'bg-red-50 text-red-800 border-red-200 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800'
+                      : isInactive
+                      ? 'bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                      : isDeleted
+                      ? 'bg-slate-200 text-slate-600 border-slate-300 dark:bg-slate-800 dark:text-slate-400 line-through'
                       : 'bg-muted text-muted-foreground border-border'
                   }`}
                 >
@@ -128,14 +164,26 @@ export function UserDetailsDrawer({
                         ? 'bg-emerald-500'
                         : isLocked
                         ? 'bg-red-500'
+                        : isInactive
+                        ? 'bg-amber-500'
+                        : isDeleted
+                        ? 'bg-slate-500'
                         : 'bg-slate-400'
                     }`}
                   />
-                  {user.status}
+                  {isActive
+                    ? 'Hoạt động'
+                    : isLocked
+                    ? 'Đã khóa'
+                    : isInactive
+                    ? 'Tạm ngưng (INACTIVE)'
+                    : isDeleted
+                    ? 'Đã xóa (DELETED)'
+                    : user.status}
                 </Badge>
               </div>
               <p className='text-xs font-mono text-muted-foreground mt-0.5'>
-                {user.id} • Joined {user.registeredDate}
+                {user.id} • Ngày tham gia: {displayDate}
               </p>
             </div>
           </div>
@@ -159,12 +207,51 @@ export function UserDetailsDrawer({
 
         {/* Drawer Body (Scrollable) */}
         <div className='flex-1 overflow-y-auto p-6 space-y-6 bg-background'>
+          {isDeleted && (
+            <div className='p-3.5 rounded-xl bg-destructive/10 border border-destructive/25 text-destructive text-xs flex items-start gap-2.5'>
+              <Trash2 className='size-4 shrink-0 mt-0.5' />
+              <div>
+                <p className='font-semibold'>Tài khoản này đã bị xóa mềm (DELETED)</p>
+                <p className='text-[11px] opacity-90 mt-0.5'>
+                  Tài khoản không thể đăng nhập hay thay đổi vai trò. Bạn có thể bấm nút <strong>Khôi phục tài khoản</strong> bên dưới để kích hoạt lại.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {isInactive && (
+            <div className='p-3.5 rounded-xl bg-amber-50/80 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs flex items-start gap-2.5'>
+              <Clock className='size-4 text-amber-600 shrink-0 mt-0.5' />
+              <div>
+                <p className='font-semibold'>Tài khoản đang ở trạng thái tạm ngưng (INACTIVE)</p>
+                <p className='text-[11px] opacity-90 mt-0.5'>
+                  Tài khoản chưa xác thực email hoặc đã lâu không đăng nhập. Người dùng cần <strong>xác thực lại email</strong> để đăng nhập lại (hoặc Quản trị viên có thể kích hoạt thủ công).
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Meta Summary Chips */}
           <div className='flex flex-wrap items-center gap-2'>
-            <Badge variant='outline' className='flex items-center gap-1 text-xs py-1 px-2.5 font-medium'>
-              <User className='size-3.5 text-muted-foreground' />
-              <span>Role: {user.role}</span>
-            </Badge>
+            <div className='flex items-center gap-1.5'>
+              <Badge variant='outline' className='flex items-center gap-1 text-xs py-1 px-2.5 font-medium'>
+                <User className='size-3.5 text-muted-foreground' />
+                <span>Role: {user.role}</span>
+              </Badge>
+              {!isDeleted && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => setRoleModalOpen(true)}
+                  className='h-6 text-[10px] px-2 gap-1 font-semibold text-primary border-primary/30 hover:bg-primary/10 shadow-2xs'
+                  title='Gán hoặc thay đổi vai trò người dùng'
+                >
+                  <UserCog className='size-3' />
+                  <span>Đổi vai trò</span>
+                </Button>
+              )}
+            </div>
 
             <Badge variant='outline' className='flex items-center gap-1 text-xs py-1 px-2.5 font-medium bg-indigo-50/60 text-indigo-700 dark:bg-indigo-950/40 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'>
               <BadgeCheck className='size-3.5' />
@@ -218,7 +305,7 @@ export function UserDetailsDrawer({
                 <span className='block text-muted-foreground text-[10px] font-semibold uppercase tracking-wider mb-0.5'>
                   Company / Org
                 </span>
-                <p className='font-medium text-foreground truncate'>{user.company}</p>
+                <p className='font-medium text-foreground truncate'>{displayCompany}</p>
               </div>
 
               <div>
@@ -233,6 +320,16 @@ export function UserDetailsDrawer({
                   Locale / Timezone
                 </span>
                 <p className='font-medium text-foreground'>{user.timezone}</p>
+              </div>
+
+              <div className='col-span-2 pt-2 border-t border-border/50'>
+                <span className='block text-muted-foreground text-[10px] font-semibold uppercase tracking-wider mb-0.5'>
+                  Ngày đăng ký tài khoản
+                </span>
+                <p className='font-medium text-foreground flex items-center gap-1.5'>
+                  <Calendar className='size-3.5 text-primary' />
+                  <span>{displayDate} {displayTime ? `(${displayTime})` : ''}</span>
+                </p>
               </div>
             </div>
           </div>
@@ -369,52 +466,134 @@ export function UserDetailsDrawer({
             </p>
 
             <div className='grid grid-cols-2 gap-2 pt-1'>
-              {/* Lock / Unlock Toggle Button */}
+              {/* Primary Lifecycle Button: Restore / Activate / Unlock / Lock */}
               <Button
-                variant={isLocked ? 'default' : 'outline'}
+                variant={isLocked || isInactive || isDeleted ? 'default' : 'outline'}
                 size='sm'
-                disabled={isUpdatingStatus}
-                onClick={() => onToggleStatus(user.id)}
+                disabled={isUpdatingStatus || drawerStatusMutation.isPending}
+                onClick={() =>
+                  isLocked || isInactive || isDeleted
+                    ? setUnlockModalOpen(true)
+                    : setLockModalOpen(true)
+                }
                 className={`text-xs font-semibold h-9 gap-1.5 ${
-                  isLocked
+                  isLocked || isInactive || isDeleted
                     ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
                     : 'border-red-300 text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40'
                 }`}
               >
-                {isLocked ? <Unlock className='size-3.5' /> : <Lock className='size-3.5' />}
-                <span>{isUpdatingStatus ? 'Updating...' : isLocked ? 'Unlock Account' : 'Lock Account'}</span>
+                {isLocked || isInactive || isDeleted ? (
+                  <Unlock className='size-3.5' />
+                ) : (
+                  <Lock className='size-3.5' />
+                )}
+                <span>
+                  {isUpdatingStatus || drawerStatusMutation.isPending
+                    ? 'Đang cập nhật...'
+                    : isDeleted
+                    ? 'Khôi phục tài khoản'
+                    : isInactive
+                    ? 'Kích hoạt tài khoản'
+                    : isLocked
+                    ? 'Mở khóa tài khoản'
+                    : 'Khóa tài khoản'}
+                </span>
               </Button>
 
-              {/* Force Password Reset */}
+              {/* Change Role Button */}
               <Button
                 variant='outline'
                 size='sm'
-                onClick={() => setResetModalOpen(true)}
-                className='text-xs font-semibold h-9 gap-1.5'
+                disabled={isDeleted}
+                onClick={() => setRoleModalOpen(true)}
+                title={isDeleted ? 'Không thể đổi vai trò tài khoản đã xóa' : 'Gán hoặc thay đổi vai trò'}
+                className='text-xs font-semibold h-9 gap-1.5 border-primary/30 text-primary hover:bg-primary/10 disabled:opacity-50'
               >
-                <RotateCcw className='size-3.5' />
-                <span>Force Reset</span>
+                <UserCog className='size-3.5' />
+                <span>Gán / Đổi vai trò</span>
               </Button>
             </div>
 
-            {/* Deactivate Account */}
-            <Button
-              variant='ghost'
-              size='sm'
-              onClick={() => setDeactivateModalOpen(true)}
-              className='w-full text-xs text-muted-foreground hover:text-red-700 hover:bg-red-50/50 dark:hover:bg-red-950/30 font-medium'
-            >
-              <UserMinus className='size-3.5 mr-1.5' />
-              <span>Deactivate Account Permanently</span>
-            </Button>
+            {!isDeleted && (
+              <div className='grid grid-cols-2 gap-2'>
+                {isActive ? (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    disabled={drawerStatusMutation.isPending}
+                    onClick={() =>
+                      drawerStatusMutation.mutate({
+                        userId: user.id,
+                        nextStatus: 'INACTIVE',
+                        userName: displayName,
+                        reason: 'Quản trị viên tạm ngưng tài khoản (yêu cầu xác thực lại email)'
+                      })
+                    }
+                    className='text-xs font-semibold h-8 gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-950/30'
+                  >
+                    <Clock className='size-3.5' />
+                    <span>Chuyển INACTIVE</span>
+                  </Button>
+                ) : (
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setResetModalOpen(true)}
+                    className='text-xs font-semibold h-8 gap-1.5'
+                  >
+                    <RotateCcw className='size-3.5' />
+                    <span>Force Reset</span>
+                  </Button>
+                )}
+
+                {/* Soft Delete Account */}
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  onClick={() => setDeleteModalOpen(true)}
+                  className='text-xs text-red-700 hover:text-red-800 hover:bg-red-50/70 dark:text-red-400 dark:hover:bg-red-950/30 font-semibold h-8 gap-1.5 border border-transparent hover:border-red-200 dark:hover:border-red-900'
+                >
+                  <Trash2 className='size-3.5' />
+                  <span>Xóa mềm (DELETED)</span>
+                </Button>
+              </div>
+            )}
 
             <div className='pt-2 border-t border-border/60 flex items-center gap-1.5 text-[10px] text-muted-foreground'>
               <Shield className='size-3 text-muted-foreground' />
-              <span>All moderation actions are cryptographically logged to SOC-2 immutable audit trail.</span>
+              <span>Mọi hành động quản trị đều được ghi vết tự động vào nhật ký kiểm toán bất biến (Audit Log).</span>
             </div>
           </div>
         </div>
       </aside>
+
+      {/* Lock User Modal (Yêu cầu lý do bắt buộc + chọn thời hạn) */}
+      <LockUserDialog
+        user={user}
+        open={lockModalOpen}
+        onOpenChange={setLockModalOpen}
+      />
+
+      {/* Unlock User Modal (Lý do không bắt buộc) */}
+      <UnlockUserDialog
+        user={user}
+        open={unlockModalOpen}
+        onOpenChange={setUnlockModalOpen}
+      />
+
+      {/* Change User Role Modal (Yêu cầu lý do bắt buộc) */}
+      <ChangeRoleDialog
+        user={user}
+        open={roleModalOpen}
+        onOpenChange={setRoleModalOpen}
+      />
+
+      {/* Soft Delete User Modal (Yêu cầu lý do bắt buộc) */}
+      <DeleteUserDialog
+        user={user}
+        open={deleteModalOpen}
+        onOpenChange={setDeleteModalOpen}
+      />
 
       {/* Force Reset Modal */}
       <Dialog open={resetModalOpen} onOpenChange={setResetModalOpen}>
@@ -431,27 +610,6 @@ export function UserDetailsDrawer({
               Cancel
             </Button>
             <Button onClick={handlePasswordReset}>Dispatch Reset Link</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Deactivate Account Modal */}
-      <Dialog open={deactivateModalOpen} onOpenChange={setDeactivateModalOpen}>
-        <DialogContent className='sm:max-w-md'>
-          <DialogHeader>
-            <DialogTitle className='text-red-600'>Deactivate User Account</DialogTitle>
-            <DialogDescription>
-              This simulated action will suspend all active bookings and escrow releases associated with{' '}
-              <strong className='text-foreground'>{user.name}</strong>.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant='outline' onClick={() => setDeactivateModalOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant='destructive' onClick={handleDeactivate}>
-              Confirm Deactivation
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
