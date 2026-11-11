@@ -1,6 +1,7 @@
 package base.api.feature.auth.service.impl;
 
 import base.api.feature.auth.dto.request.ChangePasswordDto;
+import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.repository.IRoleRepository;
@@ -19,6 +20,7 @@ import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
+import base.api.shared.exception.UnauthorizedException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -651,5 +653,178 @@ class UserServiceImplTest {
         assertThatThrownBy(() -> service.updateUserRole(2L, 1L, UserRole.ORGANIZER, "Lý do"))
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Không tìm thấy vai trò");
+    }
+
+    @Test
+    @DisplayName("Admin xóa mềm tài khoản (DELETED) thành công, thu hồi phiên và ghi audit log")
+    void adminCanSoftDeleteAnotherUser() {
+        UserSessionModel activeSession = new UserSessionModel();
+        activeSession.setId(200L);
+        activeSession.setUser(user);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of(activeSession));
+
+        var result = service.updateUserStatus(2L, 1L, UserStatus.DELETED, "Người dùng yêu cầu đóng tài khoản");
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(activeSession.getRevokedAt()).isNotNull();
+        verify(auditService).log(
+                eq(admin),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_DELETED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("ACTIVE"),
+                eq("DELETED"),
+                eq("Người dùng yêu cầu đóng tài khoản"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Xóa mềm tài khoản thất bại nếu thiếu lý do")
+    void softDeleteFailsWithoutReason() {
+        assertThatThrownBy(() -> service.updateUserStatus(2L, 1L, UserStatus.DELETED, "   "))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Vui lòng nhập lý do khi xóa tài khoản");
+    }
+
+    @Test
+    @DisplayName("Không thể xóa mềm Quản trị viên (ADMIN) đang hoạt động duy nhất")
+    void cannotSoftDeleteLastActiveAdmin() {
+        UserModel targetAdmin = new UserModel();
+        targetAdmin.setId(3L);
+        targetAdmin.setUserName("admin3");
+        targetAdmin.setEmail("admin3@example.com");
+        targetAdmin.setStatus(UserStatus.ACTIVE);
+        targetAdmin.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), "Admin"));
+        when(userRepository.findById(3L)).thenReturn(Optional.of(targetAdmin));
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(1L);
+
+        assertThatThrownBy(() -> service.updateUserStatus(2L, 3L, UserStatus.DELETED, "Xóa admin"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("duy nhất");
+    }
+
+    @Test
+    @DisplayName("Không thể thay đổi vai trò của tài khoản đã xóa mềm (DELETED)")
+    void cannotChangeRoleOfDeletedUser() {
+        user.setStatus(UserStatus.DELETED);
+
+        assertThatThrownBy(() -> service.updateUserRole(2L, 1L, UserRole.ORGANIZER, "Đổi role"))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("đã bị xóa");
+    }
+
+    @Test
+    @DisplayName("Admin khôi phục tài khoản đã xóa mềm về ACTIVE thành công")
+    void adminCanRestoreDeletedUserToActive() {
+        user.setStatus(UserStatus.DELETED);
+        user.setVerified(false);
+
+        var result = service.updateUserStatus(2L, 1L, UserStatus.ACTIVE, "Khôi phục theo yêu cầu");
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(user.isVerified()).isTrue();
+        verify(auditService).log(
+                eq(admin),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_RESTORED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("DELETED"),
+                eq("ACTIVE"),
+                eq("Khôi phục theo yêu cầu"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("Chuyển sang trạng thái INACTIVE sẽ hủy verified và thu hồi phiên đăng nhập")
+    void adminDeactivateUserClearsVerifiedAndRevokesSessions() {
+        user.setStatus(UserStatus.ACTIVE);
+        user.setVerified(true);
+        UserSessionModel activeSession = new UserSessionModel();
+        activeSession.setId(201L);
+        activeSession.setUser(user);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of(activeSession));
+
+        var result = service.updateUserStatus(2L, 1L, UserStatus.INACTIVE, "Tạm ngưng do không hoạt động");
+
+        assertThat(result.getStatus()).isEqualTo(UserStatus.INACTIVE);
+        assertThat(user.isVerified()).isFalse();
+        assertThat(activeSession.getRevokedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("User tự xóa tài khoản của chính mình thành công khi nhập đúng mật khẩu")
+    void deleteMyAccount_Success() {
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("old-pass")
+                .reason("Không có nhu cầu dùng nữa")
+                .build();
+
+        UserSessionModel session = new UserSessionModel();
+        session.setId(501L);
+        session.setUser(user);
+        when(userSessionRepository.findByUserIdAndRevokedAtIsNull(1L)).thenReturn(List.of(session));
+
+        service.deleteMyAccount(1L, dto);
+
+        assertThat(user.getStatus()).isEqualTo(UserStatus.DELETED);
+        assertThat(session.getRevokedAt()).isNotNull();
+        verify(auditService).log(
+                eq(user),
+                eq(AuditActorType.USER),
+                eq("USER"),
+                eq("USER_SELF_DELETED"),
+                eq("UserModel"),
+                eq(1L),
+                eq("ACTIVE"),
+                eq("DELETED"),
+                eq("Không có nhu cầu dùng nữa"),
+                eq(null)
+        );
+    }
+
+    @Test
+    @DisplayName("User tự xóa tài khoản thất bại nếu nhập sai mật khẩu xác nhận")
+    void deleteMyAccount_WrongPassword_ThrowsUnauthorized() {
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("WrongPassword")
+                .build();
+
+        assertThatThrownBy(() -> service.deleteMyAccount(1L, dto))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Mật khẩu xác nhận không chính xác");
+    }
+
+    @Test
+    @DisplayName("User tự xóa tài khoản thất bại nếu tài khoản đã ở trạng thái DELETED")
+    void deleteMyAccount_AlreadyDeleted_ThrowsConflict() {
+        user.setStatus(UserStatus.DELETED);
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("old-pass")
+                .build();
+
+        assertThatThrownBy(() -> service.deleteMyAccount(1L, dto))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Tài khoản đã ở trạng thái đã xóa");
+    }
+
+    @Test
+    @DisplayName("Admin duy nhất đang hoạt động không thể tự xóa tài khoản của chính mình")
+    void deleteMyAccount_LastActiveAdmin_ThrowsConflict() {
+        user.setRoleEntity(new RoleModel(UserRole.ADMIN.name(), "Admin"));
+        when(userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE)).thenReturn(1L);
+
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("old-pass")
+                .build();
+
+        assertThatThrownBy(() -> service.deleteMyAccount(1L, dto))
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("Không thể tự xóa tài khoản Quản trị viên (ADMIN) đang hoạt động duy nhất");
     }
 }
