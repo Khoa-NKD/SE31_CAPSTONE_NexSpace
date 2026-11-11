@@ -561,4 +561,103 @@ class AuthServiceImplTest {
         verify(emailVerificationTokenRepository).save(any(EmailVerificationTokenModel.class));
         verify(emailService).sendHtmlEmail(eq(activeUser.getEmail()), eq("Xác thực tài khoản"), anyString());
     }
+
+    @Test
+    @DisplayName("Tài khoản đã bị xóa mềm (DELETED): chặn đăng nhập ngay lập tức")
+    void login_DeletedAccount_ThrowsUnauthorized() {
+        activeUser.setStatus(UserStatus.DELETED);
+        when(userRepository.findByLogin("tester")).thenReturn(Optional.of(activeUser));
+
+        AuthRequest req = new AuthRequest();
+        req.setUsername("tester");
+        req.setPassword("Password@123");
+
+        assertThatThrownBy(() -> authService.login(req))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("đã bị xóa");
+
+        verify(authenticationManager, never()).authenticate(any());
+    }
+
+    @Test
+    @DisplayName("Tài khoản không đăng nhập quá ngưỡng ngày cấu hình: tự động chuyển INACTIVE, hủy verified và gửi email xác thực lại")
+    void login_InactiveBeyondThreshold_MarksInactiveAndSendsReverificationEmail() {
+        ReflectionTestUtils.setField(authService, "inactiveThresholdDays", 90L);
+        activeUser.setLastLoginAt(LocalDateTime.now().minusDays(95));
+        when(userRepository.findByLogin("tester")).thenReturn(Optional.of(activeUser));
+
+        AuthRequest req = new AuthRequest();
+        req.setUsername("tester");
+        req.setPassword("Password@123");
+
+        assertThatThrownBy(() -> authService.login(req))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Vui lòng xác thực email trước khi đăng nhập");
+
+        assertThat(activeUser.getStatus()).isEqualTo(UserStatus.INACTIVE);
+        assertThat(activeUser.isVerified()).isFalse();
+        verify(emailVerificationTokenRepository).save(any(EmailVerificationTokenModel.class));
+        verify(emailService).sendHtmlEmail(eq(activeUser.getEmail()), eq("Xác thực lại tài khoản không hoạt động"), anyString());
+    }
+
+    @Test
+    @DisplayName("Ngưỡng ngày không đăng nhập thay đổi theo biến môi trường cấu hình")
+    void login_RespectsConfigurableInactiveThresholdDays() {
+        ReflectionTestUtils.setField(authService, "inactiveThresholdDays", 30L);
+        activeUser.setLastLoginAt(LocalDateTime.now().minusDays(35));
+        when(userRepository.findByLogin("tester")).thenReturn(Optional.of(activeUser));
+
+        AuthRequest req = new AuthRequest();
+        req.setUsername("tester");
+        req.setPassword("Password@123");
+
+        assertThatThrownBy(() -> authService.login(req))
+                .isInstanceOf(UnauthorizedException.class);
+        assertThat(activeUser.getStatus()).isEqualTo(UserStatus.INACTIVE);
+    }
+
+    @Test
+    @DisplayName("Xác thực lại email cho tài khoản INACTIVE sẽ kích hoạt ACTIVE và cập nhật lastLoginAt")
+    void verifyEmail_InactiveAccount_ReactivatesAndUpdatesLastLogin() {
+        activeUser.setStatus(UserStatus.INACTIVE);
+        activeUser.setVerified(false);
+        activeUser.setLastLoginAt(LocalDateTime.now().minusDays(120));
+
+        EmailVerificationTokenModel tokenModel = new EmailVerificationTokenModel();
+        tokenModel.setToken("reverify-token");
+        tokenModel.setUserId(activeUser.getId());
+        tokenModel.setExpiresAt(LocalDateTime.now().plusHours(24));
+        tokenModel.setUsed(false);
+
+        when(emailVerificationTokenRepository.findByToken("reverify-token")).thenReturn(Optional.of(tokenModel));
+        when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
+
+        authService.verifyEmailDirect("reverify-token");
+
+        assertThat(activeUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
+        assertThat(activeUser.isVerified()).isTrue();
+        assertThat(activeUser.getLastLoginAt()).isAfter(LocalDateTime.now().minusMinutes(1));
+    }
+
+    @Test
+    @DisplayName("Gửi lại email xác thực hoạt động cho tài khoản INACTIVE nhưng bỏ qua tài khoản DELETED")
+    void resendVerificationEmail_InactiveAllowedButDeletedSkipped() {
+        activeUser.setStatus(UserStatus.INACTIVE);
+        activeUser.setVerified(false);
+        activeUser.setEmailVerifiedAt(LocalDateTime.now().minusDays(100));
+        when(userRepository.findByLogin("tester@nexspace.vn")).thenReturn(Optional.of(activeUser));
+
+        authService.resendVerificationEmail("tester@nexspace.vn");
+        verify(emailService).sendHtmlEmail(eq(activeUser.getEmail()), eq("Xác thực lại tài khoản không hoạt động"), anyString());
+
+        UserModel deletedUser = new UserModel();
+        deletedUser.setId(99L);
+        deletedUser.setEmail("deleted@nexspace.vn");
+        deletedUser.setStatus(UserStatus.DELETED);
+        deletedUser.setVerified(false);
+        when(userRepository.findByLogin("deleted@nexspace.vn")).thenReturn(Optional.of(deletedUser));
+
+        authService.resendVerificationEmail("deleted@nexspace.vn");
+        verify(emailService, never()).sendHtmlEmail(eq("deleted@nexspace.vn"), anyString(), anyString());
+    }
 }
