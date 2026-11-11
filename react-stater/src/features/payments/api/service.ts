@@ -21,6 +21,12 @@ export const paymentService = {
     apiClient.post<PaymentCheckoutResponse>(`/customer/bookings/${bookingId}/payments`),
 
   /**
+   * Lấy hoặc tự động tạo phiên đặt chỗ đang chờ thanh toán của khách hàng hiện tại.
+   */
+  getCurrentPendingBookingId: (): Promise<number> =>
+    apiClient.get<number>('/customer/bookings/current-pending'),
+
+  /**
    * Kiểm tra trạng thái thanh toán và đặt chỗ thời gian thực (hỗ trợ polling).
    */
   getPaymentStatus: (bookingId: number): Promise<PaymentStatusResponse> =>

@@ -11,7 +11,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
-import { useCreatePaymentCheckout, useExchangeRate } from '@/features/payments/api';
+import { useCreatePaymentCheckout, useExchangeRate, paymentService } from '@/features/payments/api';
 import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
 import { toast } from 'sonner';
 
@@ -45,23 +45,32 @@ export function PriceBreakdownCard() {
     }
   };
 
-  const handleProceedPayOS = () => {
-    // Booking ID from active flow (defaulting to 1 for interactive demo)
-    const targetBookingId = 1;
+  const handleProceedPayOS = async () => {
+    try {
+      // 1. Tự động lấy hoặc tạo phiên đặt chỗ hợp lệ thuộc quyền sở hữu của khách hàng đang đăng nhập
+      const targetBookingId = await paymentService.getCurrentPendingBookingId();
 
-    createPaymentMutation.mutate(targetBookingId, {
-      onSuccess: (data: PaymentCheckoutResponse) => {
-        setCheckoutData(data);
-        setCheckoutOpen(true);
-      },
-      onError: (err: Error) => {
-        toast.error('Không thể tạo phiên thanh toán PayOS', {
-          description: err.message
-        });
-        // Open with fallback data so user can inspect the In-App VietQR modal
-        setCheckoutOpen(true);
-      }
-    });
+      // 2. Khởi tạo phiên thanh toán PayOS với mã đặt chỗ chính xác
+      createPaymentMutation.mutate(targetBookingId, {
+        onSuccess: (data: PaymentCheckoutResponse) => {
+          setCheckoutData(data);
+          setCheckoutOpen(true);
+        },
+        onError: (err: Error) => {
+          toast.error('Không thể tạo phiên thanh toán PayOS', {
+            description: err.message
+          });
+          // Fallback để khách hàng vẫn xem được giao diện In-App VietQR
+          setCheckoutOpen(true);
+        }
+      });
+    } catch (err: unknown) {
+      toast.error('Lỗi phiên đặt chỗ', {
+        description: err instanceof Error ? err.message : 'Vui lòng đăng nhập tài khoản khách hàng để thanh toán.'
+      });
+      // Fallback preview
+      setCheckoutOpen(true);
+    }
   };
 
   return (
