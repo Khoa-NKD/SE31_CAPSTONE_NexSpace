@@ -43,3 +43,80 @@ export interface ExchangeRateResponse {
   updatedAt: string;
 }
 
+export type ReconciliationStatus = 'UNRECONCILED' | 'MATCHED' | 'MISMATCH' | 'RESOLVED';
+
+export interface PaymentTransactionResponse {
+  id: number;
+  orderCode: number;
+  bookingId?: number;
+  bookingCode?: string;
+  workspaceId?: number;
+  workspaceName?: string;
+  customerName?: string;
+  customerEmail?: string;
+  amount: number;
+  receivedAmount?: number;
+  currency: string;
+  status: PaymentStatus;
+  reconciliationStatus: ReconciliationStatus;
+  reconciliationNote?: string;
+  gatewayTransactionId?: string;
+  failureReason?: string;
+  invoiceUrl?: string;
+  paidAt?: string;
+  expiresAt?: string;
+  createdAt: string;
+}
+
+export interface InvoiceResponse {
+  bookingId: number;
+  bookingCode: string;
+  orderCode?: number;
+  invoiceNumber: string;
+  invoiceUrl: string;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  issuedAt: string;
+}
+
+export interface ReconciliationResult {
+  orderCode: number;
+  localStatus: PaymentStatus;
+  gatewayStatus: string;
+  localAmount: number;
+  gatewayAmount: number;
+  reconciliationStatus: ReconciliationStatus;
+  note?: string;
+  reconciledAt: string;
+}
+
+export interface BatchReconciliationResponse {
+  totalProcessed: number;
+  matchedCount: number;
+  mismatchCount: number;
+  autoHealedCount: number;
+  errorCount: number;
+  completedAt: string;
+}
+
+export interface ReconciliationSummary {
+  totalTransactions: number;
+  matchedCount: number;
+  mismatchCount: number;
+  unreconciledCount: number;
+  resolvedCount: number;
+}
+
+export interface PageResponse<T> {
+  content: T[];
+  listObjects?: T[];
+  page: number;
+  pageNumber?: number;
+  size: number;
+  pageSize?: number;
+  totalElements: number;
+  totalRecords?: number;
+  totalPages: number;
+}
+

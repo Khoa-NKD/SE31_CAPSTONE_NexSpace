@@ -2,7 +2,15 @@ import { apiClient } from '@/lib/api-client';
 import type {
   PaymentCheckoutResponse,
   PaymentStatusResponse,
-  ExchangeRateResponse
+  ExchangeRateResponse,
+  PaymentStatus,
+  ReconciliationStatus,
+  PaymentTransactionResponse,
+  InvoiceResponse,
+  ReconciliationResult,
+  BatchReconciliationResponse,
+  ReconciliationSummary,
+  PageResponse
 } from './types';
 
 export const paymentService = {
@@ -30,6 +38,71 @@ export const paymentService = {
    * Lấy tỷ giá quy đổi tiền tệ USD <-> VNĐ.
    */
   getExchangeRate: (): Promise<ExchangeRateResponse> =>
-    apiClient.get<ExchangeRateResponse>('/public/exchange-rate')
+    apiClient.get<ExchangeRateResponse>('/public/exchange-rate'),
+
+  /**
+   * Xem lịch sử thanh toán của khách hàng cá nhân.
+   */
+  getCustomerPaymentHistory: (params?: {
+    status?: PaymentStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }): Promise<PageResponse<PaymentTransactionResponse>> =>
+    apiClient.get<PageResponse<PaymentTransactionResponse>>('/customer/payments', { params }),
+
+  /**
+   * Lấy thông tin hóa đơn điện tử / link PDF Cloudinary cho đơn đặt chỗ.
+   */
+  getInvoice: (bookingId: number): Promise<InvoiceResponse> =>
+    apiClient.get<InvoiceResponse>(`/customer/bookings/${bookingId}/receipt`),
+
+  /**
+   * Organizer xem lịch sử thanh toán của workspace thuộc quyền quản lý.
+   */
+  getOrganizerPaymentHistory: (
+    workspaceId: number,
+    params?: { status?: PaymentStatus; page?: number; size?: number }
+  ): Promise<PageResponse<PaymentTransactionResponse>> =>
+    apiClient.get<PageResponse<PaymentTransactionResponse>>(
+      `/organizer/workspaces/${workspaceId}/payments`,
+      { params }
+    ),
+
+  /**
+   * Admin xem toàn bộ giao dịch thanh toán trên hệ thống kèm bộ lọc đối soát.
+   */
+  getAdminPaymentHistory: (params?: {
+    status?: PaymentStatus;
+    reconciliationStatus?: ReconciliationStatus;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }): Promise<PageResponse<PaymentTransactionResponse>> =>
+    apiClient.get<PageResponse<PaymentTransactionResponse>>('/admin/payments', { params }),
+
+  /**
+   * Admin xem chi tiết 1 giao dịch và trạng thái đối soát.
+   */
+  getAdminTransactionDetail: (orderCode: number): Promise<PaymentTransactionResponse> =>
+    apiClient.get<PaymentTransactionResponse>(`/admin/payments/${orderCode}`),
+
+  /**
+   * Admin thực hiện đối soát đơn lẻ với cổng PayOS.
+   */
+  reconcileTransaction: (orderCode: number): Promise<ReconciliationResult> =>
+    apiClient.post<ReconciliationResult>(`/admin/payments/${orderCode}/reconcile`),
+
+  /**
+   * Admin thực hiện đối soát hàng loạt tất cả giao dịch chưa khớp.
+   */
+  batchReconcile: (): Promise<BatchReconciliationResponse> =>
+    apiClient.post<BatchReconciliationResponse>('/admin/payments/batch-reconcile'),
+
+  /**
+   * Lấy số liệu thống kê tổng hợp đối soát (A09 KPI cards).
+   */
+  getReconciliationSummary: (): Promise<ReconciliationSummary> =>
+    apiClient.get<ReconciliationSummary>('/admin/payments/reconciliation-summary')
 };
 

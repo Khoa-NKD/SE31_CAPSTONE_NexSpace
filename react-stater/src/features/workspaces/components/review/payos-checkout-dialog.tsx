@@ -12,7 +12,8 @@ import {
   KeyRound,
   ArrowLeft,
   RefreshCw,
-  Loader2
+  Loader2,
+  FileText
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
@@ -261,15 +262,30 @@ export function PayOSCheckoutDialog({
                 </div>
               </div>
 
-              <Button
-                onClick={() => {
-                  handleOpenChange(false);
-                  navigate({ to: '/workspaces/confirmation' });
-                }}
-                className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md'
-              >
-                Xem Vé Điện Tử &amp; Chi Tiết Đặt Chỗ
-              </Button>
+              <div className='flex items-center gap-2'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  onClick={() => {
+                    if (bookingId) {
+                      window.open(`/api/customer/bookings/${bookingId}/receipt/download`, '_blank');
+                    }
+                  }}
+                  className='w-1/2 cursor-pointer h-10 text-xs font-medium border-border'
+                >
+                  <FileText className='mr-1.5 h-3.5 w-3.5 text-primary' />
+                  Tải Hóa Đơn (PDF)
+                </Button>
+                <Button
+                  onClick={() => {
+                    handleOpenChange(false);
+                    navigate({ to: '/workspaces/confirmation' });
+                  }}
+                  className='w-1/2 cursor-pointer h-10 text-xs font-semibold shadow-md'
+                >
+                  Xem Vé Điện Tử
+                </Button>
+              </div>
             </div>
           ) : (
             /* --- ACTIVE IN-APP VIETQR VIEW --- */

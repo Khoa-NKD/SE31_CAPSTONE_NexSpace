@@ -68,7 +68,7 @@ export function UserNav() {
   const handleSwitchToCustomerView = () => {
     setOpen(false);
     useAuthStore.getState().setAdminViewMode('customer');
-    router.navigate({ to: '/?view=customer' });
+    router.navigate({ to: '/', search: { view: 'customer' } });
   };
 
   return (
