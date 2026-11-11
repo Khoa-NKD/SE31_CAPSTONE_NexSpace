@@ -1,8 +1,12 @@
 package base.api.feature.payment.controller;
 
+import base.api.feature.payment.dto.response.InvoiceResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
+import base.api.feature.payment.dto.response.PaymentTransactionResponseDTO;
+import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPaymentService;
+import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.PaymentStatus;
 import base.api.shared.exception.GlobalExceptionHandler;
@@ -10,16 +14,24 @@ import base.api.shared.security.CurrentUserProvider;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.http.MediaType;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -27,14 +39,16 @@ class CustomerPaymentControllerTest {
 
     private MockMvc mockMvc;
     private IPaymentService paymentService;
+    private IInvoiceService invoiceService;
     private CurrentUserProvider currentUserProvider;
 
     @BeforeEach
     void setUp() {
         paymentService = mock(IPaymentService.class);
+        invoiceService = mock(IInvoiceService.class);
         currentUserProvider = mock(CurrentUserProvider.class);
 
-        CustomerPaymentController controller = new CustomerPaymentController(paymentService);
+        CustomerPaymentController controller = new CustomerPaymentController(paymentService, invoiceService);
         ReflectionTestUtils.setField(controller, "currentUserProvider", currentUserProvider);
 
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
@@ -115,6 +129,76 @@ class CustomerPaymentControllerTest {
                 .andExpect(jsonPath("$.success").value(true));
 
         verify(paymentService).cancelPayment(123456789L, 100L, "Changed my mind");
+    }
+
+    @Test
+    @DisplayName("GET /api/customer/payments returns paginated payment history")
+    void getPaymentHistory_success() throws Exception {
+        when(currentUserProvider.getCurrentUserId()).thenReturn(100L);
+
+        PaymentTransactionResponseDTO tx = PaymentTransactionResponseDTO.builder()
+                .orderCode(123456789L)
+                .bookingId(500L)
+                .bookingCode("NX-500-TEST")
+                .amount(BigDecimal.valueOf(255000))
+                .status(PaymentStatus.SUCCESS)
+                .build();
+
+        when(paymentService.getCustomerPaymentHistory(eq(100L), any(), any(PageRequestDTO.class)))
+                .thenReturn(new PageImpl<>(List.of(tx), PageRequest.of(0, 10), 1));
+
+        mockMvc.perform(get("/api/customer/payments")
+                        .param("page", "1")
+                        .param("size", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.content[0].orderCode").value(123456789))
+                .andExpect(jsonPath("$.data.totalElements").value(1));
+
+        verify(paymentService).getCustomerPaymentHistory(eq(100L), any(), any(PageRequestDTO.class));
+    }
+
+    @Test
+    @DisplayName("GET /api/customer/bookings/{bookingId}/receipt returns invoice metadata")
+    void getInvoice_success() throws Exception {
+        when(currentUserProvider.getCurrentUserId()).thenReturn(100L);
+
+        InvoiceResponseDTO invoice = InvoiceResponseDTO.builder()
+                .invoiceNumber("INV-202611-000500")
+                .bookingId(500L)
+                .bookingCode("NX-500-TEST")
+                .invoiceUrl("https://res.cloudinary.com/nexspace/raw/upload/v1/nexspace/invoices/2026/11/invoice_NX-500-TEST.pdf")
+                .totalAmount(BigDecimal.valueOf(255000))
+                .currency("VND")
+                .status("SUCCESS")
+                .build();
+
+        when(invoiceService.getOrCreateInvoice(500L, 100L)).thenReturn(invoice);
+
+        mockMvc.perform(get("/api/customer/bookings/500/receipt"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.invoiceNumber").value("INV-202611-000500"))
+                .andExpect(jsonPath("$.data.invoiceUrl").value(invoice.getInvoiceUrl()));
+
+        verify(invoiceService).getOrCreateInvoice(500L, 100L);
+    }
+
+    @Test
+    @DisplayName("GET /api/customer/bookings/{bookingId}/receipt/download returns PDF byte stream")
+    void downloadInvoicePdf_success() throws Exception {
+        when(currentUserProvider.getCurrentUserId()).thenReturn(100L);
+
+        byte[] fakePdf = "%PDF-1.4 simulated pdf bytes".getBytes();
+        when(invoiceService.generateInvoicePdf(500L, 100L)).thenReturn(fakePdf);
+
+        mockMvc.perform(get("/api/customer/bookings/500/receipt/download"))
+                .andExpect(status().isOk())
+                .andExpect(header().string("Content-Type", MediaType.APPLICATION_PDF_VALUE))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"invoice_booking_500.pdf\""))
+                .andExpect(content().bytes(fakePdf));
+
+        verify(invoiceService).generateInvoicePdf(500L, 100L);
     }
 }
 

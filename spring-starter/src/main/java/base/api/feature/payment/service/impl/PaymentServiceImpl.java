@@ -4,8 +4,11 @@ import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
+import base.api.feature.payment.dto.response.PaymentTransactionResponseDTO;
+import base.api.feature.payment.mapper.PaymentTransactionMapper;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IPaymentService;
+import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.enums.BookingStatus;
@@ -17,6 +20,9 @@ import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -28,6 +34,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
@@ -245,6 +252,42 @@ public class PaymentServiceImpl implements IPaymentService {
                 bookingRepository.save(booking);
             }
         }
+    }
+
+    private static final Set<String> ALLOWED_SORT_FIELDS = Set.of(
+            "id", "createdAt", "amount", "status", "reconciliationStatus", "paidAt"
+    );
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentTransactionResponseDTO> getCustomerPaymentHistory(Long actorId, PaymentStatus status, PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest.toPageable("createdAt", Sort.Direction.DESC, ALLOWED_SORT_FIELDS);
+        Page<PaymentTransactionModel> page = paymentTransactionRepository.findByCustomerIdAndStatus(actorId, status, pageable);
+        return page.map(PaymentTransactionMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentTransactionResponseDTO> getOrganizerPaymentHistory(Long workspaceId, Long actorId, PaymentStatus status, PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest.toPageable("createdAt", Sort.Direction.DESC, ALLOWED_SORT_FIELDS);
+        Page<PaymentTransactionModel> page = paymentTransactionRepository.findByWorkspaceIdAndOrganizerId(workspaceId, actorId, status, pageable);
+        return page.map(PaymentTransactionMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<PaymentTransactionResponseDTO> getAdminPaymentHistory(PaymentStatus status, ReconciliationStatus reconciliationStatus, PageRequestDTO pageRequest) {
+        Pageable pageable = pageRequest.toPageable("createdAt", Sort.Direction.DESC, ALLOWED_SORT_FIELDS);
+        Page<PaymentTransactionModel> page = paymentTransactionRepository.findAllWithFilters(status, reconciliationStatus, pageable);
+        return page.map(PaymentTransactionMapper::toDto);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentTransactionResponseDTO getTransactionDetail(Long orderCode) {
+        PaymentTransactionModel tx = paymentTransactionRepository.findByOrderCode(orderCode)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy giao dịch với orderCode=" + orderCode));
+        return PaymentTransactionMapper.toDto(tx);
     }
 
     private long generateOrderCode() {
