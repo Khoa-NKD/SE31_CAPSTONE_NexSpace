@@ -1,19 +1,20 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   X,
   Lock,
   ArrowRight,
-  ExternalLink,
   ShieldCheck,
   Shield,
   CheckCircle2,
   Copy,
   Check,
   Timer,
-  QrCode,
   KeyRound,
-  ArrowLeft
+  ArrowLeft,
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
+import { QRCodeSVG } from 'qrcode.react';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
 import {
   Dialog,
@@ -26,6 +27,9 @@ import {
 import { Button } from '@/components/ui/button';
 import { useNavigate } from '@tanstack/react-router';
 import { useCurrency } from '@/features/landing/context/currency-context';
+import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
+import { usePaymentStatus, useCancelPayment } from '@/features/payments/api';
+import { toast } from 'sonner';
 
 interface PayOSCheckoutDialogProps {
   open: boolean;
@@ -33,6 +37,15 @@ interface PayOSCheckoutDialogProps {
   totalAmountUsd?: number;
   seatCode?: string;
   orderRef?: string;
+  checkoutData?: PaymentCheckoutResponse | null;
+  isLoading?: boolean;
+}
+
+function calculateRemainingSeconds(expiresAt?: string): number {
+  if (!expiresAt) return 600;
+  const expiry = new Date(expiresAt).getTime();
+  const diff = Math.floor((expiry - Date.now()) / 1000);
+  return diff > 0 ? diff : 0;
 }
 
 export function PayOSCheckoutDialog({
@@ -40,55 +53,97 @@ export function PayOSCheckoutDialog({
   onOpenChange,
   totalAmountUsd = 11.0,
   seatCode = 'Desk A-04',
-  orderRef = '#NX-8821'
+  orderRef = '#NX-8821',
+  checkoutData,
+  isLoading = false
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
-  const [copiedRef, setCopiedRef] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(510); // 08:30 hold countdown
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [isManualSuccess, setIsManualSuccess] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState(() =>
+    calculateRemainingSeconds(checkoutData?.expiresAt)
+  );
+  const hasNotifiedSuccessRef = useRef(false);
 
-  const approxVnd = Math.round(totalAmountUsd * 25000);
+  const cancelMutation = useCancelPayment();
 
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setIsVerifying(false);
-      setIsSuccess(false);
-      setSecondsRemaining(510);
-    }
-    onOpenChange(isOpen);
-  };
+  // Real-time polling for payment status
+  const bookingId = checkoutData?.bookingId;
+  const { data: statusData } = usePaymentStatus(bookingId, open && !isManualSuccess);
+
+  const isConfirmed =
+    isManualSuccess ||
+    statusData?.paymentStatus === 'SUCCESS' ||
+    statusData?.bookingStatus === 'CONFIRMED';
 
   useEffect(() => {
-    if (!open) return;
+    if (isConfirmed && !hasNotifiedSuccessRef.current) {
+      hasNotifiedSuccessRef.current = true;
+      toast.success('Thanh toán thành công!', {
+        description: `Đơn đặt chỗ #${checkoutData?.bookingCode || orderRef} đã được xác nhận.`
+      });
+    }
+  }, [isConfirmed, checkoutData, orderRef]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!open || isConfirmed) return;
     const interval = setInterval(() => {
       setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
     }, 1000);
     return () => clearInterval(interval);
-  }, [open]);
+  }, [open, isConfirmed]);
 
-  const handleCopyRef = () => {
-    navigator.clipboard?.writeText(orderRef.replace('#', ''));
-    setCopiedRef(true);
-    setTimeout(() => setCopiedRef(false), 2000);
+  const handleOpenChange = (isOpen: boolean) => {
+    if (!isOpen) {
+      setIsManualSuccess(false);
+      hasNotifiedSuccessRef.current = false;
+      setSecondsRemaining(calculateRemainingSeconds(checkoutData?.expiresAt));
+    }
+    onOpenChange(isOpen);
   };
 
-  const handleSimulatePayment = () => {
-    setIsVerifying(true);
-    setTimeout(() => {
-      setIsVerifying(false);
-      setIsSuccess(true);
-    }, 1200);
+  const handleCopy = (value: string, fieldName: string) => {
+    navigator.clipboard?.writeText(value);
+    setCopiedField(fieldName);
+    toast.info('Đã sao chép: ' + value);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  const handleCancelCheckout = () => {
+    if (checkoutData?.orderCode) {
+      cancelMutation.mutate(
+        { orderCode: checkoutData.orderCode, reason: 'Khách hàng hủy giữ chỗ' },
+        {
+          onSuccess: () => {
+            toast.info('Đã hủy phiên thanh toán và giải phóng slot giữ chỗ');
+            handleOpenChange(false);
+          }
+        }
+      );
+    } else {
+      handleOpenChange(false);
+    }
   };
 
   const mins = Math.floor(secondsRemaining / 60);
   const secs = secondsRemaining % 60;
   const timeFormatted = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 
+  const displayOrderRef = checkoutData?.bookingCode
+    ? `#${checkoutData.bookingCode}`
+    : checkoutData?.orderCode
+      ? `#NX-${checkoutData.orderCode % 10000}`
+      : orderRef;
+
+  const displayVndAmount = checkoutData?.amount
+    ? checkoutData.amount.toLocaleString('vi-VN') + ' ₫'
+    : Math.round(totalAmountUsd * 25450).toLocaleString('vi-VN') + ' ₫';
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className='bg-card border-border sm:max-w-[450px] w-[95vw] max-h-[88vh] flex flex-col gap-0 overflow-hidden rounded-2xl p-0 shadow-2xl [&>button]:hidden'>
+      <DialogContent className='bg-card border-border sm:max-w-[480px] w-[95vw] max-h-[92vh] flex flex-col gap-0 overflow-hidden rounded-2xl p-0 shadow-2xl [&>button]:hidden'>
         <style>{`
           @keyframes scanline {
             0% { top: 6%; opacity: 0.15; }
@@ -108,7 +163,7 @@ export function PayOSCheckoutDialog({
           }
         `}</style>
 
-        {/* Minimalist Top Control Bar (Sticky / Fixed at top) */}
+        {/* Minimalist Top Control Bar */}
         <div className='border-border/60 bg-muted/40 shrink-0 flex items-center justify-between border-b px-4 py-2.5 text-xs'>
           <button
             type='button'
@@ -117,14 +172,14 @@ export function PayOSCheckoutDialog({
           >
             <ArrowLeft className='h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5' />
             <span>
-              Return to review <strong className='text-foreground font-mono'>({orderRef})</strong>
+              Quay lại <strong className='text-foreground font-mono'>({displayOrderRef})</strong>
             </span>
           </button>
           <div className='flex items-center gap-2'>
             <div className='flex items-center gap-1.5'>
               <span className='h-2 w-2 rounded-full bg-emerald-500 animate-pulse' />
               <span className='font-mono text-[10px] font-semibold text-muted-foreground tracking-wider uppercase'>
-                Gateway Live
+                Cổng VietQR Live
               </span>
             </div>
             <DialogClose asChild>
@@ -141,7 +196,17 @@ export function PayOSCheckoutDialog({
 
         {/* Scrollable Main Content Area */}
         <div className='flex-1 overflow-y-auto px-5 py-3.5 space-y-3'>
-          {isSuccess ? (
+          {isLoading ? (
+            <div className='py-16 text-center space-y-3'>
+              <Loader2 className='h-8 w-8 animate-spin mx-auto text-primary' />
+              <div className='text-sm font-semibold text-foreground'>
+                Đang khởi tạo mã VietQR từ cổng PayOS...
+              </div>
+              <p className='text-xs text-muted-foreground'>
+                Vui lòng đợi giây lát, hệ thống đang giữ chỗ cho bạn.
+              </p>
+            </div>
+          ) : isConfirmed ? (
             /* --- SUCCESS STATE --- */
             <div className='space-y-4 text-center py-2'>
               <div className='bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 mx-auto flex h-14 w-14 items-center justify-center rounded-full ring-6 ring-emerald-500/10'>
@@ -151,10 +216,10 @@ export function PayOSCheckoutDialog({
               <div className='space-y-1'>
                 <DialogHeader className='p-0 text-center'>
                   <DialogTitle className='text-foreground text-lg font-bold tracking-tight'>
-                    Payment Verified &amp; Confirmed!
+                    Thanh Toán Đã Được Xác Nhận!
                   </DialogTitle>
                   <DialogDescription className='text-muted-foreground text-xs'>
-                    Instant PayOS webhook confirmed • Smart pass ready for turnstile entry
+                    Hệ thống đã nhận thanh toán qua PayOS • Chỗ ngồi đã được giữ chính thức
                   </DialogDescription>
                 </DialogHeader>
               </div>
@@ -164,29 +229,33 @@ export function PayOSCheckoutDialog({
                 <div className='flex items-center justify-between border-b border-border/60 pb-2.5'>
                   <div>
                     <span className='text-[10px] font-bold uppercase tracking-wider text-muted-foreground'>
-                      Workspace Access Key
+                      Vé Vào Cửa Kỹ Thuật Số
                     </span>
                     <h4 className='text-foreground font-sans text-xs sm:text-sm font-bold'>
-                      {seatCode} • Level 14 Quiet Zone
+                      {seatCode} • Không gian làm việc NexSpace
                     </h4>
                   </div>
                   <div className='bg-primary/10 text-primary border-primary/20 flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-bold'>
                     <KeyRound className='h-3 w-3' />
-                    <span>PIN #8821</span>
+                    <span>PIN #{statusData?.pinCode || '8821'}</span>
                   </div>
                 </div>
 
                 <div className='flex items-center gap-3'>
                   <div className='bg-card border-border flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border shadow-xs'>
-                    <QrCode className='text-foreground h-8 w-8' />
+                    {statusData?.qrTokenHash ? (
+                      <QRCodeSVG value={statusData.qrTokenHash} size={36} />
+                    ) : (
+                      <NexSpaceMark className='h-7 w-7' />
+                    )}
                   </div>
                   <div className='text-xs space-y-0.5'>
                     <div className='text-foreground font-semibold'>
-                      Valid Fri, Jan 25, 2026 • 09:00 AM – 01:00 PM
+                      Mã vé đã sẵn sàng cho cổng check-in
                     </div>
                     <div className='text-muted-foreground text-[11px] flex items-center gap-1.5'>
                       <ShieldCheck className='h-3.5 w-3.5 text-emerald-600' />
-                      <span>Corporate VAT invoice dispatched to email</span>
+                      <span>Hóa đơn điện tử đang được xử lý gửi về email</span>
                     </div>
                   </div>
                 </div>
@@ -199,20 +268,17 @@ export function PayOSCheckoutDialog({
                 }}
                 className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md'
               >
-                View Digital Access Pass &amp; Confirmation
+                Xem Vé Điện Tử &amp; Chi Tiết Đặt Chỗ
               </Button>
             </div>
           ) : (
-            /* --- ACTIVE PAYMENT HANDOFF VIEW --- */
+            /* --- ACTIVE IN-APP VIETQR VIEW --- */
             <>
-              {/* 1. Co-Branding Header (Compact Lockup) */}
+              {/* 1. Co-Branding Header */}
               <div className='flex items-center justify-between gap-2 pt-0.5'>
                 <div className='flex items-center gap-2'>
-                  {/* NexSpace Vector Logo */}
                   <NexSpaceLogo variant='horizontal' className='h-6 w-auto' />
-                  {/* Seamless Connection Arrow */}
                   <ArrowRight className='h-3.5 w-3.5 text-muted-foreground/60' />
-                  {/* PayOS Brand Mark */}
                   <div className='flex items-center gap-1.5 bg-slate-900 text-white px-2 py-0.5 rounded-md shadow-xs'>
                     <span className='h-1.5 w-1.5 rounded-full bg-cyan-400' />
                     <span className='font-sans text-xs font-bold tracking-tight text-white'>
@@ -221,28 +287,26 @@ export function PayOSCheckoutDialog({
                   </div>
                 </div>
 
-                {/* Trust & Security Badge Pill */}
                 <div className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-[10px] font-medium'>
                   <Lock className='h-3 w-3 text-emerald-600 dark:text-emerald-400' />
-                  <span>VietQR &amp; Cards</span>
+                  <span>VietQR Tự Động</span>
                 </div>
               </div>
 
-              {/* 2. Order Brief Box (Compact Balanced Layout) */}
+              {/* 2. Order Brief Box */}
               <div className='bg-muted/40 border-border/70 rounded-xl border p-2.5 text-xs'>
                 <div className='flex items-center justify-between gap-3'>
-                  {/* Left Column: Reference & Hold timer */}
                   <div className='space-y-1.5'>
                     <div className='flex items-center gap-1.5'>
-                      <span className='text-muted-foreground text-[11px]'>Ref:</span>
+                      <span className='text-muted-foreground text-[11px]'>Mã đơn:</span>
                       <button
                         type='button'
-                        onClick={handleCopyRef}
+                        onClick={() => handleCopy(displayOrderRef.replace('#', ''), 'orderRef')}
                         className='bg-card border-border/80 hover:border-primary/50 flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground transition-colors active:scale-95'
-                        title='Copy order reference'
+                        title='Sao chép mã đơn'
                       >
-                        <span>{orderRef}</span>
-                        {copiedRef ? (
+                        <span>{displayOrderRef}</span>
+                        {copiedField === 'orderRef' ? (
                           <Check className='h-3 w-3 text-emerald-600' />
                         ) : (
                           <Copy className='text-muted-foreground h-3 w-3' />
@@ -258,29 +322,27 @@ export function PayOSCheckoutDialog({
                       }`}
                     >
                       <Timer className='h-3 w-3 animate-spin [animation-duration:3s]' />
-                      <span>{secondsRemaining > 0 ? `Hold: ${timeFormatted}` : 'Hold expired'}</span>
+                      <span>{secondsRemaining > 0 ? `Giữ chỗ: ${timeFormatted}` : 'Hết hạn giữ chỗ'}</span>
                     </div>
                   </div>
 
-                  {/* Right Column: Amount */}
                   <div className='text-right'>
-                    <span className='text-muted-foreground text-[10px] block'>Total Amount</span>
-                    <span className='text-foreground font-sans text-base sm:text-lg font-bold tracking-tight'>
-                      {formatPrice(totalAmountUsd)}
+                    <span className='text-muted-foreground text-[10px] block'>Số tiền thanh toán</span>
+                    <span className='text-foreground font-sans text-base sm:text-lg font-bold tracking-tight text-primary'>
+                      {displayVndAmount}
                     </span>
                     <div className='text-muted-foreground text-[10px] font-mono'>
-                      ≈ {approxVnd.toLocaleString('vi-VN')} VND
+                      ≈ {formatPrice(totalAmountUsd)}
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* 3. PayOS Dynamic QR Code Container (Proportioned & Centered) */}
-              <div className='bg-muted/20 border-border/80 flex flex-col items-center justify-center rounded-xl border p-2.5 sm:p-3'>
-                {/* QR Frame with subtle interactive scanner line */}
-                <div className='relative flex h-48 w-48 sm:h-52 sm:w-52 flex-col items-center justify-between overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white p-2 sm:p-2.5 shadow-xs'>
-                  {/* Top QR Badges: VietQR & NAPAS 24/7 */}
-                  <div className='z-10 flex w-full items-center justify-between px-1'>
+              {/* 3. In-App VietQR Code Container */}
+              <div className='bg-muted/20 border-border/80 flex flex-col items-center justify-center rounded-xl border p-3'>
+                <div className='relative flex flex-col items-center justify-between overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white p-3 shadow-xs'>
+                  {/* Top VietQR Badges */}
+                  <div className='z-10 flex w-full items-center justify-between px-1 mb-1.5'>
                     <span className='rounded border border-blue-200 bg-blue-50 px-1.5 py-0.25 text-[10px] font-bold tracking-tighter text-blue-900'>
                       VietQR
                     </span>
@@ -289,148 +351,161 @@ export function PayOSCheckoutDialog({
                     </span>
                   </div>
 
-                  {/* Dynamic QR Graphic Matrix */}
-                  <div className='relative my-auto flex h-32 w-32 sm:h-36 sm:w-36 items-center justify-center'>
-                    {/* Simulated Scanning Beam Effect */}
+                  {/* Dynamic VietQR Matrix */}
+                  <div className='relative my-auto flex h-40 w-40 sm:h-44 sm:w-44 items-center justify-center'>
                     <div className='scanner-line absolute left-0 right-0 z-10 h-0.5 bg-gradient-to-r from-transparent via-indigo-600 to-transparent shadow-[0_0_6px_#4F46E5] pointer-events-none' />
 
-                    {/* Crisp Vector QR Code */}
-                    <svg className='h-full w-full text-slate-900' fill='currentColor' viewBox='0 0 100 100'>
-                      {/* Top-Left Finder */}
-                      <rect fill='#0F172A' height='28' rx='4' width='28' x='0' y='0' />
-                      <rect fill='#FFFFFF' height='20' rx='2' width='20' x='4' y='4' />
-                      <rect fill='#0F172A' height='12' rx='2' width='12' x='8' y='8' />
-                      {/* Top-Right Finder */}
-                      <rect fill='#0F172A' height='28' rx='4' width='28' x='72' y='0' />
-                      <rect fill='#FFFFFF' height='20' rx='2' width='20' x='76' y='4' />
-                      <rect fill='#0F172A' height='12' rx='2' width='12' x='80' y='8' />
-                      {/* Bottom-Left Finder */}
-                      <rect fill='#0F172A' height='28' rx='4' width='28' x='0' y='72' />
-                      <rect fill='#FFFFFF' height='20' rx='2' width='20' x='4' y='76' />
-                      <rect fill='#0F172A' height='12' rx='2' width='12' x='8' y='80' />
-                      {/* Matrix Data Modules */}
-                      <rect height='6' rx='1' width='6' x='36' y='4' />
-                      <rect height='6' rx='1' width='6' x='48' y='4' />
-                      <rect height='6' rx='1' width='6' x='58' y='4' />
-                      <rect height='6' rx='1' width='6' x='32' y='14' />
-                      <rect height='6' rx='1' width='8' x='44' y='14' />
-                      <rect height='6' rx='1' width='6' x='60' y='14' />
-                      <rect height='6' rx='1' width='8' x='36' y='24' />
-                      <rect height='6' rx='1' width='6' x='52' y='24' />
-                      {/* Central Area Data Rings */}
-                      <rect height='8' rx='1' width='6' x='4' y='36' />
-                      <rect height='6' rx='1' width='6' x='14' y='36' />
-                      <rect height='6' rx='1' width='8' x='24' y='40' />
-                      <rect height='8' rx='1' width='6' x='72' y='36' />
-                      <rect height='6' rx='1' width='8' x='84' y='36' />
-                      <rect height='8' rx='1' width='6' x='78' y='48' />
-                      <rect height='6' rx='1' width='6' x='90' y='48' />
-                      {/* Lower Mid Data */}
-                      <rect height='6' rx='1' width='6' x='36' y='72' />
-                      <rect height='6' rx='1' width='8' x='48' y='72' />
-                      <rect height='8' rx='1' width='6' x='62' y='72' />
-                      <rect height='6' rx='1' width='8' x='36' y='84' />
-                      <rect height='6' rx='1' width='6' x='52' y='80' />
-                      <rect height='6' rx='1' width='6' x='48' y='90' />
-                      <rect height='6' rx='1' width='8' x='60' y='88' />
-                      <rect height='6' rx='1' width='6' x='74' y='76' />
-                      <rect height='6' rx='1' width='8' x='86' y='76' />
-                      <rect height='8' rx='1' width='6' x='78' y='86' />
-                      <rect height='6' rx='1' width='8' x='88' y='88' />
-                    </svg>
-
-                    {/* NexSpace Logo Center Embed */}
-                    <div className='absolute inset-0 m-auto flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-md z-20'>
-                      <NexSpaceMark className='h-6 w-6' />
-                    </div>
+                    {checkoutData?.qrCode ? (
+                      <div className='relative'>
+                        <QRCodeSVG
+                          value={checkoutData.qrCode}
+                          size={168}
+                          level='M'
+                          includeMargin={false}
+                        />
+                        {/* NexSpace Logo Center Embed */}
+                        <div className='absolute inset-0 m-auto flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 bg-white p-0.5 shadow-xs z-20 pointer-events-none'>
+                          <NexSpaceMark className='h-5 w-5' />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className='flex flex-col items-center justify-center gap-2 text-muted-foreground text-xs'>
+                        <RefreshCw className='h-6 w-6 animate-spin text-primary' />
+                        <span>Đang nạp mã QR...</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Bottom Micro Status Bar inside QR Card */}
-                  <div className='z-10 flex w-full items-center justify-center gap-1.5 border-t border-slate-100 py-0.5'>
+                  {/* Micro Status Bar */}
+                  <div className='z-10 flex w-full items-center justify-center gap-1.5 border-t border-slate-100 pt-1.5 mt-2'>
                     <span className='pulse-glow bg-indigo-600 h-1.5 w-1.5 rounded-full' />
                     <span className='font-mono text-[10px] font-semibold text-indigo-600'>
-                      Awaiting transfer signal...
+                      Đang chờ tín hiệu chuyển khoản...
                     </span>
                   </div>
                 </div>
 
-                {/* Supported Banks Strip */}
-                <div className='mt-2 flex w-full items-center justify-center gap-1 flex-wrap'>
-                  <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-slate-700 shadow-2xs'>
-                    VCB
-                  </span>
-                  <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-blue-700 shadow-2xs'>
-                    MB Bank
-                  </span>
-                  <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-red-600 shadow-2xs'>
-                    TCB
-                  </span>
-                  <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-emerald-700 shadow-2xs'>
-                    VPBank
-                  </span>
-                  <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-pink-600 shadow-2xs'>
-                    MoMo
-                  </span>
-                </div>
-
-                {/* Instructional Microcopy */}
-                <p className='text-muted-foreground mt-1.5 px-1 text-center text-[11px] leading-tight'>
-                  Scan with banking app (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) or <strong className='text-foreground font-medium'>MoMo</strong> to pay instantly.
+                {/* Instruction */}
+                <p className='text-muted-foreground mt-2 px-1 text-center text-[11px] leading-tight'>
+                  Mở ứng dụng ngân hàng (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) hoặc <strong className='text-foreground font-medium'>MoMo</strong> quét mã để thanh toán tự động.
                 </p>
               </div>
 
-              {/* 4. Action Controls (Compact) */}
-              <div className='space-y-2 pt-0.5'>
-                <Button
-                  onClick={handleSimulatePayment}
-                  disabled={isVerifying}
-                  className='w-full cursor-pointer h-9.5 text-xs font-semibold shadow-xs active:scale-[0.98] transition-all flex items-center justify-center gap-1.5'
-                >
-                  {isVerifying ? (
-                    <span>Verifying PayOS Webhook...</span>
-                  ) : (
-                    <>
-                      <span>I Have Completed Payment</span>
-                      <ArrowRight className='h-3.5 w-3.5' />
-                    </>
-                  )}
-                </Button>
+              {/* 4. Manual Transfer Information Panel */}
+              <div className='rounded-xl border border-border/80 bg-muted/30 p-3 space-y-2 text-xs'>
+                <div className='text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between'>
+                  <span>Thông tin chuyển khoản thủ công</span>
+                  <span className='text-[10px] text-emerald-600 font-normal lowercase'>Tự động đối soát 24/7</span>
+                </div>
 
-                <a
-                  href='https://payos.vn'
-                  target='_blank'
-                  rel='noopener noreferrer'
-                  className='bg-card hover:bg-muted/60 border-border text-foreground flex h-8.5 w-full cursor-pointer items-center justify-center gap-1.5 rounded-lg border text-[11px] font-semibold transition-all active:scale-[0.98]'
-                >
-                  <span>Open PayOS Payment Page</span>
-                  <ExternalLink className='text-muted-foreground h-3 w-3' />
-                </a>
+                <div className='grid grid-cols-2 gap-2 pt-1'>
+                  <div>
+                    <span className='text-[10px] text-muted-foreground block'>Ngân hàng</span>
+                    <span className='font-semibold text-foreground text-xs'>
+                      {checkoutData?.bankName || 'MBBank'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-[10px] text-muted-foreground block'>Số tài khoản</span>
+                    <div className='flex items-center gap-1'>
+                      <span className='font-mono font-bold text-foreground text-xs'>
+                        {checkoutData?.accountNumber || '0987654321'}
+                      </span>
+                      <button
+                        type='button'
+                        onClick={() => handleCopy(checkoutData?.accountNumber || '0987654321', 'accountNumber')}
+                        className='text-muted-foreground hover:text-foreground cursor-pointer'
+                        title='Sao chép số tài khoản'
+                      >
+                        {copiedField === 'accountNumber' ? (
+                          <Check className='h-3 w-3 text-emerald-600' />
+                        ) : (
+                          <Copy className='h-3 w-3' />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className='grid grid-cols-2 gap-2 pt-1.5 border-t border-border/40'>
+                  <div>
+                    <span className='text-[10px] text-muted-foreground block'>Chủ tài khoản</span>
+                    <span className='font-semibold text-foreground text-xs uppercase'>
+                      {checkoutData?.accountName || 'NEXSPACE TECHNOLOGIES'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className='text-[10px] text-muted-foreground block'>Số tiền</span>
+                    <div className='flex items-center gap-1'>
+                      <span className='font-mono font-bold text-primary text-xs'>
+                        {displayVndAmount}
+                      </span>
+                      <button
+                        type='button'
+                        onClick={() => handleCopy(String(checkoutData?.amount || 255000), 'amount')}
+                        className='text-muted-foreground hover:text-foreground cursor-pointer'
+                        title='Sao chép số tiền'
+                      >
+                        {copiedField === 'amount' ? (
+                          <Check className='h-3 w-3 text-emerald-600' />
+                        ) : (
+                          <Copy className='h-3 w-3' />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <div className='pt-1.5 border-t border-border/40'>
+                  <span className='text-[10px] text-muted-foreground block'>Nội dung chuyển khoản (bắt buộc)</span>
+                  <div className='flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 mt-0.5'>
+                    <span className='font-mono font-bold text-amber-700 dark:text-amber-400 text-xs'>
+                      {checkoutData?.description || 'NX8821'}
+                    </span>
+                    <button
+                      type='button'
+                      onClick={() => handleCopy(checkoutData?.description || 'NX8821', 'description')}
+                      className='text-amber-700 dark:text-amber-400 hover:opacity-80 cursor-pointer'
+                      title='Sao chép nội dung'
+                    >
+                      {copiedField === 'description' ? (
+                        <Check className='h-3 w-3 text-emerald-600' />
+                      ) : (
+                        <Copy className='h-3 w-3' />
+                      )}
+                    </button>
+                  </div>
+                  <p className='text-[10px] text-amber-600 dark:text-amber-400 mt-1 leading-tight'>
+                    * Vui lòng giữ nguyên nội dung chuyển khoản để hệ thống tự động xác nhận đơn tức thì.
+                  </p>
+                </div>
               </div>
 
-              {/* 5. Security Guarantee Footnote */}
+              {/* Security Footnote */}
               <div className='border-border/60 flex items-center justify-center gap-2 border-t pt-2 text-[11px] text-muted-foreground'>
                 <ShieldCheck className='h-3.5 w-3.5 text-emerald-600 shrink-0' />
                 <span>
-                  <strong className='text-foreground font-medium'>256-bit SSL encrypted</strong> • Instant booking confirmation &amp; PIN
+                  <strong className='text-foreground font-medium'>Mã hóa 256-bit SSL</strong> • Xác nhận đơn tự động qua Webhook
                 </span>
               </div>
             </>
           )}
         </div>
 
-        {/* Modal Bottom Strip: Compliance & Dismiss (Sticky / Fixed at bottom) */}
+        {/* Modal Bottom Strip: Compliance & Dismiss */}
         <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2 text-center'>
           <div className='text-muted-foreground flex items-center justify-center gap-1 text-[10px]'>
             <Shield className='h-3 w-3' />
-            <span>Powered by PayOS &amp; Napas 24/7 • SOC-2 Type II Certified</span>
+            <span>Được bảo vệ bởi PayOS &amp; Napas 24/7 • Đạt chứng nhận SOC-2 Type II</span>
           </div>
           <div>
             <button
               type='button'
-              onClick={() => handleOpenChange(false)}
+              onClick={handleCancelCheckout}
+              disabled={cancelMutation.isPending}
               className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
             >
-              Cancel transaction and release workspace hold
+              {cancelMutation.isPending ? 'Đang hủy phiên...' : 'Hủy giao dịch và giải phóng giữ chỗ'}
             </button>
           </div>
         </div>

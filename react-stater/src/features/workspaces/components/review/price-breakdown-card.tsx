@@ -11,13 +11,21 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
+import { useCreatePaymentCheckout, useExchangeRate } from '@/features/payments/api';
+import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
+import { toast } from 'sonner';
 
 export function PriceBreakdownCard() {
   const { formatPrice, currency } = useCurrency();
   const [promoCode, setPromoCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [checkoutData, setCheckoutData] = useState<PaymentCheckoutResponse | null>(null);
+
+  const { data: exchangeRateData } = useExchangeRate();
+  const exchangeRate = exchangeRateData?.exchangeRate || 25450;
+
+  const createPaymentMutation = useCreatePaymentCheckout();
 
   const baseRate = 10.00; // 4 hrs * $2.50
   const platformFee = 1.00;
@@ -25,18 +33,35 @@ export function PriceBreakdownCard() {
   const discountAmount = discountApplied ? 1.00 : 0;
   const totalAmountUsd = Math.max(0, baseRate + platformFee + vat - discountAmount);
 
+  // Exact rounded VND equivalent
+  const totalAmountVnd = Math.round((totalAmountUsd * exchangeRate) / 1000) * 1000;
+
   const handleApplyPromo = () => {
     if (promoCode.trim().toUpperCase() === 'NEXFIRST') {
       setDiscountApplied(true);
+      toast.success('Mã giảm giá NEXFIRST đã được áp dụng (-$1.00)');
+    } else {
+      toast.error('Mã giảm giá không hợp lệ');
     }
   };
 
   const handleProceedPayOS = () => {
-    setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setCheckoutOpen(true);
-    }, 500);
+    // Booking ID from active flow (defaulting to 1 for interactive demo)
+    const targetBookingId = 1;
+
+    createPaymentMutation.mutate(targetBookingId, {
+      onSuccess: (data: PaymentCheckoutResponse) => {
+        setCheckoutData(data);
+        setCheckoutOpen(true);
+      },
+      onError: (err: Error) => {
+        toast.error('Không thể tạo phiên thanh toán PayOS', {
+          description: err.message
+        });
+        // Open with fallback data so user can inspect the In-App VietQR modal
+        setCheckoutOpen(true);
+      }
+    });
   };
 
   return (
@@ -125,7 +150,7 @@ export function PriceBreakdownCard() {
                 Total Amount Due
               </span>
               <p className='text-muted-foreground text-xs'>
-                Single charge • All local taxes included
+                ≈ {totalAmountVnd.toLocaleString('vi-VN')} VND (Tỷ giá: 1$ = {exchangeRate.toLocaleString('vi-VN')}đ)
               </p>
             </div>
             <div className='text-right'>
@@ -142,14 +167,14 @@ export function PriceBreakdownCard() {
         {/* Primary Action Button (Proceed to PayOS Payment) */}
         <Button
           onClick={handleProceedPayOS}
-          disabled={isSubmitting}
+          disabled={createPaymentMutation.isPending}
           className='group h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
         >
-          {isSubmitting ? (
-            <span>Connecting PayOS Gateway...</span>
+          {createPaymentMutation.isPending ? (
+            <span>Đang kết nối cổng PayOS &amp; tạo VietQR...</span>
           ) : (
             <>
-              <span>Proceed to PayOS Payment</span>
+              <span>Thanh Toán Bằng PayOS VietQR</span>
               <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
             </>
           )}
@@ -160,22 +185,22 @@ export function PriceBreakdownCard() {
           <div className='flex items-center gap-2.5'>
             <Wallet className='text-primary h-4 w-4 shrink-0' />
             <span>
-              <strong className='text-foreground'>PayOS Instant Gateway:</strong> VietQR / Napas247 / Cards
+              <strong className='text-foreground'>Cổng VietQR PayOS:</strong> Quét bằng app MB, VCB, TCB, MoMo...
             </span>
           </div>
           <div className='flex items-center gap-2.5'>
             <Lock className='text-emerald-600 dark:text-emerald-400 h-4 w-4 shrink-0' />
-            <span>256-bit Bank Grade Encryption • SOC-2 Type II Certified</span>
+            <span>Mã hóa bảo mật 256-bit • Tự động nhận diện thanh toán</span>
           </div>
           <div className='flex items-center gap-2.5'>
             <FileText className='text-muted-foreground h-4 w-4 shrink-0' />
-            <span>Instant VAT E-Invoice sent to company email</span>
+            <span>Hóa đơn điện tử PDF tự động gửi về email &amp; Cloudinary</span>
           </div>
         </div>
 
         {/* Reassurance pill */}
         <div className='bg-muted/70 text-muted-foreground rounded-lg p-2.5 text-center text-xs'>
-          Zero booking fees for verified Enterprise Teams
+          Miễn phí phí giao dịch cho đối tác &amp; khách hàng NexSpace
         </div>
       </div>
 
@@ -183,8 +208,9 @@ export function PriceBreakdownCard() {
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         totalAmountUsd={totalAmountUsd}
+        checkoutData={checkoutData}
+        isLoading={createPaymentMutation.isPending}
       />
     </>
   );
 }
-
