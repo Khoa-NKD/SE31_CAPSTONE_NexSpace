@@ -22,3 +22,4 @@ public interface IInvoiceService {
      */
     InvoiceResponseDTO getOrCreateInvoice(Long bookingId, Long actorId);
 }
+

@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
@@ -8,11 +9,18 @@ import base.api.feature.payment.dto.response.PaymentTransactionResponseDTO;
 import base.api.feature.payment.mapper.PaymentTransactionMapper;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IPaymentService;
+import base.api.feature.resource.repository.IBookableResourceRepository;
+import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
+import base.api.shared.entity.resource.BookableResourceModel;
+import base.api.shared.entity.workspace.WorkspaceModel;
+import base.api.shared.enums.BookingSource;
 import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.PaymentStatus;
+import base.api.shared.enums.PriceType;
 import base.api.shared.enums.ReconciliationStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
@@ -33,6 +41,7 @@ import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
@@ -44,6 +53,9 @@ public class PaymentServiceImpl implements IPaymentService {
 
     private final IBookingRepository bookingRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final IUserRepository userRepository;
+    private final IWorkspaceRepository workspaceRepository;
+    private final IBookableResourceRepository bookableResourceRepository;
     private final PayOS payOS;
 
     @Value("${nexspace.payment.usd-to-vnd-rate:25450}")
@@ -302,6 +314,62 @@ public class PaymentServiceImpl implements IPaymentService {
         }
         String clean = input.replaceAll("[^a-zA-Z0-9 ]", "").trim();
         return clean.length() > 25 ? clean.substring(0, 25) : clean;
+    }
+
+    @Override
+    @Transactional
+    public Long getOrCreatePendingBookingId(Long actorId) {
+        UserModel customer = userRepository.findById(actorId)
+                .orElseThrow(() -> new NotFoundException("Người dùng không tồn tại"));
+
+        // Kiểm tra xem khách hàng đã có đơn đặt chỗ nào đang chờ thanh toán hay chưa
+        List<BookingModel> pendings = bookingRepository.findByCustomerIdAndStatus(actorId, BookingStatus.PENDING_PAYMENT);
+        if (!pendings.isEmpty()) {
+            BookingModel existing = pendings.get(0);
+            if (existing.getHoldExpiresAt() == null || existing.getHoldExpiresAt().isBefore(LocalDateTime.now())) {
+                existing.setHoldExpiresAt(LocalDateTime.now().plusMinutes(holdMinutes));
+                bookingRepository.save(existing);
+            }
+            return existing.getId();
+        }
+
+        // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để thanh toán
+        WorkspaceModel workspace = workspaceRepository.findById(1L)
+                .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
+        BookableResourceModel resource = bookableResourceRepository.findById(1L)
+                .orElseGet(() -> bookableResourceRepository.findAll().stream().findFirst()
+                        .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên chỗ ngồi")));
+
+        LocalDateTime now = LocalDateTime.now();
+        String bookingCode = "NXB-" + (System.currentTimeMillis() % 10000000);
+
+        BookingModel booking = new BookingModel();
+        booking.setBookingCode(bookingCode);
+        booking.setCustomer(customer);
+        booking.setWorkspace(workspace);
+        booking.setResource(resource);
+        booking.setStatus(BookingStatus.PENDING_PAYMENT);
+        booking.setSource(BookingSource.SEARCH);
+        booking.setPriceType(PriceType.HOURLY);
+        booking.setStartTime(now.plusDays(1).withHour(9).withMinute(0));
+        booking.setEndTime(now.plusDays(1).withHour(17).withMinute(0));
+        booking.setPartySize(1);
+        booking.setBaseAmount(BigDecimal.valueOf(255000));
+        booking.setDiscountAmount(BigDecimal.ZERO);
+        booking.setTaxAmount(BigDecimal.ZERO);
+        booking.setServiceFeeAmount(BigDecimal.ZERO);
+        booking.setPlatformFeeAmount(BigDecimal.ZERO);
+        booking.setSurchargeAmount(BigDecimal.ZERO);
+        booking.setAddonAmount(BigDecimal.ZERO);
+        booking.setQuotaUsedAmount(BigDecimal.ZERO);
+        booking.setFinalPrice(BigDecimal.valueOf(255000));
+        booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
+        booking.setPricingSnapshot("{\"currency\":\"VND\"}");
+
+        booking = bookingRepository.save(booking);
+        log.info("Created pending booking id={} code={} for customer id={}", booking.getId(), booking.getBookingCode(), actorId);
+        return booking.getId();
     }
 
     private String resolveBankName(String bin) {

@@ -71,3 +71,4 @@ class OrganizerPaymentControllerTest {
         verify(paymentService).getOrganizerPaymentHistory(eq(15L), eq(200L), any(), any(PageRequestDTO.class));
     }
 }
+

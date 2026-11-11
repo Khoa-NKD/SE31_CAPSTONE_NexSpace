@@ -26,4 +26,6 @@ public interface IPaymentService {
     Page<PaymentTransactionResponseDTO> getAdminPaymentHistory(PaymentStatus status, ReconciliationStatus reconciliationStatus, PageRequestDTO pageRequest);
 
     PaymentTransactionResponseDTO getTransactionDetail(Long orderCode);
+
+    Long getOrCreatePendingBookingId(Long actorId);
 }

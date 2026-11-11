@@ -12,3 +12,4 @@ public class ReconciliationSummaryDTO {
     long unreconciledCount;
     long resolvedCount;
 }
+

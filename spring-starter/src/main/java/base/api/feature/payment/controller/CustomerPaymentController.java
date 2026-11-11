@@ -37,6 +37,15 @@ public class CustomerPaymentController extends BaseAPIController {
     private final IPaymentService paymentService;
     private final IInvoiceService invoiceService;
 
+    @GetMapping("/bookings/current-pending")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lấy hoặc tự động tạo phiên đặt chỗ đang chờ thanh toán của người dùng hiện tại")
+    public ResponseEntity<ApiResponse<Long>> getCurrentPendingBooking() {
+        Long actorId = getCurrentUserId();
+        Long bookingId = paymentService.getOrCreatePendingBookingId(actorId);
+        return success(bookingId, "Lấy phiên đặt chỗ thành công");
+    }
+
     @PostMapping("/bookings/{bookingId}/payments")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Khởi tạo thanh toán PayOS và lấy mã VietQR động")

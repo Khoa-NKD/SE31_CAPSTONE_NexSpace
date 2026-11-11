@@ -27,6 +27,8 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
 
     Page<BookingModel> findByCustomerId(Long customerId, Pageable pageable);
 
+    List<BookingModel> findByCustomerIdAndStatus(Long customerId, BookingStatus status);
+
     Page<BookingModel> findByWorkspaceId(Long workspaceId, Pageable pageable);
 
     long countByWorkspaceId(Long workspaceId);

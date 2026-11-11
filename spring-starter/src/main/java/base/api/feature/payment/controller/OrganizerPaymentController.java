@@ -41,3 +41,4 @@ public class OrganizerPaymentController extends BaseAPIController {
         return successPage(page);
     }
 }
+
