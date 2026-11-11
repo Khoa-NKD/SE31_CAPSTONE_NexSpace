@@ -2,9 +2,11 @@ package base.api.feature.booking.repository;
 
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.enums.BookingStatus;
+import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -18,6 +20,10 @@ import java.util.Optional;
 public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
 
     Optional<BookingModel> findByBookingCode(String bookingCode);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM BookingModel b WHERE b.id = :id")
+    Optional<BookingModel> findByIdForUpdate(@Param("id") Long id);
 
     Page<BookingModel> findByCustomerId(Long customerId, Pageable pageable);
 
@@ -45,5 +51,10 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime,
             @Param("activeStatuses") List<BookingStatus> activeStatuses);
-}
 
+    @Query("SELECT b FROM BookingModel b WHERE b.status = :status AND b.holdExpiresAt < :now")
+    List<BookingModel> findExpiredHoldBookings(
+            @Param("status") BookingStatus status,
+            @Param("now") LocalDateTime now
+    );
+}

@@ -1,0 +1,271 @@
+package base.api.feature.payment.service.impl;
+
+import base.api.feature.booking.repository.IBookingRepository;
+import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
+import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
+import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
+import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.service.IPaymentService;
+import base.api.shared.entity.booking.BookingModel;
+import base.api.shared.entity.payment.PaymentTransactionModel;
+import base.api.shared.enums.BookingStatus;
+import base.api.shared.enums.PaymentStatus;
+import base.api.shared.enums.ReconciliationStatus;
+import base.api.shared.exception.BadRequestException;
+import base.api.shared.exception.ConflictException;
+import base.api.shared.exception.NotFoundException;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import vn.payos.PayOS;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkRequest;
+import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.time.LocalDateTime;
+import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class PaymentServiceImpl implements IPaymentService {
+
+    private final IBookingRepository bookingRepository;
+    private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final PayOS payOS;
+
+    @Value("${nexspace.payment.usd-to-vnd-rate:25450}")
+    private long usdToVndRate;
+
+    @Value("${nexspace.booking.hold-minutes:10}")
+    private int holdMinutes;
+
+    @Value("${nexspace.payos.return-url:http://localhost:5173/workspaces/confirmation}")
+    private String returnUrl;
+
+    @Value("${nexspace.payos.cancel-url:http://localhost:5173/workspaces/review}")
+    private String cancelUrl;
+
+    private static final Map<String, String> BANK_BIN_NAMES = Map.of(
+            "970422", "MBBank (Ngân hàng Quân Đội)",
+            "970436", "Vietcombank (Ngoại thương Việt Nam)",
+            "970407", "Techcombank (Kỹ thương Việt Nam)",
+            "970415", "VietinBank (Công thương Việt Nam)",
+            "970418", "BIDV (Đầu tư và Phát triển)",
+            "970432", "VPBank (Việt Nam Thịnh Vượng)",
+            "970423", "TPBank (Tiên Phong)",
+            "970405", "Agribank (Nông nghiệp & PTNT)",
+            "970448", "OCB (Phương Đông)",
+            "970454", "VietCapitalBank (Bản Việt)"
+    );
+
+    @Override
+    @Transactional(readOnly = true)
+    public ExchangeRateResponseDTO getExchangeRate() {
+        return ExchangeRateResponseDTO.builder()
+                .baseCurrency("USD")
+                .targetCurrency("VND")
+                .exchangeRate(BigDecimal.valueOf(usdToVndRate))
+                .updatedAt(LocalDateTime.now())
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public PaymentCheckoutResponseDTO createPaymentForBooking(Long bookingId, Long actorId) {
+        BookingModel booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId));
+
+        // Strict Ownership Defense
+        if (actorId != null && booking.getCustomer() != null && !booking.getCustomer().getId().equals(actorId)) {
+            log.warn("Actor {} attempted to pay for booking {} owned by customer {}",
+                    actorId, bookingId, booking.getCustomer().getId());
+            throw new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT) {
+            throw new ConflictException(String.format(
+                    "Đơn đặt chỗ %s đang ở trạng thái %s, không thể tạo phiên thanh toán",
+                    booking.getBookingCode(), booking.getStatus()));
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        if (booking.getHoldExpiresAt() != null && booking.getHoldExpiresAt().isBefore(now)) {
+            throw new ConflictException("Đơn đặt chỗ đã hết thời hạn giữ chỗ 10 phút. Vui lòng tạo đặt chỗ mới.");
+        }
+
+        // Calculate amount in VND
+        BigDecimal finalPrice = booking.getFinalPrice();
+        if (finalPrice == null || finalPrice.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new BadRequestException("Giá trị đơn đặt chỗ không hợp lệ");
+        }
+
+        BigDecimal amountVnd;
+        if (finalPrice.compareTo(BigDecimal.valueOf(1000)) < 0) {
+            // Price is stored in USD, convert to VND
+            amountVnd = finalPrice.multiply(BigDecimal.valueOf(usdToVndRate))
+                    .divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP)
+                    .multiply(BigDecimal.valueOf(1000));
+        } else {
+            // Already in VND
+            amountVnd = finalPrice.setScale(0, RoundingMode.HALF_UP);
+        }
+
+        // Generate unique orderCode for PayOS (must be positive integer <= 9007199254740991)
+        long orderCode = generateOrderCode();
+
+        // Expire time for booking hold and PayOS link
+        LocalDateTime expiresAt = now.plusMinutes(holdMinutes);
+        booking.setHoldExpiresAt(expiresAt);
+        bookingRepository.save(booking);
+
+        // Sanitize transfer description (up to 25 chars, alphanumeric only)
+        String description = sanitizeDescription("NX" + booking.getId() + " " + (orderCode % 10000));
+
+        CreatePaymentLinkRequest paymentRequest = CreatePaymentLinkRequest.builder()
+                .orderCode(orderCode)
+                .amount(amountVnd.longValue())
+                .description(description)
+                .cancelUrl(cancelUrl)
+                .returnUrl(returnUrl)
+                .buyerName(booking.getCustomer() != null && StringUtils.hasText(booking.getCustomer().getFullName())
+                        ? booking.getCustomer().getFullName() : "Khach hang NexSpace")
+                .buyerEmail(booking.getCustomer() != null ? booking.getCustomer().getEmail() : null)
+                .expiredAt(System.currentTimeMillis() / 1000 + (holdMinutes * 60L))
+                .build();
+
+        CreatePaymentLinkResponse payosResponse;
+        try {
+            log.info("Requesting PayOS payment link for bookingId={}, orderCode={}, amountVnd={}",
+                    booking.getId(), orderCode, amountVnd);
+            payosResponse = payOS.paymentRequests().create(paymentRequest);
+        } catch (Exception e) {
+            log.error("Failed to create PayOS payment link for bookingId {}: {}", bookingId, e.getMessage(), e);
+            throw new BadRequestException("Cổng thanh toán PayOS báo lỗi: " + e.getMessage());
+        }
+
+        // Persist transaction record
+        PaymentTransactionModel transaction = new PaymentTransactionModel();
+        transaction.setBooking(booking);
+        transaction.setOrderCode(orderCode);
+        transaction.setAmount(amountVnd);
+        transaction.setStatus(PaymentStatus.PENDING);
+        transaction.setReconciliationStatus(ReconciliationStatus.UNRECONCILED);
+        transaction.setCheckoutUrl(payosResponse.getCheckoutUrl());
+        transaction.setExpiresAt(expiresAt);
+
+        paymentTransactionRepository.save(transaction);
+
+        String bankBin = payosResponse.getBin();
+        String bankName = resolveBankName(bankBin);
+
+        return PaymentCheckoutResponseDTO.builder()
+                .orderCode(orderCode)
+                .bookingId(booking.getId())
+                .bookingCode(booking.getBookingCode())
+                .amount(amountVnd)
+                .currency("VND")
+                .qrCode(payosResponse.getQrCode())
+                .bankBin(bankBin)
+                .bankName(bankName)
+                .accountNumber(payosResponse.getAccountNumber())
+                .accountName(payosResponse.getAccountName())
+                .description(payosResponse.getDescription())
+                .expiresAt(expiresAt)
+                .checkoutUrl(payosResponse.getCheckoutUrl())
+                .build();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public PaymentStatusResponseDTO getPaymentStatus(Long bookingId, Long actorId) {
+        BookingModel booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId));
+
+        if (actorId != null && booking.getCustomer() != null && !booking.getCustomer().getId().equals(actorId)) {
+            throw new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId);
+        }
+
+        var latestTx = paymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId);
+
+        Long orderCode = latestTx.map(PaymentTransactionModel::getOrderCode).orElse(null);
+        PaymentStatus paymentStatus = latestTx.map(PaymentTransactionModel::getStatus).orElse(PaymentStatus.PENDING);
+        LocalDateTime paidAt = latestTx.map(PaymentTransactionModel::getPaidAt).orElse(null);
+
+        // Derive temporary 4-digit PIN for access if confirmed
+        String pinCode = null;
+        if (booking.getStatus() == BookingStatus.CONFIRMED && StringUtils.hasText(booking.getBookingCode())) {
+            int hash = Math.abs(booking.getBookingCode().hashCode());
+            pinCode = String.format("%04d", hash % 10000);
+        }
+
+        return PaymentStatusResponseDTO.builder()
+                .orderCode(orderCode)
+                .bookingId(booking.getId())
+                .paymentStatus(paymentStatus)
+                .bookingStatus(booking.getStatus())
+                .paidAt(paidAt)
+                .qrTokenHash(booking.getQrTokenHash())
+                .pinCode(pinCode)
+                .build();
+    }
+
+    @Override
+    @Transactional
+    public void cancelPayment(Long orderCode, Long actorId, String reason) {
+        PaymentTransactionModel tx = paymentTransactionRepository.findByOrderCodeForUpdate(orderCode)
+                .orElseThrow(() -> new NotFoundException("Giao dịch thanh toán không tồn tại"));
+
+        BookingModel booking = tx.getBooking();
+        if (booking != null && actorId != null && booking.getCustomer() != null
+                && !booking.getCustomer().getId().equals(actorId)) {
+            throw new NotFoundException("Giao dịch thanh toán không tồn tại");
+        }
+
+        if (tx.getStatus() == PaymentStatus.PENDING) {
+            tx.setStatus(PaymentStatus.CANCELLED);
+            tx.setFailureReason(StringUtils.hasText(reason) ? reason : "Người dùng chủ động hủy giữ chỗ");
+            paymentTransactionRepository.save(tx);
+
+            try {
+                payOS.paymentRequests().cancel(orderCode, "Customer cancelled booking checkout");
+            } catch (Exception e) {
+                log.warn("Could not cancel payment link on PayOS for orderCode {}: {}", orderCode, e.getMessage());
+            }
+
+            if (booking != null && booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                booking.setStatus(BookingStatus.CANCELLED);
+                booking.setCancelledAt(LocalDateTime.now());
+                booking.setCancelReason(reason);
+                bookingRepository.save(booking);
+            }
+        }
+    }
+
+    private long generateOrderCode() {
+        long timestamp = System.currentTimeMillis() % 1_000_000_000L;
+        long randomSuffix = ThreadLocalRandom.current().nextLong(1000L, 9999L);
+        return timestamp * 10_000L + randomSuffix;
+    }
+
+    private String sanitizeDescription(String input) {
+        if (!StringUtils.hasText(input)) {
+            return "NEXSPACE";
+        }
+        String clean = input.replaceAll("[^a-zA-Z0-9 ]", "").trim();
+        return clean.length() > 25 ? clean.substring(0, 25) : clean;
+    }
+
+    private String resolveBankName(String bin) {
+        if (!StringUtils.hasText(bin)) {
+            return "Ngân hàng liên kết VietQR";
+        }
+        return BANK_BIN_NAMES.getOrDefault(bin, "Ngân hàng liên kết VietQR (" + bin + ")");
+    }
+}
+
