@@ -2,6 +2,7 @@ package base.api.feature.payment.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
+import base.api.feature.payment.dto.response.BookingHoldResponseDTO;
 import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
@@ -139,9 +140,18 @@ public class PaymentServiceImpl implements IPaymentService {
         long orderCode = generateOrderCode();
 
         // Expire time for booking hold and PayOS link
-        LocalDateTime expiresAt = now.plusMinutes(holdMinutes);
-        booking.setHoldExpiresAt(expiresAt);
-        bookingRepository.save(booking);
+        // Reuse the booking's existing holdExpiresAt if still valid so the hold duration is not falsely extended
+        LocalDateTime expiresAt = booking.getHoldExpiresAt();
+        if (expiresAt == null || expiresAt.isBefore(now)) {
+            expiresAt = now.plusMinutes(holdMinutes);
+            booking.setHoldExpiresAt(expiresAt);
+            bookingRepository.save(booking);
+        }
+
+        // Calculate epoch seconds for PayOS link expiration (must be at least 60s in the future for PayOS API)
+        long nowEpochSeconds = System.currentTimeMillis() / 1000;
+        long targetEpochSeconds = expiresAt.atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
+        long payosExpiredAt = Math.max(nowEpochSeconds + 60, targetEpochSeconds);
 
         // Sanitize transfer description (up to 25 chars, alphanumeric only)
         String description = sanitizeDescription("NX" + booking.getId() + " " + (orderCode % 10000));
@@ -155,7 +165,7 @@ public class PaymentServiceImpl implements IPaymentService {
                 .buyerName(booking.getCustomer() != null && StringUtils.hasText(booking.getCustomer().getFullName())
                         ? booking.getCustomer().getFullName() : "Khach hang NexSpace")
                 .buyerEmail(booking.getCustomer() != null ? booking.getCustomer().getEmail() : null)
-                .expiredAt(System.currentTimeMillis() / 1000 + (holdMinutes * 60L))
+                .expiredAt(payosExpiredAt)
                 .build();
 
         CreatePaymentLinkResponse payosResponse;
@@ -319,57 +329,84 @@ public class PaymentServiceImpl implements IPaymentService {
     @Override
     @Transactional
     public Long getOrCreatePendingBookingId(Long actorId) {
+        return getOrCreatePendingBookingHold(actorId).getBookingId();
+    }
+
+    @Override
+    @Transactional
+    public BookingHoldResponseDTO getOrCreatePendingBookingHold(Long actorId) {
         UserModel customer = userRepository.findById(actorId)
                 .orElseThrow(() -> new NotFoundException("Người dùng không tồn tại"));
 
+        LocalDateTime now = LocalDateTime.now();
+
         // Kiểm tra xem khách hàng đã có đơn đặt chỗ nào đang chờ thanh toán hay chưa
         List<BookingModel> pendings = bookingRepository.findByCustomerIdAndStatus(actorId, BookingStatus.PENDING_PAYMENT);
+        BookingModel booking;
         if (!pendings.isEmpty()) {
-            BookingModel existing = pendings.get(0);
-            if (existing.getHoldExpiresAt() == null || existing.getHoldExpiresAt().isBefore(LocalDateTime.now())) {
-                existing.setHoldExpiresAt(LocalDateTime.now().plusMinutes(holdMinutes));
-                bookingRepository.save(existing);
+            booking = pendings.get(0);
+            if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now)) {
+                booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
+                booking = bookingRepository.save(booking);
             }
-            return existing.getId();
+        } else {
+            // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để giữ chỗ và thanh toán
+            WorkspaceModel workspace = workspaceRepository.findById(1L)
+                    .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
+                            .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
+            BookableResourceModel resource = bookableResourceRepository.findById(1L)
+                    .orElseGet(() -> bookableResourceRepository.findAll().stream().findFirst()
+                            .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên chỗ ngồi")));
+
+            String bookingCode = "NXB-" + (System.currentTimeMillis() % 10000000);
+
+            booking = new BookingModel();
+            booking.setBookingCode(bookingCode);
+            booking.setCustomer(customer);
+            booking.setWorkspace(workspace);
+            booking.setResource(resource);
+            booking.setStatus(BookingStatus.PENDING_PAYMENT);
+            booking.setSource(BookingSource.SEARCH);
+            booking.setPriceType(PriceType.HOURLY);
+            booking.setStartTime(now.plusDays(1).withHour(9).withMinute(0));
+            booking.setEndTime(now.plusDays(1).withHour(17).withMinute(0));
+            booking.setPartySize(1);
+            booking.setBaseAmount(BigDecimal.valueOf(255000));
+            booking.setDiscountAmount(BigDecimal.ZERO);
+            booking.setTaxAmount(BigDecimal.ZERO);
+            booking.setServiceFeeAmount(BigDecimal.ZERO);
+            booking.setPlatformFeeAmount(BigDecimal.ZERO);
+            booking.setSurchargeAmount(BigDecimal.ZERO);
+            booking.setAddonAmount(BigDecimal.ZERO);
+            booking.setQuotaUsedAmount(BigDecimal.ZERO);
+            booking.setFinalPrice(BigDecimal.valueOf(255000));
+            booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
+            booking.setPricingSnapshot("{\"currency\":\"VND\"}");
+
+            booking = bookingRepository.save(booking);
+            log.info("Created pending booking id={} code={} for customer id={}", booking.getId(), booking.getBookingCode(), actorId);
         }
 
-        // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để thanh toán
-        WorkspaceModel workspace = workspaceRepository.findById(1L)
-                .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
-                        .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
-        BookableResourceModel resource = bookableResourceRepository.findById(1L)
-                .orElseGet(() -> bookableResourceRepository.findAll().stream().findFirst()
-                        .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên chỗ ngồi")));
+        LocalDateTime holdExpiresAt = booking.getHoldExpiresAt();
+        long remainingSeconds = holdExpiresAt != null
+                ? Math.max(0, java.time.Duration.between(now, holdExpiresAt).getSeconds())
+                : (holdMinutes * 60L);
 
-        LocalDateTime now = LocalDateTime.now();
-        String bookingCode = "NXB-" + (System.currentTimeMillis() % 10000000);
+        String seatCode = (booking.getResource() != null && booking.getResource().getName() != null)
+                ? booking.getResource().getName()
+                : "Desk A-12";
+        String resourceName = (booking.getResource() != null) ? booking.getResource().getName() : "Hot Desk";
+        String workspaceName = (booking.getWorkspace() != null) ? booking.getWorkspace().getName() : "NexSpace";
 
-        BookingModel booking = new BookingModel();
-        booking.setBookingCode(bookingCode);
-        booking.setCustomer(customer);
-        booking.setWorkspace(workspace);
-        booking.setResource(resource);
-        booking.setStatus(BookingStatus.PENDING_PAYMENT);
-        booking.setSource(BookingSource.SEARCH);
-        booking.setPriceType(PriceType.HOURLY);
-        booking.setStartTime(now.plusDays(1).withHour(9).withMinute(0));
-        booking.setEndTime(now.plusDays(1).withHour(17).withMinute(0));
-        booking.setPartySize(1);
-        booking.setBaseAmount(BigDecimal.valueOf(255000));
-        booking.setDiscountAmount(BigDecimal.ZERO);
-        booking.setTaxAmount(BigDecimal.ZERO);
-        booking.setServiceFeeAmount(BigDecimal.ZERO);
-        booking.setPlatformFeeAmount(BigDecimal.ZERO);
-        booking.setSurchargeAmount(BigDecimal.ZERO);
-        booking.setAddonAmount(BigDecimal.ZERO);
-        booking.setQuotaUsedAmount(BigDecimal.ZERO);
-        booking.setFinalPrice(BigDecimal.valueOf(255000));
-        booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
-        booking.setPricingSnapshot("{\"currency\":\"VND\"}");
-
-        booking = bookingRepository.save(booking);
-        log.info("Created pending booking id={} code={} for customer id={}", booking.getId(), booking.getBookingCode(), actorId);
-        return booking.getId();
+        return BookingHoldResponseDTO.builder()
+                .bookingId(booking.getId())
+                .bookingCode(booking.getBookingCode())
+                .seatCode(seatCode)
+                .resourceName(resourceName)
+                .workspaceName(workspaceName)
+                .holdExpiresAt(holdExpiresAt)
+                .remainingSeconds(remainingSeconds)
+                .build();
     }
 
     private String resolveBankName(String bin) {

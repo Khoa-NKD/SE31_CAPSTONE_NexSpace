@@ -28,4 +28,6 @@ public interface IPaymentService {
     PaymentTransactionResponseDTO getTransactionDetail(Long orderCode);
 
     Long getOrCreatePendingBookingId(Long actorId);
+
+    base.api.feature.payment.dto.response.BookingHoldResponseDTO getOrCreatePendingBookingHold(Long actorId);
 }

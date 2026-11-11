@@ -40,10 +40,10 @@ public class CustomerPaymentController extends BaseAPIController {
     @GetMapping("/bookings/current-pending")
     @PreAuthorize("isAuthenticated()")
     @Operation(summary = "Lấy hoặc tự động tạo phiên đặt chỗ đang chờ thanh toán của người dùng hiện tại")
-    public ResponseEntity<ApiResponse<Long>> getCurrentPendingBooking() {
+    public ResponseEntity<ApiResponse<base.api.feature.payment.dto.response.BookingHoldResponseDTO>> getCurrentPendingBooking() {
         Long actorId = getCurrentUserId();
-        Long bookingId = paymentService.getOrCreatePendingBookingId(actorId);
-        return success(bookingId, "Lấy phiên đặt chỗ thành công");
+        base.api.feature.payment.dto.response.BookingHoldResponseDTO hold = paymentService.getOrCreatePendingBookingHold(actorId);
+        return success(hold, "Lấy phiên đặt chỗ thành công");
     }
 
     @PostMapping("/bookings/{bookingId}/payments")
