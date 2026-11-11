@@ -11,11 +11,13 @@ import {
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
-import { useCreatePaymentCheckout, useExchangeRate, paymentService } from '@/features/payments/api';
+import { useCreatePaymentCheckout, useExchangeRate, paymentService, paymentKeys } from '@/features/payments/api';
 import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
+import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 
 export function PriceBreakdownCard() {
+  const queryClient = useQueryClient();
   const { formatPrice, currency } = useCurrency();
   const [promoCode, setPromoCode] = useState('');
   const [discountApplied, setDiscountApplied] = useState(false);
@@ -47,6 +49,9 @@ export function PriceBreakdownCard() {
 
   const handleProceedPayOS = async () => {
     try {
+      // Invalidate queries so that previous expired status is cleared
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+
       // 1. Tự động lấy hoặc tạo phiên đặt chỗ hợp lệ thuộc quyền sở hữu của khách hàng đang đăng nhập
       const targetBookingId = await paymentService.getCurrentPendingBookingId();
 
@@ -218,7 +223,9 @@ export function PriceBreakdownCard() {
         onOpenChange={setCheckoutOpen}
         totalAmountUsd={totalAmountUsd}
         checkoutData={checkoutData}
+        orderRef={checkoutData?.bookingCode}
         isLoading={createPaymentMutation.isPending}
+        onRetry={handleProceedPayOS}
       />
     </>
   );

@@ -13,7 +13,9 @@ import {
   ArrowLeft,
   RefreshCw,
   Loader2,
-  FileText
+  FileText,
+  AlertTriangle,
+  Ban
 } from 'lucide-react';
 import { QRCodeSVG } from 'qrcode.react';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
@@ -40,13 +42,7 @@ interface PayOSCheckoutDialogProps {
   orderRef?: string;
   checkoutData?: PaymentCheckoutResponse | null;
   isLoading?: boolean;
-}
-
-function calculateRemainingSeconds(expiresAt?: string): number {
-  if (!expiresAt) return 600;
-  const expiry = new Date(expiresAt).getTime();
-  const diff = Math.floor((expiry - Date.now()) / 1000);
-  return diff > 0 ? diff : 0;
+  onRetry?: () => void;
 }
 
 export function PayOSCheckoutDialog({
@@ -56,16 +52,16 @@ export function PayOSCheckoutDialog({
   seatCode = 'Desk A-04',
   orderRef = '#NX-8821',
   checkoutData,
-  isLoading = false
+  isLoading = false,
+  onRetry
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isManualSuccess, setIsManualSuccess] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(() =>
-    calculateRemainingSeconds(checkoutData?.expiresAt)
-  );
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   const hasNotifiedSuccessRef = useRef(false);
+  const hasNotifiedExpiryRef = useRef(false);
 
   const cancelMutation = useCancelPayment();
 
@@ -78,6 +74,18 @@ export function PayOSCheckoutDialog({
     statusData?.paymentStatus === 'SUCCESS' ||
     statusData?.bookingStatus === 'CONFIRMED';
 
+  const expiryTimestamp = checkoutData?.expiresAt ? new Date(checkoutData.expiresAt).getTime() : 0;
+  const secondsRemaining = expiryTimestamp > 0
+    ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
+    : 900;
+
+  const isExpired =
+    !isConfirmed &&
+    (secondsRemaining <= 0 ||
+      statusData?.paymentStatus === 'EXPIRED' ||
+      statusData?.bookingStatus === 'EXPIRED' ||
+      statusData?.bookingStatus === 'CANCELLED');
+
   useEffect(() => {
     if (isConfirmed && !hasNotifiedSuccessRef.current) {
       hasNotifiedSuccessRef.current = true;
@@ -87,20 +95,31 @@ export function PayOSCheckoutDialog({
     }
   }, [isConfirmed, checkoutData, orderRef]);
 
-  // Countdown timer
+  // Notify when booking/payment expires
   useEffect(() => {
-    if (!open || isConfirmed) return;
+    if (isExpired && open && !hasNotifiedExpiryRef.current) {
+      hasNotifiedExpiryRef.current = true;
+      toast.error('Phiên giữ chỗ đã hết hạn', {
+        description: 'Vị trí đã được giải phóng. Bạn vui lòng tạo phiên mới để đặt lại.'
+      });
+    }
+  }, [isExpired, open]);
+
+  // Countdown timer clock
+  useEffect(() => {
+    if (!open || isConfirmed || isExpired) return;
     const interval = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+      setCurrentTimestamp(Date.now());
     }, 1000);
     return () => clearInterval(interval);
-  }, [open, isConfirmed]);
+  }, [open, isConfirmed, isExpired]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setIsManualSuccess(false);
       hasNotifiedSuccessRef.current = false;
-      setSecondsRemaining(calculateRemainingSeconds(checkoutData?.expiresAt));
+      hasNotifiedExpiryRef.current = false;
+      setCurrentTimestamp(Date.now());
     }
     onOpenChange(isOpen);
   };
@@ -369,10 +388,16 @@ export function PayOSCheckoutDialog({
 
                   {/* Dynamic VietQR Matrix */}
                   <div className='relative my-auto flex h-40 w-40 sm:h-44 sm:w-44 items-center justify-center'>
-                    <div className='scanner-line absolute left-0 right-0 z-10 h-0.5 bg-gradient-to-r from-transparent via-indigo-600 to-transparent shadow-[0_0_6px_#4F46E5] pointer-events-none' />
+                    {!isExpired && (
+                      <div className='scanner-line absolute left-0 right-0 z-10 h-0.5 bg-gradient-to-r from-transparent via-indigo-600 to-transparent shadow-[0_0_6px_#4F46E5] pointer-events-none' />
+                    )}
 
                     {checkoutData?.qrCode ? (
-                      <div className='relative'>
+                      <div
+                        className={`relative transition-all duration-300 ${
+                          isExpired ? 'blur-[6px] opacity-20 grayscale pointer-events-none select-none' : ''
+                        }`}
+                      >
                         <QRCodeSVG
                           value={checkoutData.qrCode}
                           size={168}
@@ -390,28 +415,69 @@ export function PayOSCheckoutDialog({
                         <span>Đang nạp mã QR...</span>
                       </div>
                     )}
+
+                    {/* Expired Overlay over the QR Code */}
+                    {isExpired && (
+                      <div className='absolute inset-0 z-30 flex flex-col items-center justify-center p-3 text-center bg-background/85 backdrop-blur-[2px] rounded-xl border border-destructive/20 shadow-inner'>
+                        <div className='h-11 w-11 rounded-full bg-destructive/10 text-destructive flex items-center justify-center mb-1.5 ring-4 ring-destructive/10'>
+                          <AlertTriangle className='h-5 w-5' />
+                        </div>
+                        <span className='text-xs font-bold text-destructive leading-tight'>
+                          Mã QR đã hết hạn
+                        </span>
+                        <span className='text-[10px] text-muted-foreground mt-1 line-clamp-2 px-1 leading-snug'>
+                          Thời gian giữ chỗ đã kết thúc. Vị trí đã được giải phóng tự động.
+                        </span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Micro Status Bar */}
                   <div className='z-10 flex w-full items-center justify-center gap-1.5 border-t border-slate-100 pt-1.5 mt-2'>
-                    <span className='pulse-glow bg-indigo-600 h-1.5 w-1.5 rounded-full' />
-                    <span className='font-mono text-[10px] font-semibold text-indigo-600'>
-                      Đang chờ tín hiệu chuyển khoản...
-                    </span>
+                    {isExpired ? (
+                      <>
+                        <span className='bg-destructive h-1.5 w-1.5 rounded-full' />
+                        <span className='font-mono text-[10px] font-semibold text-destructive'>
+                          Phiên giao dịch đã đóng
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <span className='pulse-glow bg-indigo-600 h-1.5 w-1.5 rounded-full' />
+                        <span className='font-mono text-[10px] font-semibold text-indigo-600'>
+                          Đang chờ tín hiệu chuyển khoản...
+                        </span>
+                      </>
+                    )}
                   </div>
                 </div>
 
-                {/* Instruction */}
-                <p className='text-muted-foreground mt-2 px-1 text-center text-[11px] leading-tight'>
-                  Mở ứng dụng ngân hàng (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) hoặc <strong className='text-foreground font-medium'>MoMo</strong> quét mã để thanh toán tự động.
-                </p>
+                {/* Instruction / Warning */}
+                {isExpired ? (
+                  <div className='mt-2.5 px-2.5 py-1.5 rounded-lg bg-destructive/10 border border-destructive/20 text-center w-full'>
+                    <p className='text-destructive text-[11px] font-medium leading-tight flex items-center justify-center gap-1.5'>
+                      <Ban className='h-3.5 w-3.5 shrink-0' />
+                      <span>Vui lòng không quét mã hoặc chuyển tiền cho đơn đã hết hạn.</span>
+                    </p>
+                  </div>
+                ) : (
+                  <p className='text-muted-foreground mt-2 px-1 text-center text-[11px] leading-tight'>
+                    Mở ứng dụng ngân hàng (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) hoặc <strong className='text-foreground font-medium'>MoMo</strong> quét mã để thanh toán tự động.
+                  </p>
+                )}
               </div>
 
               {/* 4. Manual Transfer Information Panel */}
-              <div className='rounded-xl border border-border/80 bg-muted/30 p-3 space-y-2 text-xs'>
+              <div
+                className={`rounded-xl border border-border/80 bg-muted/30 p-3 space-y-2 text-xs transition-opacity ${
+                  isExpired ? 'opacity-40 grayscale select-none pointer-events-none' : ''
+                }`}
+              >
                 <div className='text-[10px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center justify-between'>
                   <span>Thông tin chuyển khoản thủ công</span>
-                  <span className='text-[10px] text-emerald-600 font-normal lowercase'>Tự động đối soát 24/7</span>
+                  <span className='text-[10px] text-emerald-600 font-normal lowercase'>
+                    {isExpired ? 'Đã vô hiệu hóa' : 'Tự động đối soát 24/7'}
+                  </span>
                 </div>
 
                 <div className='grid grid-cols-2 gap-2 pt-1'>
@@ -497,6 +563,33 @@ export function PayOSCheckoutDialog({
                 </div>
               </div>
 
+              {/* Expired Action Control Buttons */}
+              {isExpired && (
+                <div className='space-y-2 pt-1'>
+                  {onRetry && (
+                    <Button
+                      type='button'
+                      onClick={() => {
+                        handleOpenChange(false);
+                        onRetry();
+                      }}
+                      className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-2'
+                    >
+                      <RefreshCw className='h-3.5 w-3.5' />
+                      <span>Tạo phiên mới &amp; Giữ lại chỗ</span>
+                    </Button>
+                  )}
+                  <Button
+                    type='button'
+                    variant='outline'
+                    onClick={() => handleOpenChange(false)}
+                    className='w-full cursor-pointer h-9 text-xs font-medium border-border'
+                  >
+                    Đóng cửa sổ
+                  </Button>
+                </div>
+              )}
+
               {/* Security Footnote */}
               <div className='border-border/60 flex items-center justify-center gap-2 border-t pt-2 text-[11px] text-muted-foreground'>
                 <ShieldCheck className='h-3.5 w-3.5 text-emerald-600 shrink-0' />
@@ -515,14 +608,20 @@ export function PayOSCheckoutDialog({
             <span>Được bảo vệ bởi PayOS &amp; Napas 24/7 • Đạt chứng nhận SOC-2 Type II</span>
           </div>
           <div>
-            <button
-              type='button'
-              onClick={handleCancelCheckout}
-              disabled={cancelMutation.isPending}
-              className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
-            >
-              {cancelMutation.isPending ? 'Đang hủy phiên...' : 'Hủy giao dịch và giải phóng giữ chỗ'}
-            </button>
+            {!isExpired ? (
+              <button
+                type='button'
+                onClick={handleCancelCheckout}
+                disabled={cancelMutation.isPending}
+                className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
+              >
+                {cancelMutation.isPending ? 'Đang hủy phiên...' : 'Hủy giao dịch và giải phóng giữ chỗ'}
+              </button>
+            ) : (
+              <span className='text-[10px] text-muted-foreground'>
+                Đơn đặt chỗ đã được hệ thống giải phóng tự động
+              </span>
+            )}
           </div>
         </div>
       </DialogContent>
