@@ -345,12 +345,14 @@ public class PaymentServiceImpl implements IPaymentService {
         BookingModel booking;
         if (!pendings.isEmpty()) {
             booking = pendings.get(0);
+            booking.setBaseAmount(BigDecimal.valueOf(2000));
+            booking.setFinalPrice(BigDecimal.valueOf(2000));
             if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now)) {
                 booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
-                booking = bookingRepository.save(booking);
             }
+            booking = bookingRepository.save(booking);
         } else {
-            // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để giữ chỗ và thanh toán
+            // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để giữ chỗ và thanh toán (2.000 VNĐ cho test ck thực tế)
             WorkspaceModel workspace = workspaceRepository.findById(1L)
                     .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
                             .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
@@ -371,7 +373,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking.setStartTime(now.plusDays(1).withHour(9).withMinute(0));
             booking.setEndTime(now.plusDays(1).withHour(17).withMinute(0));
             booking.setPartySize(1);
-            booking.setBaseAmount(BigDecimal.valueOf(255000));
+            booking.setBaseAmount(BigDecimal.valueOf(2000));
             booking.setDiscountAmount(BigDecimal.ZERO);
             booking.setTaxAmount(BigDecimal.ZERO);
             booking.setServiceFeeAmount(BigDecimal.ZERO);
@@ -379,7 +381,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking.setSurchargeAmount(BigDecimal.ZERO);
             booking.setAddonAmount(BigDecimal.ZERO);
             booking.setQuotaUsedAmount(BigDecimal.ZERO);
-            booking.setFinalPrice(BigDecimal.valueOf(255000));
+            booking.setFinalPrice(BigDecimal.valueOf(2000));
             booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
             booking.setPricingSnapshot("{\"currency\":\"VND\"}");
 

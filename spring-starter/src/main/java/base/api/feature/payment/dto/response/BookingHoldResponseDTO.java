@@ -16,3 +16,4 @@ public class BookingHoldResponseDTO {
     LocalDateTime holdExpiresAt;
     Long remainingSeconds;
 }
+
