@@ -1,6 +1,7 @@
 package base.api.feature.auth.service.impl;
 
 import base.api.feature.auth.dto.request.ChangePasswordDto;
+import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.mapper.UserMapper;
@@ -21,6 +22,7 @@ import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
+import base.api.shared.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
@@ -291,6 +293,45 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
+    @Transactional
+    public void deleteMyAccount(Long userId, DeleteAccountDto dto) {
+        UserModel user = findUser(userId);
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new ConflictException("Tài khoản đã ở trạng thái đã xóa trước đó");
+        }
+        if (user.getPassword() != null && !user.getPassword().isBlank()) {
+            if (dto.getPassword() == null || !passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+                throw new UnauthorizedException("Mật khẩu xác nhận không chính xác");
+            }
+        }
+        ensureNotLastActiveAdmin(user, user.getStatus(), "tự xóa");
+
+        UserStatus oldStatus = user.getStatus();
+        user.setStatus(UserStatus.DELETED);
+        user.setLockedUntil(null);
+        UserModel saved = userRepository.saveAndFlush(user);
+
+        revokeActiveSessions(userId);
+
+        String reason = (dto.getReason() != null && !dto.getReason().isBlank())
+                ? dto.getReason().trim()
+                : "Người dùng tự xóa tài khoản của chính mình";
+
+        auditService.log(
+                saved,
+                AuditActorType.USER,
+                "USER",
+                "USER_SELF_DELETED",
+                "UserModel",
+                userId,
+                oldStatus != null ? oldStatus.name() : null,
+                UserStatus.DELETED.name(),
+                reason,
+                null
+        );
+    }
+
+    @Override
     @Transactional(readOnly = true)
     public Page<UserDto> getUserPage(PageRequestDTO pageRequest, UserRole role, UserStatus status) {
         return userRepository.search(
@@ -323,17 +364,22 @@ public class UserServiceImpl implements IUserService {
         UserModel target = findUser(targetUserId);
         UserStatus oldStatus = target.getStatus();
 
+        // Bảo toàn máy trạng thái cho tài khoản đã xóa mềm (DELETED)
+        if (oldStatus == UserStatus.DELETED) {
+            if (status == UserStatus.DELETED) {
+                throw new ConflictException("Tài khoản đã được xóa mềm trước đó");
+            }
+            if (status != UserStatus.ACTIVE) {
+                throw new ConflictException("Tài khoản đã bị xóa, chỉ có thể khôi phục về trạng thái ACTIVE");
+            }
+        }
+
         if (status == UserStatus.ACTIVE) {
             if (lockedUntil != null) {
                 throw new BadRequestException("Không được thiết lập thời hạn khóa (lockedUntil) khi kích hoạt tài khoản ACTIVE");
             }
         } else if (status == UserStatus.LOCKED) {
-            if (target.getRole() == UserRole.ADMIN) {
-                long activeAdminCount = userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE);
-                if (activeAdminCount <= 1) {
-                    throw new ConflictException("Không thể khóa tài khoản Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống");
-                }
-            }
+            ensureNotLastActiveAdmin(target, oldStatus, "khóa");
             if (reason == null || reason.isBlank()) {
                 throw new BadRequestException("Vui lòng nhập lý do khi khóa tài khoản");
             }
@@ -344,8 +390,17 @@ public class UserServiceImpl implements IUserService {
                 }
             }
         } else if (status == UserStatus.INACTIVE) {
+            ensureNotLastActiveAdmin(target, oldStatus, "chuyển sang trạng thái không hoạt động");
             if (lockedUntil != null) {
                 throw new BadRequestException("Không được thiết lập thời hạn khóa (lockedUntil) đối với trạng thái INACTIVE");
+            }
+        } else if (status == UserStatus.DELETED) {
+            ensureNotLastActiveAdmin(target, oldStatus, "xóa mềm");
+            if (reason == null || reason.isBlank()) {
+                throw new BadRequestException("Vui lòng nhập lý do khi xóa tài khoản");
+            }
+            if (lockedUntil != null) {
+                throw new BadRequestException("Không được thiết lập thời hạn khóa (lockedUntil) khi xóa tài khoản");
             }
         }
 
@@ -353,40 +408,31 @@ public class UserServiceImpl implements IUserService {
         if (status == UserStatus.ACTIVE) {
             target.setFailedLoginCount(0);
             target.setLockedUntil(null);
+            if (oldStatus == UserStatus.INACTIVE || oldStatus == UserStatus.DELETED) {
+                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                target.setVerified(true);
+                target.setLastLoginAt(now);
+                if (target.getEmailVerifiedAt() == null) {
+                    target.setEmailVerifiedAt(now);
+                }
+            }
         } else if (status == UserStatus.LOCKED) {
             target.setLockedUntil(lockedUntil);
-            List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
-            if (!activeSessions.isEmpty()) {
-                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
-                activeSessions.forEach(session -> session.setRevokedAt(now));
-                userSessionRepository.saveAll(activeSessions);
-            }
+            revokeActiveSessions(targetUserId);
         } else if (status == UserStatus.INACTIVE) {
+            // Đánh dấu cần xác thực lại email trước khi đăng nhập
+            target.setVerified(false);
             target.setLockedUntil(null);
-            List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
-            if (!activeSessions.isEmpty()) {
-                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
-                activeSessions.forEach(session -> session.setRevokedAt(now));
-                userSessionRepository.saveAll(activeSessions);
-            }
+            revokeActiveSessions(targetUserId);
+        } else if (status == UserStatus.DELETED) {
+            target.setLockedUntil(null);
+            revokeActiveSessions(targetUserId);
         }
 
         UserModel saved = userRepository.saveAndFlush(target);
 
-        String action;
-        if (status == UserStatus.LOCKED) {
-            action = "USER_LOCKED";
-        } else if (status == UserStatus.ACTIVE) {
-            action = "USER_UNLOCKED";
-        } else {
-            action = "USER_DEACTIVATED";
-        }
-
-        String auditDetail = reason != null && !reason.isBlank() ? reason
-                : (status == UserStatus.LOCKED ? "Khóa tài khoản" : (status == UserStatus.ACTIVE ? "Mở khóa tài khoản" : "Chuyển sang trạng thái chưa kích hoạt"));
-        if (status == UserStatus.LOCKED && lockedUntil != null) {
-            auditDetail += " (Khóa tạm đến: " + lockedUntil.format(DATE_TIME_FORMATTER) + " GMT+7)";
-        }
+        String action = resolveStatusAuditAction(oldStatus, status);
+        String auditDetail = resolveStatusAuditDetail(status, reason, lockedUntil);
 
         auditService.log(
                 actor,
@@ -419,6 +465,9 @@ public class UserServiceImpl implements IUserService {
 
         UserModel actor = findUser(actorId);
         UserModel target = findUser(targetUserId);
+        if (target.getStatus() == UserStatus.DELETED) {
+            throw new ConflictException("Không thể thay đổi vai trò của tài khoản đã bị xóa");
+        }
         UserRole oldRole = target.getRole();
 
         if (oldRole == UserRole.ADMIN && role != UserRole.ADMIN) {
@@ -434,12 +483,7 @@ public class UserServiceImpl implements IUserService {
         target.setRoleEntity(roleEntity);
         UserModel saved = userRepository.saveAndFlush(target);
 
-        List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
-        if (!activeSessions.isEmpty()) {
-            LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
-            activeSessions.forEach(session -> session.setRevokedAt(now));
-            userSessionRepository.saveAll(activeSessions);
-        }
+        revokeActiveSessions(targetUserId);
 
         auditService.log(
                 actor,
@@ -511,6 +555,59 @@ public class UserServiceImpl implements IUserService {
             return path;
         }
         return null;
+    }
+
+    private void ensureNotLastActiveAdmin(UserModel target, UserStatus oldStatus, String actionVerb) {
+        if (target.getRole() == UserRole.ADMIN && oldStatus == UserStatus.ACTIVE) {
+            long activeAdminCount = userRepository.countByRoleNameAndStatus(UserRole.ADMIN.name(), UserStatus.ACTIVE);
+            if (activeAdminCount <= 1) {
+                throw new ConflictException("Không thể " + actionVerb + " tài khoản Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống");
+            }
+        }
+    }
+
+    private void revokeActiveSessions(Long targetUserId) {
+        List<UserSessionModel> activeSessions = userSessionRepository.findByUserIdAndRevokedAtIsNull(targetUserId);
+        if (!activeSessions.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+            activeSessions.forEach(session -> session.setRevokedAt(now));
+            userSessionRepository.saveAll(activeSessions);
+        }
+    }
+
+    private String resolveStatusAuditAction(UserStatus oldStatus, UserStatus newStatus) {
+        return switch (newStatus) {
+            case LOCKED -> "USER_LOCKED";
+            case DELETED -> "USER_DELETED";
+            case INACTIVE -> "USER_DEACTIVATED";
+            case ACTIVE -> {
+                if (oldStatus == UserStatus.DELETED) {
+                    yield "USER_RESTORED";
+                }
+                if (oldStatus == UserStatus.INACTIVE) {
+                    yield "USER_ACTIVATED";
+                }
+                yield "USER_UNLOCKED";
+            }
+        };
+    }
+
+    private String resolveStatusAuditDetail(UserStatus status, String reason, LocalDateTime lockedUntil) {
+        String baseDetail;
+        if (reason != null && !reason.isBlank()) {
+            baseDetail = reason;
+        } else {
+            baseDetail = switch (status) {
+                case LOCKED -> "Khóa tài khoản";
+                case DELETED -> "Xóa mềm tài khoản";
+                case INACTIVE -> "Chuyển sang trạng thái chưa kích hoạt";
+                case ACTIVE -> "Mở khóa tài khoản";
+            };
+        }
+        if (status == UserStatus.LOCKED && lockedUntil != null) {
+            return baseDetail + " (Khóa tạm đến: " + lockedUntil.format(DATE_TIME_FORMATTER) + " GMT+7)";
+        }
+        return baseDetail;
     }
 
     private UserModel findUser(Long userId) {

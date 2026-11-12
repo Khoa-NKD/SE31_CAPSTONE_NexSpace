@@ -46,6 +46,8 @@ public class SecurityConfig {
             "/api/public/**",
             "/api/v1/bookings/calculate-price",
             "/api/bookings/calculate-price",
+            "/api/webhooks/**",
+            "/api/v1/webhooks/**",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",

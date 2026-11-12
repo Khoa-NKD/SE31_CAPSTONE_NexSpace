@@ -1,6 +1,7 @@
 package base.api.feature.workspace.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
@@ -44,6 +45,7 @@ class WorkspaceServiceImplTest {
     private IWorkspaceRepository workspaceRepository;
     private IUserRepository userRepository;
     private base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository operatingHourRepository;
+    private IBookingRepository bookingRepository;
     private WorkspaceServiceImpl service;
 
     private UserModel organizer;
@@ -55,7 +57,8 @@ class WorkspaceServiceImplTest {
         workspaceRepository = mock(IWorkspaceRepository.class);
         userRepository = mock(IUserRepository.class);
         operatingHourRepository = mock(base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository.class);
-        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository);
+        bookingRepository = mock(IBookingRepository.class);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, mock(base.api.feature.resource.service.BuildingService.class));
 
         RoleModel role = new RoleModel();
         role.setName(UserRole.ORGANIZER.name());
@@ -166,7 +169,7 @@ class WorkspaceServiceImplTest {
         assertThat(result.getName()).isEqualTo("NexSpace Innovation Hub");
         assertThat(result.getCategory()).isEqualTo(WorkspaceCategory.CREATIVE_STUDIO);
         assertThat(result.getDescription()).isEqualTo("Mô tả mới nâng cấp");
-        assertThat(result.getAddress()).isEqualTo("456 Nguyễn Huệ");
+        assertThat(result.getAddress()).isEqualTo("Old Address");
         assertThat(result.getAreaSqm()).isEqualByComparingTo(new BigDecimal("750.00"));
         assertThat(result.getSupportPhone()).isEqualTo("0988776655");
         assertThat(result.getBookingConfirmationMode()).isEqualTo(BookingConfirmationMode.MANUAL_APPROVAL);
@@ -248,9 +251,9 @@ class WorkspaceServiceImplTest {
     }
 
     @Test
-    @DisplayName("Cập nhật vòng đời: Tạm dừng thất bại khi workspace chưa ACTIVE (ném 409 Conflict)")
-    void updateLifecycle_pause_conflict_whenNotActive() {
-        // Trạng thái hiện tại là DRAFT, không thể pause
+    @DisplayName("Cập nhật vòng đời: Tạm dừng thất bại khi workspace đang ARCHIVED (ném 409 Conflict)")
+    void updateLifecycle_pause_conflict_whenArchived() {
+        existingWorkspace.setStatus(WorkspaceStatus.ARCHIVED);
         when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
 
         WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
@@ -259,7 +262,7 @@ class WorkspaceServiceImplTest {
 
         assertThatThrownBy(() -> service.updateLifecycle(10L, 100L, dto))
                 .isInstanceOf(ConflictException.class)
-                .hasMessageContaining("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE)");
+                .hasMessageContaining("Không thể chuyển sang trạng thái chờ xử lý từ trạng thái: ARCHIVED");
     }
 
     @Test

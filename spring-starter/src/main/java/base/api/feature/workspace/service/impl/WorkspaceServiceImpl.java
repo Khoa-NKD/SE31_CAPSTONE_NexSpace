@@ -1,9 +1,9 @@
 package base.api.feature.workspace.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
-import base.api.feature.workspace.dto.request.AdminReviewWorkspaceDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
@@ -20,6 +20,7 @@ import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.entity.workspace.WorkspaceOperatingHourModel;
+import base.api.shared.enums.UserStatus;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
@@ -33,8 +34,11 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -54,6 +58,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     private final IWorkspaceRepository workspaceRepository;
     private final IUserRepository userRepository;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
+    private final IBookingRepository bookingRepository;
+    private final base.api.feature.resource.service.BuildingService buildings;
 
     @Override
     public WorkspaceDetailDto createWorkspace(Long organizerId, CreateWorkspaceDto dto) {
@@ -82,6 +88,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new BadRequestException("Không thể cập nhật không gian làm việc đã bị lưu trữ");
         }
 
+        buildings.syncWorkspaceLocation(workspace, false);
         if (dto.getName() != null && !dto.getName().isBlank()) {
             workspace.setName(dto.getName());
         }
@@ -91,21 +98,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         if (dto.getDescription() != null) {
             workspace.setDescription(dto.getDescription());
         }
-        if (dto.getAddress() != null) {
-            workspace.setAddress(dto.getAddress());
-        }
-        if (dto.getDistrict() != null) {
-            workspace.setDistrict(dto.getDistrict());
-        }
-        if (dto.getCity() != null) {
-            workspace.setCity(dto.getCity());
-        }
-        if (dto.getLatitude() != null) {
-            workspace.setLatitude(dto.getLatitude());
-        }
-        if (dto.getLongitude() != null) {
-            workspace.setLongitude(dto.getLongitude());
-        }
+        // Ignore legacy client location fields: the linked building is authoritative.
         if (dto.getAreaSqm() != null) {
             workspace.setAreaSqm(dto.getAreaSqm());
         }
@@ -158,29 +151,62 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         switch (dto.getAction()) {
             case ARCHIVE -> workspace.setStatus(WorkspaceStatus.ARCHIVED);
-            case PAUSE -> {
-                if (workspace.getStatus() != WorkspaceStatus.ACTIVE) {
-                    throw new ConflictException("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE)");
+            case DRAFT -> {
+                if (workspace.getStatus() == WorkspaceStatus.SUSPENDED || workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
+                    throw new ConflictException("Không thể chuyển về bản nháp từ trạng thái: " + workspace.getStatus());
                 }
-                workspace.setStatus(WorkspaceStatus.INACTIVE);
+                workspace.setStatus(WorkspaceStatus.DRAFT);
             }
-            case RESUME -> {
-                if (workspace.getStatus() != WorkspaceStatus.INACTIVE) {
-                    throw new ConflictException("Chỉ có thể mở lại không gian đang tạm ngưng (INACTIVE)");
+            case PENDING, PAUSE -> {
+                if (workspace.getStatus() == WorkspaceStatus.SUSPENDED || workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
+                    throw new ConflictException("Không thể chuyển sang trạng thái chờ xử lý từ trạng thái: " + workspace.getStatus());
                 }
+                if (dto.getAction() == base.api.shared.enums.WorkspaceLifecycleAction.PAUSE
+                        && workspace.getStatus() != WorkspaceStatus.ACTIVE
+                        && workspace.getStatus() != WorkspaceStatus.MAINTENANCE) {
+                    throw new ConflictException("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE) hoặc bảo trì (MAINTENANCE)");
+                }
+                workspace.setStatus(WorkspaceStatus.PENDING);
+                if (workspace.getSubmittedAt() == null) {
+                    workspace.setSubmittedAt(LocalDateTime.now());
+                }
+            }
+            case ACTIVATE, RESUME -> {
+                if (workspace.getStatus() == WorkspaceStatus.SUSPENDED || workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
+                    throw new ConflictException("Không thể kích hoạt không gian ở trạng thái: " + workspace.getStatus());
+                }
+                if (dto.getAction() == base.api.shared.enums.WorkspaceLifecycleAction.RESUME
+                        && workspace.getStatus() != WorkspaceStatus.PENDING
+                        && workspace.getStatus() != WorkspaceStatus.MAINTENANCE
+                        && workspace.getStatus() != WorkspaceStatus.INACTIVE) {
+                    throw new ConflictException("Chỉ có thể mở lại không gian đang ở trạng thái PENDING hoặc MAINTENANCE");
+                }
+                validateRequiredFieldsForActivation(workspace);
+                LocalDateTime now = LocalDateTime.now();
                 workspace.setStatus(WorkspaceStatus.ACTIVE);
+                if (workspace.getSubmittedAt() == null) {
+                    workspace.setSubmittedAt(now);
+                }
+                if (workspace.getReviewedAt() == null) {
+                    workspace.setReviewedAt(now);
+                }
+                workspace.setReviewFeedback(null);
             }
             case MAINTENANCE -> {
-                if (workspace.getStatus() != WorkspaceStatus.ACTIVE && workspace.getStatus() != WorkspaceStatus.INACTIVE) {
+                if (workspace.getStatus() != WorkspaceStatus.ACTIVE
+                        && workspace.getStatus() != WorkspaceStatus.PENDING
+                        && workspace.getStatus() != WorkspaceStatus.MAINTENANCE
+                        && workspace.getStatus() != WorkspaceStatus.INACTIVE) {
                     throw new ConflictException("Không thể bảo trì không gian có trạng thái: " + workspace.getStatus());
                 }
-                workspace.setStatus(WorkspaceStatus.INACTIVE);
+                workspace.setStatus(WorkspaceStatus.MAINTENANCE);
             }
         }
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
+        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
     }
 
     @Override
@@ -192,7 +218,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
 
         Page<WorkspaceModel> page = workspaceRepository.searchByOrganizer(organizerId, status, search, pageable);
-        return page.map(WorkspaceMapper::toDto);
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(page.getContent());
+        return page.map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)));
     }
 
     @Override
@@ -207,7 +234,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                     .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc"));
         }
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
-        return WorkspaceMapper.toDetailDto(workspace, hours);
+        long bookingCount = workspace.getId() != null ? bookingRepository.countByWorkspaceId(workspace.getId()) : 0L;
+        return WorkspaceMapper.toDetailDto(workspace, hours, bookingCount);
     }
 
     @Override
@@ -372,64 +400,40 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId);
         }
 
-        if (workspace.getStatus() != WorkspaceStatus.DRAFT && workspace.getStatus() != WorkspaceStatus.REJECTED) {
-            throw new ConflictException("Chỉ có thể nộp duyệt không gian ở trạng thái DRAFT hoặc REJECTED (trạng thái hiện tại: " + workspace.getStatus() + ")");
+        if (workspace.getStatus() != WorkspaceStatus.DRAFT
+                && workspace.getStatus() != WorkspaceStatus.PENDING
+                && workspace.getStatus() != WorkspaceStatus.MAINTENANCE) {
+            throw new ConflictException("Chỉ có thể đăng kích hoạt không gian ở trạng thái DRAFT, PENDING hoặc MAINTENANCE (trạng thái hiện tại: " + workspace.getStatus() + ")");
         }
 
-        if (workspace.getName() == null || workspace.getName().isBlank()) {
-            throw new BadRequestException("Tên không gian làm việc không được để trống khi gửi duyệt");
-        }
-        if (workspace.getCategory() == null) {
-            throw new BadRequestException("Danh mục không gian làm việc không được để trống khi gửi duyệt");
-        }
-        if (workspace.getAddress() == null || workspace.getAddress().isBlank()) {
-            throw new BadRequestException("Địa chỉ không gian làm việc không được để trống khi gửi duyệt");
-        }
-        if (workspace.getCity() == null || workspace.getCity().isBlank()) {
-            throw new BadRequestException("Thành phố không được để trống khi gửi duyệt");
-        }
+        validateRequiredFieldsForActivation(workspace);
 
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
-        workspace.setSubmittedAt(java.time.LocalDateTime.now());
+        LocalDateTime now = LocalDateTime.now();
+        workspace.setStatus(WorkspaceStatus.ACTIVE);
+        workspace.setSubmittedAt(now);
+        workspace.setReviewedAt(now);
         workspace.setReviewFeedback(null);
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
+        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
     }
 
-    @Override
-    public WorkspaceDetailDto adminReviewWorkspace(Long adminId, Long workspaceId, AdminReviewWorkspaceDto dto) {
-        WorkspaceModel workspace = workspaceRepository.findById(workspaceId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId));
-
-        if (workspace.getStatus() != WorkspaceStatus.PENDING_REVIEW) {
-            throw new ConflictException("Chỉ có thể thẩm định không gian đang ở trạng thái PENDING_REVIEW (trạng thái hiện tại: " + workspace.getStatus() + ")");
+    private void validateRequiredFieldsForActivation(WorkspaceModel workspace) {
+        buildings.syncWorkspaceLocation(workspace, true);
+        if (workspace.getName() == null || workspace.getName().isBlank()) {
+            throw new BadRequestException("Tên không gian làm việc không được để trống khi đăng lên hệ thống");
         }
-
-        UserModel admin = userRepository.findById(adminId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin quản trị viên"));
-
-        if ("Approved".equalsIgnoreCase(dto.getReviewStatus())) {
-            workspace.setStatus(WorkspaceStatus.ACTIVE);
-            workspace.setReviewFeedback(dto.getReviewFeedback());
-            workspace.setReviewedBy(admin);
-            workspace.setReviewedAt(java.time.LocalDateTime.now());
-        } else if ("Rejected".equalsIgnoreCase(dto.getReviewStatus())) {
-            if (dto.getReviewFeedback() == null || dto.getReviewFeedback().trim().length() < 5) {
-                throw new BadRequestException("Lý do từ chối phải có ít nhất 5 ký tự");
-            }
-            workspace.setStatus(WorkspaceStatus.REJECTED);
-            workspace.setReviewFeedback(dto.getReviewFeedback().trim());
-            workspace.setReviewedBy(admin);
-            workspace.setReviewedAt(java.time.LocalDateTime.now());
-        } else {
-            throw new BadRequestException("reviewStatus không hợp lệ (chỉ chấp nhận 'Approved' hoặc 'Rejected')");
+        if (workspace.getCategory() == null) {
+            throw new BadRequestException("Danh mục không gian làm việc không được để trống khi đăng lên hệ thống");
         }
-
-        WorkspaceModel saved = workspaceRepository.save(workspace);
-        List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        if (workspace.getAddress() == null || workspace.getAddress().isBlank()) {
+            throw new BadRequestException("Địa chỉ không gian làm việc không được để trống khi đăng lên hệ thống");
+        }
+        if (workspace.getCity() == null || workspace.getCity().isBlank()) {
+            throw new BadRequestException("Thành phố không được để trống khi đăng lên hệ thống");
+        }
     }
 
     @Override
@@ -458,7 +462,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
+        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
     }
 
     @Override
@@ -480,7 +485,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
+        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
     }
 
     @Override
@@ -493,32 +499,69 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         String cleanSearch = (search != null && !search.isBlank()) ? search.trim() : null;
         String cleanCity = (city != null && !city.isBlank()) ? city.trim() : null;
 
-        return workspaceRepository.searchAdmin(status, cleanCity, cleanSearch, pageable)
-                .map(WorkspaceMapper::toDto);
+        Page<WorkspaceModel> page = workspaceRepository.searchAdmin(status, cleanCity, cleanSearch, pageable);
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(page.getContent());
+        return page.map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)));
     }
 
     @Override
     @Transactional(readOnly = true)
     public AdminWorkspaceKpisDto getAdminWorkspaceKpis() {
-        long total = workspaceRepository.count();
-        long pending = workspaceRepository.countByStatus(WorkspaceStatus.PENDING_REVIEW);
-        long active = workspaceRepository.countByStatus(WorkspaceStatus.ACTIVE);
-        long suspended = workspaceRepository.countByStatus(WorkspaceStatus.SUSPENDED);
+        long totalUsers = userRepository.count();
+        long activeOrganizers = userRepository.countByRoleNameAndStatus("ORGANIZER", UserStatus.ACTIVE);
+        long totalWorkspaces = workspaceRepository.count();
+        long activeWorkspaces = workspaceRepository.countByStatus(WorkspaceStatus.ACTIVE);
+        long pendingCount = workspaceRepository.countByStatus(WorkspaceStatus.PENDING);
+        long maintenanceCount = workspaceRepository.countByStatus(WorkspaceStatus.MAINTENANCE);
+        long draftCount = workspaceRepository.countByStatus(WorkspaceStatus.DRAFT);
+        long suspendedCount = workspaceRepository.countByStatus(WorkspaceStatus.SUSPENDED);
+        long totalBookings = bookingRepository.count();
 
         return AdminWorkspaceKpisDto.builder()
-                .totalWorkspaces(total)
-                .pendingReviewCount(pending)
-                .activeCount(active)
-                .suspendedCount(suspended)
+                .totalPlatformUsers(totalUsers)
+                .activeOrganizers(activeOrganizers)
+                .activeWorkspaces(activeWorkspaces)
+                .totalBookings(totalBookings)
+                .totalWorkspaces(totalWorkspaces)
+                .activeCount(activeWorkspaces)
+                .pendingCount(pendingCount)
+                .maintenanceCount(maintenanceCount)
+                .draftCount(draftCount)
+                .suspendedCount(suspendedCount)
                 .build();
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<WorkspaceDto> getFeaturedWorkspaces() {
-        return workspaceRepository.findFeaturedWorkspaces(WorkspaceStatus.ACTIVE)
-                .stream()
-                .map(WorkspaceMapper::toDto)
+        List<WorkspaceModel> featured = workspaceRepository.findFeaturedWorkspaces(WorkspaceStatus.ACTIVE);
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(featured);
+        return featured.stream()
+                .map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)))
                 .toList();
+    }
+
+    private Map<Long, Long> getBookingCountsForPage(Collection<WorkspaceModel> workspaces) {
+        if (workspaces == null || workspaces.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = workspaces.stream()
+                .map(WorkspaceModel::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = bookingRepository.countBookingsByWorkspaceIds(ids);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, Long> counts = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number wsId && row[1] instanceof Number cnt) {
+                counts.put(wsId.longValue(), cnt.longValue());
+            }
+        }
+        return counts;
     }
 }

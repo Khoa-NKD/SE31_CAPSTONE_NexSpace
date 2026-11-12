@@ -1,5 +1,6 @@
 package base.api.feature.auth.controller;
 
+import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateAvatarDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
@@ -66,5 +67,12 @@ public class UserController extends BaseAPIController {
     @DeleteMapping("/me/avatar")
     public ResponseEntity<ApiResponse<UserDto>> deleteMyAvatar() {
         return success(userService.deleteAvatar(getCurrentUserId()), "Xóa ảnh đại diện thành công");
+    }
+
+    @Operation(summary = "Tự xóa tài khoản cá nhân", description = "Người dùng tự xóa tài khoản của chính mình. Yêu cầu nhập mật khẩu xác nhận, tài khoản chuyển sang trạng thái DELETED và thu hồi phiên đăng nhập.")
+    @DeleteMapping("/me")
+    public ResponseEntity<ApiResponse<Void>> deleteMyAccount(@Valid @RequestBody DeleteAccountDto dto) {
+        userService.deleteMyAccount(getCurrentUserId(), dto);
+        return success(null, "Tài khoản của bạn đã được xóa thành công");
     }
 }

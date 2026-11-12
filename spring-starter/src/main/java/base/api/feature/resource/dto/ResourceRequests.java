@@ -135,7 +135,16 @@ public final class ResourceRequests {
             @DecimalMin("0.01") @Digits(integer = 16, fraction = 2) BigDecimal pricePerDay,
             @DecimalMin("0.01") @Digits(integer = 16, fraction = 2) BigDecimal pricePerMonth,
             @Size(max = 100) String expectedRevision,
-            boolean legacyCurrencyConfirmed) {
+            boolean legacyCurrencyConfirmed,
+            ResourceUsageKind usageKind,
+            @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardWidthM,
+            @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardLengthM) {
+        public Type(String name, ResourceCategory category, ResourceCurrency currency, int capacity,
+                BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth,
+                String expectedRevision, boolean legacyCurrencyConfirmed) {
+            this(name, category, currency, capacity, pricePerHour, pricePerDay, pricePerMonth, expectedRevision,
+                legacyCurrencyConfirmed, null, null, null);
+        }
         public Type {
             name = trim(name);
         }

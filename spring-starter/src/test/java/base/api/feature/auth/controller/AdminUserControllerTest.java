@@ -38,6 +38,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -450,5 +451,26 @@ class AdminUserControllerTest {
                                 .andExpect(jsonPath("$.success").value(false))
                                 .andExpect(jsonPath("$.statusCode").value(409))
                                 .andExpect(jsonPath("$.message").value("Không thể hạ quyền Quản trị viên (ADMIN) đang hoạt động duy nhất trong hệ thống"));
+        }
+
+        @Test
+        @DisplayName("DELETE /api/admin/users/{id} - Xóa mềm tài khoản người dùng thành công")
+        void softDeleteUser_Success() throws Exception {
+                UserDto deletedDto = UserDto.builder()
+                                .id(10L)
+                                .userName("old_user")
+                                .status(UserStatus.DELETED)
+                                .build();
+
+                when(userService.updateUserStatus(eq(1L), eq(10L), eq(UserStatus.DELETED),
+                                eq("Vi phạm điều khoản"), eq(null)))
+                                .thenReturn(deletedDto);
+
+                mockMvc.perform(delete("/api/admin/users/10")
+                                .param("reason", "Vi phạm điều khoản"))
+                                .andExpect(status().isOk())
+                                .andExpect(jsonPath("$.success").value(true))
+                                .andExpect(jsonPath("$.message").value("Xóa mềm tài khoản thành công"))
+                                .andExpect(jsonPath("$.data.status").value("DELETED"));
         }
 }

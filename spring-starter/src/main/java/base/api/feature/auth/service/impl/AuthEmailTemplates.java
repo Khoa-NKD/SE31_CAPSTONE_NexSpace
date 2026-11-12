@@ -17,6 +17,15 @@ final class AuthEmailTemplates {
                 "Link sẽ hết hạn sau " + ttlHours + " giờ.");
     }
 
+    static String reverifyInactiveAccount(String name, String verifyUrl, long inactiveDays, long ttlHours) {
+        return layout("Xác thực lại tài khoản không hoạt động", name,
+                "<p>Tài khoản của bạn đã không đăng nhập quá <strong>" + inactiveDays
+                        + " ngày</strong> và vừa được chuyển sang trạng thái tạm ngưng (<strong>INACTIVE</strong>) để bảo vệ an toàn tài khoản.</p>"
+                        + "<p>Vui lòng nhấn nút bên dưới để xác thực lại email và kích hoạt lại tài khoản trước khi đăng nhập.</p>",
+                "Xác thực lại email", verifyUrl,
+                "Link sẽ hết hạn sau " + ttlHours + " giờ.");
+    }
+
     static String resetPassword(String name, String resetUrl, long ttlMinutes) {
         return layout("Đặt lại mật khẩu", name,
                 "<p>Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản của bạn.</p>",

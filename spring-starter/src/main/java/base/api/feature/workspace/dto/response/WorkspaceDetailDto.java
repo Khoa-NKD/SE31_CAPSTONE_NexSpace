@@ -42,6 +42,8 @@ public class WorkspaceDetailDto {
     LocalDateTime featuredUntil;
     Long organizerId;
     String organizerName;
+    Long bookingCount;
+    Long totalBookings;
     List<WorkspaceOperatingHourDto> operatingHours;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;

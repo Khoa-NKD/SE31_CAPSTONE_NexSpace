@@ -1,6 +1,7 @@
 package base.api.feature.auth.service;
 
 import base.api.feature.auth.dto.request.ChangePasswordDto;
+import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.shared.dto.PageRequestDTO;
@@ -38,4 +39,6 @@ public interface IUserService {
     UserDto updateUserStatus(Long actorId, Long targetUserId, UserStatus status, String reason, LocalDateTime lockedUntil);
 
     UserDto updateUserRole(Long actorId, Long targetUserId, UserRole role, String reason);
+
+    void deleteMyAccount(Long userId, DeleteAccountDto dto);
 }

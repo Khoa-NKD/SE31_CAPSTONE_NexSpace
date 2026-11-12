@@ -52,12 +52,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             throws ServletException, IOException {
 
         String header = request.getHeader(HttpHeaders.AUTHORIZATION);
-        if (header == null || !header.startsWith(BEARER_PREFIX)) {
+        String token = null;
+        if (header != null && header.startsWith(BEARER_PREFIX)) {
+            token = header.substring(BEARER_PREFIX.length());
+        } else {
+            // Fallback for file downloads (window.open or <a> tags)
+            String paramToken = request.getParameter("token");
+            if (paramToken == null) {
+                paramToken = request.getParameter("accessToken");
+            }
+            if (paramToken != null && !paramToken.isBlank()) {
+                token = paramToken.trim();
+            }
+        }
+
+        if (token == null) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        String token = header.substring(BEARER_PREFIX.length());
         try {
             Long userId = jwtUtil.extractUserId(token);
             if (userId == null || tokenRevocationService.isRevoked(token)) {

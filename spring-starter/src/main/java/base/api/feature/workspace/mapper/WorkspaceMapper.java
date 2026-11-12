@@ -29,11 +29,7 @@ public final class WorkspaceMapper {
         model.setName(dto.getName());
         model.setCategory(dto.getCategory());
         model.setDescription(dto.getDescription());
-        model.setAddress(dto.getAddress());
-        model.setDistrict(dto.getDistrict());
-        model.setCity(dto.getCity());
-        model.setLatitude(dto.getLatitude());
-        model.setLongitude(dto.getLongitude());
+        // Draft location is supplied only by an owned building/floor allocation.
         model.setAreaSqm(dto.getAreaSqm());
         model.setSupportPhone(dto.getSupportPhone());
         model.setEntryInstructions(dto.getEntryInstructions());
@@ -45,10 +41,14 @@ public final class WorkspaceMapper {
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace) {
-        return toDto(workspace, null);
+        return toDto(workspace, null, 0L);
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace, Double distanceKm) {
+        return toDto(workspace, distanceKm, 0L);
+    }
+
+    public static WorkspaceDto toDto(WorkspaceModel workspace, Double distanceKm, Long bookingCount) {
         if (workspace == null) {
             return null;
         }
@@ -72,18 +72,18 @@ public final class WorkspaceMapper {
                 reviewStatus = "Draft";
                 operatingStatus = "Inactive";
             }
-            case PENDING_REVIEW -> {
+            case PENDING -> {
                 reviewStatus = "Pending";
-                operatingStatus = "Inactive";
-            }
-            case REJECTED -> {
-                reviewStatus = "Rejected";
-                operatingStatus = "Inactive";
+                operatingStatus = "Pending";
             }
             case ACTIVE -> {
                 reviewStatus = "Approved";
                 operatingStatus = "Active";
                 isListingVisible = true;
+            }
+            case MAINTENANCE -> {
+                reviewStatus = "Approved";
+                operatingStatus = "Maintenance";
             }
             case INACTIVE -> {
                 reviewStatus = "Approved";
@@ -106,6 +106,7 @@ public final class WorkspaceMapper {
         }
 
         Double roundedDistance = distanceKm != null ? Math.round(distanceKm * 100.0) / 100.0 : null;
+        long safeBookingCount = bookingCount != null ? bookingCount : 0L;
 
         return WorkspaceDto.builder()
                 .id(workspace.getId())
@@ -136,16 +137,25 @@ public final class WorkspaceMapper {
                 .featuredUntil(workspace.getFeaturedUntil())
                 .organizerId(organizerId)
                 .organizerName(organizerName)
+                .bookingCount(safeBookingCount)
+                .totalBookings(safeBookingCount)
                 .createdAt(workspace.getCreatedAt())
                 .updatedAt(workspace.getUpdatedAt())
                 .build();
     }
 
     public static WorkspaceDetailDto toDetailDto(WorkspaceModel workspace) {
-        return toDetailDto(workspace, Collections.emptyList());
+        return toDetailDto(workspace, Collections.emptyList(), 0L);
     }
 
     public static WorkspaceDetailDto toDetailDto(WorkspaceModel workspace, List<WorkspaceOperatingHourModel> operatingHours) {
+        return toDetailDto(workspace, operatingHours, 0L);
+    }
+
+    public static WorkspaceDetailDto toDetailDto(
+            WorkspaceModel workspace,
+            List<WorkspaceOperatingHourModel> operatingHours,
+            Long bookingCount) {
         if (workspace == null) {
             return null;
         }
@@ -169,18 +179,18 @@ public final class WorkspaceMapper {
                 reviewStatus = "Draft";
                 operatingStatus = "Inactive";
             }
-            case PENDING_REVIEW -> {
+            case PENDING -> {
                 reviewStatus = "Pending";
-                operatingStatus = "Inactive";
-            }
-            case REJECTED -> {
-                reviewStatus = "Rejected";
-                operatingStatus = "Inactive";
+                operatingStatus = "Pending";
             }
             case ACTIVE -> {
                 reviewStatus = "Approved";
                 operatingStatus = "Active";
                 isListingVisible = true;
+            }
+            case MAINTENANCE -> {
+                reviewStatus = "Approved";
+                operatingStatus = "Maintenance";
             }
             case INACTIVE -> {
                 reviewStatus = "Approved";
@@ -205,6 +215,7 @@ public final class WorkspaceMapper {
         List<WorkspaceOperatingHourDto> hourDtos = operatingHours != null
                 ? operatingHours.stream().map(WorkspaceMapper::toOperatingHourDto).toList()
                 : Collections.emptyList();
+        long safeBookingCount = bookingCount != null ? bookingCount : 0L;
 
         return WorkspaceDetailDto.builder()
                 .id(workspace.getId())
@@ -236,6 +247,8 @@ public final class WorkspaceMapper {
                 .featuredUntil(workspace.getFeaturedUntil())
                 .organizerId(organizerId)
                 .organizerName(organizerName)
+                .bookingCount(safeBookingCount)
+                .totalBookings(safeBookingCount)
                 .operatingHours(hourDtos)
                 .createdAt(workspace.getCreatedAt())
                 .updatedAt(workspace.getUpdatedAt())

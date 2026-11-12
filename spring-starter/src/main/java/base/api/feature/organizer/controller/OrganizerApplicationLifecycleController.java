@@ -24,7 +24,7 @@ public class OrganizerApplicationLifecycleController extends BaseAPIController {
     @GetMapping("/api/admin/organizer-applications/{id}/lifecycle") @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> adminContext(@PathVariable Long id) { return success(service.adminContext(getCurrentUserId(), id)); }
     @PostMapping("/api/admin/organizer-applications/{id}/approve") @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> approve(@PathVariable Long id, @Valid @RequestBody Approval request) { return success(service.approve(getCurrentUserId(), id, request), "Organizer application approved"); }
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> approve(@PathVariable Long id, @Valid @RequestBody Approval request) { return success(service.approve(getCurrentUserId(), id, request), "Documents approved; agreement signature required before Organizer activation"); }
     @PostMapping("/api/admin/organizer-applications/{id}/reject") @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> reject(@PathVariable Long id, @Valid @RequestBody Rejection request) { return success(service.reject(getCurrentUserId(), id, request), "Organizer application rejected"); }
     @GetMapping("/api/organizer/applications/current/lifecycle") @PreAuthorize("hasAnyRole('USER','ORGANIZER')")

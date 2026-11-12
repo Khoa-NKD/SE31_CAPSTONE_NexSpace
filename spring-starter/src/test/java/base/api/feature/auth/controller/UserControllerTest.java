@@ -1,5 +1,6 @@
 package base.api.feature.auth.controller;
 
+import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateAvatarDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.request.UpdateProfileMultipartDto;
@@ -301,5 +302,35 @@ class UserControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Xóa ảnh đại diện thành công"))
                 .andExpect(jsonPath("$.data.avatar").isEmpty());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/me tự xóa tài khoản cá nhân thành công")
+    void deleteMyAccount_Success() throws Exception {
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("Secret@123")
+                .reason("Không còn nhu cầu sử dụng")
+                .build();
+
+        mockMvc.perform(delete("/api/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Tài khoản của bạn đã được xóa thành công"));
+    }
+
+    @Test
+    @DisplayName("DELETE /api/users/me thiếu mật khẩu trả về 400 Bad Request")
+    void deleteMyAccount_MissingPassword_Returns400() throws Exception {
+        DeleteAccountDto dto = DeleteAccountDto.builder()
+                .password("")
+                .build();
+
+        mockMvc.perform(delete("/api/users/me")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.success").value(false));
     }
 }

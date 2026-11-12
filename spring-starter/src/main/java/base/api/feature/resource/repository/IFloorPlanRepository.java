@@ -9,6 +9,8 @@ import java.util.List;
 
 @Repository
 public interface IFloorPlanRepository extends JpaRepository<FloorPlanModel, Long> {
+    @org.springframework.data.jpa.repository.Query("select distinct f.workspace.id from FloorPlanModel f where f.buildingFloor.building.id = :buildingId order by f.workspace.id")
+    List<Long> findWorkspaceIdsByBuildingId(@org.springframework.data.repository.query.Param("buildingId") Long buildingId);
     @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"workspace", "buildingFloor", "buildingFloor.building"})
     List<FloorPlanModel> findByBuildingFloorId(Long buildingFloorId);
 

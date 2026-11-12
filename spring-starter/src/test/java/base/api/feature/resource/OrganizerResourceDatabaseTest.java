@@ -29,6 +29,7 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.math.BigDecimal;
 import java.time.*;
+import java.util.List;
 
 /** Explicit in-memory H2 configuration: never imports Local or starts seeds/mail. */
 @DataJpaTest(
@@ -54,6 +55,101 @@ import java.time.*;
     OrganizerResourceDatabaseTest.TestClock.class
 })
 class OrganizerResourceDatabaseTest {
+
+    @Test
+    void allocationInheritsBuildingLocationAndRemovingLastDraftAllocationClearsIt() {
+        workspace.setStatus(WorkspaceStatus.DRAFT); em.flush();
+        var area = allocation(1);
+        var revision = service.floorLayout(owner.getId(), workspace.getId(), floor.getId()).floor().revision();
+        var linked = buildings.attach(owner.getId(), workspace.getId(), floor.getId(),
+                new base.api.feature.resource.dto.BuildingRequests.Allocation(area.buildingFloorId(), area.x(), area.y(), area.width(), area.height(), area.name(), revision));
+        em.flush();
+        assertThat(workspace.getAddress()).isEqualTo("Test address");
+        assertThat(workspace.getCity()).isEqualTo("Đà Nẵng");
+        assertThat(workspace.getDistrict()).isEqualTo("Ngũ Hành Sơn");
+        assertThat(workspace.getLatitude()).isEqualByComparingTo("16.05");
+        var neighbor = new WorkspaceModel();
+        neighbor.setOrganizer(owner);
+        neighbor.setName("East wing workspace");
+        neighbor.setStatus(WorkspaceStatus.DRAFT);
+        em.persist(neighbor);
+        em.flush();
+        buildings.attach(owner.getId(), neighbor.getId(), null,
+                new base.api.feature.resource.dto.BuildingRequests.Allocation(
+                        area.buildingFloorId(), new BigDecimal("1200"), BigDecimal.ZERO,
+                        area.width(), area.height(), "East wing", null));
+        var source = buildings.catalog(owner.getId()).get(0);
+        buildings.updateBuilding(owner.getId(), source.id(), new base.api.feature.resource.dto.BuildingRequests.Building(
+                source.name(), "Updated building address", source.revision(),
+                new BigDecimal("10.78"), new BigDecimal("106.70"), null, "Hồ Chí Minh", "Bến Thành"));
+        em.flush();
+        em.refresh(workspace);
+        em.refresh(neighbor);
+        assertThat(List.of(workspace, neighbor)).allSatisfy(updated -> {
+            assertThat(updated.getAddress()).isEqualTo("Updated building address");
+            assertThat(updated.getCity()).isEqualTo("Hồ Chí Minh");
+            assertThat(updated.getDistrict()).isEqualTo("Bến Thành");
+            assertThat(updated.getLatitude()).isEqualByComparingTo("10.78");
+            assertThat(updated.getLongitude()).isEqualByComparingTo("106.70");
+        });
+        service.deleteFloor(owner.getId(), workspace.getId(), linked.id(), linked.revision());
+        assertThat(workspace.getAddress()).isNull();
+        assertThat(workspace.getLatitude()).isNull();
+        assertThat(neighbor.getAddress()).isEqualTo("Updated building address");
+    }
+
+    @Test
+    void activationRequiresABuildingAllocation() {
+        assertThatThrownBy(() -> buildings.syncWorkspaceLocation(workspace, true)).isInstanceOf(BadRequestException.class);
+    }
+
+    @Test
+    void incompleteBuildingCannotBeLinked() {
+        var id = buildings.createBuilding(owner.getId(), new base.api.feature.resource.dto.BuildingRequests.Building("Old building", "Old address", null));
+        var physicalId = buildings.createPhysicalFloor(owner.getId(), id,
+                new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor 2", 2, new BigDecimal("1200"), new BigDecimal("800"), null));
+        assertThatThrownBy(() -> buildings.attach(owner.getId(), workspace.getId(), null,
+                new base.api.feature.resource.dto.BuildingRequests.Allocation(physicalId, BigDecimal.ZERO, BigDecimal.ZERO, new BigDecimal("1200"), new BigDecimal("800"), "Area", null)))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("Complete the building address");
+    }
+
+    @Test
+    void creatingBuildingCanCreateItsNumberedEmptyFloors() {
+        var id = buildings.createBuilding(owner.getId(), new base.api.feature.resource.dto.BuildingRequests.Building(
+                "Multi-floor building", "82 Nguyen Van Thoai", null, null, null, 3));
+        em.flush(); em.clear();
+        var saved = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+        assertThat(saved.floors()).extracting(base.api.feature.resource.dto.BuildingResponses.PhysicalFloor::floorNumber)
+                .containsExactly(1, 2, 3);
+        assertThat(saved.floors()).allSatisfy(floor -> {
+            assertThat(floor.occupants()).isEmpty();
+            assertThat(floor.width()).isEqualByComparingTo("1200");
+            assertThat(floor.height()).isEqualByComparingTo("800");
+        });
+    }
+
+    @Test
+    void buildingCoordinatesPersistAndLegacyAddressEditsInvalidateOldPins() {
+        var id = buildings.createBuilding(owner.getId(), new base.api.feature.resource.dto.BuildingRequests.Building(
+                "Innovation Hub", "82 Nguyen Van Thoai", null, new BigDecimal("16.05440000"), new BigDecimal("108.20220000")));
+        em.clear();
+        var saved = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+        assertThat(saved.latitude()).isEqualByComparingTo("16.0544");
+        assertThat(saved.longitude()).isEqualByComparingTo("108.2022");
+        assertThat(saved.floors()).isEmpty();
+        buildings.updateBuilding(owner.getId(), id, new base.api.feature.resource.dto.BuildingRequests.Building(
+                "Renamed Hub", saved.address(), saved.revision()));
+        em.flush(); em.clear();
+        saved = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+        assertThat(saved.latitude()).isEqualByComparingTo("16.0544");
+        buildings.updateBuilding(owner.getId(), id, new base.api.feature.resource.dto.BuildingRequests.Building(
+                saved.name(), "A different street", saved.revision()));
+        em.flush(); em.clear();
+        saved = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+        assertThat(saved.latitude()).isNull();
+        assertThat(saved.longitude()).isNull();
+        assertThat(buildings.catalog(other.getId())).noneMatch(b -> b.id().equals(id));
+    }
 
     @Test
     void resourceBatchCanUpdateDeskBeforeItsParentRoom() {
@@ -96,6 +192,37 @@ class OrganizerResourceDatabaseTest {
         assertThatThrownBy(() -> service.saveBatch(owner.getId(), workspace.getId(), floor.getId(),
                 new Batch(revision, java.util.List.of(new BatchItem("again", null, null, roomInput)), null)))
                 .isInstanceOf(ConflictException.class);
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = FloorPlanStatus.class, names = {"DRAFT", "PUBLISHED"})
+    void canvasBatchChecksFinalFurniturePositionsWhenOptionalDeskFieldsAreBlank(FloorPlanStatus status) {
+        floor.setStatus(status);
+        var desk = service.create(owner.getId(), workspace.getId(), new Input(
+                floor.getId(), type.getId(), "CANVAS-DESK", "Canvas desk", null, null, null, null,
+                null, new BigDecimal("20"), new BigDecimal("100"), new BigDecimal("40"),
+                new BigDecimal("40"), BigDecimal.ZERO, null));
+        var bounds = ResourceCanvas.read(floor);
+        var oldTable = tableDecoration("Table", "200");
+        var movedTable = tableDecoration("Table", "400");
+        if (status == FloorPlanStatus.DRAFT) {
+            floor.setLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, List.of(oldTable), false));
+        }
+        floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, List.of(oldTable)));
+        em.flush();
+        var layout = service.floorLayout(owner.getId(), workspace.getId(), floor.getId());
+        var movedDesk = new Input(floor.getId(), type.getId(), desk.code(), desk.name(), "", null,
+                null, null, "", new BigDecimal("200"), new BigDecimal("100"),
+                desk.width(), desk.height(), BigDecimal.ZERO, desk.revision());
+
+        service.saveBatch(owner.getId(), workspace.getId(), floor.getId(), new Batch(
+                layout.floor().revision(), List.of(new BatchItem("desk", desk.id(), null, movedDesk)),
+                List.of(movedTable)));
+
+        var saved = service.floorLayout(owner.getId(), workspace.getId(), floor.getId());
+        assertThat(saved.resources().get(0).posX()).isEqualByComparingTo("200");
+        assertThat(saved.decorations().get(0).posX()).isEqualByComparingTo("400");
+        assertThat(service.detail(owner.getId(), desk.id()).description()).isNull();
     }
 
     @Test
@@ -342,6 +469,9 @@ class OrganizerResourceDatabaseTest {
                                 service.deleteFloor(
                                         owner.getId(), workspace.getId(), blank.id(), "stale"))
                 .isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> service.deleteFloor(owner.getId(), workspace.getId(), blank.id(), blank.revision()))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("Pause this workspace");
+        workspace.setStatus(WorkspaceStatus.PENDING); em.flush();
         service.deleteFloor(owner.getId(), workspace.getId(), blank.id(), blank.revision());
         assertThat(em.find(FloorPlanModel.class, blank.id())).isNull();
         var resource = service.create(owner.getId(), workspace.getId(), input("RETAINED", null));
@@ -607,7 +737,8 @@ class OrganizerResourceDatabaseTest {
     base.api.feature.resource.dto.BuildingRequests.Allocation allocation(int number) {
         var catalog = buildings.catalog(owner.getId());
         Long buildingId = catalog.isEmpty() ? buildings.createBuilding(owner.getId(),
-            new base.api.feature.resource.dto.BuildingRequests.Building("Test building", "Test address", null)) : catalog.get(0).id();
+            new base.api.feature.resource.dto.BuildingRequests.Building("Test building", "Test address", null,
+                    new BigDecimal("16.05"), new BigDecimal("108.24"), null, "Đà Nẵng", "Ngũ Hành Sơn")) : catalog.get(0).id();
         var existing = buildings.catalog(owner.getId()).get(0).floors().stream().filter(f -> f.floorNumber() == number).findFirst();
         Long physicalId = existing.isPresent() ? existing.get().id() : buildings.createPhysicalFloor(owner.getId(), buildingId,
             new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor " + number, number,
@@ -696,7 +827,7 @@ class OrganizerResourceDatabaseTest {
     @ParameterizedTest
     @EnumSource(
             value = WorkspaceStatus.class,
-            names = {"PENDING_REVIEW", "REJECTED", "SUSPENDED", "ARCHIVED"})
+            names = {"SUSPENDED", "ARCHIVED"})
     void readOnlyWorkspaceStatesRejectAllConfigurationWrites(WorkspaceStatus status) {
         var created = service.create(owner.getId(), workspace.getId(), input("LOCKED-01", null));
         var newFloor =
@@ -1307,7 +1438,9 @@ class OrganizerResourceDatabaseTest {
                                         owner.getId(),
                                         workspace.getId(),
                                         deskIn(room.id(), "SEAT-02", null)))
-                .isInstanceOf(ConflictException.class);
+                .isInstanceOf(ConflictException.class)
+                .hasMessageContaining("SEAT-02 overlaps SEAT-01")
+                .hasMessageNotContaining("room");
     }
 
     @Test
@@ -1634,7 +1767,7 @@ class OrganizerResourceDatabaseTest {
                                                 java.util.List.of(
                                                         tableDecoration("Table", "1190")))))
                 .isInstanceOf(ConflictException.class);
-        workspace.setStatus(WorkspaceStatus.PENDING_REVIEW);
+        workspace.setStatus(WorkspaceStatus.SUSPENDED);
         em.flush();
         assertThatThrownBy(
                         () ->

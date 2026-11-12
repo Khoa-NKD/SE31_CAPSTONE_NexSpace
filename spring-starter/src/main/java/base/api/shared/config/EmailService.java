@@ -21,6 +21,29 @@ public class EmailService {
     @Value("${spring.mail.username:}")
     private String fromEmail;
 
+    public boolean isConfigured() {
+        return fromEmail != null && !fromEmail.isBlank();
+    }
+
+    /** Required verification messages must report failure to the caller and never log their contents. */
+    public void sendRequiredHtmlEmail(String to, String subject, String htmlContent) {
+        if (!isConfigured()) {
+            throw new IllegalStateException("Email delivery is not configured. Please contact support.");
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+            helper.setFrom(fromEmail);
+            mailSender.send(message);
+        } catch (MessagingException | MailException exception) {
+            // Provider exceptions can include recipients or authentication details.
+            throw new IllegalStateException("Email could not be delivered. Please try again later.");
+        }
+    }
+
     /** Gửi bất đồng bộ; lỗi SMTP chỉ được log, không làm fail request. */
     @Async("emailExecutor")
     public void sendHtmlEmail(String to, String subject, String htmlContent) {

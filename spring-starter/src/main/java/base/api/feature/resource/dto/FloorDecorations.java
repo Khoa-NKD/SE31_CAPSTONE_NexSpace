@@ -20,6 +20,7 @@ public final class FloorDecorations {
         PARTITION,
         OTHER
     }
+    public enum Icon { TABLE, PLANT, PARTITION, BOX, LOCKER, SOFA, SHELF, PRINTER, SCREEN, COFFEE, WHITEBOARD, LAMP, FAN, AIR_CONDITIONER, TRASH, SPEAKER, CLOCK, REFRIGERATOR, WATER_DISPENSER, ROUTER, TOILET, SINK, PROJECTOR, VIDEO_CONFERENCE, STAIRS, ELEVATOR, FIRE_EXTINGUISHER, DOOR, ACCESSIBILITY, MICROWAVE, SHOWER, BED, CAMERA, PHONE }
 
     public record Item(
             @NotBlank @Pattern(regexp = "[A-Za-z0-9_-]{1,64}") String id,
@@ -31,7 +32,10 @@ public final class FloorDecorations {
             @NotNull @DecimalMin("0.01") @Digits(integer = 6, fraction = 2) BigDecimal height,
             @NotNull @DecimalMin("0") @DecimalMax("359.99") @Digits(integer = 3, fraction = 2)
                     BigDecimal rotation,
-            @NotNull @Pattern(regexp = "#[0-9A-Fa-f]{6}") String color) {
+            @NotNull @Pattern(regexp = "#[0-9A-Fa-f]{6}") String color, Icon icon) {
+        public Item(String id, Kind kind, String label, BigDecimal posX, BigDecimal posY, BigDecimal width, BigDecimal height, BigDecimal rotation, String color) {
+            this(id, kind, label, posX, posY, width, height, rotation, color, null);
+        }
         @JsonAnySetter
         public void unsupported(String name, Object value) {
             throw new IllegalArgumentException("Unsupported decoration field");

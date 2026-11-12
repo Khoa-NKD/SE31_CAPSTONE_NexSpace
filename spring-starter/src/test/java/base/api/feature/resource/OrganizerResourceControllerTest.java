@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @WebMvcTest(
         value = {
             OrganizerResourceController.class,
+            base.api.feature.resource.controller.OrganizerFloorDesignController.class,
             base.api.feature.resource.controller.OrganizerBuildingController.class,
             base.api.feature.resource.controller.PublicFloorMapController.class
         },
@@ -42,6 +43,8 @@ class OrganizerResourceControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean OrganizerResourceService service;
+    @MockitoBean base.api.feature.resource.service.FloorDesignService design;
+    @MockitoBean base.api.feature.resource.service.FloorAiService ai;
     @MockitoBean base.api.feature.resource.service.BuildingService buildings;
     @MockitoBean base.api.feature.resource.service.PublicFloorMapService publicMaps;
     @MockitoBean JwtUtil jwt;
@@ -54,6 +57,22 @@ class OrganizerResourceControllerTest {
         user.setUserName("test");
         user.setRoleEntity(new RoleModel(role, null));
         return new AuthUser(user);
+    }
+
+    @Test
+    void aiEndpointsRequireOrganizerAndTakeActorFromAuthentication() throws Exception {
+        String path = "/api/organizer/workspaces/1/resource-floors/2/ai/status";
+        mvc.perform(get(path)).andExpect(status().isUnauthorized());
+        for (String role : new String[]{"USER", "ADMIN"})
+            mvc.perform(get(path).with(user(actor(role)))).andExpect(status().isForbidden());
+        when(ai.status(7L, 1L, 2L)).thenReturn(new base.api.feature.resource.dto.FloorDesign.Status(false, "test"));
+        mvc.perform(get(path).with(user(actor("ORGANIZER")))).andExpect(status().isOk());
+        verify(ai).status(7L, 1L, 2L);
+        mvc.perform(post("/api/organizer/workspaces/1/resource-floors/2/ai/proposals")
+                .with(user(actor("ORGANIZER"))).contentType(MediaType.APPLICATION_JSON)
+                .content("{\"prompt\":\"\",\"scope\":\"WORKSPACE\",\"expectedRevision\":\"initial\"}"))
+                .andExpect(status().isBadRequest());
+        verifyNoMoreInteractions(ai);
     }
 
     @Test

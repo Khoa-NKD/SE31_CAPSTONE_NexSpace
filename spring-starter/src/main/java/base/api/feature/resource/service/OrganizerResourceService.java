@@ -74,7 +74,7 @@ public class OrganizerResourceService {
                                                 t.getPricePerMonth(),
                                                 t.isActive(),
                                                 t.getCurrency(),
-                                                ResourceResponses.revision(t)))
+                                                ResourceResponses.revision(t), t.getUsageKind(), t.getStandardWidthM(), t.getStandardLengthM()))
                         .toList(),
                 resources
                         .findByFloorPlanWorkspaceIdAndResourceTypeCategoryAndStatusNot(
@@ -183,7 +183,8 @@ public class OrganizerResourceService {
                                                 r.getResourceType().getCategory(),
                                                 r.getParentRoom() == null
                                                         ? null
-                                                        : r.getParentRoom().getId()))
+                                                        : r.getParentRoom().getId(),
+                                                r.getResourceType().getId(), capacity(r)))
                         .toList();
         return new FloorLayout(
                 ResourceResponses.floorOption(floor),
@@ -317,6 +318,20 @@ public class OrganizerResourceService {
         for (var item : request.items())
             if (item.parentClientId() != null && !byClient.containsKey(item.parentClientId()))
                 throw new BadRequestException("Temporary parent room not found");
+        // A canvas draft edits the final scene, so swaps must not be rejected against intermediate positions.
+        if (request.items().stream().allMatch(item -> item.id() != null && item.parentClientId() == null
+                && geometryOnly(resources.findById(item.id()).orElseThrow(), item.input()))) {
+            var changes = request.items().stream().map(item -> {
+                var input = item.input();
+                return new base.api.feature.resource.dto.FloorDesign.ResourceChange("r_" + item.id(), item.id(), input.resourceTypeId(), input.name(),
+                        input.parentRoomId() == null ? null : "r_" + input.parentRoomId(), input.capacityOverride(),
+                        input.posX(), input.posY(), input.width(), input.height(), input.rotation());
+            }).toList();
+            saveAiDesign(actorId, workspaceId, floorId, request.expectedFloorRevision(),
+                    new base.api.feature.resource.dto.FloorDesign.Design("Manual canvas draft", null, changes, List.of(),
+                            request.decorations() == null ? ResourceCanvas.decorations(floor, true) : request.decorations(), List.of()));
+            return request.items().stream().map(item -> new BatchResult(item.clientId(), detail(actorId, item.id()))).toList();
+        }
         var mapped = new LinkedHashMap<String, Long>();
         var pending = new ArrayList<>(request.items());
         while (!pending.isEmpty()) {
@@ -361,6 +376,17 @@ public class OrganizerResourceService {
                 .toList();
     }
 
+    private boolean geometryOnly(BookableResourceModel resource, Input input) {
+        return input.posX() != null && input.posY() != null && input.width() != null && input.height() != null && input.rotation() != null
+                && Objects.equals(resource.getResourceType().getId(), input.resourceTypeId())
+                && Objects.equals(resource.getLabel(), input.code()) && Objects.equals(resource.getName(), input.name())
+                && Objects.toString(resource.getZoneName(), "").equals(Objects.toString(input.zoneName(), ""))
+                && Objects.equals(resource.getNoiseLevel(), input.noiseLevel())
+                && Objects.equals(resource.getCapacityOverride(), input.capacityOverride())
+                && (resource.getPricePerHour() == null ? input.pricePerHour() == null : input.pricePerHour() != null && resource.getPricePerHour().compareTo(input.pricePerHour()) == 0)
+                && Objects.toString(resource.getDescription(), "").equals(Objects.toString(input.description(), ""))
+                && Objects.equals(resource.getParentRoom() == null ? null : resource.getParentRoom().getId(), input.parentRoomId());
+    }
     @Transactional
     public Detail update(Long actorId, Long id, Input request) {
         eligible(actorId);
@@ -376,6 +402,112 @@ public class OrganizerResourceService {
         if (previousParent != null && previousParent != resource.getParentRoom())
             touchRoom(previousParent);
         return save(resource);
+    }
+
+    /** Validate an AI/manual preview as one final state, avoiding false collisions during swaps. */
+    @Transactional
+    public FloorLayout saveAiDesign(Long actorId, Long workspaceId, Long floorId, String expectedRevision,
+            base.api.feature.resource.dto.FloorDesign.Design plan) {
+        eligible(actorId);
+        owned(actorId, workspaceId, true);
+        var floor = lockFloorRevision(workspaceId, floorId, expectedRevision);
+        var bounds = ResourceCanvas.editorBounds(floor);
+        if (bounds == null || !floorLayout(actorId, workspaceId, floorId).editableLayout())
+            throw new ConflictException("This floor layout cannot be edited by the assistant");
+        var existing = new ArrayList<>(resources.findByFloorPlanId(floorId));
+        existing.sort(Comparator.comparing(BookableResourceModel::getId));
+        for (var item : existing) em.refresh(item, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        var removed = new ArrayList<BookableResourceModel>();
+        for (var id : plan.removeResourceIds()) {
+            var item = existing.stream().filter(r -> r.getId().equals(id)).findFirst()
+                    .orElseThrow(() -> new BadRequestException("Resource not found on this floor"));
+            if (usage.hasAnyBooking(id) || usage.hasOtherDependencies(id))
+                throw new ConflictException("A resource with booking history or linked data cannot be deleted");
+            removed.add(item);
+        }
+        var finalState = new ArrayList<>(existing.stream().filter(r -> !removed.contains(r)
+                && r.getStatus() != BookableResourceStatus.ARCHIVED).toList());
+        var byKey = new LinkedHashMap<String, BookableResourceModel>();
+        finalState.forEach(r -> byKey.put("r_" + r.getId(), r));
+        var previousPoses = new HashMap<BookableResourceModel, ResourceCanvas.Pose>();
+        var changedRooms = new HashSet<BookableResourceModel>();
+        for (var change : plan.resources()) {
+            var item = change.id() == null ? new BookableResourceModel() : byKey.get("r_" + change.id());
+            if (item == null) throw new BadRequestException("An AI resource is missing or archived");
+            var type = types.findById(change.resourceTypeId()).filter(t -> t.getWorkspace().getId().equals(workspaceId))
+                    .orElseThrow(() -> new BadRequestException("Resource type does not belong to this workspace"));
+            if (!type.isActive() || type.getCurrency() == null) throw new ConflictException("Choose an active resource type with a confirmed currency");
+            var previousParent = item.getParentRoom();
+            boolean editing = item.getId() != null;
+            if (editing && !item.getResourceType().getId().equals(type.getId())) throw new ConflictException("AI cannot change an existing pricing type");
+            Integer capacity = change.capacity() == null && editing ? item.getCapacityOverride() : change.capacity();
+            boolean parentChanged = editing && !Objects.equals(previousParent == null ? null : "r_" + previousParent.getId(), change.parentKey());
+            boolean geometryChanged = editing && (different(item.getPosX(), change.posX()) || different(item.getPosY(),change.posY())
+                    || different(item.getWidth(),change.width()) || different(item.getHeight(),change.height()) || different(item.getRotation(),change.rotation()));
+            if (editing && (parentChanged || geometryChanged || !Objects.equals(item.getCapacityOverride(),capacity))
+                    && (liveBooking(item) || children(item).stream().anyMatch(this::liveBooking)))
+                throw new ConflictException("Type, capacity and layout cannot change while this resource has live bookings");
+            if (parentChanged && liveBooking(previousParent)) throw new ConflictException("A room with live bookings cannot have its desk membership changed");
+            if (editing && type.getCategory() == ResourceCategory.ROOM && geometryChanged) previousPoses.put(item,ResourceCanvas.pose(item));
+            if (previousParent != null) changedRooms.add(previousParent);
+            if (!editing) {
+                item.setFloorPlan(floor); item.setLabel("AI-" + UUID.randomUUID().toString().substring(0,12).toUpperCase(Locale.ROOT));
+                item.setResourceType(type); finalState.add(item);
+            }
+            item.setName(change.name()); item.setCapacityOverride(capacity); item.setPosX(change.posX()); item.setPosY(change.posY());
+            item.setWidth(change.width()); item.setHeight(change.height()); item.setRotation(change.rotation());
+            byKey.put(change.key(),item);
+        }
+        var bookedParents = plan.resources().stream().map(c -> c.parentKey() == null ? null : byKey.get(c.parentKey()))
+                .filter(Objects::nonNull).distinct().filter(this::liveBooking).collect(java.util.stream.Collectors.toSet());
+        for (var change : plan.resources()) {
+            var item = byKey.get(change.key());
+            var parent = change.parentKey() == null ? null : byKey.get(change.parentKey());
+            if (change.parentKey() != null && (parent == null || parent == item || parent.getResourceType().getCategory() != ResourceCategory.ROOM))
+                throw new BadRequestException("Invalid parent room in AI design");
+            if (parent != item.getParentRoom() && bookedParents.contains(parent)) throw new ConflictException("The destination room has live bookings");
+            item.setParentRoom(parent); if (parent != null) changedRooms.add(parent);
+        }
+        for (var item : finalState) {
+            if (item.getParentRoom() != null && !finalState.contains(item.getParentRoom())) throw new ConflictException("A remaining desk still references the deleted room");
+            int capacity = capacity(item);
+            if (capacity < 1 || (item.getResourceType().getCategory() == ResourceCategory.DESK && capacity != 1)) throw new BadRequestException("Desks must have capacity 1");
+            if (item.getResourceType().getCategory() == ResourceCategory.ROOM && item.getParentRoom() != null) throw new BadRequestException("Rooms cannot be nested");
+            if (finalState.stream().filter(r -> r.getParentRoom() == item).count() > capacity) throw new ConflictException("Room capacity is smaller than its desk count");
+            ResourceCanvas.fits(item,bounds,true);
+            if (item.getParentRoom() != null) ResourceCanvas.fitsInsideRoom(item,item.getParentRoom());
+            for (var peer : finalState)
+                if (peer != item && item.getParentRoom() != peer && peer.getParentRoom() != item && ResourceCanvas.overlaps(item,peer))
+                    throw new ConflictException("The final AI layout contains overlapping resources");
+        }
+        ResourceCanvas.validateDecorations(plan.decorations(),bounds);
+        ResourceCanvas.validateDecorationResources(plan.decorations(),finalState);
+        // Only a published floor has a second, customer-visible layout using live resource positions.
+        if (floor.getStatus() == FloorPlanStatus.PUBLISHED) {
+            var published = ResourceCanvas.decorations(floor, false).stream().map(object -> {
+                for (var entry : previousPoses.entrySet()) {
+                    var moved = ResourceCanvas.moveDecorations(List.of(object), entry.getValue(), entry.getKey()).get(0);
+                    if (!moved.equals(object)) return moved;
+                }
+                return object;
+            }).toList();
+            ResourceCanvas.validateDecorations(published, bounds);
+            ResourceCanvas.validateDecorationResources(published, finalState);
+            floor.setLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, published, false));
+        }
+        floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor,bounds,plan.decorations()));
+        // Persist parents before children, then remove children before their former parents.
+        finalState.stream().filter(r -> r.getResourceType().getCategory() == ResourceCategory.ROOM).forEach(resources::save);
+        finalState.stream().filter(r -> r.getResourceType().getCategory() != ResourceCategory.ROOM).forEach(resources::save);
+        resources.flush();
+        removed.sort(Comparator.comparing(r -> r.getResourceType().getCategory() == ResourceCategory.ROOM ? 1 : 0));
+        removed.forEach(resources::delete); resources.flush();
+        for (var item : finalState) if (item.getStatus() == BookableResourceStatus.ACTIVE) activation(item);
+        var now = LocalDateTime.ofInstant(organizerApplicationClock.instant(),ZoneOffset.UTC);
+        for (var room : changedRooms) if (!removed.contains(room)) room.setUpdatedAt(room.getUpdatedAt() != null && !now.isAfter(room.getUpdatedAt()) ? room.getUpdatedAt().plusSeconds(1) : now);
+        floor.setUpdatedAt(floor.getUpdatedAt() != null && !now.isAfter(floor.getUpdatedAt()) ? floor.getUpdatedAt().plusSeconds(1) : now);
+        floors.saveAndFlush(floor); validateDesignCapacity(floor);
+        return floorLayout(actorId,workspaceId,floorId);
     }
 
     @Transactional
@@ -451,8 +583,13 @@ public class OrganizerResourceService {
     @Transactional
     public void deleteFloor(Long actorId, Long workspaceId, Long floorId, String revision) {
         eligible(actorId);
-        owned(actorId, workspaceId, true);
+        var workspace = owned(actorId, workspaceId, true);
         var floor = lockFloorRevision(workspaceId, floorId, revision);
+        boolean lastMappedFloor = floor.getBuildingFloor() != null
+                && floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId).stream()
+                    .filter(item -> item.getBuildingFloor() != null).count() == 1;
+        if (lastMappedFloor && Set.of(WorkspaceStatus.ACTIVE, WorkspaceStatus.MAINTENANCE).contains(workspace.getStatus()))
+            throw new ConflictException("Pause this workspace before removing its last building allocation");
         if (resources.existsByFloorPlanId(floorId))
             throw new ConflictException(
                     "This floor still contains resources, including retained or archived records."
@@ -465,6 +602,10 @@ public class OrganizerResourceService {
                         + " its layout before deletion");
         floors.delete(floor);
         floors.flush();
+        if (lastMappedFloor) {
+            workspace.setAddress(null); workspace.setCity(null); workspace.setDistrict(null);
+            workspace.setLatitude(null); workspace.setLongitude(null);
+        }
     }
 
     @Transactional
@@ -507,7 +648,7 @@ public class OrganizerResourceService {
                                                     item.width(),
                                                     item.height(),
                                                     item.rotation(),
-                                                    item.color()))
+                                                    item.color(), item.icon()))
                             .toList();
             target.setDraftLayoutJson(ResourceCanvas.writeDecorations(source, bounds, objects));
         }
@@ -660,6 +801,10 @@ public class OrganizerResourceService {
         type.setName(request.name());
         type.setCategory(request.category());
         type.setCapacity(request.capacity());
+        validateTypeConfiguration(request);
+        type.setUsageKind(request.usageKind());
+        type.setStandardWidthM(request.standardWidthM());
+        type.setStandardLengthM(request.standardLengthM());
         type.setCurrency(request.currency());
         type.setPricePerHour(request.pricePerHour());
         type.setPricePerDay(request.pricePerDay());
@@ -676,7 +821,7 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type));
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM());
     }
 
     @Transactional
@@ -744,9 +889,12 @@ public class OrganizerResourceService {
                         > 0;
         if (used
                 && (type.getCategory() != request.category()
-                        || type.getCapacity() != request.capacity()))
+                        || type.getCapacity() != request.capacity()
+                        || type.getUsageKind() != request.usageKind()
+                        || !sameDimension(type.getStandardWidthM(), request.standardWidthM())
+                        || !sameDimension(type.getStandardLengthM(), request.standardLengthM())))
             throw new ConflictException(
-                    "Category and capacity cannot change for a type already used by resources;"
+                    "Category, capacity, usage and standard dimensions cannot change for a type already used by resources;"
                             + " create a new type");
         if (!type.getName().equalsIgnoreCase(request.name())
                 && types.existsByWorkspaceIdAndNameIgnoreCase(workspaceId, request.name()))
@@ -760,6 +908,10 @@ public class OrganizerResourceService {
         type.setName(request.name());
         type.setCategory(request.category());
         type.setCapacity(request.capacity());
+        validateTypeConfiguration(request);
+        type.setUsageKind(request.usageKind());
+        type.setStandardWidthM(request.standardWidthM());
+        type.setStandardLengthM(request.standardLengthM());
         type.setCurrency(request.currency());
         type.setPricePerHour(request.pricePerHour());
         type.setPricePerDay(request.pricePerDay());
@@ -776,7 +928,19 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type));
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM());
+    }
+
+    private static boolean sameDimension(BigDecimal a, BigDecimal b) {
+        return a == null ? b == null : b != null && a.compareTo(b) == 0;
+    }
+
+    private static void validateTypeConfiguration(Type request) {
+        boolean configured = request.usageKind() != null || request.standardWidthM() != null || request.standardLengthM() != null;
+        if (configured && (request.usageKind() == null || request.standardWidthM() == null || request.standardLengthM() == null
+                || request.usageKind().category() != request.category()
+                || request.standardWidthM().signum() <= 0 || request.standardLengthM().signum() <= 0))
+            throw new BadRequestException("Complete the resource type kind and standard dimensions for its category");
     }
 
     private void eligible(Long actorId) {
@@ -797,14 +961,23 @@ public class OrganizerResourceService {
                                 ? workspaces.findOwnedForResourceUpdate(id, actorId)
                                 : workspaces.findByIdAndOrganizerId(id, actorId))
                         .orElseThrow(() -> new NotFoundException("Workspace not found"));
-        if (write) em.refresh(workspace, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (write) {
+            em.refresh(workspace, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            // Shared physical occupancy must serialize writers from different workspace areas.
+            floors.findByWorkspaceIdOrderByFloorNumberAsc(id).stream()
+                    .map(FloorPlanModel::getBuildingFloor).filter(Objects::nonNull).distinct()
+                    .sorted(java.util.Comparator.comparing(base.api.shared.entity.resource.BuildingFloorModel::getId))
+                    .forEach(p -> em.refresh(p, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
+        }
         if (write
                 && workspace.getStatus() != WorkspaceStatus.DRAFT
+                && workspace.getStatus() != WorkspaceStatus.PENDING
                 && workspace.getStatus() != WorkspaceStatus.ACTIVE
+                && workspace.getStatus() != WorkspaceStatus.MAINTENANCE
                 && workspace.getStatus() != WorkspaceStatus.INACTIVE)
             throw new ConflictException(
-                    "Floors, resource types and resources can only be changed in a DRAFT, ACTIVE or"
-                            + " INACTIVE workspace");
+                    "Floors, resource types and resources can only be changed in a DRAFT, PENDING,"
+                            + " ACTIVE, MAINTENANCE or INACTIVE workspace");
         return workspace;
     }
 
@@ -1060,8 +1233,7 @@ public class OrganizerResourceService {
                                 + resource.getLabel()
                                 + " overlaps "
                                 + peer.getLabel()
-                                + ". A desk inside a room must explicitly select that room; other"
-                                + " resources must not overlap");
+                                + ". Move one of these resources so their footprints no longer overlap.");
         }
     }
 
@@ -1114,9 +1286,29 @@ public class OrganizerResourceService {
     private Detail save(BookableResourceModel resource) {
         touchRoom(resource.getParentRoom());
         resources.saveAndFlush(resource);
+        validateDesignCapacity(resource.getFloorPlan());
         // Return the database timestamp precision so the next revision comparison is stable.
         em.refresh(resource);
         return ResourceResponses.detail(resource);
+    }
+
+    private void validateDesignCapacity(FloorPlanModel floor) {
+        var physical = floor.getBuildingFloor();
+        if (physical == null) return;
+        em.refresh(physical, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        int allocated = 0;
+        var areas = em.createQuery("select f from FloorPlanModel f where f.buildingFloor.id = :id", FloorPlanModel.class)
+                .setParameter("id", physical.getId()).setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_READ).getResultList();
+        for (var area : areas) {
+            var placed = em.createQuery("select r from BookableResourceModel r where r.floorPlan.id = :id", BookableResourceModel.class)
+                    .setParameter("id", area.getId()).setLockMode(jakarta.persistence.LockModeType.PESSIMISTIC_READ).getResultList();
+            int people = FloorDesignService.occupancy(placed);
+            if (area.getOccupancyLimit() != null && people > area.getOccupancyLimit())
+                throw new ConflictException("Seats and rooms exceed this workspace area's occupancy limit");
+            allocated += area.getOccupancyLimit() == null ? people : area.getOccupancyLimit();
+        }
+        if (physical.getMaxOccupancy() != null && allocated > physical.getMaxOccupancy())
+            throw new ConflictException("Workspace allocations exceed the physical floor occupancy limit");
     }
 
     /** A room revision also protects its child set without adding a second public version token. */
