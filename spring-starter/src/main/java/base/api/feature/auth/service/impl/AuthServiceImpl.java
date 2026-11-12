@@ -74,6 +74,9 @@ public class AuthServiceImpl implements IAuthService {
     @Value("${app.auth.reset-token-ttl-minutes:60}")
     private long resetTtlMinutes;
 
+    @Value("${app.auth.inactive-threshold-days:90}")
+    private long inactiveThresholdDays = 90;
+
     @Value("${app.api-url}")
     private String apiUrl;
 
@@ -81,7 +84,7 @@ public class AuthServiceImpl implements IAuthService {
     private String clientUrl;
 
     @Override
-    @Transactional
+    @Transactional(noRollbackFor = UnauthorizedException.class)
     public AuthResponse login(AuthRequest dto) {
         String login = dto.getUsername().trim();
 
@@ -93,9 +96,14 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel candidate = userOpt.get();
 
-        // 1. Kiểm tra tài khoản chưa xác thực (INACTIVE)
+        // 0. Kiểm tra tài khoản đã bị xóa mềm (DELETED)
+        if (candidate.getStatus() == UserStatus.DELETED) {
+            throw new UnauthorizedException("Tài khoản đã bị xóa và không thể đăng nhập");
+        }
+
+        // 1. Kiểm tra tài khoản chưa xác thực hoặc tạm ngưng (INACTIVE)
         if (candidate.getStatus() == UserStatus.INACTIVE || !candidate.isVerified()) {
-            throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
+            throw new UnauthorizedException("Tài khoản chưa kích hoạt hoặc đã tạm ngưng. Vui lòng xác thực email trước khi đăng nhập");
         }
 
         // 2. Kiểm tra tài khoản bị khóa (vĩnh viễn hoặc có thời hạn)
@@ -150,13 +158,27 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel user = candidate;
         if (!user.isVerified() || user.getStatus() == UserStatus.INACTIVE) {
-            throw new UnauthorizedException("Vui lòng xác thực email trước khi đăng nhập");
+            throw new UnauthorizedException("Tài khoản chưa kích hoạt hoặc đã tạm ngưng. Vui lòng xác thực email trước khi đăng nhập");
+        }
+
+        // Kiểm tra ngưỡng thời gian không đăng nhập (mặc định 90 ngày ~ 3 tháng, cấu hình qua biến môi trường)
+        LocalDateTime nowInVietnam = LocalDateTime.now(VIETNAM_ZONE);
+        if (isInactiveDueToLongAbsence(user, nowInVietnam)) {
+            user.setStatus(UserStatus.INACTIVE);
+            user.setVerified(false);
+            user.setFailedLoginCount(0);
+            userRepository.save(user);
+            sendInactivityVerificationEmail(user);
+            throw new UnauthorizedException(
+                    "Tài khoản đã chuyển sang trạng thái không hoạt động (INACTIVE) do không đăng nhập quá "
+                            + inactiveThresholdDays
+                            + " ngày. Vui lòng xác thực email trước khi đăng nhập (liên kết xác thực mới đã được gửi tới email của bạn)");
         }
 
         // Đăng nhập thành công: xóa bộ đếm đăng nhập sai và cập nhật thời gian đăng nhập gần nhất
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
-        user.setLastLoginAt(LocalDateTime.now());
+        user.setLastLoginAt(nowInVietnam);
         userRepository.save(user);
 
         String token = jwtUtil.generateToken(user);
@@ -233,9 +255,17 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new BadRequestException("Tài khoản đã bị xóa, không thể xác thực email");
+        }
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new BadRequestException("Tài khoản đang bị khóa bởi Quản trị viên");
+        }
+        LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
         user.setVerified(true);
         user.setStatus(UserStatus.ACTIVE);
-        user.setEmailVerifiedAt(LocalDateTime.now(VIETNAM_ZONE));
+        user.setEmailVerifiedAt(now);
+        user.setLastLoginAt(now);
         tokenModel.setUsed(true);
         return user.getEmail();
     }
@@ -248,10 +278,17 @@ public class AuthServiceImpl implements IAuthService {
         }
         UserModel user = userRepository.findByLogin(contactInfo.trim())
                 .orElseThrow(() -> new BadRequestException("Tài khoản không tồn tại"));
-        if (user.isVerified()) {
+        if (user.getStatus() == UserStatus.DELETED || user.getStatus() == UserStatus.LOCKED) {
+            return;
+        }
+        if (user.isVerified() && user.getStatus() != UserStatus.INACTIVE) {
             throw new BadRequestException("Tài khoản này đã được xác thực trước đó");
         }
-        sendVerificationEmail(user);
+        if (user.getStatus() == UserStatus.INACTIVE && user.getEmailVerifiedAt() != null) {
+            sendInactivityVerificationEmail(user);
+        } else {
+            sendVerificationEmail(user);
+        }
     }
 
     @Override
@@ -267,6 +304,9 @@ public class AuthServiceImpl implements IAuthService {
         }
         if (user.getStatus() == UserStatus.LOCKED) {
             throw new BadRequestException("Tài khoản đã bị khóa bởi Quản trị viên");
+        }
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new BadRequestException("Tài khoản đã bị xóa");
         }
 
         passwordResetTokenRepository.deleteByUserId(user.getId());
@@ -339,6 +379,9 @@ public class AuthServiceImpl implements IAuthService {
 
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new BadRequestException("Tài khoản đã bị xóa, không thể đặt lại mật khẩu");
+        }
         if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
             throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
         }
@@ -362,7 +405,35 @@ public class AuthServiceImpl implements IAuthService {
                 .orElse(false);
     }
 
+    private boolean isInactiveDueToLongAbsence(UserModel user, LocalDateTime now) {
+        if (inactiveThresholdDays <= 0) {
+            return false;
+        }
+        LocalDateTime lastActivity = user.getLastLoginAt();
+        if (lastActivity == null) {
+            lastActivity = user.getEmailVerifiedAt() != null ? user.getEmailVerifiedAt() : user.getCreatedAt();
+        }
+        if (lastActivity == null) {
+            return false;
+        }
+        return lastActivity.isBefore(now.minusDays(inactiveThresholdDays));
+    }
+
     private void sendVerificationEmail(UserModel user) {
+        String token = createAndSaveVerificationToken(user);
+        String verifyUrl = apiUrl + "/api/auth/verify-email?token=" + token;
+        emailService.sendHtmlEmail(user.getEmail(), "Xác thực tài khoản",
+                AuthEmailTemplates.verifyEmail(user.getFullName(), verifyUrl, verificationTtlHours));
+    }
+
+    private void sendInactivityVerificationEmail(UserModel user) {
+        String token = createAndSaveVerificationToken(user);
+        String verifyUrl = apiUrl + "/api/auth/verify-email?token=" + token;
+        emailService.sendHtmlEmail(user.getEmail(), "Xác thực lại tài khoản không hoạt động",
+                AuthEmailTemplates.reverifyInactiveAccount(user.getFullName(), verifyUrl, inactiveThresholdDays, verificationTtlHours));
+    }
+
+    private String createAndSaveVerificationToken(UserModel user) {
         emailVerificationTokenRepository.deleteByUserId(user.getId());
 
         EmailVerificationTokenModel tokenModel = new EmailVerificationTokenModel();
@@ -372,9 +443,7 @@ public class AuthServiceImpl implements IAuthService {
         emailVerificationTokenRepository.save(tokenModel);
 
         log.info("[AUTH] Đã tạo Email Verification Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
-        String verifyUrl = apiUrl + "/api/auth/verify-email?token=" + tokenModel.getToken();
-        emailService.sendHtmlEmail(user.getEmail(), "Xác thực tài khoản",
-                AuthEmailTemplates.verifyEmail(user.getFullName(), verifyUrl, verificationTtlHours));
+        return tokenModel.getToken();
     }
 
     private RoleModel findRole(UserRole role) {

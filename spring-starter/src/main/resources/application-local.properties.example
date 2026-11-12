@@ -41,6 +41,7 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 
 # ── Application URLs & Features (Optional overrides) ─────────────────────────
 # app.auth.email-verification-enabled=true
+# app.auth.inactive-threshold-days=90
 # app.client-url=http://localhost:3000
 # app.api-url=http://localhost:8080
 # Local-only demonstration agreement. Never use this template for real transactions.

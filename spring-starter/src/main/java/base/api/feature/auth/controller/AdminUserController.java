@@ -16,6 +16,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -31,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
  * Mọi thao tác khóa / mở khóa đều được bảo vệ và ghi vết qua Audit Log (BR-31).
  */
 @RestController
-@RequestMapping("/api/admin/users")
+@RequestMapping({"/api/admin/users", "/api/v1/admin/users"})
 @RequiredArgsConstructor
 @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "Admin - Users", description = "Quản lý tài khoản (chỉ ADMIN)")
@@ -54,13 +55,22 @@ public class AdminUserController extends BaseAPIController {
         return success(userService.getById(id));
     }
 
-    @Operation(summary = "Khóa / mở khóa user", description = "Cập nhật trạng thái tài khoản, thiết lập thời hạn khóa và tự động ghi vết Audit Log theo BR-31")
+    @Operation(summary = "Cập nhật trạng thái tài khoản (ACTIVE, INACTIVE, LOCKED, DELETED)", description = "Cập nhật trạng thái tài khoản (khóa, mở khóa, vô hiệu hóa, xóa mềm, khôi phục), thiết lập thời hạn khóa và tự động ghi vết Audit Log theo BR-31")
     @PatchMapping("/{id}/status")
     public ResponseEntity<ApiResponse<UserDto>> updateStatus(
             @PathVariable Long id,
             @Valid @RequestBody UpdateUserStatusDto dto) {
         return success(userService.updateUserStatus(getCurrentUserId(), id, dto.getStatus(), dto.getReason(), dto.getLockedUntil()),
                 "Cập nhật trạng thái thành công");
+    }
+
+    @Operation(summary = "Xóa mềm tài khoản người dùng (chỉ ADMIN)", description = "Chuyển trạng thái tài khoản sang DELETED, thu hồi toàn bộ phiên đăng nhập và tự động ghi vết Audit Log")
+    @DeleteMapping("/{id}")
+    public ResponseEntity<ApiResponse<UserDto>> softDeleteUser(
+            @PathVariable Long id,
+            @RequestParam(required = false) String reason) {
+        return success(userService.updateUserStatus(getCurrentUserId(), id, UserStatus.DELETED, reason, null),
+                "Xóa mềm tài khoản thành công");
     }
 
     @Operation(summary = "Gán và thay đổi vai trò người dùng (chỉ ADMIN)", description = "Thay đổi vai trò người dùng (USER, ORGANIZER, ADMIN), thu hồi các phiên đăng nhập hiện tại và tự động ghi vết Audit Log")

@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -53,4 +55,11 @@ public interface IUserRepository extends JpaRepository<UserModel, Long> {
 
     @Query("SELECT COUNT(u) FROM UserModel u WHERE u.roleEntity.name = :roleName AND u.status = :status")
     long countByRoleNameAndStatus(@Param("roleName") String roleName, @Param("status") UserStatus status);
+
+    @Query("""
+            SELECT u FROM UserModel u
+            WHERE u.status = base.api.shared.enums.UserStatus.ACTIVE
+              AND COALESCE(u.lastLoginAt, u.emailVerifiedAt, u.createdAt) < :cutoff
+            """)
+    List<UserModel> findActiveUsersInactiveSince(@Param("cutoff") LocalDateTime cutoff);
 }
