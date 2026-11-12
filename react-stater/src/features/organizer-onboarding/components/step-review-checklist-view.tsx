@@ -92,7 +92,7 @@ export function StepReviewChecklistView() {
 
   // Calculate audit score across the 3 core onboarding sections (Steps 1–5)
   const auditSections = [
-    { id: 'basic_loc', name: 'Basic Info & Location', valid: isBasicInfoValid && isLocationValid },
+    { id: 'basic_loc', name: 'Basic Information', valid: isBasicInfoValid },
     { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid },
     { id: 'media_amenities', name: 'Amenities & Media Assets', valid: isAmenitiesValid && isMediaValid }
   ];
@@ -161,7 +161,7 @@ export function StepReviewChecklistView() {
           <nav aria-label='Breadcrumb' className='flex items-center gap-1.5 text-muted-foreground truncate'>
             <span className='hover:text-foreground transition-colors'>Workspaces</span>
             <span>&gt;</span>
-            <span className='truncate'>{location.district || 'District 1, HCMC'}</span>
+            <span className='truncate'>{location.district || 'Location from linked building'}</span>
             <span>&gt;</span>
             <span className='font-medium text-foreground truncate'>{basicInfo.name}</span>
             <span>&gt;</span>
@@ -199,7 +199,7 @@ export function StepReviewChecklistView() {
         <div>
           <div className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-1'>
             <CheckCircle2 className='size-4' />
-            <span>Step 5 of 5 • Workspace Overview</span>
+            <span>Step 4 of 4 • Workspace Overview</span>
           </div>
           <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
             Workspace Overview &amp; Review
@@ -236,7 +236,7 @@ export function StepReviewChecklistView() {
                 <Building2 className='size-5' />
               </div>
               <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Basic Information &amp; Location</h2>
+                <h2 className='text-sm sm:text-base font-bold text-foreground'>Basic Information</h2>
                 <p className='text-xs text-muted-foreground'>Workspace identity, category, street coordinates &amp; contact hotline</p>
               </div>
             </div>
@@ -244,12 +244,12 @@ export function StepReviewChecklistView() {
               <Badge
                 variant='outline'
                 className={`text-xs font-semibold ${
-                  isBasicInfoValid && isLocationValid
+                  isBasicInfoValid
                     ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800'
                     : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
                 }`}
               >
-                {isBasicInfoValid && isLocationValid ? 'Complete' : 'Incomplete'}
+                {isBasicInfoValid ? 'Complete' : 'Incomplete'}
               </Badge>
               <Button
                 variant='ghost'
@@ -277,7 +277,7 @@ export function StepReviewChecklistView() {
             <div className='sm:col-span-2'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Street Address</span>
               <span className='font-medium text-foreground mt-0.5 block'>
-                {location.floorSuite ? `${location.floorSuite}, ` : ''}{location.streetAddress}, {location.district}, {location.city}
+                {isLocationValid ? location.streetAddress : 'Inherited from the building when you link a physical floor in Floor Plan & Zones.'}
               </span>
             </div>
             <div>
@@ -287,7 +287,7 @@ export function StepReviewChecklistView() {
                 <span>
                   {typeof location.latitude === 'number' && typeof location.longitude === 'number'
                     ? `${location.latitude.toFixed(4)}° N, ${location.longitude.toFixed(4)}° E (Verified Pin)`
-                    : 'Coordinates not configured'}
+                    : 'Set automatically from the linked building'}
                 </span>
               </span>
             </div>
@@ -601,7 +601,7 @@ export function StepReviewChecklistView() {
               <h3 className='text-lg font-bold text-foreground'>{basicInfo.name}</h3>
               <p className='text-xs text-muted-foreground flex items-center gap-1 mt-1'>
                 <MapPin className='size-3.5 text-muted-foreground' />
-                <span>{location.streetAddress}, {location.district}, {location.city}</span>
+                <span>{location.streetAddress || 'Address will be inherited from the linked building'}</span>
               </p>
               <p className='text-xs text-foreground mt-2 leading-relaxed'>{basicInfo.description}</p>
             </div>

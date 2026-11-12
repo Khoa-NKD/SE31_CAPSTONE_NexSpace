@@ -49,6 +49,7 @@ const organizerMenuVietnamese: Record<string, string> = {
   'Application Management': 'Quản lý hồ sơ đăng ký',
   'Business Profile': 'Thông tin doanh nghiệp',
   'My Workspaces': 'Không gian của tôi',
+  Buildings: 'Quản lý tòa nhà',
   'Floor Plan & Zones': 'Sơ đồ tầng & khu vực',
   'Seats & Rooms': 'Quản lý ghế & phòng',
   'Create Seat/Room': 'Tạo ghế/phòng',

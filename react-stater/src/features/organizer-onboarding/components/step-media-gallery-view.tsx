@@ -38,6 +38,7 @@ import type { MediaItem } from '../types/wizard';
 import { useUploadMediaMutation, workspaceService, workspaceQueryKeys } from '@/features/workspaces/api';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
+import { workspaceMediaId } from '../utils/workspace-media-id';
 
 export interface StepMediaGalleryViewProps {
   routeWorkspaceId?: string;
@@ -126,6 +127,8 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
 
   const [isDragging, setIsDragging] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isContinuing, setIsContinuing] = useState(false);
+  const continuingRef = useRef(false);
   const [isCompletionModalOpen, setIsCompletionModalOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<MediaItem | null>(null);
 
@@ -296,12 +299,13 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
   // In edit mode: syncs directly to the workspace being edited.
   // In create mode: syncs once draft record is initialized.
   // -----------------------------------------------------------------------------------------------
-  const syncMediaToBackend = async (workspaceIdStr?: string) => {
-    const rawId = workspaceIdStr || activeWorkspaceId;
-    if (!rawId) return;
-    const numericMatch = rawId.match(/\d+/);
-    const wsId = numericMatch ? Number(numericMatch[0]) : undefined;
-    if (!wsId || Number.isNaN(wsId)) return;
+  const syncMediaToBackend = async (workspaceIdStr?: string | number): Promise<boolean> => {
+    const wsId = workspaceMediaId(workspaceIdStr ?? activeWorkspaceId);
+    if (!wsId) {
+      const message = 'Save the workspace draft before synchronizing its photos.';
+      setValidationError(message); toast.error('Gallery not saved', { description: message });
+      return false;
+    }
 
     try {
       const currentMedia = useWizardStore.getState().media;
@@ -321,8 +325,11 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
       toast.success('Gallery Photos Synced', {
         description: `Successfully synchronized ${items.length} photos to workspace #${wsId}.`
       });
+      return true;
     } catch (err: unknown) {
-      console.warn('Could not sync workspace gallery photos to backend:', err);
+      const message = err instanceof Error ? err.message : 'Could not save the gallery. Please retry.';
+      setValidationError(message); toast.error('Gallery not saved', { description: message });
+      return false;
     }
   };
 
@@ -349,6 +356,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
 
   const handleCompleteReview = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (continuingRef.current) return;
 
     if (media.items.some((i) => i.uploadStatus === 'uploading')) {
       toast.error('Upload in Progress', {
@@ -385,24 +393,28 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
     }
 
     setValidationError(null);
-    saveDraft();
-    let targetId = activeWorkspaceId;
-    if (activeWorkspaceId) {
-      await syncMediaToBackend(activeWorkspaceId);
-    } else {
-      const updated = await saveDraftToServer({ silent: true });
-      targetId = updated?.id || canonicalWorkspaceId;
-      if (targetId) {
-        await syncMediaToBackend(targetId);
+    continuingRef.current = true;
+    setIsContinuing(true);
+    try {
+      saveDraft();
+      let targetId = activeWorkspaceId;
+      if (!targetId) {
+        const updated = await saveDraftToServer({ silent: true });
+        if (!updated) return;
+        targetId = String(updated.id);
       }
+      if (!(await syncMediaToBackend(targetId))) return;
+      await router.navigate({
+        to: '/dashboard/organizer/workspaces/create/review',
+        search: (prev) => ({ ...prev, id: String(targetId) })
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unable to continue. Please retry.';
+      setValidationError(message); toast.error('Unable to continue', { description: message });
+    } finally {
+      continuingRef.current = false;
+      setIsContinuing(false);
     }
-    router.navigate({
-      to: '/dashboard/organizer/workspaces/create/review',
-      search: (prev) => ({
-        ...prev,
-        ...(targetId ? { id: String(targetId) } : {})
-      })
-    });
   };
 
   return (
@@ -420,10 +432,10 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
         />
 
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={5} />
+        <WizardHeader currentStep={4} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={5} />
+        <WizardStepper currentStep={4} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
@@ -449,7 +461,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
               Development Media Service Active (Local Storage)
             </p>
             <p className='mt-1 text-xs text-indigo-800/90 dark:text-indigo-300/90 leading-relaxed'>
-              Local JPEG, PNG, and WebP photo uploads are securely persisted to the server runtime (/uploads/). Uploaded media receives a durable URL (/api/media/:mediaId), persists across browser reloads and server restarts, and fully satisfies the workspace submission requirement.
+              JPEG, PNG, and WebP photos are saved to backend storage. Uploaded photos use a persistent /uploads/ path or cloud URL and can be included in your workspace gallery.
             </p>
           </div>
         </div>
@@ -651,7 +663,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
                               <span>Upload Failed</span>
                             </span>
                           )}
-                          {(item.url.startsWith('/api/media/') || item.url.startsWith('/api/v1/media/')) && (
+                          {(item.url.startsWith('/uploads/') || item.url.startsWith('/api/media/') || item.url.startsWith('/api/v1/media/')) && (
                             <span className='inline-flex items-center gap-1 bg-emerald-600/90 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
                               <Check className='size-3' />
                               <span>Local Media Persisted</span>
@@ -870,7 +882,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
           <Button
             type='button'
             variant='outline'
-            disabled={isSaving}
+            disabled={isSaving || isContinuing}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
@@ -880,12 +892,12 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
 
           <Button
             type='button'
-            disabled={isSaving}
+            disabled={isSaving || isContinuing}
             onClick={handleCompleteReview}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
-            <span>Continue</span>
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+            <span>{isContinuing ? 'Saving gallery…' : 'Continue'}</span>
+            {isSaving || isContinuing ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>
@@ -977,7 +989,7 @@ export function StepMediaGalleryView({ routeWorkspaceId, routeMode }: StepMediaG
               </div>
               <div className='flex justify-between items-center'>
                 <span className='text-muted-foreground'>Location:</span>
-                <span className='font-semibold text-foreground'>{location.city}</span>
+                <span className='font-semibold text-foreground'>{location.city || 'Set from linked building'}</span>
               </div>
               <div className='flex justify-between items-center'>
                 <span className='text-muted-foreground'>Schedule:</span>

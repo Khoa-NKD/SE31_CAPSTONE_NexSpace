@@ -1,7 +1,8 @@
+import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { ResourceInventoryTable } from './resource-inventory-table';
 import { ResourceFloorManager } from './resource-floor-manager';
 import { getResource } from '../api/resources';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Armchair,
@@ -96,10 +97,11 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
     ...resourcesOptions(actorId, selectedId, filters),
     enabled: allowed && selectedId > 0
   });
-  useEffect(() => {
-    if (query.data && filters.page > Math.max(query.data.totalPages, 1))
-      setFilters((value) => ({ ...value, page: Math.max(query.data!.totalPages, 1) }));
-  }, [query.data, filters.page]);
+  // A deletion may remove the last page. Retry this render with a valid page before showing controls.
+  const lastPage = Math.max(query.data?.totalPages ?? filters.page, 1);
+  if (query.data && filters.page > lastPage) {
+    setFilters({ ...filters, page: lastPage });
+  }
   const updateFilters = (value: Partial<ResourceFilters>) =>
     setFilters((current) => ({ ...current, ...value, page: 1 }));
   const writable = canConfigureWorkspaceResources(selectedWorkspace?.status);
@@ -531,6 +533,20 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
                   <p className='text-muted-foreground mt-2 text-xs'>
                     {type.capacity} {c('people', 'người')} ·{' '}
                     {type.currency ?? c('Currency unconfirmed', 'Chưa xác nhận tiền tệ')}
+                  </p>
+                  <p className='mt-2 text-xs text-muted-foreground'>
+                    {type.usageKind
+                      ? c(
+                          resourceUsageKinds.find((item) => item.value === type.usageKind)?.en ??
+                            type.usageKind,
+                          resourceUsageKinds.find((item) => item.value === type.usageKind)?.vi ??
+                            type.usageKind
+                        )
+                      : c('Usage unconfirmed', 'Chưa xác nhận kiểu chỗ')}
+                    {' · '}
+                    {type.standardWidthM && type.standardLengthM
+                      ? String(type.standardWidthM) + ' × ' + String(type.standardLengthM) + ' m'
+                      : c('Dimensions unconfirmed', 'Chưa xác nhận kích thước')}
                   </p>
                   <p className='mt-2 text-sm'>
                     {resourceMoney(type.pricePerHour, type.currency, vi)} /{c('hour', 'giờ')}

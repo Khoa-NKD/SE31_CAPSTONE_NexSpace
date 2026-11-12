@@ -1,27 +1,11 @@
-import React from 'react';
-import { createFileRoute } from '@tanstack/react-router';
-import PageContainer from '@/components/layout/page-container';
-import { StepLocationView } from '@/features/organizer-onboarding/components/step-location-view';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-export const Route = createFileRoute(
-  '/dashboard/organizer/workspaces/create/location'
-)({
-  head: () => ({
-    meta: [
-      { title: 'O06 — Create Workspace: Location & Address | NexSpace Organizer Hub' },
-      {
-        name: 'description',
-        content: 'Step 2 of 5: Pinpoint street address, urban district, and interactive GPS coordinates.'
-      }
-    ]
-  }),
-  component: CreateWorkspaceLocationPage
+export const Route = createFileRoute('/dashboard/organizer/workspaces/create/location')({
+  beforeLoad: () => {
+    throw redirect({
+      to: '/dashboard/organizer/workspaces/create/hours',
+      search: (previous) => previous,
+      replace: true
+    });
+  }
 });
-
-function CreateWorkspaceLocationPage() {
-  return (
-    <PageContainer>
-      <StepLocationView />
-    </PageContainer>
-  );
-}

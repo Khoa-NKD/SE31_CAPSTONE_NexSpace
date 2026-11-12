@@ -25,7 +25,7 @@ export const Route = createFileRoute(
       { title: 'O09 — Create Workspace: Media Gallery & Cover Photo | NexSpace Organizer Hub' },
       {
         name: 'description',
-        content: 'Step 5 of 5: Upload workspace high-resolution photos, designate cover photo, and organize gallery.'
+        content: 'Step 4 of 4: Upload workspace high-resolution photos, designate cover photo, and organize gallery.'
       }
     ]
   }),

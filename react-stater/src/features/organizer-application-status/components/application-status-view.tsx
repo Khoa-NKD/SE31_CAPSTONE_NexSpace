@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { ContractPanel } from '@/features/organizer-contract/components/contract-panel';
 import { Link } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -106,6 +107,9 @@ export function ApplicationStatusView() {
       <CardContent className='min-w-0 space-y-6'>
         <p>{presentation.description}</p>
         <OwnerLifecycleStatus key={user.id} actorId={user.id} />
+        {['CONTRACT_PENDING', 'APPROVED'].includes(application.status) && (
+          <ContractPanel key={`contract-${user.id}`} />
+        )}
         <dl className='grid min-w-0 gap-4 text-sm sm:grid-cols-2'>
           <div>
             <dt className='text-muted-foreground'>Legal business name</dt>

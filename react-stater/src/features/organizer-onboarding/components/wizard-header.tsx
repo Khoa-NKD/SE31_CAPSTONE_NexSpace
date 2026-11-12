@@ -35,7 +35,7 @@ export function WizardHeader({ currentStep }: WizardHeaderProps) {
           variant='secondary'
           className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold tracking-wide ml-1'
         >
-          Step {currentStep} of 5
+          Step {currentStep} of 4
         </Badge>
       </div>
 

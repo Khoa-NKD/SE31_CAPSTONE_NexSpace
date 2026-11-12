@@ -1,4 +1,5 @@
 import { DOCUMENT_LABELS } from '@/features/organizer-verification-documents/api/documents';
+import { ContractPanel } from '@/features/organizer-contract/components/contract-panel';
 import { DocumentRequirementsChecklist } from './document-requirements-checklist';
 import {
   documentPoliciesQueryOptions,
@@ -29,7 +30,16 @@ import type { ApplicationInput, ApplicationDetails } from '../api/application';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Building2, ClipboardCheck, Files, RefreshCw, MessageSquareText, FileText, ArrowDownRight, LockKeyhole } from 'lucide-react';
+import {
+  Building2,
+  ClipboardCheck,
+  Files,
+  RefreshCw,
+  MessageSquareText,
+  FileText,
+  ArrowDownRight,
+  LockKeyhole
+} from 'lucide-react';
 import {
   applicationStatusPresentation,
   applicationTimestamp
@@ -104,13 +114,23 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const queryClient = useQueryClient();
   const form = useForm<ApplicationInput>({ defaultValues: formValues(null) });
   const isDirty = form.formState.isDirty;
-  const [focusRequest, setFocusRequest] = useState<{ documentId: number; requestId: number } | null>(null);
+  const [focusRequest, setFocusRequest] = useState<{
+    documentId: number;
+    requestId: number;
+  } | null>(null);
   const jumpCounter = useRef(0);
-  const reviewDocuments = useQuery({ ...verificationDocumentsQueryOptions(user?.id ?? 0), enabled: !!user && details?.status === 'REVISION_REQUESTED' });
-  const requestedDocuments = reviewDocuments.data?.documents.filter((document) => document.status === 'REJECTED') ?? [];
+  const reviewDocuments = useQuery({
+    ...verificationDocumentsQueryOptions(user?.id ?? 0),
+    enabled: !!user && details?.status === 'REVISION_REQUESTED'
+  });
+  const requestedDocuments =
+    reviewDocuments.data?.documents.filter((document) => document.status === 'REJECTED') ?? [];
   const jumpToDocument = (documentId?: number) => {
     if (documentId !== undefined) setFocusRequest({ documentId, requestId: ++jumpCounter.current });
-    else document.getElementById('organizer-verification-documents')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    else
+      document
+        .getElementById('organizer-verification-documents')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
   const selectedBusinessType = form.watch('businessType');
 
@@ -169,21 +189,21 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         form.reset(formValues(draft, user?.email));
         successMessage = 'Draft created. Save your details and upload your business license below.';
       } else if (details?.status === 'REVISION_REQUESTED') {
-        if (action !== 'submit') throw new Error('Business information is locked after submission.');
+        if (action !== 'submit')
+          throw new Error('Business information is locked after submission.');
         if (!lifecycle?.canCorrect) throw new Error('Reload the application before resubmitting.');
         const receipt = await resubmit(lifecycle.revision);
         setDetails({ ...details, ...receipt });
         setLifecycle(receipt);
         setConfirmResubmit(false);
-        successMessage = 'Application submitted. Your account permissions change only after approval.';
+        successMessage =
+          'Application submitted. Your account permissions change only after approval.';
       } else {
         if (!businessTypes.options.length)
           throw new Error('Load the business type catalog before saving or submitting.');
         // Both actions persist the visible snapshot; only explicit submission changes status.
 
-        const parsed = applicationDraftSchema.safeParse(
-          form.getValues()
-        );
+        const parsed = applicationDraftSchema.safeParse(form.getValues());
         if (!parsed.success) {
           for (const issue of parsed.error.issues)
             form.setError(issue.path[0] as keyof ApplicationInput, { message: issue.message });
@@ -226,7 +246,9 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           setConfirmResubmit(false);
           successMessage =
             'Application submitted. Your account permissions change only after approval.';
-        } else successMessage = 'Draft saved. You can return later; it has not been submitted for review.';
+        } else
+          successMessage =
+            'Draft saved. You can return later; it has not been submitted for review.';
       }
       if (user)
         await queryClient.invalidateQueries({
@@ -333,7 +355,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         >
           <div className='flex flex-wrap items-start justify-between gap-4'>
             <div className='flex items-center gap-3'>
-              <span className='flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary'>
+              <span className='flex size-11 items-center justify-center rounded-xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/15 to-violet-500/10 text-indigo-600 dark:text-indigo-300'>
                 <ClipboardCheck className='size-5' aria-hidden='true' />
               </span>
               <div>
@@ -376,33 +398,100 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             <div className='border-border bg-background mt-6 overflow-hidden rounded-xl border'>
               <div className='border-border bg-muted/25 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5'>
                 <div className='flex items-center gap-3'>
-                  <span className='bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg'><MessageSquareText className='size-4' /></span>
+                  <span className='bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg'>
+                    <MessageSquareText className='size-4' />
+                  </span>
                   <div>
                     <h3 className='text-sm font-semibold'>{tr('Review feedback')}</h3>
-                    {correcting && <p className='text-muted-foreground mt-0.5 text-xs'>{businessTypes.language === 'vi' ? 'Chọn giấy tờ bên dưới để chuyển tới đúng chỗ cần sửa.' : 'Select a document below to jump to its correction.'}</p>}
+                    {correcting && (
+                      <p className='text-muted-foreground mt-0.5 text-xs'>
+                        {businessTypes.language === 'vi'
+                          ? 'Chọn giấy tờ bên dưới để chuyển tới đúng chỗ cần sửa.'
+                          : 'Select a document below to jump to its correction.'}
+                      </p>
+                    )}
                   </div>
                 </div>
-                {correcting && requestedDocuments.length > 0 && <Badge variant='secondary' className='gap-1.5 px-2.5 py-1'><span className='bg-primary size-1.5 rounded-full' />{requestedDocuments.length} {businessTypes.language === 'vi' ? 'giấy tờ cần sửa' : 'documents to update'}</Badge>}
+                {correcting && requestedDocuments.length > 0 && (
+                  <Badge variant='secondary' className='gap-1.5 px-2.5 py-1'>
+                    <span className='bg-primary size-1.5 rounded-full' />
+                    {requestedDocuments.length}{' '}
+                    {businessTypes.language === 'vi' ? 'giấy tờ cần sửa' : 'documents to update'}
+                  </Badge>
+                )}
               </div>
-              <div className={correcting && requestedDocuments.length ? 'grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]' : 'p-4 sm:p-5'}>
+              <div
+                className={
+                  correcting && requestedDocuments.length
+                    ? 'grid gap-5 p-4 sm:p-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]'
+                    : 'p-4 sm:p-5'
+                }
+              >
                 <div className='min-w-0'>
-                  <p className='text-muted-foreground mb-2 text-xs font-medium'>{businessTypes.language === 'vi' ? 'Nhận xét chung' : 'Overall feedback'}</p>
-                  {correcting ? <button type='button' className='border-primary/40 hover:border-primary hover:bg-primary/5 block w-full whitespace-pre-wrap break-words rounded-r-md border-l-2 py-1 pr-2 pl-3 text-left text-sm leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring' onClick={() => jumpToDocument(requestedDocuments[0]?.id)}>{details.reviewFeedback || tr('No feedback recorded.')}</button>
-                    : <p className='whitespace-pre-wrap break-words text-sm leading-6'>{details.reviewFeedback || tr('No feedback recorded.')}</p>}
+                  <p className='text-muted-foreground mb-2 text-xs font-medium'>
+                    {businessTypes.language === 'vi' ? 'Nhận xét chung' : 'Overall feedback'}
+                  </p>
+                  {correcting ? (
+                    <button
+                      type='button'
+                      className='border-primary/40 hover:border-primary hover:bg-primary/5 block w-full whitespace-pre-wrap break-words rounded-r-md border-l-2 py-1 pr-2 pl-3 text-left text-sm leading-6 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+                      onClick={() => jumpToDocument(requestedDocuments[0]?.id)}
+                    >
+                      {details.reviewFeedback || tr('No feedback recorded.')}
+                    </button>
+                  ) : (
+                    <p className='whitespace-pre-wrap break-words text-sm leading-6'>
+                      {details.reviewFeedback || tr('No feedback recorded.')}
+                    </p>
+                  )}
                 </div>
-                {correcting && requestedDocuments.length > 0 && <div className='space-y-2.5'>{requestedDocuments.map((document, index) => (
-                  <button key={document.id} type='button' className='group border-border bg-card hover:border-primary/40 hover:bg-primary/5 flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4' onClick={() => jumpToDocument(document.id)}>
-                    <span className='bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors'><FileText className='size-5' /></span>
-                    <span className='min-w-0 flex-1'>
-                      <span className='flex flex-wrap items-center gap-x-2 gap-y-1'><span className='text-muted-foreground text-[11px] font-medium'>{String(index + 1).padStart(2, '0')}</span><span className='text-sm font-semibold'>{tr(DOCUMENT_LABELS[document.documentType])}</span></span>
-                      <span className='text-muted-foreground mt-1 block truncate text-xs'>{document.fileName}</span>
-                      <span className='mt-2 block whitespace-pre-wrap break-words text-sm leading-5'>{document.adminFeedback}</span>
-                      <span className='text-primary bg-primary/10 mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium'>{businessTypes.language === 'vi' ? 'Đến tài liệu' : 'Go to document'}<ArrowDownRight className='size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:translate-y-0.5' /></span>
-                    </span>
-                  </button>
-                ))}</div>}
+                {correcting && requestedDocuments.length > 0 && (
+                  <div className='space-y-2.5'>
+                    {requestedDocuments.map((document, index) => (
+                      <button
+                        key={document.id}
+                        type='button'
+                        className='group border-border bg-card hover:border-primary/40 hover:bg-primary/5 flex w-full items-start gap-3 rounded-xl border p-3.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:p-4'
+                        onClick={() => jumpToDocument(document.id)}
+                      >
+                        <span className='bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary flex size-10 shrink-0 items-center justify-center rounded-lg transition-colors'>
+                          <FileText className='size-5' />
+                        </span>
+                        <span className='min-w-0 flex-1'>
+                          <span className='flex flex-wrap items-center gap-x-2 gap-y-1'>
+                            <span className='text-muted-foreground text-[11px] font-medium'>
+                              {String(index + 1).padStart(2, '0')}
+                            </span>
+                            <span className='text-sm font-semibold'>
+                              {tr(DOCUMENT_LABELS[document.documentType])}
+                            </span>
+                          </span>
+                          <span className='text-muted-foreground mt-1 block truncate text-xs'>
+                            {document.fileName}
+                          </span>
+                          <span className='mt-2 block whitespace-pre-wrap break-words text-sm leading-5'>
+                            {document.adminFeedback}
+                          </span>
+                          <span className='text-primary bg-primary/10 mt-3 inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium'>
+                            {businessTypes.language === 'vi' ? 'Đến tài liệu' : 'Go to document'}
+                            <ArrowDownRight className='size-3.5 transition-transform group-hover:translate-x-0.5 group-hover:translate-y-0.5' />
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className='border-border text-muted-foreground flex items-start gap-2 border-t px-4 py-3 text-xs leading-5 sm:px-5'><LockKeyhole className='mt-0.5 size-3.5 shrink-0' /><span>{tr(correcting ? 'Only replace the documents requested by the administrator, then resubmit. Business information is read-only.' : 'This application was rejected. Editing and resubmission are unavailable.')}</span></div>
+              <div className='border-border text-muted-foreground flex items-start gap-2 border-t px-4 py-3 text-xs leading-5 sm:px-5'>
+                <LockKeyhole className='mt-0.5 size-3.5 shrink-0' />
+                <span>
+                  {tr(
+                    correcting
+                      ? 'Only replace the documents requested by the administrator, then resubmit. Business information is read-only.'
+                      : 'This application was rejected. Editing and resubmission are unavailable.'
+                  )}
+                </span>
+              </div>
             </div>
           )}
           {details.status === 'APPROVED' && (
@@ -433,6 +522,14 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           </Button>
         </section>
       )}
+      {details && ['CONTRACT_PENDING', 'APPROVED'].includes(details.status) && (
+        <ContractPanel
+          key={`contract-${user.id}`}
+          onSigned={() => {
+            void refreshStatus();
+          }}
+        />
+      )}
       {details && (
         <>
           <form
@@ -445,7 +542,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             }}
           >
             <div className='flex items-center gap-3 border-b pb-5'>
-              <span className='flex size-11 items-center justify-center rounded-md bg-primary/10 text-primary'>
+              <span className='flex size-11 items-center justify-center rounded-xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/15 to-violet-500/10 text-indigo-600 dark:text-indigo-300'>
                 <Building2 className='size-5' aria-hidden='true' />
               </span>
               <div>
@@ -587,12 +684,16 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
       )}
 
       {details && (
-        <section id='organizer-verification-documents' aria-label={tr('Verification documents')} className='scroll-mt-24 space-y-4'>
+        <section
+          id='organizer-verification-documents'
+          aria-label={tr('Verification documents')}
+          className='scroll-mt-24 space-y-4'
+        >
           {editable && (
-            <DocumentRequirementsChecklist actorId={user.id} businessType={selectedBusinessType} />
+            <DocumentRequirementsChecklist actorId={user.id} businessType={selectedBusinessType} revisionRequested={correcting} />
           )}
           <div className='flex items-center gap-3 px-1'>
-            <Files className='size-5 text-primary' aria-hidden='true' />
+            <Files className='size-5 text-indigo-600 dark:text-indigo-300' aria-hidden='true' />
             <div>
               <h2 className='text-lg font-semibold'>{tr('Verification documents')}</h2>
               <p className='text-sm text-muted-foreground'>
@@ -604,7 +705,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           </div>
           {details.status === 'DRAFT' ? (
             <DraftVerificationDocuments
-              businessType={details.businessType}
+              businessType={selectedBusinessType}
               actorId={user.id}
               disabled={busy}
               onBusyChange={(value) => {
@@ -638,15 +739,17 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             )}{' '}
           </p>
           <div className='flex flex-wrap gap-3'>
-            {!correcting && <Button
-              type='submit'
-              form='organizer-application-form'
-              variant='outline'
-              className='rounded-md'
-              disabled={busy || !businessTypes.options.length}
-            >
-              {busy ? tr('Saving…') : tr('Save draft')}
-            </Button>}
+            {!correcting && (
+              <Button
+                type='submit'
+                form='organizer-application-form'
+                variant='outline'
+                className='rounded-md'
+                disabled={busy || !businessTypes.options.length}
+              >
+                {busy ? tr('Saving…') : tr('Save draft')}
+              </Button>
+            )}
             <Button
               type='button'
               className='rounded-md bg-primary text-primary-foreground hover:bg-primary/90'
