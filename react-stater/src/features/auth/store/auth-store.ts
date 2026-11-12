@@ -18,6 +18,16 @@ export interface AuthState {
   setLoading: (isLoading: boolean) => void;
 }
 
+const normalizeUser = (user: UserDto | null): UserDto | null => {
+  if (!user) return null;
+  const effectiveAvatar = user.avatar || user.avatarUrl || null;
+  return {
+    ...user,
+    avatar: effectiveAvatar,
+    avatarUrl: effectiveAvatar
+  };
+};
+
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
@@ -29,7 +39,7 @@ export const useAuthStore = create<AuthState>()(
 
       setAuth: ({ user, accessToken }) =>
         set({
-          user,
+          user: normalizeUser(user),
           accessToken,
           isAuthenticated: true,
           isLoading: false,
@@ -39,7 +49,7 @@ export const useAuthStore = create<AuthState>()(
       setUser: (user) =>
         set((state) => ({
           ...state,
-          user
+          user: normalizeUser(user)
         })),
 
       setAdminViewMode: (mode) =>
@@ -65,6 +75,11 @@ export const useAuthStore = create<AuthState>()(
         setItem: () => {},
         removeItem: () => {}
       })),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.user) {
+          state.user = normalizeUser(state.user);
+        }
+      },
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,

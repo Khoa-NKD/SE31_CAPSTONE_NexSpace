@@ -14,7 +14,7 @@ import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
 import { useCurrency } from '../context/currency-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { getUserRole } from '@/features/auth/utils/role-guard';
+import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
 
 export function Navbar() {
@@ -31,6 +31,7 @@ export function Navbar() {
   };
 
   const navItems = [
+    { label: language === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
     { label: t('nav.workspaces'), href: '#workspaces' },
     { label: t('nav.platform'), href: '#platform' },
     { label: t('nav.reviews'), href: '#reviews' },
@@ -58,14 +59,17 @@ export function Navbar() {
   return (
     <header className='border-border/80 sticky top-0 z-50 w-full border-b bg-white/85 backdrop-blur-md transition-all dark:bg-slate-950/85'>
       <div className='mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between px-6 lg:px-12'>
-        {/* Brand Logo */}
-        <div className='flex items-center gap-6'> {/* Increased gap from gap-3 to gap-6 */}
-          <a
-            href='/'
-            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2'
+        {/* Brand Logo - Điều hướng về trang đầu tiên theo Role của User */}
+        <div className='flex items-center gap-6'>
+          <button
+            type='button'
+            onClick={() => navigate({ to: getRoleHomeUrl(user) })}
+            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 border-none bg-transparent cursor-pointer'
+            title='NexSpace Home'
+            aria-label='NexSpace Home'
           >
             <NexSpaceLogo className='mr-8 h-9 w-auto cursor-pointer' />
-          </a>
+          </button>
         </div>
 
         {/* Center Desktop Navigation */}

@@ -7,7 +7,7 @@ import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 import { UserNav } from './user-nav';
 import { Badge } from '../ui/badge';
-import { ShieldCheck, Activity, Eye } from 'lucide-react';
+import { ShieldCheck, Activity, Eye, Home } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { DashboardLanguageSwitcher } from './dashboard-language-switcher';
@@ -76,6 +76,18 @@ export default function Header() {
             {roleLabel}
           </Badge>
         </div>
+
+        {/* Nút về trang chủ cho người dùng */}
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => router.navigate({ to: '/' })}
+          className='h-7 px-2.5 text-xs font-semibold gap-1.5 border-border/80 bg-background hover:bg-muted/70 text-foreground transition-colors shadow-2xs cursor-pointer'
+          title='Về trang chủ Landing Page'
+        >
+          <Home className='size-3.5 text-indigo-600 dark:text-indigo-400' />
+          <span className='hidden sm:inline'>{language === 'vi' ? 'Trang chủ' : 'Home'}</span>
+        </Button>
 
         {/* Nút chuyển đổi sang giao diện Khách hàng cho Admin */}
         {role === 'ADMIN' && (

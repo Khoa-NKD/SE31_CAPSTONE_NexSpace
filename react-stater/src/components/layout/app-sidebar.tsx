@@ -19,7 +19,9 @@ import { Button } from '@/components/ui/button';
 import { navGroups, customerNavGroups, organizerExtendedNavGroups } from '@/config/nav-config';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { getUserRole } from '@/features/auth/utils/role-guard';
+import { authService } from '@/features/auth/api/auth-service';
+import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Link } from '@tanstack/react-router';
 import { useLocation, useRouter } from '@tanstack/react-router';
 import * as React from 'react';
@@ -71,6 +73,17 @@ export default function AppSidebar() {
   const isOrganizer = userRole === 'ORGANIZER';
   const isAdmin = userRole === 'ADMIN';
 
+  const userAvatar = user?.avatar || user?.avatarUrl;
+  const displayName = user
+    ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userName
+    : 'User';
+  const initial = (user?.firstName?.[0] || user?.lastName?.[0] || user?.userName?.[0] || 'U').toUpperCase();
+  const displayRole = isAdmin
+    ? 'CPTO • Super Admin'
+    : isOrganizer
+      ? (language === 'vi' ? 'Đối tác đã xác minh' : 'Verified Partner')
+      : (language === 'vi' ? 'Khách hàng' : 'Customer');
+
   const activeNavGroups = React.useMemo(() => {
     if (isAdmin) {
       return navGroups;
@@ -118,13 +131,13 @@ export default function AppSidebar() {
             <SidebarMenuItem>
               <SidebarMenuButton size='lg' asChild className='hover:bg-sidebar-accent'>
                 <Link
-                  to={isOrganizer ? '/dashboard/organizer/workspaces' : '/dashboard/overview'}
+                  to={getRoleHomeUrl(user)}
                   aria-label={
                     isOrganizer
                       ? 'NexSpace Organizer Hub'
                       : isAdmin
                         ? 'Nex Space Admin Console'
-                        : 'NexSpace User Workspace'
+                        : 'NexSpace Home'
                   }
                 >
                   <div className='flex items-center gap-2'>
@@ -266,82 +279,83 @@ export default function AppSidebar() {
         </SidebarContent>
 
         <SidebarFooter className='bg-sidebar border-t border-sidebar-border p-2'>
-          {isOrganizer ? (
-            <div className='flex items-center gap-2.5 px-2.5 py-2 rounded-lg bg-sidebar-accent/60 border border-sidebar-border'>
-              <div className='relative size-8 rounded-full bg-sidebar-primary/10 border border-sidebar-primary/20 flex items-center justify-center shrink-0'>
-                <span className='font-bold text-[11px] text-sidebar-primary'>PS</span>
-                <span className='absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-sidebar flex items-center justify-center text-white text-[8px] leading-none'>
-                  ✓
-                </span>
-              </div>
-              <div className='flex flex-col min-w-0 group-data-[collapsible=icon]:hidden'>
-                <span className='font-medium text-xs text-sidebar-foreground truncate'>
-                  Prime Spaces JSC
-                </span>
-                <span className='text-[10px] text-sidebar-primary font-medium'>
-                  {language === 'vi' ? 'Đối tác đã xác minh' : 'Verified Partner'}
-                </span>
-              </div>
-            </div>
-          ) : (
-            <SidebarMenu>
-              <SidebarMenuItem>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <SidebarMenuButton
-                      size='lg'
-                      className='hover:bg-sidebar-accent text-sidebar-foreground data-[state=open]:bg-sidebar-accent'
-                    >
-                      <div className='relative size-8 rounded-full overflow-hidden bg-sidebar-accent border border-sidebar-primary/20 shrink-0'>
-                        <img
-                          src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80'
-                          alt='Marcus Vance'
-                          className='w-full h-full object-cover'
-                        />
-                      </div>
-                      <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
-                        <span className='truncate font-semibold text-sidebar-foreground'>
-                          Marcus Vance
-                        </span>
-                        <span className='text-sidebar-foreground/60 truncate text-[10px]'>
-                          CPTO • Super Admin
-                        </span>
-                      </div>
-                      <Icons.chevronsDown className='ml-auto size-3.5 text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden' />
-                    </SidebarMenuButton>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-sidebar text-sidebar-foreground border-sidebar-border'
-                    side='bottom'
-                    align='end'
-                    sideOffset={4}
+          <SidebarMenu>
+            <SidebarMenuItem>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <SidebarMenuButton
+                    size='lg'
+                    className='hover:bg-sidebar-accent text-sidebar-foreground data-[state=open]:bg-sidebar-accent'
                   >
-                    <DropdownMenuGroup>
-                      <DropdownMenuItem
-                        className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
-                        onClick={() => router.navigate({ to: '/dashboard/notifications' })}
-                      >
-                        <Icons.notification className='mr-2 h-4 w-4' />
-                        Notifications
-                      </DropdownMenuItem>
-                    </DropdownMenuGroup>
-                    <DropdownMenuSeparator className='bg-sidebar-accent' />
+                    <div className='relative size-8 rounded-full shrink-0'>
+                      <Avatar className='size-8 rounded-full border border-sidebar-border'>
+                        {userAvatar && (
+                          <AvatarImage src={userAvatar} alt={displayName} className='object-cover' />
+                        )}
+                        <AvatarFallback className='bg-sidebar-accent text-sidebar-foreground text-xs font-semibold select-none'>
+                          {initial}
+                        </AvatarFallback>
+                      </Avatar>
+                      {isOrganizer && (
+                        <span className='absolute -bottom-0.5 -right-0.5 size-3 bg-emerald-500 rounded-full border-2 border-sidebar flex items-center justify-center text-white text-[8px] leading-none'>
+                          ✓
+                        </span>
+                      )}
+                    </div>
+                    <div className='grid flex-1 text-left text-xs leading-tight min-w-0 group-data-[collapsible=icon]:hidden'>
+                      <span className='truncate font-semibold text-sidebar-foreground'>
+                        {displayName}
+                      </span>
+                      <span className='text-sidebar-foreground/60 truncate text-[10px]'>
+                        {displayRole}
+                      </span>
+                    </div>
+                    <Icons.chevronsDown className='ml-auto size-3.5 text-sidebar-foreground/60 group-data-[collapsible=icon]:hidden' />
+                  </SidebarMenuButton>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent
+                  className='w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg bg-sidebar text-sidebar-foreground border-sidebar-border'
+                  side='bottom'
+                  align='end'
+                  sideOffset={4}
+                >
+                  <DropdownMenuGroup>
                     <DropdownMenuItem
                       className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
-                      onClick={() => {
-                        toast.info('Sign Out Simulated', {
-                          description: 'Session invalidated in local state.'
-                        });
-                      }}
+                      onClick={() => router.navigate({ to: '/dashboard/settings' })}
                     >
-                      <Icons.logout className='mr-2 h-4 w-4' />
-                      Sign out
+                      <Icons.user className='mr-2 h-4 w-4 text-indigo-600' />
+                      {language === 'vi' ? 'Hồ sơ cá nhân' : 'Profile Settings'}
                     </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          )}
+                    <DropdownMenuItem
+                      className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
+                      onClick={() => router.navigate({ to: '/dashboard/notifications' })}
+                    >
+                      <Icons.notification className='mr-2 h-4 w-4' />
+                      {language === 'vi' ? 'Thông báo' : 'Notifications'}
+                    </DropdownMenuItem>
+                  </DropdownMenuGroup>
+                  <DropdownMenuSeparator className='bg-sidebar-accent' />
+                  <DropdownMenuItem
+                    className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-destructive focus:text-destructive cursor-pointer'
+                    onClick={async () => {
+                      try {
+                        await authService.logout();
+                      } catch {
+                        // ignore network errors
+                      }
+                      useAuthStore.getState().clearAuth();
+                      toast.success(language === 'vi' ? 'Đã đăng xuất thành công' : 'Signed out successfully');
+                      router.navigate({ to: '/auth/sign-in' });
+                    }}
+                  >
+                    <Icons.logout className='mr-2 h-4 w-4' />
+                    {language === 'vi' ? 'Đăng xuất' : 'Sign out'}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </SidebarMenuItem>
+          </SidebarMenu>
         </SidebarFooter>
         <SidebarRail />
       </Sidebar>

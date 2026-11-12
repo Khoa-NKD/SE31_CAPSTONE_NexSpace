@@ -1,4 +1,5 @@
 import { Icons } from '@/components/icons';
+import { useRouter } from '@tanstack/react-router';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -23,11 +24,14 @@ export function NavUser({
   user: {
     name: string;
     email: string;
-    avatar: string;
+    avatar?: string | null;
+    avatarUrl?: string | null;
   };
 }) {
+  const router = useRouter();
   const { isMobile } = useSidebar();
   const initial = (user.name?.[0] || user.email?.[0] || 'U').toUpperCase();
+  const avatarSrc = user.avatar || user.avatarUrl || '';
 
   return (
     <SidebarMenu>
@@ -39,7 +43,7 @@ export function NavUser({
               className='data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground'
             >
               <Avatar className='h-8 w-8 rounded-lg'>
-                <AvatarImage src={user.avatar} alt={user.name} />
+                {avatarSrc && <AvatarImage src={avatarSrc} alt={user.name} />}
                 <AvatarFallback className='rounded-lg bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
                   {initial}
                 </AvatarFallback>
@@ -61,7 +65,7 @@ export function NavUser({
               <DropdownMenuLabel className='p-0 font-normal'>
                 <div className='flex items-center gap-2 px-1 py-1.5 text-left text-sm'>
                   <Avatar className='h-8 w-8 rounded-lg'>
-                    <AvatarImage src={user.avatar} alt={user.name} />
+                    {avatarSrc && <AvatarImage src={avatarSrc} alt={user.name} />}
                     <AvatarFallback className='rounded-lg bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
                       {initial}
                     </AvatarFallback>
@@ -82,9 +86,12 @@ export function NavUser({
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
-              <DropdownMenuItem>
-                <Icons.circleCheck className='mr-2 h-4 w-4' />
-                Account
+              <DropdownMenuItem
+                className='cursor-pointer'
+                onClick={() => router.navigate({ to: '/dashboard/settings' })}
+              >
+                <Icons.circleCheck className='mr-2 h-4 w-4 text-indigo-600' />
+                Hồ sơ cá nhân
               </DropdownMenuItem>
               <DropdownMenuItem>
                 <Icons.creditCard className='mr-2 h-4 w-4' />
