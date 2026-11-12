@@ -34,6 +34,7 @@ public class OrganizerApplicationLifecycleService {
     private final Validator validator;
     private final Clock organizerApplicationClock;
     private final org.springframework.context.ApplicationEventPublisher events;
+    private final OrganizerContractService contracts;
     private static final Set<OrganizerDocumentType> CORRECTION_TYPES = Set.of(OrganizerDocumentType.BUSINESS_LICENSE,
             OrganizerDocumentType.ID_CARD_FRONT, OrganizerDocumentType.ID_CARD_BACK,
             OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.OTHER);
@@ -80,12 +81,12 @@ public class OrganizerApplicationLifecycleService {
         }
         availableTaxId(profile);
         var before = snapshot(profile, current);
+        contracts.issue(profile);
         current.forEach(document -> document.setStatus(OrganizerDocumentStatus.VERIFIED));
         documents.saveAll(current);
-        profile.setStatus(OrganizerProfileStatus.APPROVED);
+        profile.setStatus(OrganizerProfileStatus.CONTRACT_PENDING);
         profile.setReviewedBy(actor); profile.setReviewedAt(now()); profile.setReviewFeedback(request.note());
-        profile.getOrganizer().setRoleEntity(organizerRole);
-        users.save(profile.getOrganizer()); profiles.save(profile);
+        profiles.save(profile);
         audit.write(actor, profile.getId(), "Organizer.Approve", before, snapshot(profile, current), request.note());
         notifyReview(profile, List.of());
         return context(profile, actorId, true);
@@ -272,8 +273,9 @@ public class OrganizerApplicationLifecycleService {
         }
     }
     private void availableTaxId(OrganizerProfileModel p) {
-        if (profiles.existsByTaxIdAndStatusAndIdNot(p.getTaxId(), OrganizerProfileStatus.APPROVED, p.getId()))
-            throw new ConflictException("This tax ID belongs to an approved Organizer");
+        if (profiles.existsByTaxIdAndStatusInAndIdNot(p.getTaxId(),
+                List.of(OrganizerProfileStatus.APPROVED, OrganizerProfileStatus.CONTRACT_PENDING), p.getId()))
+            throw new ConflictException("This tax ID belongs to an approved or contract-pending Organizer");
     }
     private UserModel admin(Long actorId) {
         var user = users.findById(actorId).orElseThrow(() -> new UnauthorizedException("Account not found"));

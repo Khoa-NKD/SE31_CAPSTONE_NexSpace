@@ -12,6 +12,15 @@ import lombok.Setter;
 @Getter
 @Setter
 public class BuildingFloorModel extends BaseModel {
+    @Column(name = "real_width_m", precision = 10, scale = 2)
+    private BigDecimal realWidthM;
+
+    @Column(name = "real_length_m", precision = 10, scale = 2)
+    private BigDecimal realLengthM;
+
+    @Column(name = "max_occupancy")
+    private Integer maxOccupancy;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "building_id", nullable = false)
     private BuildingModel building;

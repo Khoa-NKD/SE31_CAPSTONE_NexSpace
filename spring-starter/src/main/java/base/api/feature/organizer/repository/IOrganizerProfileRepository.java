@@ -21,6 +21,7 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
 
     boolean existsByOrganizerIdAndSuspendedTrue(Long organizerId);
     boolean existsByTaxIdAndStatusAndIdNot(String taxId, OrganizerProfileStatus status, Long id);
+    boolean existsByTaxIdAndStatusInAndIdNot(String taxId, java.util.Collection<OrganizerProfileStatus> statuses, Long id);
 
     @Query("SELECT p.organizer.id FROM OrganizerProfileModel p WHERE p.id = :id")
     Optional<Long> findApplicantId(@Param("id") Long id);

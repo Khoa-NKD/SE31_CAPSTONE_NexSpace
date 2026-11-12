@@ -43,7 +43,7 @@ public class BuildingService {
                         allLayouts.stream().filter(l -> l.getBuildingFloor().getId().equals(f.getId())).map(l ->
                             new BuildingResponses.Occupant(l.getWorkspace().getId(), l.getWorkspace().getName(),
                                 l.getId(), l.getName(), l.getStatus().name(), l.getUsageX(), l.getUsageY(),
-                                l.getUsageWidth(), l.getUsageHeight())).toList())).toList())).toList();
+                                l.getUsageWidth(), l.getUsageHeight())).toList())).toList(), b.getLatitude(), b.getLongitude(), b.getCity(), b.getWard())).toList();
     }
 
     @Transactional
@@ -55,17 +55,56 @@ public class BuildingService {
         if (buildings.existsByOrganizerIdAndNameIgnoreCase(actorId, input.name()))
             throw new ConflictException("A building with this name already exists");
         var b = new BuildingModel(); b.setOrganizer(owner); b.setName(input.name()); b.setAddress(input.address());
-        return buildings.saveAndFlush(b).getId();
+        b.setLatitude(input.latitude()); b.setLongitude(input.longitude());
+        b.setCity(input.city()); b.setWard(input.ward());
+        buildings.saveAndFlush(b);
+        int count = input.floorCount() == null ? 0 : input.floorCount();
+        if (count < 0 || count > 100) throw new BadRequestException("Floor count must be between 0 and 100");
+        // Building and its empty physical floors are created atomically; workspace allocations stay separate.
+        for (int number = 1; number <= count; number++) {
+            var floor = new BuildingFloorModel();
+            floor.setBuilding(b); floor.setName("Tầng " + number); floor.setFloorNumber(number);
+            floor.setCanvasWidth(new BigDecimal("1200")); floor.setCanvasHeight(new BigDecimal("800"));
+            physicalFloors.save(floor);
+        }
+        physicalFloors.flush();
+        return b.getId();
     }
 
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public void updateBuilding(Long actorId, Long id, BuildingRequests.Building input) {
         eligible(actorId);
+        if (input.floorCount() != null && input.floorCount() != 0)
+            throw new BadRequestException("Floor count is only supported when creating a building");
+        building(actorId, id, false);
+        // Lock workspace rows first, matching allocation/activation lock order.
+        var lockedWorkspaces = new HashMap<Long, WorkspaceModel>();
+        for (var workspaceId : layouts.findWorkspaceIdsByBuildingId(id)) {
+            var workspace = workspaces.findById(workspaceId)
+                    .filter(candidate -> candidate.getOrganizer().getId().equals(actorId))
+                    .orElseThrow(() -> new NotFoundException("Workspace not found"));
+            em.refresh(workspace, LockModeType.PESSIMISTIC_WRITE);
+            lockedWorkspaces.put(workspaceId, workspace);
+        }
         var b = building(actorId, id, true);
+        // A workspace detached before we acquired its lock must keep its own location.
+        var linkedIds = layouts.findWorkspaceIdsByBuildingId(id);
+        if (!lockedWorkspaces.keySet().containsAll(linkedIds))
+            throw new ConflictException("Building allocations changed. Refresh before updating its address");
         revision(b, input.expectedRevision());
         if (!b.getName().equalsIgnoreCase(input.name()) && buildings.existsByOrganizerIdAndNameIgnoreCase(actorId, input.name()))
             throw new ConflictException("A building with this name already exists");
+        // Legacy address-only edits must not leave a pin pointing at an old address.
+        if (input.latitude() != null || !Objects.equals(b.getAddress(), input.address())) {
+            b.setLatitude(input.latitude()); b.setLongitude(input.longitude());
+        }
         b.setName(input.name()); b.setAddress(input.address());
+        if (input.city() != null) b.setCity(input.city());
+        if (input.ward() != null) b.setWard(input.ward());
+        if (!linkedIds.isEmpty()) {
+            requireLocation(b);
+            linkedIds.forEach(workspaceId -> copyLocation(b, lockedWorkspaces.get(workspaceId)));
+        }
     }
 
     @Transactional
@@ -151,6 +190,9 @@ public class BuildingService {
     /** Called inside the workspace-locked resource transaction; physical floor lock serializes allocations. */
     public void bind(Long actorId, Long workspaceId, FloorPlanModel layout, BuildingRequests.Allocation input) {
         var physical = physicalFloor(actorId, input.buildingFloorId(), true);
+        var source = physical.getBuilding();
+        em.refresh(source, LockModeType.PESSIMISTIC_READ);
+        requireLocation(source);
         var currentLayouts = layouts.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId);
         for (var current : currentLayouts) {
             if (Objects.equals(current.getId(), layout.getId())) continue;
@@ -180,6 +222,38 @@ public class BuildingService {
             if (r.getPosX() != null) ResourceCanvas.fits(r, bounds, false);
         layout.setBuildingFloor(physical); layout.setFloorNumber(physical.getFloorNumber());
         layout.setUsageX(input.x()); layout.setUsageY(input.y()); layout.setUsageWidth(input.width()); layout.setUsageHeight(input.height());
+        copyLocation(source, layout.getWorkspace());
+    }
+
+    /** Keep persisted discovery coordinates/address authoritative at allocation, edit and activation boundaries. */
+    @Transactional
+    public void syncWorkspaceLocation(WorkspaceModel workspace, boolean requireLinkedFloor) {
+        em.refresh(workspace, LockModeType.PESSIMISTIC_WRITE);
+        var mapped = layouts.findByWorkspaceIdOrderByFloorNumberAsc(workspace.getId()).stream()
+                .filter(floor -> floor.getBuildingFloor() != null).toList();
+        if (mapped.isEmpty()) {
+            if (requireLinkedFloor) throw new BadRequestException("Link this workspace to a building and physical floor before activating it");
+            return;
+        }
+        var source = mapped.get(0).getBuildingFloor().getBuilding();
+        if (mapped.stream().anyMatch(floor -> !floor.getBuildingFloor().getBuilding().getId().equals(source.getId())))
+            throw new ConflictException("A workspace can only belong to one building");
+        em.refresh(source, LockModeType.PESSIMISTIC_READ);
+        requireLocation(source); copyLocation(source, workspace);
+    }
+
+    private void requireLocation(BuildingModel building) {
+        if (building.getAddress() == null || building.getAddress().isBlank()
+                || building.getCity() == null || building.getCity().isBlank()
+                || building.getWard() == null || building.getWard().isBlank()
+                || building.getLatitude() == null || building.getLongitude() == null)
+            throw new BadRequestException("Complete the building address, province, ward and map location before linking a workspace");
+    }
+
+    private void copyLocation(BuildingModel building, WorkspaceModel workspace) {
+        workspace.setAddress(building.getAddress()); workspace.setCity(building.getCity());
+        workspace.setDistrict(building.getWard()); workspace.setLatitude(building.getLatitude());
+        workspace.setLongitude(building.getLongitude());
     }
 
     private boolean sameSize(ResourceCanvas.Bounds bounds, BuildingRequests.Allocation input) {

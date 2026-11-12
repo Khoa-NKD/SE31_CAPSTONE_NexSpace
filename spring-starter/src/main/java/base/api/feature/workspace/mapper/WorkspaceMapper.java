@@ -29,11 +29,7 @@ public final class WorkspaceMapper {
         model.setName(dto.getName());
         model.setCategory(dto.getCategory());
         model.setDescription(dto.getDescription());
-        model.setAddress(dto.getAddress());
-        model.setDistrict(dto.getDistrict());
-        model.setCity(dto.getCity());
-        model.setLatitude(dto.getLatitude());
-        model.setLongitude(dto.getLongitude());
+        // Draft location is supplied only by an owned building/floor allocation.
         model.setAreaSqm(dto.getAreaSqm());
         model.setSupportPhone(dto.getSupportPhone());
         model.setEntryInstructions(dto.getEntryInstructions());

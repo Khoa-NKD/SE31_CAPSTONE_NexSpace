@@ -45,7 +45,12 @@ public final class ResourceResponses {
                     BigDecimal pricePerMonth,
             boolean active,
             ResourceCurrency currency,
-            String revision) {}
+            String revision, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
+        public TypeOption(Long id, String name, ResourceCategory category, int capacity, BigDecimal pricePerHour,
+                BigDecimal pricePerDay, BigDecimal pricePerMonth, boolean active, ResourceCurrency currency, String revision) {
+            this(id, name, category, capacity, pricePerHour, pricePerDay, pricePerMonth, active, currency, revision, null, null, null);
+        }
+    }
 
     public record Options(
             Long workspaceId,
@@ -74,7 +79,13 @@ public final class ResourceResponses {
             BookableResourceStatus status,
             String revision,
             ResourceCategory category,
-            Long parentRoomId) {}
+            Long parentRoomId, Long resourceTypeId, Integer capacity) {
+        public LayoutItem(Long id, String code, String name, BigDecimal posX, BigDecimal posY,
+                BigDecimal width, BigDecimal height, BigDecimal rotation, BookableResourceStatus status,
+                String revision, ResourceCategory category, Long parentRoomId) {
+            this(id,code,name,posX,posY,width,height,rotation,status,revision,category,parentRoomId,null,null);
+        }
+    }
 
     public record FloorLayout(
             FloorOption floor,

@@ -21,4 +21,16 @@ public class BuildingModel extends BaseModel {
 
     @Column(nullable = false, length = 500)
     private String address;
+
+    @Column(length = 100)
+    private String city;
+
+    @Column(length = 100)
+    private String ward;
+
+    @Column(precision = 10, scale = 8)
+    private java.math.BigDecimal latitude;
+
+    @Column(precision = 11, scale = 8)
+    private java.math.BigDecimal longitude;
 }

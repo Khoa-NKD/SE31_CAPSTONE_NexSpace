@@ -59,6 +59,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     private final IUserRepository userRepository;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IBookingRepository bookingRepository;
+    private final base.api.feature.resource.service.BuildingService buildings;
 
     @Override
     public WorkspaceDetailDto createWorkspace(Long organizerId, CreateWorkspaceDto dto) {
@@ -87,6 +88,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new BadRequestException("Không thể cập nhật không gian làm việc đã bị lưu trữ");
         }
 
+        buildings.syncWorkspaceLocation(workspace, false);
         if (dto.getName() != null && !dto.getName().isBlank()) {
             workspace.setName(dto.getName());
         }
@@ -96,21 +98,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         if (dto.getDescription() != null) {
             workspace.setDescription(dto.getDescription());
         }
-        if (dto.getAddress() != null) {
-            workspace.setAddress(dto.getAddress());
-        }
-        if (dto.getDistrict() != null) {
-            workspace.setDistrict(dto.getDistrict());
-        }
-        if (dto.getCity() != null) {
-            workspace.setCity(dto.getCity());
-        }
-        if (dto.getLatitude() != null) {
-            workspace.setLatitude(dto.getLatitude());
-        }
-        if (dto.getLongitude() != null) {
-            workspace.setLongitude(dto.getLongitude());
-        }
+        // Ignore legacy client location fields: the linked building is authoritative.
         if (dto.getAreaSqm() != null) {
             workspace.setAreaSqm(dto.getAreaSqm());
         }
@@ -433,6 +421,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     }
 
     private void validateRequiredFieldsForActivation(WorkspaceModel workspace) {
+        buildings.syncWorkspaceLocation(workspace, true);
         if (workspace.getName() == null || workspace.getName().isBlank()) {
             throw new BadRequestException("Tên không gian làm việc không được để trống khi đăng lên hệ thống");
         }

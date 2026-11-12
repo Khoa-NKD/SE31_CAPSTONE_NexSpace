@@ -1,0 +1,5 @@
+ALTER TABLE organizer_layout_template
+    DROP CHECK chk_layout_template_icon,
+    ADD CONSTRAINT chk_layout_template_icon CHECK (
+        icon IS NULL OR icon IN ('TABLE','PLANT','PARTITION','BOX','LOCKER','SOFA','SHELF','PRINTER','SCREEN','COFFEE','WHITEBOARD','LAMP','FAN','AIR_CONDITIONER','TRASH','SPEAKER','CLOCK','REFRIGERATOR','WATER_DISPENSER','ROUTER')
+    );
