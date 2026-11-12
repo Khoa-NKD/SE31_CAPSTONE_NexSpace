@@ -5,6 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   documentPoliciesQueryOptions,
+  documentTypeLabel,
   missingRequiredDocuments
 } from '../api/document-requirements';
 import { verificationDocumentsQueryOptions } from '@/features/organizer-verification-documents/api/documents';
@@ -12,10 +13,12 @@ import type { ApplicationInput } from '../api/application';
 
 export function DocumentRequirementsChecklist({
   actorId,
-  businessType
+  businessType,
+  revisionRequested = false
 }: {
   actorId: number;
   businessType: ApplicationInput['businessType'];
+  revisionRequested?: boolean;
 }) {
   const { language } = useLanguage();
   const vi = language === 'vi';
@@ -25,12 +28,12 @@ export function DocumentRequirementsChecklist({
   const missing = policy ? missingRequiredDocuments(policy, documents.data?.documents ?? []) : [];
   return (
     <section
-      className='border-border bg-card overflow-hidden rounded-xl border'
+      className='bg-card overflow-hidden rounded-2xl border border-indigo-500/15 shadow-sm'
       aria-label={vi ? 'Giấy tờ bắt buộc' : 'Required documents'}
     >
-      <div className='border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4'>
+      <div className='flex flex-wrap items-center justify-between gap-3 border-b border-indigo-500/10 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-5 py-4'>
         <h3 className='flex items-center gap-2 text-sm font-semibold'>
-          <FileText className='text-primary size-4' />
+          <FileText className='size-4 text-indigo-600 dark:text-indigo-300' />
           {vi ? 'Giấy tờ bắt buộc theo loại hình' : 'Required documents for your business type'}
         </h3>
         {policy && documents.isSuccess ? (
@@ -66,36 +69,53 @@ export function DocumentRequirementsChecklist({
             </Button>
           </div>
         ) : (
-          <ul className='grid gap-3 sm:grid-cols-2'>
+          <ul
+            className={`grid gap-3 ${policy.requiredDocuments.length > 1 ? 'lg:grid-cols-2' : ''}`}
+          >
             {policy.requiredDocuments.map((requirement) => {
               const needed = missing.some((item) => item.documentType === requirement.documentType);
+              const uploaded = documents.data?.documents.find(
+                (item) => item.documentType === requirement.documentType
+              );
               return (
                 <li
                   key={requirement.documentType}
-                  className={`flex gap-3 rounded-lg border p-3 ${needed ? 'border-border bg-muted/20' : 'border-primary/20 bg-primary/5'}`}
+                  className={`flex gap-3.5 rounded-xl border p-4 ${needed ? 'border-indigo-500/10 bg-gradient-to-br from-indigo-500/[0.035] via-background to-violet-500/[0.025]' : 'border-emerald-500/20 bg-gradient-to-br from-emerald-500/10 to-teal-500/5'}`}
                 >
                   {needed ? (
-                    <CircleDashed className='text-muted-foreground mt-0.5 size-5 shrink-0' />
+                    <span className='flex size-9 shrink-0 items-center justify-center rounded-xl border border-indigo-500/15 bg-gradient-to-br from-indigo-500/15 to-violet-500/10 text-indigo-600 dark:text-indigo-300'>
+                      <CircleDashed className='size-4' />
+                    </span>
                   ) : (
-                    <Check className='text-primary mt-0.5 size-5 shrink-0' />
+                    <span className='flex size-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'>
+                      <Check className='size-4' />
+                    </span>
                   )}
                   <div className='min-w-0'>
-                    <p className='text-sm font-medium'>
-                      {vi ? requirement.labelVi : requirement.labelEn}
+                    <p className='text-sm font-semibold leading-6'>
+                      {documentTypeLabel(requirement.documentType, language, policy)}
                     </p>
                     <p className='text-muted-foreground mt-1 text-xs leading-5'>
                       {vi ? requirement.guidanceVi : requirement.guidanceEn}
                     </p>
                     <p
-                      className={`mt-2 text-xs font-medium ${needed ? 'text-muted-foreground' : 'text-primary'}`}
+                      className={`mt-2 text-xs font-medium ${needed ? 'text-indigo-600 dark:text-indigo-300' : 'text-emerald-700 dark:text-emerald-300'}`}
                     >
                       {needed
                         ? vi
-                          ? 'Cần tải lên / thay lại'
-                          : 'Upload or replacement needed'
+                          ? revisionRequested
+                            ? 'Cần thay theo yêu cầu'
+                            : 'Chưa có file hợp lệ'
+                          : revisionRequested
+                            ? 'Requested replacement needed'
+                            : 'Upload needed'
                         : vi
-                          ? 'Đã tải lên · Chờ Admin kiểm tra'
-                          : 'Uploaded · Subject to admin review'}
+                          ? uploaded?.status === 'VERIFIED'
+                            ? 'Đã xác minh'
+                            : 'Đã tải lên'
+                          : uploaded?.status === 'VERIFIED'
+                            ? 'Verified'
+                            : 'Uploaded'}
                     </p>
                   </div>
                 </li>

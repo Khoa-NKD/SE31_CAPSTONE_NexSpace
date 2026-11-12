@@ -214,44 +214,50 @@ export const organizerNavGroups: NavGroup[] = [
       {
         title: 'Business Profile',
         url: '/dashboard/organizer/business-profile',
-        icon: 'user',
+        icon: 'business',
         isActive: false
       },
       {
         title: 'My Workspaces',
         url: '/dashboard/organizer/workspaces',
-        icon: 'workspace',
+        icon: 'coworking',
         shortcut: ['w', 'w'],
+        isActive: false
+      },
+      {
+        title: 'Buildings',
+        url: '/dashboard/organizer/buildings',
+        icon: 'building',
         isActive: false
       },
       {
         title: 'Floor Plan & Zones',
         url: '/dashboard/organizer/floorplan',
-        icon: 'forms',
+        icon: 'floorPlan',
         isActive: false
       },
       {
         title: 'Seats & Rooms',
         url: '/dashboard/organizer/resources',
-        icon: 'galleryVerticalEnd',
+        icon: 'seats',
         isActive: false
       },
       {
         title: 'Pricing Matrix',
         url: '/dashboard/organizer/pricing',
-        icon: 'billing',
+        icon: 'pricing',
         isActive: false
       },
       {
         title: 'Blockout Hours',
         url: '/dashboard/organizer/blockout',
-        icon: 'calendar',
+        icon: 'blockout',
         isActive: false
       },
       {
         title: 'Bookings',
         url: '/dashboard/organizer/bookings',
-        icon: 'calendar',
+        icon: 'bookings',
         shortcut: ['b', 'b'],
         isActive: false,
         label: '8 Active'
@@ -259,7 +265,7 @@ export const organizerNavGroups: NavGroup[] = [
       {
         title: 'Schedule (Gantt)',
         url: '/dashboard/organizer/schedule',
-        icon: 'clock',
+        icon: 'gantt',
         shortcut: ['s', 's'],
         isActive: false,
         label: 'Live'

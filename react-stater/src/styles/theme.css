@@ -7,16 +7,73 @@ body {
 
 :root {
   --header-height: calc(var(--spacing, 0.25rem) * 12 + 1px);
-  --stitch-sidebar: #090D16;
-  --stitch-sidebar-hover: #1E293B;
-  --stitch-canvas: #F8FAFC;
-  --stitch-primary: #4F46E5;
-  --stitch-primary-dark: #4338CA;
-  --stitch-border-subtle: #E2E8F0;
-  --stitch-border-strong: #CBD5E1;
-  --stitch-status-active: #10B981;
-  --stitch-status-pending: #F59E0B;
-  --stitch-status-critical: #EF4444;
+  --stitch-sidebar: #090d16;
+  --stitch-sidebar-hover: #1e293b;
+  --stitch-canvas: #f8fafc;
+  --stitch-primary: #4f46e5;
+  --stitch-primary-dark: #4338ca;
+  --stitch-border-subtle: #e2e8f0;
+  --stitch-border-strong: #cbd5e1;
+  --stitch-status-active: #10b981;
+  --stitch-status-pending: #f59e0b;
+  --stitch-status-critical: #ef4444;
+}
+
+/* Set tokens on the root so dashboard dialogs and menus inherit them through portals. */
+[data-theme][data-organizer-theme] {
+  --background: var(--stitch-canvas);
+  --foreground: #0f172a;
+  --card: #ffffff;
+  --card-foreground: var(--foreground);
+  --popover: var(--card);
+  --popover-foreground: var(--foreground);
+  --primary: var(--stitch-primary);
+  --primary-foreground: #ffffff;
+  --secondary: #eef2ff;
+  --secondary-foreground: #312e81;
+  --muted: #f1f5f9;
+  --muted-foreground: #475569;
+  --accent: #eef2ff;
+  --accent-foreground: #3730a3;
+  --border: var(--stitch-border-subtle);
+  --input: var(--stitch-border-strong);
+  --ring: var(--primary);
+  --sidebar: var(--card);
+  --sidebar-foreground: #334155;
+  --sidebar-primary: var(--primary);
+  --sidebar-primary-foreground: var(--primary-foreground);
+  --sidebar-accent: var(--accent);
+  --sidebar-accent-foreground: var(--accent-foreground);
+  --sidebar-border: var(--border);
+  --sidebar-ring: var(--ring);
+}
+
+[data-theme][data-organizer-theme].dark {
+  --background: var(--stitch-sidebar);
+  --foreground: #f1f5f9;
+  --card: #111827;
+  --primary: #a5b4fc;
+  --primary-foreground: #1e1b4b;
+  --secondary: #202c48;
+  --secondary-foreground: #e0e7ff;
+  --muted: var(--stitch-sidebar-hover);
+  --muted-foreground: #a8b4c7;
+  --accent: #222957;
+  --accent-foreground: #e0e7ff;
+  --border: #263349;
+  --input: #42516b;
+  --sidebar: #0e1523;
+  --sidebar-foreground: #cbd5e1;
+}
+
+[data-organizer-theme] [data-slot='sidebar-inset'] {
+  background-image: radial-gradient(
+    ellipse at top,
+    color-mix(in oklab, var(--primary) 8%, transparent),
+    transparent 65%
+  );
+  background-repeat: no-repeat;
+  background-size: 100% 28rem;
 }
 
 /* Apply theme fonts to body for all themes */

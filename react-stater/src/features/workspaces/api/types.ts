@@ -271,9 +271,9 @@ export interface NearbyWorkspacesParams {
 export interface CreateWorkspaceDto {
   name: string;
   category: WorkspaceCategory;
-  streetAddress: string;
-  city: string;
-  district: string;
+  streetAddress?: string;
+  city?: string;
+  district?: string;
   buildingName?: string;
   facilitySubtitle?: string;
   description?: string;

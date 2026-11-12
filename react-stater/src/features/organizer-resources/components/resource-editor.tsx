@@ -14,6 +14,8 @@ import {
 import { moveWithRoom } from '../utils/placement';
 import { layoutGeometry, insideRoom, previewLayout } from '../utils/layout-placement';
 import { useBlocker } from '@tanstack/react-router';
+import { resourceUsageKinds } from '../utils/resource-usage-kinds';
+import type { ResourceUsageKind } from '../api/resources';
 import { FloorAllocationDialog } from './floor-allocation-dialog';
 import {
   LoaderCircle,
@@ -1043,6 +1045,11 @@ function ResourceTypeSetupDialog({
   const [currency, setCurrency] = useState(current?.currency ?? 'VND');
   const [legacyCurrencyConfirmed, setLegacyCurrencyConfirmed] = useState(false);
   const [capacity, setCapacity] = useState(String(current?.capacity ?? 1));
+  const [usageKind, setUsageKind] = useState<ResourceUsageKind | ''>(
+    current ? (current.usageKind ?? '') : 'WORK_SEAT'
+  );
+  const [standardWidth, setStandardWidth] = useState(String(current?.standardWidthM ?? ''));
+  const [standardLength, setStandardLength] = useState(String(current?.standardLengthM ?? ''));
   const [hour, setHour] = useState(current?.pricePerHour ?? '');
   const [day, setDay] = useState(current?.pricePerDay ?? '');
   const [month, setMonth] = useState(current?.pricePerMonth ?? '');
@@ -1069,6 +1076,25 @@ function ResourceTypeSetupDialog({
       );
       return;
     }
+    const hasConfiguration = !!usageKind || !!standardWidth || !!standardLength;
+    if (
+      (!current || hasConfiguration) &&
+      (!resourceUsageKinds.some((item) => item.value === usageKind && item.category === category) ||
+        !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(standardWidth) ||
+        !/^(?:0|[1-9]\d*)(?:\.\d{1,2})?$/.test(standardLength) ||
+        Number(standardWidth) <= 0 ||
+        Number(standardLength) <= 0 ||
+        Number(standardWidth) > 10000 ||
+        Number(standardLength) > 10000)
+    ) {
+      setError(
+        c(
+          'Confirm usage and positive dimensions in metres (max 2 decimals).',
+          'Xác nhận kiểu chỗ và kích thước theo mét, tối đa 2 số thập phân.'
+        )
+      );
+      return;
+    }
     if (current && !current.currency && !legacyCurrencyConfirmed) {
       setError(
         c(
@@ -1090,7 +1116,10 @@ function ResourceTypeSetupDialog({
           pricePerHour: hour || null,
           pricePerDay: day || null,
           pricePerMonth: month || null,
-          legacyCurrencyConfirmed
+          legacyCurrencyConfirmed,
+          usageKind: usageKind || null,
+          standardWidthM: standardWidth ? Number(standardWidth) : null,
+          standardLengthM: standardLength ? Number(standardLength) : null
         },
         current
       );
@@ -1141,6 +1170,7 @@ function ResourceTypeSetupDialog({
                     value={category}
                     onChange={(e) => {
                       setCategory(e.target.value as 'DESK' | 'ROOM');
+                      setUsageKind(e.target.value === 'DESK' ? 'WORK_SEAT' : 'MEETING_ROOM');
                       if (e.target.value === 'DESK') setCapacity('1');
                     }}
                   >
@@ -1166,6 +1196,52 @@ function ResourceTypeSetupDialog({
                   </select>
                 </Field>
               </div>
+              <div className='grid grid-cols-3 gap-3'>
+                <Field label={c('Usage', 'Kiểu chỗ')}>
+                  <select
+                    className={selectClass}
+                    value={usageKind}
+                    onChange={(e) => setUsageKind(e.target.value as ResourceUsageKind | '')}
+                  >
+                    {current && !current.usageKind && (
+                      <option value=''>{c('Legacy / unconfirmed', 'Chưa xác nhận')}</option>
+                    )}
+                    {resourceUsageKinds
+                      .filter((item) => item.category === category)
+                      .map((item) => (
+                        <option key={item.value} value={item.value}>
+                          {c(item.en, item.vi)}
+                        </option>
+                      ))}
+                  </select>
+                </Field>
+                <Field label={c('Width (m)', 'Rộng (m)')}>
+                  <Input
+                    type='number'
+                    min='.01'
+                    max='10000'
+                    step='.01'
+                    value={standardWidth}
+                    onChange={(e) => setStandardWidth(e.target.value)}
+                  />
+                </Field>
+                <Field label={c('Length (m)', 'Dài (m)')}>
+                  <Input
+                    type='number'
+                    min='.01'
+                    max='10000'
+                    step='.01'
+                    value={standardLength}
+                    onChange={(e) => setStandardLength(e.target.value)}
+                  />
+                </Field>
+              </div>
+              <p className='text-xs text-muted-foreground'>
+                {c(
+                  'Different usage or dimensions require a separate type. Existing resources and bookings are preserved.',
+                  'Khác kiểu chỗ hoặc kích thước cần loại riêng. Không thay đổi ghế/phòng và booking hiện có.'
+                )}
+              </p>
               {current && !current.currency && (
                 <label className='border-primary/20 bg-primary/5 flex items-start gap-2 rounded-lg border p-3 text-sm'>
                   <input

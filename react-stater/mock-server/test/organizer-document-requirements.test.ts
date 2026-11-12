@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   documentPoliciesSchema,
+  documentTypeLabel,
   missingRequiredDocuments
 } from '../../src/features/organizer-application/api/document-requirements.ts';
 import type { VerificationDocument } from '../../src/features/organizer-verification-documents/api/documents.ts';
@@ -47,4 +48,19 @@ test('does not count rejected, replaced or duplicate current documents as comple
 test('rejects incomplete or duplicate business policy catalogs', () => {
   assert.equal(documentPoliciesSchema.safeParse([policy]).success, false);
   assert.equal(documentPoliciesSchema.safeParse(Array(5).fill(policy)).success, false);
+});
+
+test('uses the same policy label for checklist and upload types in both languages', () => {
+  const household = {
+    ...policy,
+    requiredDocuments: [{
+      documentType: 'BUSINESS_LICENSE' as const,
+      labelVi: 'Giấy chứng nhận đăng ký hộ kinh doanh',
+      labelEn: 'Household business registration certificate',
+      guidanceVi: 'Hướng dẫn', guidanceEn: 'Guidance'
+    }]
+  };
+  assert.equal(documentTypeLabel('BUSINESS_LICENSE', 'vi', household), household.requiredDocuments[0].labelVi);
+  assert.equal(documentTypeLabel('BUSINESS_LICENSE', 'en', household), household.requiredDocuments[0].labelEn);
+  assert.equal(documentTypeLabel('TAX_CERTIFICATE', 'vi', household), 'Giấy chứng nhận thuế');
 });

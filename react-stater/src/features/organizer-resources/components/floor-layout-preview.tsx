@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type PointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -17,6 +17,8 @@ import type { FloorLayout, LayoutItem, AvailabilityState } from '../api/resource
 import { availabilityColors, availabilityLabel } from '../utils/availability';
 import { DecorationLayer } from './decoration-visual';
 import { ResourceMapSymbol } from './resource-map-symbol';
+import type { PlacementFields } from '../utils/placement';
+
 import { useCanvasWheel } from './use-canvas-wheel';
 import {
   SharedFloorLayer,
@@ -67,7 +69,11 @@ export function FloorLayoutPreview({
   focus,
   onFocus,
   presentation = 'card',
-  availability
+  availability,
+  previewChanges,
+  collisionKeys,
+  onObjectDrag,
+  actions
 }: {
   layout: FloorLayout;
   width: number;
@@ -76,6 +82,14 @@ export function FloorLayoutPreview({
   onFocus: (key: string | null) => void;
   presentation?: 'card' | 'workspace';
   availability?: Record<number, AvailabilityState>;
+  previewChanges?: Record<string, 'ADD' | 'UPDATE'>;
+  collisionKeys?: ReadonlySet<string>;
+  actions?: ReactNode;
+  onObjectDrag?: (
+    key: string,
+    fields: PlacementFields,
+    phase: 'start' | 'move' | 'end' | 'cancel'
+  ) => void;
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
@@ -91,8 +105,14 @@ export function FloorLayoutPreview({
     camera: Box;
     moved: boolean;
     target: string | null;
+    editing: boolean;
+    initial?: PlacementFields;
+    fields?: PlacementFields;
   } | null>(null);
   const moved = useRef(false);
+  const [objectHover, setObjectHover] = useState<{ key: string; left: number; top: number } | null>(
+    null
+  );
   const [cameraState, setCameraState] = useState<{ sequence: number; box: Box } | null>(null);
   const [expanded, setExpanded] = useState(false);
   const container = useRef<HTMLDivElement>(null);
@@ -136,10 +156,12 @@ export function FloorLayoutPreview({
   }
   const [panning, setPanning] = useState(false);
   const floor = shared.bounds ?? { x: 0, y: 0, width, height };
-  const resources = layout.resources.filter(
+  const originalResources = layout.resources.filter(
     (item): item is LayoutItem & { posX: number; posY: number; width: number; height: number } =>
       item.posX !== null && item.posY !== null && !!item.width && !!item.height
   );
+  const resources = originalResources;
+  const decorations = layout.decorations ?? [];
   const objects = [
     ...resources.map((item) => ({
       key: `resource:${item.id}`,
@@ -189,6 +211,7 @@ export function FloorLayoutPreview({
     const inverse = svg.current?.getScreenCTM()?.inverse();
     if (!inverse) return;
     event.preventDefault();
+    setObjectHover(null);
     moved.current = false;
     const target =
       (event.target as Element).closest('[data-preview-key]')?.getAttribute('data-preview-key') ??
@@ -199,15 +222,59 @@ export function FloorLayoutPreview({
       inverse,
       camera,
       moved: false,
-      target
+      target,
+      editing: !!target && !!onObjectDrag,
+      initial: target ? dragFields(target, 0, 0) : undefined
     };
+    setCamera(camera);
     svg.current?.setPointerCapture(event.pointerId);
     setPanning(true);
   }
+  function dragFields(key: string, dx: number, dy: number): PlacementFields | undefined {
+    const initial = drag.current?.target === key ? drag.current.initial : undefined;
+    const item = initial
+      ? {
+          posX: Number(initial.posX),
+          posY: Number(initial.posY),
+          width: Number(initial.width),
+          height: Number(initial.height),
+          rotation: Number(initial.rotation)
+        }
+      : key.startsWith('resource:')
+        ? originalResources.find((r) => `resource:${r.id}` === key)
+        : layout.decorations?.find((d) => `decoration:${d.id}` === key);
+    if (
+      !item ||
+      item.posX == null ||
+      item.posY == null ||
+      item.width == null ||
+      item.height == null
+    )
+      return;
+    return {
+      posX: String(Math.round((item.posX + dx) * 100) / 100),
+      posY: String(Math.round((item.posY + dy) * 100) / 100),
+      width: String(item.width),
+      height: String(item.height),
+      rotation: String(item.rotation ?? 0)
+    };
+  }
+  const hoveredResource = originalResources.find((r) => `resource:${r.id}` === objectHover?.key);
+  const hoveredObject = layout.decorations?.find((d) => `decoration:${d.id}` === objectHover?.key);
   function resource(item: (typeof resources)[number]) {
     const active = focus.key === `resource:${item.id}`;
     const state = availability?.[item.id];
-    const color = state ? availabilityColors[state] : undefined;
+    const change = previewChanges?.[`resource:${item.id}`];
+    const collision = collisionKeys?.has(`resource:${item.id}`);
+    const color = collision
+      ? '#ef4444'
+      : change
+        ? change === 'ADD'
+          ? '#10b981'
+          : '#f59e0b'
+        : state
+          ? availabilityColors[state]
+          : undefined;
     const select = () => {
       if (!moved.current) onFocus(`resource:${item.id}`);
     };
@@ -231,6 +298,9 @@ export function FloorLayoutPreview({
       >
         <title>
           {item.name}
+          {change
+            ? ` · ${change === 'ADD' ? c('New', 'Thêm mới') : c('Updated', 'Chỉnh sửa')}`
+            : ''}
           {state ? ` · ${availabilityLabel(state, language === 'vi')}` : ''}
         </title>
         <rect
@@ -246,7 +316,7 @@ export function FloorLayoutPreview({
                 ? 'fill-muted/20 stroke-muted-foreground/70'
                 : 'fill-primary/5 stroke-primary/60'
           }
-          strokeWidth={active ? 2.5 : 1.3}
+          strokeWidth={active || collision ? 2.5 : 1.3}
           vectorEffect='non-scaling-stroke'
           strokeDasharray={item.category === 'ROOM' ? undefined : '3 3'}
           style={
@@ -291,8 +361,39 @@ export function FloorLayoutPreview({
             : 'overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
-      <SharedFloorTooltip context={shared} />
-      <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background p-4'>
+      {!objectHover && <SharedFloorTooltip context={shared} />}
+      {actions && (
+        <div className='flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2'>
+          {actions}
+        </div>
+      )}
+      {objectHover && (hoveredResource || hoveredObject) && (
+        <div
+          role='tooltip'
+          className='pointer-events-none fixed z-[110] w-64 rounded-xl border border-primary/20 bg-popover p-3 text-popover-foreground shadow-xl'
+          style={{ left: objectHover.left, top: objectHover.top }}
+        >
+          <p className='text-sm font-semibold'>{hoveredResource?.name ?? hoveredObject?.label}</p>
+          <p className='mt-1 text-xs text-muted-foreground'>
+            {hoveredResource
+              ? `${hoveredResource.code} · ${hoveredResource.category === 'ROOM' ? c('Room', 'Phòng') : c('Seat', 'Ghế')}`
+              : c('Layout object · Not bookable', 'Đồ bố trí · Không đặt chỗ')}
+          </p>
+          <p className='mt-1 text-xs text-muted-foreground'>
+            {hoveredResource?.width ?? hoveredObject?.width} ×{' '}
+            {hoveredResource?.height ?? hoveredObject?.height} px
+            {hoveredResource?.capacity
+              ? ` · ${hoveredResource.capacity} ${c('people', 'người')}`
+              : ''}
+          </p>
+          <p className='mt-2 text-xs font-medium text-primary'>
+            {onObjectDrag
+              ? c('Drag to move · Click for properties', 'Kéo để di chuyển · Click xem thuộc tính')
+              : c('Click for properties', 'Click xem thuộc tính')}
+          </p>
+        </div>
+      )}
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background px-4 py-2.5'>
         <div>
           <p className='flex items-center gap-2 text-sm font-semibold'>
             <span className='flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary'>
@@ -300,7 +401,11 @@ export function FloorLayoutPreview({
             </span>
             {c('Floor overview', 'Toàn cảnh tầng')}
           </p>
-          <p className='mt-1.5 text-[11px] text-muted-foreground'>
+          <p
+            className={
+              presentation === 'workspace' ? 'sr-only' : 'mt-1.5 text-[11px] text-muted-foreground'
+            }
+          >
             {c(
               'Drag to pan. Select an object or use the list to focus.',
               'Kéo để xem xung quanh. Chọn đối tượng hoặc bấm Xem trong danh sách để phóng tới.'
@@ -391,7 +496,12 @@ export function FloorLayoutPreview({
         <div className='pointer-events-none absolute left-3 top-3 z-10 flex gap-2'>
           <span className='flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur'>
             <Hand className='size-3' />
-            {c('Pan view', 'Kéo để xem')}
+            {onObjectDrag
+              ? c(
+                  'Drag objects to move · Drag background to pan',
+                  'Kéo đồ vật để di chuyển · Kéo nền để xem'
+                )
+              : c('Pan view', 'Kéo để xem')}
           </span>
         </div>
         <svg
@@ -404,18 +514,52 @@ export function FloorLayoutPreview({
             shared.clearHover();
             point(event);
           }}
-          onPointerLeave={shared.clearHover}
+          onPointerLeave={() => {
+            shared.clearHover();
+            setObjectHover(null);
+          }}
           onWheel={shared.clearHover}
           onPointerUp={() => {
             const current = drag.current;
             stop();
-            if (current?.target && !current.moved) onFocus(current.target);
+            if (current?.editing && current.moved && current.target) {
+              const fields = current.fields ?? current.initial;
+              if (fields) onObjectDrag?.(current.target, fields, 'end');
+            } else if (current?.target && !current.moved) onFocus(current.target);
           }}
-          onPointerCancel={stop}
-          onLostPointerCapture={stop}
+          onPointerCancel={() => {
+            const current = drag.current;
+            if (current?.editing && current.moved && current.target) {
+              const fields = dragFields(current.target, 0, 0);
+              if (fields) onObjectDrag?.(current.target, fields, 'cancel');
+            }
+            stop();
+          }}
+          onLostPointerCapture={() => {
+            const current = drag.current;
+            if (current?.editing && current.moved && current.target) {
+              const fields = dragFields(current.target, 0, 0);
+              if (fields) onObjectDrag?.(current.target, fields, 'cancel');
+            }
+            stop();
+          }}
           onPointerMove={(event) => {
             shared.inspectArea(event);
             const current = drag.current;
+            if (!current) {
+              const key = (event.target as Element)
+                .closest('[data-preview-key]')
+                ?.getAttribute('data-preview-key');
+              setObjectHover(
+                key
+                  ? {
+                      key,
+                      left: Math.max(8, Math.min(event.clientX + 16, window.innerWidth - 280)),
+                      top: Math.max(8, Math.min(event.clientY + 16, window.innerHeight - 160))
+                    }
+                  : null
+              );
+            }
             if (!current || event.pointerId !== current.pointerId) return;
             const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(
               current.inverse
@@ -423,10 +567,20 @@ export function FloorLayoutPreview({
             const dx = cursor.x - current.start.x,
               dy = cursor.y - current.start.y;
             if (Math.abs(dx) + Math.abs(dy) > current.camera.width / 250) {
+              if (!current.moved && current.editing && current.target) {
+                const fields = dragFields(current.target, 0, 0);
+                if (fields) onObjectDrag?.(current.target, fields, 'start');
+              }
               current.moved = true;
               moved.current = true;
             }
-            if (current.moved)
+            if (current.moved && current.editing && current.target) {
+              const fields = dragFields(current.target, dx, dy);
+              if (fields) {
+                current.fields = fields;
+                onObjectDrag?.(current.target, fields, 'move');
+              }
+            } else if (current.moved)
               setCamera({ ...current.camera, x: current.camera.x - dx, y: current.camera.y - dy });
           }}
         >
@@ -447,8 +601,8 @@ export function FloorLayoutPreview({
           />
           <rect width={width} height={height} fill={`url(#${id})`} />
           {resources.filter((item) => item.category === 'ROOM').map(resource)}
-          <DecorationLayer items={layout.decorations ?? []} />
-          {(layout.decorations ?? []).map((item) => (
+          <DecorationLayer items={decorations} />
+          {decorations.map((item) => (
             <rect
               key={`target-${item.id}`}
               data-preview-key={`decoration:${item.id}`}
@@ -458,6 +612,23 @@ export function FloorLayoutPreview({
               height={item.height}
               transform={`rotate(${item.rotation} ${item.posX + item.width / 2} ${item.posY + item.height / 2})`}
               fill='transparent'
+              stroke={
+                collisionKeys?.has(`decoration:${item.id}`)
+                  ? '#ef4444'
+                  : previewChanges?.[`decoration:${item.id}`] === 'ADD'
+                    ? '#10b981'
+                    : previewChanges?.[`decoration:${item.id}`] === 'UPDATE'
+                      ? '#f59e0b'
+                      : undefined
+              }
+              strokeWidth={
+                collisionKeys?.has(`decoration:${item.id}`) ||
+                previewChanges?.[`decoration:${item.id}`]
+                  ? 2
+                  : undefined
+              }
+              strokeDasharray={previewChanges?.[`decoration:${item.id}`] ? '5 3' : undefined}
+              vectorEffect='non-scaling-stroke'
               role='button'
               tabIndex={0}
               className='cursor-pointer outline-none focus:stroke-primary'

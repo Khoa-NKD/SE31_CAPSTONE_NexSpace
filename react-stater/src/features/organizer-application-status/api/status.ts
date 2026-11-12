@@ -7,6 +7,11 @@ import {
 export type ApplicationStatus = ApplicationDetails['status'];
 
 export const APPLICATION_STATUS = {
+  CONTRACT_PENDING: {
+    label: 'Awaiting agreement',
+    description:
+      'Your documents have been reviewed. Read and confirm the agreement to activate Organizer access.'
+  },
   DRAFT: {
     label: 'Draft',
     description: 'Your application is saved as a draft and has not been submitted for review.'

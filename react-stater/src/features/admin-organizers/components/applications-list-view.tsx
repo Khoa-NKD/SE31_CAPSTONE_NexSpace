@@ -22,6 +22,7 @@ import {
 import { adminApplicationsQueryOptions } from '../api/applications';
 import type { AdminApplicationFilters } from '../api/applications';
 import { ApplicationsPagination } from './applications-pagination';
+import { useAdminReviewFocusRefresh } from '../hooks/use-admin-review-focus-refresh';
 import {
   Search,
   SlidersHorizontal,
@@ -50,6 +51,7 @@ export function ApplicationsListView({
   const actor = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.accessToken);
   const allowed = !!actor && !!token && actor.role === 'ADMIN';
+  useAdminReviewFocusRefresh(mounted && allowed);
   const query = useQuery({
     ...adminApplicationsQueryOptions(actor?.id ?? 0, filters),
     enabled: mounted && allowed
@@ -120,6 +122,7 @@ export function ApplicationsListView({
             >
               <option value='all'>All submitted applications</option>
               <option value='PENDING_REVIEW'>Pending review</option>
+              <option value='CONTRACT_PENDING'>Awaiting agreement</option>
               <option value='APPROVED'>Approved</option>
               <option value='REJECTED'>Rejected</option>
               <option value='REVISION_REQUESTED'>Changes requested</option>
@@ -271,7 +274,7 @@ export function ApplicationsListView({
                         </TableCell>
                         <TableCell>
                           <Badge
-                            className={`gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${application.status === 'PENDING_REVIEW' ? 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300' : application.status === 'APPROVED' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : application.status === 'REVISION_REQUESTED' ? 'border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300' : 'border-destructive/20 bg-destructive/10 text-destructive'}`}
+                            className={`gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-medium ${application.status === 'PENDING_REVIEW' ? 'border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300' : application.status === 'CONTRACT_PENDING' ? 'border-primary/20 bg-primary/10 text-primary' : application.status === 'APPROVED' ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300' : application.status === 'REVISION_REQUESTED' ? 'border-blue-500/20 bg-blue-500/10 text-blue-700 dark:text-blue-300' : 'border-destructive/20 bg-destructive/10 text-destructive'}`}
                             variant={
                               application.status === 'REJECTED'
                                 ? 'destructive'

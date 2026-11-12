@@ -59,6 +59,6 @@ export function adminApplicationDetailsQueryOptions(actorId: number, id: string)
     gcTime: 0,
     staleTime: 0,
     retry: false,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: true
   });
 }

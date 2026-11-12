@@ -91,6 +91,14 @@ export function floorAvailabilityOptions(
     refetchOnWindowFocus: false
   });
 }
+export type ResourceUsageKind =
+  | 'WORK_SEAT'
+  | 'SOFA_SEAT'
+  | 'OTHER_SEAT'
+  | 'MEETING_ROOM'
+  | 'PRIVATE_OFFICE'
+  | 'SHARED_ROOM'
+  | 'OTHER_ROOM';
 export interface TypeOption {
   id: number;
   name: string;
@@ -102,6 +110,9 @@ export interface TypeOption {
   pricePerMonth: string | null;
   active: boolean;
   revision: string;
+  usageKind?: ResourceUsageKind | null;
+  standardWidthM?: number | string | null;
+  standardLengthM?: number | string | null;
 }
 export interface ResourceOptions {
   workspaceId: number;
@@ -362,6 +373,9 @@ export interface TypeInput {
   pricePerMonth: string | null;
   expectedRevision?: string;
   legacyCurrencyConfirmed?: boolean;
+  usageKind?: ResourceUsageKind | null;
+  standardWidthM?: number | null;
+  standardLengthM?: number | null;
 }
 export const saveResourceType = (workspaceId: number, value: TypeInput, current?: TypeOption) =>
   backendRequest<TypeOption>(
@@ -371,8 +385,12 @@ export const saveResourceType = (workspaceId: number, value: TypeInput, current?
     current ? 'PUT' : 'POST',
     { ...value, ...(current ? { expectedRevision: current.revision } : {}) }
   );
-export const invalidateResources = (client: QueryClient, actorId: number) =>
-  client.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
+export const invalidateResources = async (client: QueryClient, actorId: number): Promise<void> => {
+  await Promise.all([
+    client.invalidateQueries({ queryKey: ['organizer-resources', actorId] }),
+    client.invalidateQueries({ queryKey: ['workspaces'] })
+  ]);
+};
 /** Display the saved denomination; the site currency selector never reinterprets amounts. */
 export function resourceMoney(value: string | null, currency: Currency | null, vi: boolean) {
   if (value === null) return '—';
@@ -380,6 +398,8 @@ export function resourceMoney(value: string | null, currency: Currency | null, v
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, vi ? '.' : ',')}${fraction ? `${vi ? ',' : '.'}${fraction.padEnd(2, '0')}` : ''} ${currency ?? (vi ? 'chưa rõ tiền tệ' : 'currency unconfirmed')}`;
 }
 export interface LayoutItem {
+  resourceTypeId?: number | null;
+  capacity?: number | null;
   category?: Category;
   parentRoomId?: number | null;
   id: number;
@@ -403,6 +423,41 @@ export interface FloorLayout {
   draftChanges?: boolean;
 }
 export type DecorationKind = 'TABLE' | 'PLANT' | 'PARTITION' | 'OTHER';
+export type DecorationIconName =
+  | 'TABLE'
+  | 'PLANT'
+  | 'PARTITION'
+  | 'BOX'
+  | 'LOCKER'
+  | 'SOFA'
+  | 'SHELF'
+  | 'PRINTER'
+  | 'SCREEN'
+  | 'COFFEE'
+  | 'WHITEBOARD'
+  | 'LAMP'
+  | 'FAN'
+  | 'AIR_CONDITIONER'
+  | 'TRASH'
+  | 'SPEAKER'
+  | 'CLOCK'
+  | 'REFRIGERATOR'
+  | 'WATER_DISPENSER'
+  | 'ROUTER'
+  | 'TOILET'
+  | 'SINK'
+  | 'PROJECTOR'
+  | 'VIDEO_CONFERENCE'
+  | 'STAIRS'
+  | 'ELEVATOR'
+  | 'FIRE_EXTINGUISHER'
+  | 'DOOR'
+  | 'ACCESSIBILITY'
+  | 'MICROWAVE'
+  | 'SHOWER'
+  | 'BED'
+  | 'CAMERA'
+  | 'PHONE';
 export interface FloorDecoration {
   id: string;
   kind: DecorationKind;
@@ -413,6 +468,7 @@ export interface FloorDecoration {
   height: number;
   rotation: number;
   color: string;
+  icon?: DecorationIconName | null;
 }
 export const saveFloorDecorations = (
   workspaceId: number,

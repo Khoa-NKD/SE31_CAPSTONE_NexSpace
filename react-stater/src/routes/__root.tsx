@@ -1,5 +1,11 @@
 import type { QueryClient } from '@tanstack/react-query';
-import { HeadContent, Outlet, Scripts, createRootRouteWithContext } from '@tanstack/react-router';
+import {
+  HeadContent,
+  Outlet,
+  Scripts,
+  createRootRouteWithContext,
+  useLocation
+} from '@tanstack/react-router';
 import { TanStackRouterDevtools } from '@tanstack/react-router-devtools';
 import { createServerFn } from '@tanstack/react-start';
 
@@ -8,6 +14,7 @@ import { TooltipProvider } from '@/components/ui/tooltip';
 import { ActiveThemeProvider } from '@/components/themes/active-theme';
 import ThemeProvider from '@/components/themes/theme-provider';
 import { DEFAULT_THEME } from '@/components/themes/theme.config';
+import { ORGANIZER_DASHBOARD_PATH, THEME_KEYS } from '@/components/themes/theme-scope';
 import { seo } from '@/lib/seo';
 import { LanguageProvider } from '@/features/landing/context/language-context';
 import { CurrencyProvider } from '@/features/landing/context/currency-context';
@@ -54,9 +61,17 @@ export const Route = createRootRouteWithContext<{
 
 function RootDocument() {
   const { activeTheme } = Route.useLoaderData();
+  const isOrganizer = useLocation({
+    select: (location) => ORGANIZER_DASHBOARD_PATH.test(location.pathname)
+  });
 
   return (
-    <html lang='en' suppressHydrationWarning data-theme={activeTheme}>
+    <html
+      lang='en'
+      suppressHydrationWarning
+      data-theme={activeTheme}
+      data-organizer-theme={isOrganizer ? '' : undefined}
+    >
       <head>
         <HeadContent />
         <script
@@ -65,13 +80,14 @@ function RootDocument() {
               (function() {
                 try {
                   var pathname = window.location.pathname;
-                  var isAdmin = pathname.startsWith('/dashboard');
+                  var isOrganizer = ${ORGANIZER_DASHBOARD_PATH}.test(pathname);
+                  var isAdmin = pathname.startsWith('/dashboard') && !isOrganizer;
                   
                   // 1. Resolve Mode (Dark / Light)
-                  var modeKey = isAdmin ? 'admin_theme' : 'theme';
+                  var modeKey = isAdmin ? '${THEME_KEYS.admin.modeKey}' : '${THEME_KEYS.customer.modeKey}';
                   var storedMode = localStorage.getItem(modeKey);
                   var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                  var isDark = storedMode === 'dark' || (storedMode === 'system' && prefersDark) || (!storedMode && prefersDark && !isAdmin);
+                  var isDark = storedMode === 'dark' || (storedMode === 'system' && prefersDark);
                   
                   var root = document.documentElement;
                   if (isDark) {
@@ -85,7 +101,7 @@ function RootDocument() {
                   }
                   
                   // 2. Enforce Single Vercel Palette
-                  var cookieName = isAdmin ? 'admin_active_theme' : 'active_theme';
+                  var cookieName = isAdmin ? '${THEME_KEYS.admin.paletteStorageKey}' : '${THEME_KEYS.customer.paletteStorageKey}';
                   if (localStorage.getItem(cookieName) !== '${DEFAULT_THEME}') {
                     localStorage.setItem(cookieName, '${DEFAULT_THEME}');
                   }

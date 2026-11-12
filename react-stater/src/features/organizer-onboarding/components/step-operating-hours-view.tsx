@@ -91,6 +91,8 @@ export function StepOperatingHoursView() {
   const router = useRouter();
   const {
     operatingHours,
+    location,
+    setLocation,
     setOperatingHours,
     updateDaySchedule,
     applyMondayToWeekdays,
@@ -157,7 +159,7 @@ export function StepOperatingHoursView() {
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => prev });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev });
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -190,10 +192,10 @@ export function StepOperatingHoursView() {
     <div className='w-full max-w-5xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
       <div>
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={3} />
+        <WizardHeader currentStep={2} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={3} />
+        <WizardStepper currentStep={2} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
@@ -472,9 +474,14 @@ export function StepOperatingHoursView() {
         </div>
       </div>
 
+      <section className='mt-6 rounded-xl border bg-card p-6'>
+        <label htmlFor='workspace-entry-notes' className='mb-2 block text-sm font-semibold'>Entry instructions</label>
+        <p className='text-muted-foreground mb-3 text-xs'>Optional directions for entering the building or reaching your workspace. The address is inherited when you link its floor.</p>
+        <textarea id='workspace-entry-notes' className='border-input bg-background w-full rounded-lg border p-3 text-sm' maxLength={1000} rows={3} value={location.entryNotes} onChange={event => setLocation({ entryNotes: event.target.value })} />
+      </section>
       {/* Sticky Action Footer Bar */}
       <footer className='mt-8 bg-card/95 backdrop-blur border border-border px-6 py-4 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3'>
-        {/* Left: Back to Location */}
+        {/* Left: Back to Basic Info */}
         <Button
           type='button'
           variant='ghost'
@@ -482,7 +489,7 @@ export function StepOperatingHoursView() {
           className='gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground'
         >
           <ArrowLeft className='size-4' />
-          <span>Back to Location</span>
+          <span>Back to Basic Info</span>
         </Button>
 
         {/* Right: Save Draft & Continue */}

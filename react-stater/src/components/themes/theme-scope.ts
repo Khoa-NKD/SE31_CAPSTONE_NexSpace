@@ -2,13 +2,13 @@ import { DEFAULT_THEME, THEMES } from './theme.config';
 
 export type ThemeScope = 'admin' | 'customer';
 
+export const ORGANIZER_DASHBOARD_PATH = /^\/dashboard\/organizer(?:\/|$)/;
+
 /**
- * Determines the theme scope based on the route pathname.
- * - `/dashboard/*` -> Admin scope
- * - All other routes (`/`, `/workspaces/*`, `/auth/*`, etc.) -> Customer scope
+ * Organizer pages share the public site's appearance preference.
  */
 export function getThemeScope(pathname: string): ThemeScope {
-  if (pathname.startsWith('/dashboard')) {
+  if (pathname.startsWith('/dashboard') && !ORGANIZER_DASHBOARD_PATH.test(pathname)) {
     return 'admin';
   }
   return 'customer';
