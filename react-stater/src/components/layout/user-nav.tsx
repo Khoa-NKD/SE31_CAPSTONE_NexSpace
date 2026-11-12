@@ -133,7 +133,6 @@ export function UserNav() {
               {language === 'vi' ? 'Đơn đặt chỗ của tôi' : 'My Bookings'}
             </span>
           </DropdownMenuItem>
-          </DropdownMenuItem>
 
           {/* Nút về trang chủ */}
           <DropdownMenuItem
