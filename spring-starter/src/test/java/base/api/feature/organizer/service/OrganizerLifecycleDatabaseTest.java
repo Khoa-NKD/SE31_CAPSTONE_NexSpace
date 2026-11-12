@@ -58,6 +58,7 @@ class OrganizerLifecycleDatabaseTest {
             if (!url.startsWith("jdbc:h2:mem:")) throw new IllegalStateException("Only isolated in-memory tests are allowed");
             return new org.hibernate.cfg.Configuration().addAnnotatedClass(UserModel.class).addAnnotatedClass(RoleModel.class)
                     .addAnnotatedClass(OrganizerProfileModel.class).addAnnotatedClass(OrganizerDocumentModel.class).addAnnotatedClass(AuditLogModel.class)
+                    .addAnnotatedClass(OrganizerContractModel.class)
                     .setProperty("hibernate.connection.driver_class", "org.h2.Driver")
                     .setProperty("hibernate.connection.url", url).setProperty("hibernate.connection.username", "sa")
                     .setProperty("hibernate.connection.password", "").setProperty("hibernate.hbm2ddl.auto", "create-drop")
@@ -74,6 +75,15 @@ class OrganizerLifecycleDatabaseTest {
         @Bean IRoleRepository roles(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IRoleRepository.class); }
         @Bean IOrganizerProfileRepository profiles(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerProfileRepository.class); }
         @Bean IOrganizerDocumentRepository documents(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerDocumentRepository.class); }
+        @Bean IOrganizerContractRepository contracts(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerContractRepository.class); }
+        @Bean OrganizerContractService contractService(IOrganizerContractRepository contracts, IOrganizerProfileRepository profiles,
+                IUserRepository users, IRoleRepository roles, OrganizerLifecycleAudit audit,
+                base.api.shared.config.EmailService email, Clock clock, org.springframework.context.ApplicationEventPublisher events) {
+            var environment = new org.springframework.mock.env.MockEnvironment(); environment.setActiveProfiles("local");
+            return new OrganizerContractService(contracts, profiles, users, roles,
+                    new OrganizerContractFiles(files.resolve("contracts").toString()), new OrganizerContractPdf(), audit, email,
+                    new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4), clock, events, environment, true);
+        }
         @Bean IAuditLogRepository records(EntityManager em) {
             return new JpaRepositoryFactory(em).getRepository(IAuditLogRepository.class);
         }
@@ -91,8 +101,9 @@ class OrganizerLifecycleDatabaseTest {
         }
         @Bean OrganizerApplicationLifecycleService service(IUserRepository users, IRoleRepository roles,
                 IOrganizerProfileRepository profiles, IOrganizerDocumentRepository documents, PrivateOrganizerDocumentStorage storage,
-                OrganizerLifecycleAudit audit, Validator validator, Clock clock, org.springframework.context.ApplicationEventPublisher events) {
-            return new OrganizerApplicationLifecycleService(users, roles, profiles, documents, storage, audit, validator, clock, events);
+                OrganizerLifecycleAudit audit, Validator validator, Clock clock, org.springframework.context.ApplicationEventPublisher events,
+                OrganizerContractService contracts) {
+            return new OrganizerApplicationLifecycleService(users, roles, profiles, documents, storage, audit, validator, clock, events, contracts);
         }
     }
     @BeforeAll static void start() {
@@ -110,7 +121,7 @@ class OrganizerLifecycleDatabaseTest {
         org.mockito.Mockito.reset(context.getBean(base.api.shared.config.EmailService.class));
         failAudit = false; authentication("ADMIN");
         tx.executeWithoutResult(status -> {
-            for (String entity : List.of("AuditLogModel", "OrganizerDocumentModel", "OrganizerProfileModel", "UserModel", "RoleModel"))
+            for (String entity : List.of("AuditLogModel", "OrganizerContractModel", "OrganizerDocumentModel", "OrganizerProfileModel", "UserModel", "RoleModel"))
                 em.createQuery("delete from " + entity).executeUpdate();
             var userRole = new RoleModel("USER", null); var adminRole = new RoleModel("ADMIN", null);
             em.persist(userRole); em.persist(adminRole); em.persist(new RoleModel("ORGANIZER", null));
@@ -135,16 +146,112 @@ class OrganizerLifecycleDatabaseTest {
     Approval approval(long revision) { return new Approval(revision, true, List.of(documentId), "Documents checked and consistent"); }
     long events() { return tx.execute(status -> em.createQuery("select count(a) from AuditLogModel a", Long.class).getSingleResult()); }
 
-    @Test void approvalUpdatesProfileRoleDocumentsAndAuditTogether() {
+    OrganizerContractService agreements() { return context.getBean(OrganizerContractService.class); }
+    base.api.feature.organizer.dto.response.OrganizerContractResponse issueAgreement() {
+        service.approve(adminId, profileId, approval(0)); authentication("USER");
+        return agreements().current(ownerId);
+    }
+    String sendCode(base.api.feature.organizer.dto.response.OrganizerContractResponse contract) {
+        agreements().requestOtp(ownerId, contract.id(), contract.contentHash());
+        var body = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(context.getBean(base.api.shared.config.EmailService.class))
+                .sendRequiredHtmlEmail(org.mockito.ArgumentMatchers.eq("owner@example.test"), org.mockito.ArgumentMatchers.anyString(), body.capture());
+        var matcher = java.util.regex.Pattern.compile(">(\\d{6})</p>").matcher(body.getValue());
+        if (!matcher.find()) throw new AssertionError("Verification email must contain a six-digit code");
+        return matcher.group(1);
+    }
+
+    @Test void signedAgreementActivatesOwnerAtomicallyAndRetriesAreIdempotent() throws Exception {
+        var contract = issueAgreement();
+        String code = sendCode(contract);
+        var result = agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true);
+        assertThat(result.status()).isEqualTo("SIGNED"); assertThat(result.signedAt()).isEqualTo(TIME);
+        assertThat(agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true).id()).isEqualTo(contract.id());
+        assertThat(events()).isEqualTo(2);
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerProfileModel.class, profileId).getStatus()).isEqualTo(OrganizerProfileStatus.APPROVED);
+            assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.ORGANIZER);
+            assertThat(em.find(OrganizerContractModel.class, contract.id()).getOtpHash()).isNull();
+        });
+        try (var document = org.apache.pdfbox.Loader.loadPDF(agreements().ownerPdf(ownerId))) {
+            assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(document))
+                    .contains("HỢP ĐỒNG HỢP TÁC", "BIÊN NHẬN", contract.contentHash());
+        }
+    }
+
+    @Test void incorrectOtpAttemptsCommitAndLockAfterFiveFailures() {
+        var contract = issueAgreement(); String code = sendCode(contract);
+        String incorrect = code.equals("000000") ? "111111" : "000000";
+        for (int attempt = 0; attempt < 5; attempt++)
+            assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), contract.contentHash(), incorrect, true))
+                    .isInstanceOf(OrganizerContractService.InvalidContractOtpException.class);
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("locked");
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerContractModel.class, contract.id()).getOtpAttempts()).isEqualTo(5);
+            assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.USER);
+        });
+        assertThat(events()).isEqualTo(1);
+    }
+
+    @Test void consentVersionExpiryAndOtherOwnersCannotSign() {
+        var contract = issueAgreement(); String code = sendCode(contract);
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), contract.contentHash(), code, false)).isInstanceOf(BadRequestException.class);
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), "0".repeat(64), code, true)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id() + 1, contract.contentHash(), code, true)).isInstanceOf(ConflictException.class);
+        tx.executeWithoutResult(status -> em.find(OrganizerContractModel.class, contract.id()).setOtpExpiresAt(TIME));
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("expired");
+        Long foreign = tx.execute(status -> { var account = account("foreign", em.find(UserModel.class, ownerId).getRoleEntity()); em.persist(account); em.flush(); return account.getId(); });
+        assertThatThrownBy(() -> agreements().current(foreign)).isInstanceOf(NotFoundException.class);
+        assertThat(events()).isEqualTo(1);
+    }
+
+    @Test void resendCooldownAndHourlyLimitAreEnforced() {
+        var contract = issueAgreement(); sendCode(contract);
+        assertThatThrownBy(() -> agreements().requestOtp(ownerId, contract.id(), contract.contentHash())).isInstanceOf(ConflictException.class).hasMessageContaining("60 seconds");
+        tx.executeWithoutResult(status -> { var c = em.find(OrganizerContractModel.class, contract.id()); c.setOtpSentAt(TIME.minusMinutes(2)); c.setOtpWindowCount(5); });
+        assertThatThrownBy(() -> agreements().requestOtp(ownerId, contract.id(), contract.contentHash())).isInstanceOf(ConflictException.class).hasMessageContaining("limit");
+    }
+
+    @Test void smtpFailureDoesNotPersistAnUndeliverableOtp() {
+        var contract = issueAgreement();
+        org.mockito.Mockito.doThrow(new IllegalStateException("Email could not be delivered"))
+                .when(context.getBean(base.api.shared.config.EmailService.class)).sendRequiredHtmlEmail(org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        assertThatThrownBy(() -> agreements().requestOtp(ownerId, contract.id(), contract.contentHash())).isInstanceOf(ConflictException.class);
+        tx.executeWithoutResult(status -> { var c = em.find(OrganizerContractModel.class, contract.id()); assertThat(c.getOtpHash()).isNull(); assertThat(c.getOtpWindowCount()).isZero(); });
+    }
+
+    @Test void signingAuditFailureRollsBackRoleContractAndProfile() {
+        var contract = issueAgreement(); String code = sendCode(contract); failAudit = true;
+        assertThatThrownBy(() -> agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true)).isInstanceOf(IllegalStateException.class);
+        tx.executeWithoutResult(status -> {
+            assertThat(em.find(OrganizerContractModel.class, contract.id()).getStatus()).isEqualTo("PENDING_SIGNATURE");
+            assertThat(em.find(OrganizerContractModel.class, contract.id()).getSignedPdfKey()).isNull();
+            assertThat(em.find(OrganizerProfileModel.class, profileId).getStatus()).isEqualTo(OrganizerProfileStatus.CONTRACT_PENDING);
+            assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.USER);
+        });
+        assertThat(events()).isEqualTo(1);
+    }
+
+    @Test void concurrentSigningCreatesOneSignatureAndOneActivationAudit() throws Exception {
+        var contract = issueAgreement(); String code = sendCode(contract);
+        var start = new CountDownLatch(1); var pool = Executors.newFixedThreadPool(2);
+        Callable<String> sign = () -> { authentication("USER"); start.await(); try { return agreements().sign(ownerId, contract.id(), contract.contentHash(), code, true).status(); } finally { SecurityContextHolder.clearContext(); } };
+        try { var a = pool.submit(sign); var b = pool.submit(sign); start.countDown(); assertThat(a.get(15, TimeUnit.SECONDS)).isEqualTo("SIGNED"); assertThat(b.get(15, TimeUnit.SECONDS)).isEqualTo("SIGNED"); assertThat(events()).isEqualTo(2); }
+        finally { pool.shutdownNow(); }
+    }
+
+    @Test void documentApprovalIssuesAgreementWithoutGrantingOrganizerAccess() {
         var result = service.approve(adminId, profileId, approval(0));
         org.mockito.Mockito.verify(context.getBean(base.api.shared.config.EmailService.class))
                 .sendHtmlEmail(org.mockito.ArgumentMatchers.eq("owner@example.test"),
-                        org.mockito.ArgumentMatchers.contains("đã được phê duyệt"),
-                        org.mockito.ArgumentMatchers.contains("%2Fdashboard%2Forganizer%2Fworkspaces"));
-        assertThat(result.status()).isEqualTo(OrganizerProfileStatus.APPROVED); assertThat(result.canSuspend()).isFalse();
+                        org.mockito.ArgumentMatchers.contains("mời xác nhận"),
+                        org.mockito.ArgumentMatchers.contains("%2Forganizer%2Fapply"));
+        assertThat(result.status()).isEqualTo(OrganizerProfileStatus.CONTRACT_PENDING); assertThat(result.canSuspend()).isFalse();
         tx.executeWithoutResult(status -> {
             var p = em.find(OrganizerProfileModel.class, profileId);
-            assertThat(p.getOrganizer().getRole()).isEqualTo(UserRole.ORGANIZER);
+            assertThat(p.getOrganizer().getRole()).isEqualTo(UserRole.USER);
             assertThat(p.getReviewedBy().getId()).isEqualTo(adminId); assertThat(p.getReviewedAt()).isEqualTo(TIME);
             assertThat(em.find(OrganizerDocumentModel.class, documentId).getStatus()).isEqualTo(OrganizerDocumentStatus.VERIFIED);
         });
@@ -181,7 +288,7 @@ class OrganizerLifecycleDatabaseTest {
 
     @Test void legacyPendingApplicationCanBeApprovedWithoutFabricatingAReason() {
         tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class,profileId).setRegistrationReason(null));
-        assertThat(service.approve(adminId,profileId,approval(0)).status()).isEqualTo(OrganizerProfileStatus.APPROVED);
+        assertThat(service.approve(adminId,profileId,approval(0)).status()).isEqualTo(OrganizerProfileStatus.CONTRACT_PENDING);
         tx.executeWithoutResult(status -> assertThat(em.find(OrganizerProfileModel.class,profileId).getRegistrationReason()).isNull());
     }
 
@@ -295,8 +402,8 @@ class OrganizerLifecycleDatabaseTest {
         var approved = service.approve(adminId, profileId, approval(0));
         assertThat(approved.canSuspend()).isFalse();
         assertThat(approved.suspended()).isFalse();
-        assertThat(approved.status()).isEqualTo(OrganizerProfileStatus.APPROVED);
-        tx.executeWithoutResult(status -> assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.ORGANIZER));
+        assertThat(approved.status()).isEqualTo(OrganizerProfileStatus.CONTRACT_PENDING);
+        tx.executeWithoutResult(status -> assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.USER));
         assertThat(events()).isEqualTo(1);
     }
     @Test void concurrentApprovalAndRejectionProduceExactlyOneDecision() throws Exception {

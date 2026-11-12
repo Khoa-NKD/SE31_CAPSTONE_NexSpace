@@ -45,6 +45,17 @@ public class ResourceTypeModel extends BaseModel {
     @Column(nullable = false, length = 10)
     private ResourceCategory category;
 
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "usage_kind", length = 30)
+    private base.api.shared.enums.ResourceUsageKind usageKind;
+
+    @Column(name = "standard_width_m", precision = 8, scale = 2)
+    private BigDecimal standardWidthM;
+
+    @Column(name = "standard_length_m", precision = 8, scale = 2)
+    private BigDecimal standardLengthM;
+
     @Column(length = 1000)
     private String description;
 

@@ -30,6 +30,9 @@ import java.time.LocalDateTime;
         @UniqueConstraint(name = "ux_floor_plan_workspace_physical", columnNames = {"workspace_id", "building_floor_id"})
 })
 public class FloorPlanModel extends BaseModel {
+    @Column(name = "occupancy_limit")
+    private Integer occupancyLimit;
+
 
     /** NULL only for retained layouts that have not been explicitly mapped yet. */
     @ManyToOne(fetch = FetchType.LAZY)

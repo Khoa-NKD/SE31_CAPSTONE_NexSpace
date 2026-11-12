@@ -119,6 +119,19 @@ public final class ResourceCanvas {
     public static void validateDecorations(
             java.util.List<base.api.feature.resource.dto.FloorDecorations.Item> items,
             Bounds bounds) {
+        validateDecorationBounds(items, bounds);
+        for (int i = 0; i < items.size(); i++)
+            for (int j = i + 1; j < items.size(); j++)
+                if (overlaps(shape(items.get(i)), shape(items.get(j))))
+                    throw new ConflictException(
+                            "Layout objects overlap: "
+                                    + items.get(i).label()
+                                    + " / "
+                                    + items.get(j).label());
+    }
+
+    static void validateDecorationBounds(
+            java.util.List<base.api.feature.resource.dto.FloorDecorations.Item> items, Bounds bounds) {
         var ids = new java.util.HashSet<String>();
         for (var item : items) {
             if (!ids.add(item.id())) throw new ConflictException("Duplicate decoration ID");
@@ -134,14 +147,6 @@ public final class ResourceCanvas {
             shape.setRotation(item.rotation());
             fits(shape, bounds, true);
         }
-        for (int i = 0; i < items.size(); i++)
-            for (int j = i + 1; j < items.size(); j++)
-                if (overlaps(shape(items.get(i)), shape(items.get(j))))
-                    throw new ConflictException(
-                            "Layout objects overlap: "
-                                    + items.get(i).label()
-                                    + " / "
-                                    + items.get(j).label());
     }
 
     public static BookableResourceModel shape(
@@ -197,7 +202,7 @@ public final class ResourceCanvas {
                                     item.width(),
                                     item.height(),
                                     object.getRotation(),
-                                    item.color());
+                                    item.color(), item.icon());
                         })
                 .toList();
     }

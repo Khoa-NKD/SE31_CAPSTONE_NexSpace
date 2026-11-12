@@ -13,8 +13,24 @@ public final class BuildingRequests {
     }
     public record Building(@NotBlank @Size(max = 150) String name,
                            @NotBlank @Size(max = 500) String address,
-                           @Size(max = 100) String expectedRevision) {
-        public Building { name = trim(name); address = trim(address); }
+                           @Size(max = 100) String expectedRevision,
+                           @DecimalMin("-90") @DecimalMax("90") @Digits(integer = 2, fraction = 8) BigDecimal latitude,
+                           @DecimalMin("-180") @DecimalMax("180") @Digits(integer = 3, fraction = 8) BigDecimal longitude,
+                           @Min(0) @Max(100) Integer floorCount,
+                           @Size(max = 100) String city,
+                           @Size(max = 100) String ward) {
+        public Building { name = trim(name); address = trim(address); city = trim(city); ward = trim(ward); }
+        public Building(String name, String address, String expectedRevision, BigDecimal latitude, BigDecimal longitude, Integer floorCount) {
+            this(name, address, expectedRevision, latitude, longitude, floorCount, null, null);
+        }
+        public Building(String name, String address, String expectedRevision) {
+            this(name, address, expectedRevision, null, null, null);
+        }
+        public Building(String name, String address, String expectedRevision, BigDecimal latitude, BigDecimal longitude) {
+            this(name, address, expectedRevision, latitude, longitude, null);
+        }
+        @AssertTrue(message = "Latitude and longitude must be supplied together")
+        public boolean isCoordinatePairValid() { return (latitude == null) == (longitude == null); }
         @JsonAnySetter public void unsupported(String key, Object value) { reject(); }
     }
     public record PhysicalFloor(@NotBlank @Size(max = 100) String name,

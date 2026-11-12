@@ -52,7 +52,7 @@ class WorkspaceLifecycleModerationTest {
         userRepository = mock(IUserRepository.class);
         operatingHourRepository = mock(IWorkspaceOperatingHourRepository.class);
         bookingRepository = mock(IBookingRepository.class);
-        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, mock(base.api.feature.resource.service.BuildingService.class));
 
         organizer = new UserModel();
         organizer.setId(10L);

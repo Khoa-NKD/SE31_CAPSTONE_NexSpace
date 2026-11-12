@@ -49,6 +49,11 @@ public class OrganizerReviewEmailNotification {
             explanation = "Chúc mừng! Hồ sơ doanh nghiệp của bạn đã được NexSpace phê duyệt. Tài khoản của bạn đã được cấp quyền Organizer. Bạn có thể đăng nhập để truy cập dashboard và bắt đầu quản lý không gian làm việc.";
             button = "Đăng nhập và mở Organizer Dashboard";
             target = "/dashboard/organizer/workspaces";
+        } else if (n.status() == OrganizerProfileStatus.CONTRACT_PENDING) {
+            title = "Hồ sơ đã đạt yêu cầu — mời xác nhận hợp đồng";
+            explanation = "Giấy tờ của bạn đã được kiểm tra và chấp thuận. Vui lòng đăng nhập, đọc hợp đồng và hoàn tất bước xác nhận bằng OTP email. Tài khoản chỉ được cấp quyền Organizer sau khi hoàn thành bước này. Hợp đồng Local có nhãn thử nghiệm và không dùng cho giao dịch thực tế.";
+            button = "Xem và xác nhận hợp đồng";
+            target = "/organizer/apply";
         } else if (n.status() == OrganizerProfileStatus.REVISION_REQUESTED) {
             title = "Hồ sơ Organizer cần bổ sung tài liệu";
             explanation = "Quản trị viên đã kiểm tra hồ sơ và yêu cầu bạn bổ sung các tài liệu bên dưới. Hồ sơ của bạn chưa bị từ chối. Vui lòng mở trang đăng ký Organizer, thay đúng tài liệu được yêu cầu và nhấn gửi lại để tiếp tục xét duyệt.";
@@ -65,6 +70,12 @@ public class OrganizerReviewEmailNotification {
         String url = clientBase(configuredClientUrl) + "/auth/sign-in?redirect="
                 + URLEncoder.encode(target, StandardCharsets.UTF_8);
         StringBuilder details = new StringBuilder();
+        if (n.status() == OrganizerProfileStatus.APPROVED) {
+            String agreementUrl = clientBase(configuredClientUrl) + "/auth/sign-in?redirect="
+                    + URLEncoder.encode("/dashboard/organizer/application", StandardCharsets.UTF_8);
+            details.append("<p>Bạn có thể xem và tải bản hợp đồng kèm biên nhận xác nhận tại <a href=\"")
+                    .append(escape(agreementUrl)).append("\">Quản lý hồ sơ đăng ký</a>.</p>");
+        }
         if (n.feedback() != null && !n.feedback().isBlank()) {
             details.append("<div style='margin:20px 0;padding:16px;background:#f5f6fa;border-radius:10px'>")
                     .append("<strong>").append(n.status() == OrganizerProfileStatus.APPROVED ? "Ghi chú từ quản trị viên" : "Lý do từ quản trị viên")

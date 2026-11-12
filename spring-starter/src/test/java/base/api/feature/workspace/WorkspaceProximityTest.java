@@ -57,7 +57,7 @@ class WorkspaceProximityTest {
                 workspaceRepository,
                 mock(base.api.feature.auth.repository.IUserRepository.class),
                 operatingHourRepository,
-                mock(base.api.feature.booking.repository.IBookingRepository.class)
+                mock(base.api.feature.booking.repository.IBookingRepository.class), mock(base.api.feature.resource.service.BuildingService.class)
         );
 
         PublicWorkspaceController controller = new PublicWorkspaceController(workspaceService);

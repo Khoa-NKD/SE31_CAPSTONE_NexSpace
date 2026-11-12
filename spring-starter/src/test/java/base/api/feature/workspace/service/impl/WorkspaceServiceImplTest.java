@@ -58,7 +58,7 @@ class WorkspaceServiceImplTest {
         userRepository = mock(IUserRepository.class);
         operatingHourRepository = mock(base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository.class);
         bookingRepository = mock(IBookingRepository.class);
-        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, mock(base.api.feature.resource.service.BuildingService.class));
 
         RoleModel role = new RoleModel();
         role.setName(UserRole.ORGANIZER.name());
@@ -169,7 +169,7 @@ class WorkspaceServiceImplTest {
         assertThat(result.getName()).isEqualTo("NexSpace Innovation Hub");
         assertThat(result.getCategory()).isEqualTo(WorkspaceCategory.CREATIVE_STUDIO);
         assertThat(result.getDescription()).isEqualTo("Mô tả mới nâng cấp");
-        assertThat(result.getAddress()).isEqualTo("456 Nguyễn Huệ");
+        assertThat(result.getAddress()).isEqualTo("Old Address");
         assertThat(result.getAreaSqm()).isEqualByComparingTo(new BigDecimal("750.00"));
         assertThat(result.getSupportPhone()).isEqualTo("0988776655");
         assertThat(result.getBookingConfirmationMode()).isEqualTo(BookingConfirmationMode.MANUAL_APPROVAL);

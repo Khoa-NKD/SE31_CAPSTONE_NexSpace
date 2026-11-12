@@ -44,3 +44,8 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # app.auth.inactive-threshold-days=90
 # app.client-url=http://localhost:3000
 # app.api-url=http://localhost:8080
+# Local-only demonstration agreement. Never use this template for real transactions.
+app.organizer.contract.demo-enabled=true
+# Floor design assistant. Keep the real API key in the ignored Local file only.
+nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}
+nexspace.floor-ai.model=${GEMINI_MODEL:gemini-3.6-flash}
