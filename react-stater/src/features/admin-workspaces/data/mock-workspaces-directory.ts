@@ -1,6 +1,6 @@
 import type { CanonicalWorkspace } from '../../workspaces/api/types';
 
-export type WorkspaceStatus = 'pending' | 'active' | 'suspended' | 'archived';
+export type WorkspaceStatus = 'active' | 'pending' | 'maintenance' | 'draft' | 'suspended' | 'archived';
 
 export interface WorkspaceGalleryImage {
   id: string;
@@ -26,6 +26,7 @@ export interface WorkspaceDirectoryItem {
   capacityLabel: string;
   rating: number;
   reviewsCount: number;
+  bookingCount?: number;
   status: WorkspaceStatus;
   submittedAt: string;
   submittedTime: string;
@@ -45,7 +46,7 @@ export interface WorkspaceDirectoryItem {
   version?: number;
   reviewStatus?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
   moderationStatus?: 'Normal' | 'Suspended';
-  operatingStatus?: 'Active' | 'Inactive' | 'Archived';
+  operatingStatus?: 'Active' | 'Pending' | 'Maintenance' | 'Inactive' | 'Archived';
   category?: string;
   description?: string;
   coverImageUrl?: string;
@@ -102,12 +103,14 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
     status = 'suspended';
   } else if (cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
     status = 'archived';
-  } else if (cw.reviewStatus === 'Pending' || rawStatus === 'PENDING_REVIEW') {
+  } else if (cw.operatingStatus === 'Maintenance' || rawStatus === 'MAINTENANCE') {
+    status = 'maintenance';
+  } else if (cw.operatingStatus === 'Pending' || rawStatus === 'PENDING') {
     status = 'pending';
-  } else if (cw.reviewStatus === 'Approved' || rawStatus === 'ACTIVE') {
+  } else if (cw.reviewStatus === 'Draft' || rawStatus === 'DRAFT') {
+    status = 'draft';
+  } else {
     status = 'active';
-  } else if (cw.reviewStatus === 'Rejected' || rawStatus === 'REJECTED') {
-    status = 'suspended';
   }
 
   const galleryImages: WorkspaceGalleryImage[] = (cw.images || []).map((img, idx) => ({
@@ -149,6 +152,7 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
     capacityLabel: cw.capacityLabel || `${cw.capacityDesks || 0} Desks, ${cw.meetingRooms || 0} Mtgs, ${cw.focusPods || 0} Pods`,
     rating: cw.rating || 4.9,
     reviewsCount: cw.reviewsCount || 48,
+    bookingCount: Number(cw.bookingCount ?? cw.totalBookings ?? cw.totalBookingsMtd ?? 0),
     status,
     submittedAt: formattedDate,
     submittedTime: formattedTime,
@@ -195,16 +199,20 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
 
 export interface WorkspaceDirectorySummaryKpis {
   totalCount: number;
-  pendingReviewCount: number;
   activeCount: number;
+  pendingCount: number;
+  maintenanceCount: number;
+  draftCount: number;
   suspendedCount: number;
   archivedCount?: number;
 }
 
 export const MOCK_DIRECTORY_KPIS: WorkspaceDirectorySummaryKpis = {
   totalCount: 618,
-  pendingReviewCount: 12,
   activeCount: 584,
+  pendingCount: 8,
+  maintenanceCount: 4,
+  draftCount: 0,
   suspendedCount: 22,
   archivedCount: 0
 };

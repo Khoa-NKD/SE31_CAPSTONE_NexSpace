@@ -326,10 +326,10 @@ export function StepAmenitiesView() {
     <div className='w-full max-w-6xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
       <div>
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={4} />
+        <WizardHeader currentStep={3} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={4} />
+        <WizardStepper currentStep={3} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>

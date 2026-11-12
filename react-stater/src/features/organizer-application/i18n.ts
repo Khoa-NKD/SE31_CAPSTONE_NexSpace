@@ -1,5 +1,24 @@
 /** English source messages remain stable; user-entered content is never translated. */
 export const organizerVietnamese: Record<string, string> = {
+  'View your approved application, cooperation agreement and verification documents.':
+    'Tra cứu hồ sơ đã duyệt, hợp đồng hợp tác và giấy tờ xác minh của bạn.',
+  'Application overview': 'Tổng quan hồ sơ',
+  'Application sections': 'Các mục trong hồ sơ',
+  'Cooperation agreement': 'Hợp đồng hợp tác',
+  'Uploaded documents': 'Giấy tờ đã tải lên',
+  'Refresh application record': 'Làm mới hồ sơ',
+  'Read-only': 'Chỉ xem',
+  'Upload requested documents': 'Bổ sung giấy tờ theo yêu cầu',
+  'Upload requested replacement': 'Tải lên bản bổ sung',
+  'Only replace the documents requested by the administrator.':
+    'Chỉ thay những giấy tờ được quản trị viên yêu cầu.',
+  'Document uploaded. Your draft has not been submitted.':
+    'Đã tải giấy tờ lên. Hồ sơ vẫn là bản nháp, chưa gửi xét duyệt.',
+  'Drop a file here or click to browse': 'Kéo thả tệp vào đây hoặc bấm để chọn',
+  'Choose one verification document at a time.': 'Mỗi lần chỉ chọn một tệp giấy tờ.',
+  'Awaiting agreement': 'Chờ xác nhận hợp đồng',
+  'Your documents have been reviewed. Read and confirm the agreement to activate Organizer access.':
+    'Giấy tờ đã được kiểm tra. Vui lòng đọc và xác nhận hợp đồng để kích hoạt quyền Organizer.',
   'Only replace the documents requested by the administrator, then resubmit. Business information is read-only.':
     'Chỉ thay giấy tờ được quản trị viên yêu cầu rồi gửi lại. Thông tin doanh nghiệp chỉ được xem.',
   'Only the requested document replacements will be sent for review. Business information remains unchanged. Uploads will be locked after resubmission.':

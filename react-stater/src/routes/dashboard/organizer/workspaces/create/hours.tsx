@@ -11,7 +11,7 @@ export const Route = createFileRoute(
       { title: 'O07 — Create Workspace: Operating Hours | NexSpace Organizer Hub' },
       {
         name: 'description',
-        content: 'Step 3 of 5: Configure 24/7 access, daily opening and closing hours, and holiday policies.'
+        content: 'Step 2 of 4: Configure 24/7 access, daily opening and closing hours, and holiday policies.'
       }
     ]
   }),

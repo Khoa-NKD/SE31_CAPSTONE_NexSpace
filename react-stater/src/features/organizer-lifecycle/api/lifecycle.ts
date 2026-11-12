@@ -63,7 +63,7 @@ export function adminLifecycleQueryOptions(actorId: number, id: string) {
     gcTime: 0,
     staleTime: 0,
     retry: false,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: true
   });
 }
 export function ownerLifecycle(signal?: AbortSignal) {
@@ -203,7 +203,8 @@ export async function invalidateLifecycle(client: QueryClient) {
       'admin-organizer-application-details',
       'organizer-application-status',
       'organizer-verification-documents',
-      'organizer-business-profile'
+      'organizer-business-profile',
+      'organizer-contract'
     ].map((name) => client.invalidateQueries({ queryKey: [name] }))
   );
 }

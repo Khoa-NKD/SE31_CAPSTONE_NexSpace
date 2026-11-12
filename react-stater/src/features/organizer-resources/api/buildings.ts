@@ -35,6 +35,10 @@ export interface Building {
   id: number;
   name: string;
   address: string;
+  city?: string | null;
+  ward?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
   revision: string;
   floors: PhysicalFloor[];
 }
@@ -58,11 +62,30 @@ export const buildingsOptions = (actorId: number) =>
     retry: false,
     refetchOnWindowFocus: false
   });
-export const saveBuilding = (body: { name: string; address: string }, current?: Building) =>
+export const saveBuilding = (
+  body: {
+    name: string;
+    address: string;
+    latitude?: number;
+    longitude?: number;
+    floorCount?: number;
+    city?: string;
+    ward?: string;
+  },
+  current?: Building
+) =>
   backendRequest<number | void>(
     `/organizer/buildings${current ? `/${current.id}` : ''}`,
     current ? 'PUT' : 'POST',
-    { ...body, ...(current ? { expectedRevision: current.revision } : {}) }
+    {
+      name: body.name,
+      address: body.address,
+      latitude: body.latitude,
+      longitude: body.longitude,
+      city: body.city,
+      ward: body.ward,
+      ...(current ? { expectedRevision: current.revision } : { floorCount: body.floorCount })
+    }
   );
 export const savePhysicalFloor = (
   buildingId: number,

@@ -10,27 +10,20 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
 
   const rawStatus = (cw.status || '').toUpperCase();
 
-  if (cw.moderationStatus === 'Suspended' || rawStatus === 'SUSPENDED') {
+  if (cw.moderationStatus === 'Suspended' || rawStatus === 'SUSPENDED' || cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
     status = 'ARCHIVED';
-  } else if (cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
-    status = 'ARCHIVED';
-  } else if (cw.reviewStatus === 'Rejected' || rawStatus === 'REJECTED') {
-    status = 'REJECTED';
+  } else if (cw.operatingStatus === 'Maintenance' || rawStatus === 'MAINTENANCE') {
+    status = 'MAINTENANCE';
+  } else if (cw.operatingStatus === 'Pending' || rawStatus === 'PENDING' || rawStatus === 'INACTIVE' || rawStatus === 'PAUSED') {
+    status = 'PENDING';
   } else if (cw.reviewStatus === 'Draft' || rawStatus === 'DRAFT') {
     status = 'DRAFT';
-  } else if (cw.reviewStatus === 'Pending' || rawStatus === 'PENDING_REVIEW' || rawStatus === 'UNDER_REVIEW') {
-    status = 'UNDER_REVIEW';
-  } else if (cw.reviewStatus === 'Approved' || rawStatus === 'ACTIVE' || rawStatus === 'INACTIVE') {
-    if (cw.operatingStatus === 'Active' || rawStatus === 'ACTIVE') {
-      status = 'ACTIVE';
-    } else if (cw.operatingStatus === 'Inactive' || rawStatus === 'INACTIVE') {
-      status = 'PAUSED';
-    } else if (cw.operatingStatus === 'Archived') {
-      status = 'ARCHIVED';
-    }
+  } else {
+    status = 'ACTIVE';
   }
 
   const isDraft = status === 'DRAFT';
+  const bookingsCount = Number(cw.bookingCount ?? cw.totalBookings ?? cw.totalBookingsMtd ?? 0);
 
   return {
     id: String(cw.id),
@@ -39,11 +32,13 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
     district: cw.district,
     city: cw.city,
     status,
+    version: cw.version ?? 1,
+    bookingCount: bookingsCount,
     reviewFeedback: cw.reviewFeedback || undefined,
     draftProgress: isDraft ? (cw.draftProgress ?? 80) : undefined,
     draftWarningMessage: isDraft
       ? (cw.draftWarningMessage ??
-        'Floor Plan & Pricing pending review. Complete setup to publish.')
+        'Floor Plan & Pricing pending setup. Complete setup to publish.')
       : undefined,
     imageUrl: cw.coverImageUrl,
     desksCount: cw.capacityDesks,
@@ -58,6 +53,6 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
     bookingMode: cw.bookingConfirmationMode === 'Manual_Approval' ? 'manual' : 'instant',
     lastStatusChange: cw.updatedAt,
     grossRevenueMtd: cw.grossRevenueMtd ?? 0,
-    totalBookingsMtd: cw.totalBookingsMtd ?? 0
+    totalBookingsMtd: bookingsCount
   };
 }

@@ -24,16 +24,16 @@ export function ModerationWorkloadCard({
               <ClipboardCheck className='size-5' aria-hidden='true' />
             </div>
             <h2 className='text-base font-bold font-heading text-foreground'>
-              Pending Moderation Workload
+              Workspace Lifecycle &amp; Operations
             </h2>
           </div>
-          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-amber-50 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 border border-amber-200 dark:border-amber-800'>
-            {awaitingCount} Awaiting Decision
+          <span className='px-2.5 py-1 text-xs font-semibold rounded-full bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800'>
+            Auto-Approval Enabled
           </span>
         </div>
 
         <p className='text-xs text-muted-foreground mb-5'>
-          Spaces queued for administrative review and approval prior to marketplace activation.
+          Published workspaces are automatically approved to Active. Below are workspaces currently in Pending or Maintenance state.
         </p>
 
         {/* Categorized Inspection Items */}
@@ -41,8 +41,8 @@ export function ModerationWorkloadCard({
           {items.length === 0 ? (
             <div className='p-6 rounded-lg bg-muted/40 border border-border text-center text-xs text-muted-foreground'>
               <CheckCircle2 className='size-6 text-emerald-600 dark:text-emerald-400 mx-auto mb-2 opacity-80' />
-              <p className='font-semibold text-foreground'>Queue is clear</p>
-              <p className='mt-1 text-[11px] text-muted-foreground'>No pending workspace submissions or moderation items require action.</p>
+              <p className='font-semibold text-foreground'>All published workspaces are active</p>
+              <p className='mt-1 text-[11px] text-muted-foreground'>No workspaces are currently in pending processing or maintenance mode.</p>
             </div>
           ) : (
             items.map((item) => (
@@ -72,7 +72,7 @@ export function ModerationWorkloadCard({
                     search={item.workspaceId ? { hubId: item.workspaceId } : { status: 'pending' }}
                     className='inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline px-2 py-0.5 rounded bg-primary/10'
                   >
-                    Review Queue
+                    View Directory
                     <ArrowRight className='size-3' />
                   </Link>
                 </div>
@@ -87,15 +87,14 @@ export function ModerationWorkloadCard({
         <div className='flex items-center gap-2'>
           <CheckCircle2 className='size-4 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
           <span className='font-mono text-xs text-muted-foreground'>
-            Queue Status: <strong className='text-foreground font-semibold'>{awaitingCount > 0 ? `${awaitingCount} pending review` : 'Queue clear'}</strong>
+            Lifecycle Status: <strong className='text-foreground font-semibold'>{awaitingCount > 0 ? `${awaitingCount} in transition/maintenance` : 'All normal'}</strong>
           </span>
         </div>
         <Link
           to='/dashboard/admin/workspaces/directory'
-          search={{ status: 'pending' }}
           className='inline-flex items-center gap-1.5 text-xs text-primary hover:text-indigo-700 transition-colors font-semibold'
         >
-          <span>Review Pending Queue</span>
+          <span>Open Workspace Directory</span>
           <ArrowRight className='size-3.5' aria-hidden='true' />
         </Link>
       </div>

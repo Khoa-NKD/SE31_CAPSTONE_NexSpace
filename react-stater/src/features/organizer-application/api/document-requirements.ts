@@ -3,6 +3,11 @@ import { z } from 'zod';
 import { backendRequest } from '../../auth/api/session.ts';
 import { BUSINESS_TYPE_CODES } from './application.ts';
 import type { VerificationDocument } from '../../organizer-verification-documents/api/documents.ts';
+import {
+  DOCUMENT_LABELS,
+  type DocumentType
+} from '../../organizer-verification-documents/api/documents.ts';
+import { translateOrganizer } from '../i18n.ts';
 
 export const requiredDocumentTypeSchema = z.enum([
   'BUSINESS_LICENSE',
@@ -35,6 +40,19 @@ export const documentPoliciesSchema = z
   );
 export type DocumentPolicy = z.infer<typeof documentPoliciesSchema>[number];
 export type RequiredDocument = DocumentPolicy['requiredDocuments'][number];
+
+/** Checklist, upload choices and uploaded files share the business policy's canonical labels. */
+export function documentTypeLabel(
+  type: DocumentType,
+  language: 'vi' | 'en',
+  policy?: DocumentPolicy
+) {
+  const requirement = policy?.requiredDocuments.find((item) => item.documentType === type);
+  return (
+    requirement?.[language === 'vi' ? 'labelVi' : 'labelEn'] ??
+    translateOrganizer(DOCUMENT_LABELS[type], language)
+  );
+}
 
 export function documentPoliciesQueryOptions() {
   return queryOptions({

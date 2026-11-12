@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen } from 'lucide-react';
+import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -14,6 +14,7 @@ import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
 import { useCurrency } from '../context/currency-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
 
 export function Navbar() {
@@ -30,6 +31,7 @@ export function Navbar() {
   };
 
   const navItems = [
+    { label: language === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
     { label: t('nav.workspaces'), href: '#workspaces' },
     { label: t('nav.platform'), href: '#platform' },
     { label: t('nav.reviews'), href: '#reviews' },
@@ -57,14 +59,17 @@ export function Navbar() {
   return (
     <header className='border-border/80 sticky top-0 z-50 w-full border-b bg-white/85 backdrop-blur-md transition-all dark:bg-slate-950/85'>
       <div className='mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between px-6 lg:px-12'>
-        {/* Brand Logo */}
-        <div className='flex items-center gap-6'> {/* Increased gap from gap-3 to gap-6 */}
-          <a
-            href='/'
-            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2'
+        {/* Brand Logo - Điều hướng về trang đầu tiên theo Role của User */}
+        <div className='flex items-center gap-6'>
+          <button
+            type='button'
+            onClick={() => navigate({ to: getRoleHomeUrl(user) })}
+            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 border-none bg-transparent cursor-pointer'
+            title='NexSpace Home'
+            aria-label='NexSpace Home'
           >
             <NexSpaceLogo className='mr-8 h-9 w-auto cursor-pointer' />
-          </a>
+          </button>
         </div>
 
         {/* Center Desktop Navigation */}
@@ -241,6 +246,19 @@ export function Navbar() {
           {/* Zone 3: Sole Radiant CTA Button OR Authenticated User Profile */}
           {isAuthenticated ? (
             <div className='flex items-center gap-2 pl-1'>
+              {getUserRole(user) === 'ADMIN' && (
+                <button
+                  type='button'
+                  onClick={() => {
+                    useAuthStore.getState().setAdminViewMode('admin');
+                    navigate({ to: '/dashboard/overview' });
+                  }}
+                  className='hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer active:scale-95'
+                >
+                  <ShieldCheck className='size-3.5' />
+                  <span>Về Trang Quản trị</span>
+                </button>
+              )}
               <UserNav />
             </div>
           ) : (

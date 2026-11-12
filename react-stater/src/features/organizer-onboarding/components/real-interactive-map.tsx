@@ -21,6 +21,8 @@ import { toast } from 'sonner';
 import { searchLandmarks } from '../data/vietnam-locations';
 
 interface RealInteractiveMapProps {
+  readOnly?: boolean;
+  recenterOnCoordinatesChange?: boolean;
   venueName: string;
   streetAddress: string;
   latitude: number | null;
@@ -132,6 +134,8 @@ function buildMarkerElement(name: string, address: string) {
 }
 
 export function RealInteractiveMap({
+  readOnly = false,
+  recenterOnCoordinatesChange = false,
   venueName,
   streetAddress,
   latitude,
@@ -210,15 +214,6 @@ export function RealInteractiveMap({
         await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl.css');
         mapLibreModuleRef.current = maplibregl;
 
-        try {
-          const workerUrl = (await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url')).default;
-          if (workerUrl) {
-            maplibregl.setWorkerUrl(workerUrl);
-          }
-        } catch {
-          maplibregl.setWorkerUrl('https://unpkg.com/maplibre-gl@6.14.0/dist/maplibre-gl-worker.js');
-        }
-
         if (!isMounted || !mapContainerRef.current) return;
 
         const { lat: initLat, lng: initLng } = initialCoordsRef.current;
@@ -242,6 +237,7 @@ export function RealInteractiveMap({
 
         // Click map to reposition marker
         map.on('click', (e: { lngLat: { lng: number; lat: number } }) => {
+          if (readOnly) return;
           const { lng, lat } = e.lngLat;
           const roundedLat = Number(lat.toFixed(4));
           const roundedLng = Number(lng.toFixed(4));
@@ -256,7 +252,7 @@ export function RealInteractiveMap({
         const markerEl = buildMarkerElement(venueNameRef.current, streetAddressRef.current);
         const marker = new maplibregl.Marker({
           element: markerEl,
-          draggable: true,
+          draggable: !readOnly,
           anchor: 'bottom'
         })
           .setLngLat([initLng, initLat])
@@ -308,10 +304,13 @@ export function RealInteractiveMap({
     const diffLat = Math.abs(currentLngLat.lat - latitude);
     const diffLng = Math.abs(currentLngLat.lng - longitude);
 
-    if (diffLat > 0.0001 || diffLng > 0.0001) {
+    if (diffLat > 0.000001 || diffLng > 0.000001) {
       markerInstanceRef.current.setLngLat([longitude, latitude]);
+      if (recenterOnCoordinatesChange) {
+        mapInstanceRef.current.flyTo({ center: [longitude, latitude], zoom: 17, essential: true });
+      }
     }
-  }, [latitude, longitude]);
+  }, [latitude, longitude, recenterOnCoordinatesChange, isLoaded]);
 
   // Switch Layer (Street vs Satellite)
   const handleLayerChange = (layer: MapLayerType) => {
@@ -640,7 +639,7 @@ export function RealInteractiveMap({
 
   // Handle container resizing
   useEffect(() => {
-    if (!mapInstanceRef.current || !mapContainerRef.current) return;
+    if (!isLoaded || !mapInstanceRef.current || !mapContainerRef.current) return;
     const map = mapInstanceRef.current;
     const container = mapContainerRef.current;
 
@@ -649,18 +648,21 @@ export function RealInteractiveMap({
     });
 
     resizeObserver.observe(container);
+    // Initialization is asynchronous; resize after the loaded map enters its final layout.
+    const frame = requestAnimationFrame(() => map.resize());
 
     return () => {
+      cancelAnimationFrame(frame);
       resizeObserver.disconnect();
     };
-  }, []);
+  }, [isLoaded]);
 
   return (
     <div className='relative w-full h-full rounded-xl border border-border overflow-hidden bg-card shadow-2xs flex flex-col select-none min-h-[500px]'>
       {/* Map Subheader Toolbar */}
       <div className='flex flex-wrap items-center justify-between gap-3 px-4 py-3 border-b border-border bg-card/95 backdrop-blur z-20 shrink-0'>
         {/* Google Maps-style Search Bar with Dropdown */}
-        <div ref={searchContainerRef} className='relative w-full sm:w-80 md:w-96'>
+        <div ref={searchContainerRef} hidden={readOnly} className='relative w-full sm:w-80 md:w-96'>
           <form onSubmit={handleSearchSubmit} className='relative'>
             <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none' />
             <Input
@@ -810,7 +812,7 @@ export function RealInteractiveMap({
             variant='outline'
             size='icon'
             onClick={handleLocateCurrentPosition}
-            disabled={isLocating}
+            disabled={isLocating || readOnly}
             className={`size-8 bg-card shadow-sm border border-border transition-colors ${
               isLocating
                 ? 'text-indigo-600 animate-pulse'

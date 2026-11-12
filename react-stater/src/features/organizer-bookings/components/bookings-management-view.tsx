@@ -6,10 +6,10 @@ import {
   BookingItem,
   BookingStatus,
   BookingResourceType,
-  BookingsKpiSummary
+  BookingsKpiSummary,
+  CheckInState
 } from '../types';
 import {
-  MOCK_BOOKINGS_LEDGER,
   MOCK_BOOKINGS_KPI
 } from '../data/mock-bookings';
 import { BookingsHeaderBar } from './bookings-header-bar';
@@ -25,6 +25,7 @@ import {
   useApproveBookingMutation,
   useRejectBookingMutation
 } from '../../workspaces/api/booking-queries';
+import { useOrganizerBookingKpis } from '@/features/organizer-bookings/api/queries';
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ function exportBookingsToCsv(bookings: BookingItem[]) {
     'Date',
     'Window',
     'Duration (hrs)',
-    'Amount ($)',
+    'Amount (VND)',
     'Gateway',
     'Status',
     'Check-In State',
@@ -96,17 +97,17 @@ function mapBookingDtoToItem(dto: BookingDto): BookingItem {
   const startDate = new Date(dto.startTime);
   const endDate = new Date(dto.endTime);
   const dateFormatted = !isNaN(startDate.getTime())
-    ? startDate.toLocaleDateString('en-US', {
+    ? startDate.toLocaleDateString('vi-VN', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
       })
     : 'N/A';
   const startStr = !isNaN(startDate.getTime())
-    ? startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    ? startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
   const endStr = !isNaN(endDate.getTime())
-    ? endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    ? endDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
   const timeWindow = `${startStr} - ${endStr} (${dto.durationHours || 1} hrs)`;
 
@@ -204,6 +205,60 @@ function handleCheckInToggle(id: string) {
   });
 }
 
+=======
+    .toUpperCase() || 'KH';
+
+  let status: BookingStatus = 'CONFIRMED';
+  if (b.status === 'PENDING_PAYMENT') status = 'PENDING_PAYMENT';
+  else if (b.status === 'COMPLETED') status = 'COMPLETED';
+  else if (b.status === 'CANCELLED' || b.status === 'EXPIRED') status = 'CANCELLED';
+
+  let checkInState: CheckInState = 'UPCOMING';
+  if (b.status === 'CHECKED_IN') checkInState = 'CHECKED_IN';
+  else if (b.status === 'COMPLETED') checkInState = 'CHECKED_OUT';
+  else if (b.status === 'PENDING_PAYMENT') checkInState = 'AWAITING_PAYMENT';
+  else if (b.status === 'CANCELLED' || b.status === 'EXPIRED') checkInState = 'RELEASED';
+
+  let category: BookingResourceType = 'HOT_DESK';
+  if (b.resourceCategory === 'ROOM' || b.resourceCategory === 'MEETING_ROOM') category = 'MEETING_ROOM';
+  else if (b.resourceCategory === 'BOOTH') category = 'BOOTH';
+  else if (b.resourceCategory === 'STAGE' || b.resourceCategory === 'EVENT_STAGE') category = 'EVENT_STAGE';
+
+  return {
+    id: String(b.id),
+    bookingCode: b.bookingCode || `#NX-${b.id}`,
+    customerName: b.customerName,
+    customerEmail: b.customerEmail,
+    customerPhone: b.customerPhone || '0905123456',
+    customerInitials: initials,
+    customerAvatarColor: 'from-blue-600 to-indigo-600',
+    resourceCode: b.resourceName,
+    resourceName: b.resourceName,
+    resourceCategory: category,
+    resourceZone: b.resourceZone || 'Zone A',
+    reservedDate,
+    reservedTimeWindow,
+    durationHours,
+    amount: b.amount,
+    paymentGateway: 'PAYOS_QR',
+    paymentGatewayLabel: 'PayOS VietQR',
+    status,
+    checkInState,
+    createdAt: b.createdAt
+  };
+}
+
+function handleCancelBooking(id: string) {
+  toast.success(`Booking #${id} Cancelled`, {
+    description: 'Reservation released and updated.'
+  });
+}
+
+function handleCheckInToggle(id: string) {
+  toast.success(`Check-in status updated for booking #${id}`);
+}
+
+>>>>>>> origin/feature/frontend
 export function BookingsManagementView() {
   // Filters & Search
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
@@ -227,8 +282,9 @@ export function BookingsManagementView() {
   const [cancellingBooking, setCancellingBooking] = useState<BookingItem | null>(null);
   const [cancelBookingReason, setCancelBookingReason] = useState('');
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [lastSyncTime, setLastSyncTime] = useState('10:42 AM');
+  const [lastSyncTime, setLastSyncTime] = useState('Vừa xong');
   const [isSyncing, setIsSyncing] = useState(false);
+  const { data: kpiData } = useOrganizerBookingKpis();
 
   // Fetch Organizer Workspaces for dropdown
   const { data: workspacesResponse } = useQuery({
@@ -303,6 +359,18 @@ export function BookingsManagementView() {
 
   // KPI Ribbon Summary
   const kpis: BookingsKpiSummary = useMemo(() => {
+    if (kpiData) {
+      return {
+        totalReservations: kpiData.totalCount,
+        growthMoM: 14.5,
+        confirmedCount: kpiData.confirmedCount,
+        confirmedVolume: kpiData.totalRevenue || (kpiData.confirmedCount * 2000),
+        pendingCount: kpiData.pendingCount,
+        pendingVolume: kpiData.pendingCount * 2000,
+        cancelledCount: kpiData.cancelledCount,
+        cancellationRatePercent: kpiData.totalCount > 0 ? Math.round((kpiData.cancelledCount / kpiData.totalCount) * 100) : 0
+      };
+    }
     const confirmedVol = bookings
       .filter((b) => b.status === 'CONFIRMED')
       .reduce((sum, b) => sum + (b.amount || 0), 0);
@@ -320,7 +388,7 @@ export function BookingsManagementView() {
       cancelledCount: statusCounts.cancelled,
       cancellationRatePercent: totalItems > 0 ? (statusCounts.cancelled / totalItems) * 100 : 0
     };
-  }, [totalItems, bookings, statusCounts]);
+  }, [kpiData, totalItems, bookings, statusCounts]);
 
   // Multi-selection handlers
   const handleToggleSelectAll = () => {
@@ -340,7 +408,6 @@ export function BookingsManagementView() {
     );
   };
 
-  // Actions
   const handleViewDetails = (booking: BookingItem) => {
     setActiveDetailBooking(booking);
   };
@@ -444,11 +511,15 @@ export function BookingsManagementView() {
     });
   };
 
-  const handleCreateManualBooking = (newBooking: BookingItem) => {
+  const handleCreateManualBooking = (newBooking?: BookingItem) => {
+    setIsManualModalOpen(false);
     refetch();
-    toast.success(`Walk-in booked: ${newBooking.bookingCode}`, {
-      description: `Confirmed for ${newBooking.customerName} on ${newBooking.resourceName}.`
-    });
+    if (newBooking) {
+      toast.success(`Walk-in booked: ${newBooking.bookingCode}`, {
+        description: `Confirmed for ${newBooking.customerName} on ${newBooking.resourceName}.`
+      });
+    }
+  };
   };
 
   const handleResetFilters = () => {
@@ -562,7 +633,7 @@ export function BookingsManagementView() {
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>
-            PayOS Webhook Gateway status: <strong className="text-foreground">99.98% delivery rate</strong> • Encrypted PCI-DSS Level 1 compliant
+            PayOS Webhook Gateway status: <strong className="text-foreground">Live &amp; Connected</strong> • Encrypted PCI-DSS Level 1 compliant
           </span>
         </div>
 
@@ -579,11 +650,11 @@ export function BookingsManagementView() {
 
           <button
             onClick={handleSync}
-            disabled={isSyncing}
+            disabled={isFetching}
             className="flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer"
           >
-            <RefreshCw className={`w-3 h-3 ${isSyncing ? 'animate-spin' : ''}`} />
-            {isSyncing ? 'Syncing...' : 'Ping Gateway'}
+            <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? 'Syncing...' : 'Ping Gateway'}
           </button>
         </div>
       </footer>

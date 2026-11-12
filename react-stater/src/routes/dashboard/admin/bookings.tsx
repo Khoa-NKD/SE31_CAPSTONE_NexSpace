@@ -4,10 +4,9 @@ import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, Radio } from 'lucide-react';
+import { FileDown, Radio, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import {
-  INITIAL_BOOKINGS_DATA,
   MOCK_BOOKING_KPIS,
   BookingItem,
   BookingStatus
@@ -17,6 +16,8 @@ import { BookingsFilterBar } from '@/features/admin-bookings/components/bookings
 import { BookingsLedgerTable } from '@/features/admin-bookings/components/bookings-ledger-table';
 import { BookingDetailsDrawer } from '@/features/admin-bookings/components/booking-details-drawer';
 import { BookingCancelDialog } from '@/features/admin-bookings/components/booking-cancel-dialog';
+import { useAdminBookings, useAdminBookingKpis } from '@/features/admin-bookings/api/queries';
+import type { AdminBookingApiItem } from '@/features/admin-bookings/api/types';
 
 const bookingsSearchSchema = z.object({
   search: z.string().optional(),
@@ -40,7 +41,7 @@ export const Route = createFileRoute('/dashboard/admin/bookings')({
 
 function handleExportLedger() {
   toast.success('Bookings Ledger Exported (CSV)', {
-    description: 'Compiled 1,420 reservation and hardware allocation records.'
+    description: 'Compiled reservation and hardware allocation records.'
   });
 }
 
@@ -50,23 +51,106 @@ function handleLiveTelemetry() {
   });
 }
 
+function formatVnd(amount: number) {
+  return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
+}
+
+function mapApiToAdminBookingItem(b: AdminBookingApiItem): BookingItem {
+  let mappedStatus: BookingStatus = 'confirmed';
+  if (b.status === 'CHECKED_IN') mappedStatus = 'checked_in';
+  else if (b.status === 'COMPLETED') mappedStatus = 'completed';
+  else if (b.status === 'CANCELLED' || b.status === 'EXPIRED') mappedStatus = 'cancelled';
+
+  const start = new Date(b.startTime);
+  const end = new Date(b.endTime);
+  const timeSlot = `${start.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' })} • ${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+
+  const initials = b.customerName
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase() || 'KH';
+
+  return {
+    id: b.bookingCode || `NX-${b.id}`,
+    customer: {
+      name: b.customerName,
+      email: b.customerEmail,
+      phone: b.customerPhone || '0901000001',
+      membershipTier: 'Standard',
+      avatarInitials: initials
+    },
+    workspace: {
+      name: b.workspaceName,
+      hubId: `HUB-${b.workspaceId || 1}`,
+      address: b.workspaceAddress,
+      resourceName: b.resourceName,
+      zone: b.resourceZone,
+      hardwareSpecs: 'Dual 4K Monitor • Gigabit LAN',
+      authorizedSlot: timeSlot,
+      nfcPassCode: b.pinCode || '8492'
+    },
+    timeSlot,
+    grossAmountDisplay: formatVnd(b.amount),
+    status: mappedStatus,
+    relativeStatusTime: mappedStatus === 'confirmed' ? 'Upcoming' : (mappedStatus === 'checked_in' ? 'Active' : 'Settled'),
+    escrow: {
+      status: mappedStatus === 'cancelled' ? 'Refunded' : (mappedStatus === 'completed' ? 'Verified' : 'Pending Settlement'),
+      txReference: `TX-${b.id}`,
+      grossFeeUsd: Math.round(b.amount / 25450),
+      grossFeeVnd: b.amount,
+      platformTakeRatePercent: 10,
+      platformTakeRateUsd: Math.round((b.amount * 0.1) / 25450),
+      platformTakeRateVnd: Math.round(b.amount * 0.1),
+      netPayoutUsd: Math.round((b.amount * 0.9) / 25450),
+      netPayoutVnd: Math.round(b.amount * 0.9),
+      escrowContractId: `PAYOS-${b.bookingCode}`
+    },
+    timeline: [
+      {
+        id: '1',
+        title: 'Booking Created',
+        timestamp: new Date(b.createdAt).toLocaleString('vi-VN'),
+        description: `Booking #${b.bookingCode} reserved by ${b.customerName}.`,
+        completed: true
+      },
+      {
+        id: '2',
+        title: 'VietQR Payment Verified',
+        timestamp: new Date(b.createdAt).toLocaleString('vi-VN'),
+        description: `PayOS received ${formatVnd(b.amount)} full payment.`,
+        completed: b.status !== 'PENDING_PAYMENT'
+      }
+    ]
+  };
+}
+
 function BookingsManagementPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
 
-  const [bookings, setBookings] = useState<BookingItem[]>(INITIAL_BOOKINGS_DATA);
-  const [selectedBooking, setSelectedBooking] = useState<BookingItem | null>(() => {
-    if (searchParams.bookingId) {
-      return INITIAL_BOOKINGS_DATA.find((b) => b.id === searchParams.bookingId) || null;
-    }
-    return null;
-  });
-  const [isDrawerOpen, setIsDrawerOpen] = useState(() => Boolean(searchParams.bookingId));
-  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
-  const [bookingToCancel, setBookingToCancel] = useState<BookingItem | null>(null);
-
   const searchQuery = searchParams.search || '';
   const statusFilter = (searchParams.status as BookingStatus | 'all') || 'all';
+
+  const apiStatus = statusFilter === 'all' ? undefined : (statusFilter === 'checked_in' ? 'CHECKED_IN' : statusFilter.toUpperCase());
+  const { data: bookingsData, refetch, isFetching } = useAdminBookings({
+    search: searchQuery || undefined,
+    status: apiStatus
+  });
+  const { data: kpiData } = useAdminBookingKpis();
+
+  // Map to local BookingItem format
+  const bookings: BookingItem[] = useMemo(() => {
+    const list = bookingsData?.content ?? bookingsData?.listObjects ?? [];
+    return list.map(mapApiToAdminBookingItem);
+  }, [bookingsData]);
+
+  const [selectedBooking, setSelectedBooking] = useState<BookingItem | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<BookingItem | null>(null);
 
   // Filtered bookings
   const filteredBookings = useMemo(() => {
@@ -86,6 +170,20 @@ function BookingsManagementPage() {
       return true;
     });
   }, [bookings, searchQuery, statusFilter]);
+
+  // KPIs
+  const kpis = useMemo(() => {
+    if (!kpiData) return MOCK_BOOKING_KPIS;
+    return {
+      todayTotalBookings: kpiData.totalCount,
+      todayGrowthPercentage: 8.4,
+      activeConcurrencyRate: 84,
+      confirmedCount: kpiData.confirmedCount,
+      rfidComplianceRate: 100,
+      completedCount: kpiData.completedCount,
+      cancelledCount: kpiData.cancelledCount
+    };
+  }, [kpiData]);
 
   // Handlers
   const handleSearchChange = (value: string) => {
@@ -136,28 +234,6 @@ function BookingsManagementPage() {
 
   const handleConfirmCancel = () => {
     if (!bookingToCancel) return;
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === bookingToCancel.id
-          ? {
-              ...b,
-              status: 'cancelled' as BookingStatus,
-              relativeStatusTime: 'Cancelled just now',
-              escrow: { ...b.escrow, status: 'Refunded' }
-            }
-          : b
-      )
-    );
-    setSelectedBooking((prev) =>
-      prev?.id === bookingToCancel.id
-        ? {
-            ...prev,
-            status: 'cancelled',
-            relativeStatusTime: 'Cancelled just now',
-            escrow: { ...prev.escrow, status: 'Refunded' }
-          }
-        : prev
-    );
     setIsCancelDialogOpen(false);
     toast.success(`Reservation #${bookingToCancel.id} Force-Cancelled`, {
       description: `Full refund initiated from PayOS Escrow ${bookingToCancel.escrow.escrowContractId} to ${bookingToCancel.customer.name}.`
@@ -182,6 +258,17 @@ function BookingsManagementPage() {
             <Button
               variant='outline'
               size='sm'
+              onClick={() => refetch()}
+              disabled={isFetching}
+              className='gap-2 shadow-2xs text-xs'
+            >
+              <RefreshCw className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden='true' />
+              <span>Refresh Data</span>
+            </Button>
+
+            <Button
+              variant='outline'
+              size='sm'
               onClick={handleLiveTelemetry}
               className='gap-2 shadow-2xs'
             >
@@ -201,7 +288,7 @@ function BookingsManagementPage() {
         </div>
 
         {/* 4 Summary KPI Tiles */}
-        <BookingKpiGrid kpis={MOCK_BOOKING_KPIS} />
+        <BookingKpiGrid kpis={kpis} />
 
         {/* Filter Controls */}
         <BookingsFilterBar
@@ -209,7 +296,7 @@ function BookingsManagementPage() {
           onSearchChange={handleSearchChange}
           statusFilter={statusFilter}
           onStatusChange={handleStatusChange}
-          kpis={MOCK_BOOKING_KPIS}
+          kpis={kpis}
           onReset={handleResetFilters}
         />
 

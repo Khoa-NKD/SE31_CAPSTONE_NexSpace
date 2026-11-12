@@ -12,6 +12,7 @@ import { PriceBreakdownCard } from './price-breakdown-card';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import type { CustomerFloor } from '../detail/public-floor-map';
 import type { BookingDto } from '../../api/booking-types';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import { Building2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
@@ -35,6 +36,7 @@ export function BookingReviewPage({
 }: BookingReviewPageProps) {
   const [customerNotes, setCustomerNotes] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingDto | null>(null);
+  const { data: holdData } = useCurrentPendingBooking();
 
   // Fetch workspace details
   const { data: workspace, isLoading: isLoadingWorkspace } = usePublicWorkspaceDetailQuery(
@@ -58,7 +60,7 @@ export function BookingReviewPage({
   const selectedFloor = floors?.find((f) => f.resources.some((r) => r.id === resourceId));
   const selectedResource = floors?.flatMap((f) => f.resources).find((r) => r.id === resourceId);
 
-  const seatCode = selectedResource?.code || (resourceId ? `Seat #${resourceId}` : 'Desk A-01');
+  const seatCode = selectedResource?.code || (resourceId ? `Seat #${resourceId}` : holdData?.seatCode || 'Desk A-01');
 
   if (!workspaceId || !resourceId) {
     return (
@@ -80,7 +82,6 @@ export function BookingReviewPage({
       </div>
     );
   }
-
   return (
     <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
       {/* Shared Global Workspace Navigation Bar */}
@@ -95,10 +96,11 @@ export function BookingReviewPage({
           resourceCode={selectedResource?.code}
         />
 
-        {/* 15-Minute Hold Urgency Top Banner */}
+        {/* Hold Urgency Top Banner */}
         <HoldUrgencyBanner
-          seatCode={seatCode}
-          holdExpiresAt={activeBooking?.holdExpiresAt}
+          seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
+          holdExpiresAt={activeBooking?.holdExpiresAt || holdData?.holdExpiresAt}
+        />
         />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}

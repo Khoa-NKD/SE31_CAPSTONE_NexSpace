@@ -1,13 +1,126 @@
-import type { FloorDecoration, DecorationKind } from '../api/resources';
+import { matchFurnishingIcon } from '../utils/furnishing-icon-catalog';
+import type { FloorDecoration, DecorationKind, DecorationIconName } from '../api/resources';
+import {
+  Archive,
+  Sofa,
+  LibraryBig,
+  Printer,
+  Monitor,
+  Coffee,
+  Presentation,
+  LampDesk,
+  Fan,
+  AirVent,
+  Trash2,
+  Speaker,
+  Clock,
+  Refrigerator,
+  GlassWater,
+  Router,
+  Toilet,
+  Projector,
+  Video,
+  ArrowUpDown,
+  FireExtinguisher,
+  DoorOpen,
+  Accessibility,
+  Microwave,
+  ShowerHead,
+  Bed,
+  Camera,
+  Phone
+} from 'lucide-react';
+
+function SinkIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.7'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      className={className}
+      aria-hidden='true'
+    >
+      <path d='M3 12h18l-2 6H5l-2-6ZM12 12V5a3 3 0 0 1 6 0v2h-3M9 18v3h6v-3' />
+      <path d='M18 9v1' />
+    </svg>
+  );
+}
+function StairsIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      viewBox='0 0 24 24'
+      fill='none'
+      stroke='currentColor'
+      strokeWidth='1.7'
+      strokeLinecap='round'
+      strokeLinejoin='round'
+      className={className}
+      aria-hidden='true'
+    >
+      <path d='M2 21h6v-6h6V9h6V3h2M3 4l5 5M3 4v5M3 4h5' />
+    </svg>
+  );
+}
+const customIcons = {
+  LOCKER: Archive,
+  SOFA: Sofa,
+  SHELF: LibraryBig,
+  PRINTER: Printer,
+  SCREEN: Monitor,
+  COFFEE: Coffee,
+  WHITEBOARD: Presentation,
+  LAMP: LampDesk,
+  FAN: Fan,
+  AIR_CONDITIONER: AirVent,
+  TRASH: Trash2,
+  SPEAKER: Speaker,
+  CLOCK: Clock,
+  REFRIGERATOR: Refrigerator,
+  WATER_DISPENSER: GlassWater,
+  ROUTER: Router,
+  TOILET: Toilet,
+  SINK: SinkIcon,
+  PROJECTOR: Projector,
+  VIDEO_CONFERENCE: Video,
+  STAIRS: StairsIcon,
+  ELEVATOR: ArrowUpDown,
+  FIRE_EXTINGUISHER: FireExtinguisher,
+  DOOR: DoorOpen,
+  ACCESSIBILITY: Accessibility,
+  MICROWAVE: Microwave,
+  SHOWER: ShowerHead,
+  BED: Bed,
+  CAMERA: Camera,
+  PHONE: Phone
+};
+/** Legacy presets predate explicit icons; infer only a safe built-in symbol for display. */
+export function furnishingIcon(
+  kind: DecorationKind,
+  label: string,
+  icon?: DecorationIconName | null
+): DecorationIconName | null {
+  if (icon && icon !== 'BOX') return icon;
+  if (kind !== 'OTHER') return kind;
+  return matchFurnishingIcon(label) ?? icon ?? null;
+}
 
 /** Consistent 24-unit symbols for type pickers and layout legends. */
 export function DecorationIcon({
   kind,
+  icon,
   className = 'size-5'
 }: {
   kind: DecorationKind;
+  icon?: DecorationIconName | null;
   className?: string;
 }) {
+  if (icon && icon in customIcons) {
+    const Symbol = customIcons[icon as keyof typeof customIcons];
+    return <Symbol className={className} aria-hidden='true' />;
+  }
   return (
     <svg
       viewBox='0 0 24 24'
@@ -46,6 +159,7 @@ export function DecorationIcon({
 
 /** Top-down silhouettes retain their real footprint; labels never replace object identity. */
 export function DecorationVisual({ item }: { item: FloorDecoration }) {
+  const resolvedIcon = furnishingIcon(item.kind, item.label, item.icon);
   const { posX: x, posY: y, width, height } = item;
   const minSize = Math.min(width, height),
     cx = x + width / 2,
@@ -59,7 +173,34 @@ export function DecorationVisual({ item }: { item: FloorDecoration }) {
   return (
     <g style={{ color: item.color }} pointerEvents='none'>
       <title>{item.label}</title>
-      {item.kind === 'TABLE' ? (
+      {resolvedIcon && resolvedIcon in customIcons ? (
+        <>
+          <rect
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            rx={Math.min(7, minSize * 0.12)}
+            fill='currentColor'
+            fillOpacity='.14'
+            stroke='currentColor'
+            vectorEffect='non-scaling-stroke'
+          />
+          <svg
+            x={cx - minSize * 0.3}
+            y={cy - minSize * 0.36}
+            width={minSize * 0.6}
+            height={minSize * 0.6}
+            viewBox='0 0 24 24'
+          >
+            <DecorationIcon
+              kind={item.kind}
+              icon={resolvedIcon}
+              className='size-full text-inherit'
+            />
+          </svg>
+        </>
+      ) : item.kind === 'TABLE' ? (
         <>
           <rect
             x={x}

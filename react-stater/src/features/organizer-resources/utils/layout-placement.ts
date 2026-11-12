@@ -62,12 +62,12 @@ export function previewLayout(
     .map((resource) => {
       const shape = layoutGeometry(resource);
       return {
-        key: `resource-${resource.id}`,
+        key: `resource:${resource.id}`,
         id: resource.id,
         parentId: resource.parentRoomId,
         room: resource.category === 'ROOM',
         decoration: false,
-        label: resource.code,
+          label: resource.id < 0 ? resource.name : resource.code,
         shape:
           movingRoom && resource.parentRoomId === candidate.resourceId && shape
             ? moveWithRoom(shape, before, item)
@@ -76,12 +76,12 @@ export function previewLayout(
     });
   if (!candidate.decoration)
     resources.push({
-      key: 'candidate',
+        key: `resource:${candidate.resourceId ?? -1}`,
       id: candidate.resourceId ?? -1,
       parentId: candidate.parentRoomId ?? null,
       room: candidate.category === 'ROOM',
       decoration: false,
-      label: old?.code ?? 'New',
+        label: old && old.id < 0 ? old.name : (old?.code ?? 'New'),
       shape: item
     });
   const shapes = [
@@ -97,6 +97,7 @@ export function previewLayout(
     }))
   ];
   const collisions = new Set<string>();
+  const collisionKeys = new Set<string>();
   let fits = true;
   for (let i = 0; i < shapes.length; i++) {
     const a = shapes[i];
@@ -123,8 +124,10 @@ export function previewLayout(
       if (!allowed) {
         collisions.add(a.label);
         collisions.add(b.label);
+        collisionKeys.add(a.decoration ? `decoration:${a.key}` : a.key);
+        collisionKeys.add(b.decoration ? `decoration:${b.key}` : b.key);
       }
     }
   }
-  return { fits, collisions, decorations, valid: fits && collisions.size === 0 };
+  return { fits, collisions, collisionKeys, decorations, valid: fits && collisions.size === 0 };
 }

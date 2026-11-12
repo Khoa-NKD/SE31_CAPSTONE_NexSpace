@@ -98,7 +98,7 @@ export function AdminReviewActions({
       setDecision(null);
       setFeedback(
         decision.action === 'approve'
-          ? 'Application approved and Organizer access granted.'
+          ? 'Documents approved. The applicant must confirm the agreement before Organizer access is granted.'
           : decision.action === 'reject'
             ? 'Application rejected. Editing and resubmission are permanently unavailable.'
             : 'Changes requested. The applicant can see the selected documents and your reasons.'
@@ -234,7 +234,7 @@ export function AdminReviewActions({
               </DialogTitle>
               <DialogDescription>
                 {decision.action === 'approve'
-                  ? 'Approval grants the Organizer role and marks all current documents as verified. Inspect every current document before confirming.'
+                  ? 'This verifies the current documents and issues an agreement. The applicant must confirm it by email OTP before Organizer access is granted. Inspect every document before confirming.'
                   : decision.action === 'reject'
                     ? 'This is a final rejection. The applicant will see your reason but cannot edit or resubmit this application.'
                     : 'Select the current documents that must be replaced and explain why. The applicant must replace every selected document before resubmitting.'}

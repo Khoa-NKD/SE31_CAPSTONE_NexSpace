@@ -82,6 +82,20 @@ export function FloorBatchSelector({
         </select>
       </label>
       {building && <p className='text-xs text-muted-foreground'>{building.address}</p>}
+      <div className='rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-muted-foreground'>
+        <p>
+          {c(
+            'A building can host multiple workspaces. This workspace can use one or more floors within a single building.',
+            'Một tòa nhà có thể có nhiều workspace. Workspace này được sử dụng một hoặc nhiều tầng trong cùng một tòa nhà.'
+          )}
+        </p>
+        <p className='mt-1 text-xs'>
+          {c(
+            'Workspaces can share a floor when their areas do not overlap. Enter a layout name for each selected floor.',
+            'Nhiều workspace có thể dùng chung một tầng nếu các khu vực không chồng nhau. Nhập tên sơ đồ cho từng tầng đã chọn.'
+          )}
+        </p>
+      </div>
       <div className='grid grid-cols-3 gap-1 rounded-xl border border-border bg-muted/40 p-1'>
         {(['single', 'range', 'multiple'] as const).map((mode) => (
           <Button

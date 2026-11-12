@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
@@ -36,6 +36,9 @@ import {
 import type { AdminApplicationFilters } from '../api/applications';
 import { DocumentActions } from './document-actions';
 import { AdminReviewActions } from '@/features/organizer-lifecycle/components/admin-review-actions';
+import { invalidateLifecycle } from '@/features/organizer-lifecycle/api/lifecycle';
+import { ContractPanel } from '@/features/organizer-contract/components/contract-panel';
+import { useAdminReviewFocusRefresh } from '../hooks/use-admin-review-focus-refresh';
 
 const emptySubscribe = () => () => {};
 
@@ -58,6 +61,7 @@ export function ApplicationDetailsView({
   filters: AdminApplicationFilters;
 }) {
   const businessTypes = useBusinessTypes();
+  const queryClient = useQueryClient();
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -66,6 +70,7 @@ export function ApplicationDetailsView({
   const actor = useAuthStore((state) => state.user);
   const token = useAuthStore((state) => state.accessToken);
   const allowed = !!actor && !!token && actor.role === 'ADMIN';
+  useAdminReviewFocusRefresh(mounted && allowed);
   const validId = validApplicationId(applicationId);
   const query = useQuery({
     ...adminApplicationDetailsQueryOptions(actor?.id ?? 0, applicationId),
@@ -125,7 +130,7 @@ export function ApplicationDetailsView({
           variant='outline'
           className='rounded-xl text-xs shadow-none'
           disabled={query.isFetching}
-          onClick={() => void query.refetch()}
+          onClick={() => void invalidateLifecycle(queryClient)}
         >
           <RefreshCw
             className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`}
@@ -139,6 +144,9 @@ export function ApplicationDetailsView({
         applicationId={applicationId}
         documents={application.documents}
       />
+      {['CONTRACT_PENDING', 'APPROVED'].includes(application.status) && (
+        <ContractPanel key={`contract-${applicationId}`} applicationId={applicationId} />
+      )}
       <section
         aria-labelledby='application-summary-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4 lg:col-span-2'

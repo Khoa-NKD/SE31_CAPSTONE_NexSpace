@@ -6,19 +6,35 @@ import type { CanonicalWorkspace } from '../../workspaces/api/types.ts';
 import { isWorkspacePubliclyEligible } from '../../workspaces/api/types.ts';
 
 export interface WorkspaceKpis {
+  totalPlatformUsers?: number;
+  activeOrganizers?: number;
+  activeWorkspaces?: number;
+  totalBookings?: number;
   totalWorkspaces?: number;
-  totalPublishedSpaces: number;
+  activeCount?: number;
+  pendingCount?: number;
+  maintenanceCount?: number;
+  draftCount?: number;
+  totalPublishedSpaces?: number;
   publishedMonthlyGrowth?: number | null;
-  metroHubsCount: number;
-  pendingModerationCount: number;
-  pendingOldestHours: number;
+  metroHubsCount?: number;
+  pendingModerationCount?: number;
+  pendingOldestHours?: number;
   suspendedCount: number;
-  suspendedGrievanceDetails: string;
-  partnerDraftsCount: number;
+  suspendedGrievanceDetails?: string;
+  partnerDraftsCount?: number;
 }
 
 export const ZERO_WORKSPACE_KPIS: WorkspaceKpis = {
+  totalPlatformUsers: 0,
+  activeOrganizers: 0,
+  activeWorkspaces: 0,
+  totalBookings: 0,
   totalWorkspaces: 0,
+  activeCount: 0,
+  pendingCount: 0,
+  maintenanceCount: 0,
+  draftCount: 0,
   totalPublishedSpaces: 0,
   publishedMonthlyGrowth: null,
   metroHubsCount: 0,
@@ -59,8 +75,9 @@ export interface ModerationDecisionRecord {
   metroZone: string;
   shortCode: string;
   organizerLegalEntity: string;
-  action: 'Approved' | 'Suspended' | 'Rejected' | 'Approved & Published' | 'Suspended (Safety Audit)' | 'Re-activated' | 'Flags Resolved';
-  actionStatus: 'approved' | 'suspended' | 'rejected' | 'reactivated' | 'resolved';
+  bookingCount?: number;
+  action: 'Approved' | 'Suspended' | 'Pending Processing' | 'Under Maintenance' | 'Draft' | 'Approved & Published' | 'Suspended (Safety Audit)' | 'Re-activated' | 'Flags Resolved';
+  actionStatus: 'approved' | 'suspended' | 'pending' | 'maintenance' | 'draft' | 'reactivated' | 'resolved';
   adminHandler: {
     name: string;
     initials: string;
@@ -73,6 +90,11 @@ export interface ModerationDecisionRecord {
 }
 
 export const MOCK_WORKSPACE_KPIS: WorkspaceKpis = {
+  totalPlatformUsers: 1240,
+  activeOrganizers: 48,
+  activeWorkspaces: 618,
+  totalBookings: 3420,
+  totalWorkspaces: 668,
   totalPublishedSpaces: 618,
   publishedMonthlyGrowth: 12,
   metroHubsCount: 14,
@@ -252,12 +274,18 @@ export function computeWorkspaceKpis(
 
   // Authoritative public eligibility predicate
   const published = workspaces.filter(isWorkspacePubliclyEligible).length;
-  const pending = workspaces.filter((w) => w.reviewStatus === 'Pending').length;
-  const suspended = workspaces.filter((w) => w.moderationStatus === 'Suspended').length;
-  const drafts = workspaces.filter((w) => w.reviewStatus === 'Draft').length;
+  const pending = workspaces.filter((w) => w.status === 'pending' || w.operatingStatus === 'Pending').length;
+  const maintenance = workspaces.filter((w) => w.status === 'maintenance' || w.operatingStatus === 'Maintenance').length;
+  const suspended = workspaces.filter((w) => w.moderationStatus === 'Suspended' || w.status === 'suspended').length;
+  const drafts = workspaces.filter((w) => w.status === 'draft' || w.reviewStatus === 'Draft').length;
+  const uniqueOrganizers = new Set(workspaces.map((w) => w.organizerId).filter(Boolean)).size;
+  const totalBookings = workspaces.reduce(
+    (sum, w) => sum + Number(w.bookingCount ?? w.totalBookings ?? w.totalBookingsMtd ?? 0),
+    0
+  );
 
   let oldestHours = 0;
-  const pendingSpaces = workspaces.filter((w) => w.reviewStatus === 'Pending');
+  const pendingSpaces = workspaces.filter((w) => w.status === 'pending' || w.operatingStatus === 'Pending');
   if (pendingSpaces.length > 0) {
     const timestamps = pendingSpaces
       .map((w) => (w.submittedAt ? new Date(w.submittedAt).getTime() : 0))
@@ -272,10 +300,19 @@ export function computeWorkspaceKpis(
   const metroCount = cities.size;
 
   return {
+    totalPlatformUsers: uniqueOrganizers,
+    activeOrganizers: uniqueOrganizers,
+    activeWorkspaces: published,
+    totalBookings,
+    totalWorkspaces: workspaces.length,
+    activeCount: published,
+    pendingCount: pending,
+    maintenanceCount: maintenance,
+    draftCount: drafts,
     totalPublishedSpaces: published,
     publishedMonthlyGrowth: null,
     metroHubsCount: metroCount,
-    pendingModerationCount: pending,
+    pendingModerationCount: pending + maintenance,
     pendingOldestHours: oldestHours,
     suspendedCount: suspended,
     suspendedGrievanceDetails:
@@ -287,121 +324,133 @@ export function computeWorkspaceKpis(
 }
 
 /**
- * Derive operational moderation workload items strictly from canonical workspaces.
+ * Derive operational workload items strictly from canonical workspaces (Pending Activation & Maintenance).
  */
 export function deriveModerationWorkloadItems(
   workspaces?: CanonicalWorkspace[] | null
 ): ModerationWorkloadItem[] {
   if (!workspaces) return [];
 
+  const items: ModerationWorkloadItem[] = [];
   const pendingWorkspaces = workspaces.filter(
-    (w) => w.reviewStatus === 'Pending' || w.status === 'pending'
+    (w) => w.status === 'pending' || w.operatingStatus === 'Pending'
   );
-  if (pendingWorkspaces.length === 0) return [];
-
-  return [
-    {
-      id: 'workload-pending-review',
-      title: `${pendingWorkspaces.length} Pending Workspace Review${pendingWorkspaces.length === 1 ? '' : 's'}`,
-      description: 'New workspace registrations and onboarding submissions awaiting administrative compliance sign-off.',
+  if (pendingWorkspaces.length > 0) {
+    items.push({
+      id: 'workload-pending-activation',
+      title: `${pendingWorkspaces.length} Workspace${pendingWorkspaces.length === 1 ? '' : 's'} in Pending Activation`,
+      description: 'Organizer workspaces currently in pending transition while being activated on the platform.',
       priorityLabel: 'Priority 1',
       icon: 'add_business',
       iconBgClass: 'bg-amber-100 dark:bg-amber-950/50',
       iconColorClass: 'text-amber-800 dark:text-amber-400'
-    }
-  ];
+    });
+  }
+
+  const maintenanceWorkspaces = workspaces.filter(
+    (w) => w.status === 'maintenance' || w.operatingStatus === 'Maintenance'
+  );
+  if (maintenanceWorkspaces.length > 0) {
+    items.push({
+      id: 'workload-maintenance',
+      title: `${maintenanceWorkspaces.length} Workspace${maintenanceWorkspaces.length === 1 ? '' : 's'} Under Maintenance`,
+      description: 'Workspaces temporarily placed in maintenance mode by organizers.',
+      priorityLabel: 'Standard',
+      icon: 'architecture',
+      iconBgClass: 'bg-indigo-100 dark:bg-indigo-950/50',
+      iconColorClass: 'text-primary dark:text-indigo-400'
+    });
+  }
+
+  return items;
 }
 
 /**
- * Derive latest administrative decisions strictly from genuine persisted review/moderation metadata.
- * Never appends static mock records.
+ * Derive workspace status and booking activity records from canonical workspaces.
  */
 export function deriveModerationDecisionRecords(
   workspaces?: CanonicalWorkspace[] | null
 ): ModerationDecisionRecord[] {
   if (!workspaces || workspaces.length === 0) return [];
 
-  return workspaces
-    .filter((w) => {
-      const hasSuspension = w.moderationStatus === 'Suspended' && Boolean(w.suspendedAt || w.suspendedBy || w.suspendReason);
-      const hasReviewDecision = (w.reviewStatus === 'Approved' || w.reviewStatus === 'Rejected') && Boolean(w.reviewedAt || w.reviewedBy);
-      return hasSuspension || hasReviewDecision;
-    })
-    .map((w) => {
-      const isSuspended = w.moderationStatus === 'Suspended';
-      const isApproved = w.reviewStatus === 'Approved';
-      const isRejected = w.reviewStatus === 'Rejected';
+  return workspaces.map((w) => {
+    const isSuspended = w.moderationStatus === 'Suspended' || w.status === 'suspended';
+    const isMaintenance = w.status === 'maintenance' || w.operatingStatus === 'Maintenance';
+    const isPending = w.status === 'pending' || w.operatingStatus === 'Pending';
+    const isDraft = w.status === 'draft' || w.reviewStatus === 'Draft';
 
-      const action: ModerationDecisionRecord['action'] = isSuspended
-        ? 'Suspended'
-        : isApproved
-        ? 'Approved'
-        : isRejected
-        ? 'Rejected'
-        : 'Flags Resolved';
+    const action: ModerationDecisionRecord['action'] = isSuspended
+      ? 'Suspended'
+      : isMaintenance
+      ? 'Under Maintenance'
+      : isPending
+      ? 'Pending Processing'
+      : isDraft
+      ? 'Draft'
+      : 'Approved & Published';
 
-      const actionStatus: ModerationDecisionRecord['actionStatus'] = isSuspended
-        ? 'suspended'
-        : isApproved
-        ? 'approved'
-        : isRejected
-        ? 'rejected'
-        : 'resolved';
+    const actionStatus: ModerationDecisionRecord['actionStatus'] = isSuspended
+      ? 'suspended'
+      : isMaintenance
+      ? 'maintenance'
+      : isPending
+      ? 'pending'
+      : isDraft
+      ? 'draft'
+      : 'approved';
 
-      const dateStr = isSuspended ? w.suspendedAt : (w.reviewedAt || null);
-      let displayTime = 'Recorded';
-      let exactTime = 'Historical decision metadata';
-      if (dateStr) {
-        try {
-          const parsed = new Date(dateStr);
-          if (!isNaN(parsed.getTime())) {
-            displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            exactTime = parsed.toUTCString();
-          }
-        } catch {
-          // Keep fallback
+    const dateStr = isSuspended ? w.suspendedAt : (w.reviewedAt || w.updatedAt || w.createdAt || null);
+    let displayTime = 'Recorded';
+    let exactTime = 'Historical decision metadata';
+    if (dateStr) {
+      try {
+        const parsed = new Date(dateStr);
+        if (!isNaN(parsed.getTime())) {
+          displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          exactTime = parsed.toUTCString();
         }
+      } catch {
+        // Keep fallback
       }
+    }
 
-      const adminName = isSuspended
-        ? (w.suspendedBy || 'Administrator')
-        : (w.reviewedBy || 'Administrator');
+    const adminName = isSuspended
+      ? (w.suspendedBy || 'Administrator')
+      : 'Auto-Approved (System)';
 
-      const initials =
-        adminName
-          .split(' ')
-          .map((s) => s[0])
-          .filter(Boolean)
-          .join('')
-          .slice(0, 2)
-          .toUpperCase() || 'AD';
+    const initials = isSuspended ? 'AD' : 'SYS';
 
-      const auditTrailNotes = isSuspended
-        ? (w.suspendReason || 'Workspace suspended by administrative policy.')
-        : isApproved
-        ? (w.reviewFeedback || 'Workspace approved by administrator.')
-        : (w.reviewFeedback || 'Workspace rejected during administrative review.');
+    const auditTrailNotes = isSuspended
+      ? (w.suspendReason || 'Workspace suspended by administrative policy.')
+      : isMaintenance
+      ? (w.reviewFeedback || 'Workspace is currently in maintenance mode.')
+      : isPending
+      ? 'Workspace is currently being processed for activation on the platform.'
+      : 'Workspace automatically approved and published upon organizer submission.';
 
-      return {
-        id: `rec-dyn-${w.id}`,
-        workspaceId: w.workspaceCode || w.id,
-        workspaceName: w.name,
-        unit: w.facilitySubtitle || w.streetAddress || 'Main Unit',
-        metroZone: `${w.district ? `${w.district}, ` : ''}${w.city || 'HCMC'}`,
-        shortCode: (w.name || 'WS').slice(0, 2).toUpperCase(),
-        organizerLegalEntity: w.organizerLegalName || 'Organizer Partner',
-        action,
-        actionStatus,
-        adminHandler: {
-          name: adminName,
-          initials,
-          avatarBgClass: isSuspended ? 'bg-slate-700 text-white' : 'bg-primary text-white',
-          role: 'Administrator'
-        },
-        timestamp: displayTime,
-        timestampExact: exactTime,
-        auditTrailNotes
-      };
-    });
+    const bookingCount = Number(w.bookingCount ?? w.totalBookings ?? w.totalBookingsMtd ?? 0);
+
+    return {
+      id: `rec-dyn-${w.id}`,
+      workspaceId: w.workspaceCode || w.id,
+      workspaceName: w.name,
+      unit: w.facilitySubtitle || w.streetAddress || 'Main Unit',
+      metroZone: `${w.district ? `${w.district}, ` : ''}${w.city || 'HCMC'}`,
+      shortCode: (w.name || 'WS').slice(0, 2).toUpperCase(),
+      organizerLegalEntity: w.organizerLegalName || 'Organizer Partner',
+      bookingCount,
+      action,
+      actionStatus,
+      adminHandler: {
+        name: adminName,
+        initials,
+        avatarBgClass: isSuspended ? 'bg-slate-700 text-white' : 'bg-primary text-white',
+        role: isSuspended ? 'Administrator' : 'Auto-Approval Engine'
+      },
+      timestamp: displayTime,
+      timestampExact: exactTime,
+      auditTrailNotes
+    };
+  });
 }
 

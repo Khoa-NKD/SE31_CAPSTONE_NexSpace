@@ -9,7 +9,14 @@ export const adminApplicationSearchSchema = z.object({
   size: z.coerce.number().int().min(1).max(100).catch(20).default(20),
   search: z.string().trim().max(255).catch('').default(''),
   status: z
-    .enum(['all', 'PENDING_REVIEW', 'APPROVED', 'REJECTED', 'REVISION_REQUESTED'])
+    .enum([
+      'all',
+      'PENDING_REVIEW',
+      'CONTRACT_PENDING',
+      'APPROVED',
+      'REJECTED',
+      'REVISION_REQUESTED'
+    ])
     .catch('all')
     .default('all'),
   sortBy: z
@@ -77,6 +84,6 @@ export function adminApplicationsQueryOptions(actorId: number, filters: AdminApp
     staleTime: 0,
     gcTime: 0,
     retry: false,
-    refetchOnWindowFocus: false
+    refetchOnWindowFocus: true
   });
 }

@@ -3,31 +3,33 @@ import { Timer } from 'lucide-react';
 
 interface HoldUrgencyBannerProps {
   seatCode?: string;
+  expiresAt?: string;
   initialSeconds?: number;
   holdExpiresAt?: string | null;
 }
 
 export function HoldUrgencyBanner({
   seatCode = 'Selected Station',
-  initialSeconds = 900, // 15 minutes hold
+  expiresAt,
+  initialSeconds = 900,
   holdExpiresAt
 }: HoldUrgencyBannerProps) {
-  const [secondsRemaining, setSecondsRemaining] = useState(() => {
-    if (holdExpiresAt) {
-      const diff = Math.floor((new Date(holdExpiresAt).getTime() - Date.now()) / 1000);
-      return Math.max(0, diff);
-    }
-    return initialSeconds;
-  });
+  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+  const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const totalSeconds = initialSeconds;
 
   useEffect(() => {
     const timer = setInterval(() => {
-      setSecondsRemaining((prev) => (prev > 0 ? prev - 1 : 0));
+      setCurrentTimestamp(Date.now());
     }, 1000);
 
     return () => clearInterval(timer);
   }, []);
+
+  const expiryTimestamp = expiresAt ? new Date(expiresAt).getTime() : 0;
+  const secondsRemaining = expiryTimestamp > 0
+    ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
+    : initialSeconds;
 
   const minutes = Math.floor(secondsRemaining / 60);
   const seconds = secondsRemaining % 60;

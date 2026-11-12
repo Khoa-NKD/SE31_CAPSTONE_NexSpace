@@ -11,7 +11,7 @@ export const Route = createFileRoute(
       { title: 'O08 — Create Workspace: Amenities & Facilities | NexSpace Organizer Hub' },
       {
         name: 'description',
-        content: 'Step 4 of 5: Select workspace equipment, technology infrastructure, ergonomics, and hospitality features.'
+        content: 'Step 3 of 4: Select workspace equipment, technology infrastructure, ergonomics, and hospitality features.'
       }
     ]
   }),

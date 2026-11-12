@@ -10,11 +10,23 @@ export interface AuthState {
   accessToken: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  adminViewMode: 'admin' | 'customer';
   setAuth: (data: { user: UserDto; accessToken: string }) => void;
   setUser: (user: UserDto) => void;
+  setAdminViewMode: (mode: 'admin' | 'customer') => void;
   clearAuth: () => void;
   setLoading: (isLoading: boolean) => void;
 }
+
+const normalizeUser = (user: UserDto | null): UserDto | null => {
+  if (!user) return null;
+  const effectiveAvatar = user.avatar || user.avatarUrl || null;
+  return {
+    ...user,
+    avatar: effectiveAvatar,
+    avatarUrl: effectiveAvatar
+  };
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -23,27 +35,35 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       isAuthenticated: false,
       isLoading: false,
+      adminViewMode: 'admin',
 
       setAuth: ({ user, accessToken }) =>
         set({
-          user,
+          user: normalizeUser(user),
           accessToken,
           isAuthenticated: true,
-          isLoading: false
+          isLoading: false,
+          adminViewMode: 'admin'
         }),
 
       setUser: (user) =>
         set((state) => ({
           ...state,
-          user
+          user: normalizeUser(user)
         })),
+
+      setAdminViewMode: (mode) =>
+        set({
+          adminViewMode: mode
+        }),
 
       clearAuth: () =>
         set({
           user: null,
           accessToken: null,
           isAuthenticated: false,
-          isLoading: false
+          isLoading: false,
+          adminViewMode: 'admin'
         }),
 
       setLoading: (isLoading) => set({ isLoading })
@@ -55,10 +75,16 @@ export const useAuthStore = create<AuthState>()(
         setItem: () => {},
         removeItem: () => {}
       })),
+      onRehydrateStorage: () => (state) => {
+        if (state && state.user) {
+          state.user = normalizeUser(state.user);
+        }
+      },
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
-        isAuthenticated: state.isAuthenticated
+        isAuthenticated: state.isAuthenticated,
+        adminViewMode: state.adminViewMode
       })
     }
   )

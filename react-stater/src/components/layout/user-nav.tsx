@@ -14,7 +14,7 @@ import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, LayoutDashboard, LogOut, ClipboardList } from 'lucide-react';
+import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';
@@ -54,46 +54,127 @@ export function UserNav() {
     ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userName
     : 'User';
   const displayEmail = user?.email || 'user@example.com';
-  const initial = (user?.firstName?.[0] || user?.userName?.[0] || 'U').toUpperCase();
+  const initial = (user?.firstName?.[0] || user?.lastName?.[0] || user?.userName?.[0] || user?.email?.[0] || 'U').toUpperCase();
+  const avatarSrc = user?.avatar || user?.avatarUrl;
 
   const handleDashboardClick = () => {
     if (role === 'ORGANIZER') {
       router.navigate({ to: '/dashboard/organizer/workspaces' });
     } else {
+      useAuthStore.getState().setAdminViewMode('admin');
       router.navigate({ to: '/dashboard/overview' });
     }
+  };
+
+  const handleSwitchToCustomerView = () => {
+    setOpen(false);
+    useAuthStore.getState().setAdminViewMode('customer');
+    router.navigate({ to: '/', search: { view: 'customer' } });
   };
 
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant='ghost' className='relative h-8 w-8 rounded-full'>
-          <Avatar className='h-8 w-8'>
-            {user?.avatarUrl && <AvatarImage src={user.avatarUrl} alt={displayName} />}
-            <AvatarFallback>{initial}</AvatarFallback>
+          <Avatar className='h-8 w-8 ring-1 ring-border'>
+            {avatarSrc && <AvatarImage src={avatarSrc} alt={displayName} className='object-cover' />}
+            <AvatarFallback className='bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
+              {initial}
+            </AvatarFallback>
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent className='w-56' align='end' sideOffset={10}>
         <DropdownMenuGroup>
-          <DropdownMenuLabel className='font-normal'>
-            <div className='flex flex-col space-y-1'>
-              <p className='text-sm leading-none font-medium'>{displayName}</p>
-              <p className='text-muted-foreground text-xs leading-none'>{displayEmail}</p>
+          <DropdownMenuLabel
+            className='font-normal cursor-pointer hover:bg-muted/50 rounded-sm p-1.5 transition-colors'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/dashboard/settings' });
+            }}
+          >
+            <div className='flex items-center gap-2.5'>
+              <Avatar className='h-8 w-8 ring-1 ring-border shrink-0'>
+                {avatarSrc && <AvatarImage src={avatarSrc} alt={displayName} className='object-cover' />}
+                <AvatarFallback className='bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-100 font-semibold select-none'>
+                  {initial}
+                </AvatarFallback>
+              </Avatar>
+              <div className='flex flex-col space-y-0.5 min-w-0'>
+                <p className='text-sm leading-none font-medium truncate'>{displayName}</p>
+                <p className='text-muted-foreground text-xs leading-none truncate'>{displayEmail}</p>
+              </div>
             </div>
           </DropdownMenuLabel>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuGroup>
           <DropdownMenuItem
-            className='cursor-pointer flex items-center gap-2'
-            onClick={handleDashboardClick}
+            className='cursor-pointer flex items-center gap-2 font-medium text-foreground'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/dashboard/settings' });
+            }}
           >
-            <LayoutDashboard className='w-4 h-4 text-muted-foreground' />
+            <User className='w-4 h-4 text-indigo-600 dark:text-indigo-400' />
             <span>
-              {role === 'ORGANIZER' && language === 'vi' ? 'Bảng điều khiển' : 'Dashboard'}
+              {language === 'vi' ? 'Xem hồ sơ cá nhân' : 'My Profile'}
             </span>
           </DropdownMenuItem>
+          <DropdownMenuItem
+            className='cursor-pointer flex items-center gap-2'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/workspaces/my-bookings' });
+            }}
+          >
+            <Calendar className='w-4 h-4 text-muted-foreground' />
+            <span>
+              {language === 'vi' ? 'Đơn đặt chỗ của tôi' : 'My Bookings'}
+            </span>
+          </DropdownMenuItem>
+
+          {/* Nút về trang chủ */}
+          <DropdownMenuItem
+            className='cursor-pointer flex items-center gap-2'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/' });
+            }}
+          >
+            <Home className='w-4 h-4 text-muted-foreground' />
+            <span>
+              {language === 'vi' ? 'Trang chủ (Landing)' : 'Home'}
+            </span>
+          </DropdownMenuItem>
+
+          {/* CHỈ hiển thị Bảng điều khiển cho ADMIN hoặc ORGANIZER. CUSTOMER không có nút này! */}
+          {(role === 'ADMIN' || role === 'ORGANIZER') && (
+            <DropdownMenuItem
+              className='cursor-pointer flex items-center gap-2'
+              onClick={handleDashboardClick}
+            >
+              <LayoutDashboard className='w-4 h-4 text-muted-foreground' />
+              <span>
+                {role === 'ORGANIZER'
+                  ? language === 'vi'
+                    ? 'Bảng điều khiển'
+                    : 'Organizer Dashboard'
+                  : language === 'vi'
+                    ? 'Bảng quản trị'
+                    : 'Admin Dashboard'}
+              </span>
+            </DropdownMenuItem>
+          )}
+          {role === 'ADMIN' && (
+            <DropdownMenuItem
+              className='cursor-pointer flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-medium'
+              onClick={handleSwitchToCustomerView}
+            >
+              <Eye className='w-4 h-4 text-indigo-500' />
+              <span>{language === 'vi' ? 'Xem giao diện Khách hàng' : 'Customer View'}</span>
+            </DropdownMenuItem>
+          )}
           {showApplicationStatus && (
             <DropdownMenuItem
               className='cursor-pointer flex items-center gap-2'

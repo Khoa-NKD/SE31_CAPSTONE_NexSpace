@@ -1,21 +1,16 @@
 import { createFileRoute } from '@tanstack/react-router';
+import { z } from 'zod';
+import { zodValidator } from '@tanstack/zod-adapter';
 import { BookingConfirmationPage } from '@/features/workspaces/components/confirmation/booking-confirmation-page';
 
-export interface BookingConfirmationSearch {
-  bookingCode?: string;
-  orderRef?: string;
-  bookingId?: number;
-}
+const confirmationSearchSchema = z.object({
+  bookingId: z.coerce.number().optional(),
+  bookingCode: z.string().optional(),
+  orderRef: z.string().optional()
+});
 
 export const Route = createFileRoute('/workspaces/confirmation')({
-  validateSearch: (search: Record<string, unknown>): BookingConfirmationSearch => ({
-    bookingCode: typeof search.bookingCode === 'string' ? search.bookingCode : undefined,
-    orderRef: typeof search.orderRef === 'string' ? search.orderRef : undefined,
-    bookingId:
-      Number.isSafeInteger(Number(search.bookingId)) && Number(search.bookingId) > 0
-        ? Number(search.bookingId)
-        : undefined
-  }),
+  validateSearch: zodValidator(confirmationSearchSchema),
   component: BookingConfirmationRoute,
   head: () => ({
     meta: [{ title: 'Booking Confirmation & Digital Pass — NexSpace' }]

@@ -1,5 +1,5 @@
 export interface UpdateAdminUserStatusInput {
-  status: 'Active' | 'Locked' | 'Inactive';
+  status: 'Active' | 'Locked' | 'Inactive' | 'Deleted';
   reason?: string;
 }
 
@@ -7,6 +7,13 @@ export interface ValidationError {
   field: string;
   message: string;
 }
+
+const STATUS_MAP: Record<string, 'Active' | 'Locked' | 'Inactive' | 'Deleted'> = {
+  ACTIVE: 'Active',
+  LOCKED: 'Locked',
+  INACTIVE: 'Inactive',
+  DELETED: 'Deleted'
+};
 
 export function validateUpdateAdminUserStatus(
   body: unknown
@@ -21,11 +28,13 @@ export function validateUpdateAdminUserStatus(
 
   const b = body as Record<string, unknown>;
 
-  const validStatuses = ['Active', 'Locked', 'Inactive'];
-  if (!b.status || typeof b.status !== 'string' || !validStatuses.includes(b.status)) {
+  const normalizedStatus =
+    typeof b.status === 'string' ? STATUS_MAP[b.status.toUpperCase()] : undefined;
+
+  if (!normalizedStatus) {
     errors.push({
       field: 'status',
-      message: `Status is required and must be one of: ${validStatuses.join(', ')}`
+      message: 'Status is required and must be one of: Active, Locked, Inactive, Deleted'
     });
   }
 
@@ -36,14 +45,14 @@ export function validateUpdateAdminUserStatus(
     });
   }
 
-  if (errors.length > 0) {
+  if (errors.length > 0 || !normalizedStatus) {
     return { errors };
   }
 
   return {
     errors: [],
     value: {
-      status: b.status as 'Active' | 'Locked' | 'Inactive',
+      status: normalizedStatus,
       reason: b.reason ? (b.reason as string).trim() : undefined
     }
   };

@@ -1,4 +1,13 @@
 import {
+  IconBriefcase,
+  IconBuildingCommunity,
+  IconBuildingSkyscraper,
+  IconMap2,
+  IconArmchair,
+  IconTags,
+  IconCalendarOff,
+  IconCalendarCheck,
+  IconChartBar,
   IconAdjustmentsHorizontal,
   IconAlertCircle,
   IconAlertTriangle,
@@ -216,6 +225,17 @@ export const Icons = {
   toastWarning: IconAlertTriangle,
   toastError: IconCircleX,
   toastLoading: IconLoader2,
+
+  // Organizer navigation
+  business: IconBriefcase,
+  coworking: IconBuildingCommunity,
+  building: IconBuildingSkyscraper,
+  floorPlan: IconMap2,
+  seats: IconArmchair,
+  pricing: IconTags,
+  blockout: IconCalendarOff,
+  bookings: IconCalendarCheck,
+  gantt: IconChartBar,
 
   // Misc
   pizza: IconPizza,

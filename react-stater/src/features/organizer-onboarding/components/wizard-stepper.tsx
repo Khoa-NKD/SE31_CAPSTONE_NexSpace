@@ -8,24 +8,15 @@ export interface WizardStepperProps {
 
 const STEPS = [
   { number: 1, title: 'Basic Info', route: '/dashboard/organizer/workspaces/create' },
-  { number: 2, title: 'Location', route: '/dashboard/organizer/workspaces/create/location' },
-  { number: 3, title: 'Operating Hours', route: '/dashboard/organizer/workspaces/create/hours' },
-  { number: 4, title: 'Amenities', route: '/dashboard/organizer/workspaces/create/amenities' },
-  { number: 5, title: 'Photos & Media', route: '/dashboard/organizer/workspaces/create/media' }
+
+  { number: 2, title: 'Operating Hours', route: '/dashboard/organizer/workspaces/create/hours' },
+  { number: 3, title: 'Amenities', route: '/dashboard/organizer/workspaces/create/amenities' },
+  { number: 4, title: 'Photos & Media', route: '/dashboard/organizer/workspaces/create/media' }
 ] as const;
 
 export function WizardStepper({ currentStep }: WizardStepperProps) {
   // Compute progress line width
-  const progressPercent =
-    currentStep === 1
-      ? 10
-      : currentStep === 2
-        ? 32
-        : currentStep === 3
-          ? 55
-          : currentStep === 4
-            ? 78
-            : 100;
+  const progressPercent = ((Math.min(currentStep, 4) - 1) / 3) * 100;
 
   return (
     <div className='max-w-4xl mx-auto mb-6 sm:mb-8 px-2'>

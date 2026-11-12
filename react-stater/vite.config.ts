@@ -21,13 +21,16 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
         if (url.startsWith('/api/') || url === '/api') {
           const springRequest =
             url.startsWith('/api/auth/') ||
+            url.startsWith('/api/users') ||
             url.startsWith('/api/organizer/') ||
-            url.startsWith('/api/admin/organizer-applications') ||
-            url.startsWith('/api/admin/workspaces') ||
+            url.startsWith('/api/admin/') ||
             url.startsWith('/api/v1/') ||
             url.startsWith('/api/bookings') ||
             url.startsWith('/api/workspaces') ||
-            url.startsWith('/api/public/');
+            url.startsWith('/api/public/') ||
+            url.startsWith('/api/media') ||
+            url.startsWith('/api/amenities') ||
+            url.startsWith('/api/customer-preferences');
           const targetPort = springRequest ? '8080' : process.env.MOCK_SERVER_PORT || '4000';
           const targetBase = springRequest
             ? process.env.VITE_SPRING_API_PROXY_TARGET || proxyTarget || 'http://localhost:8080'

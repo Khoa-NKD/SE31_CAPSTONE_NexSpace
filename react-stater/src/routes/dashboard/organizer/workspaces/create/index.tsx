@@ -9,7 +9,7 @@ export const Route = createFileRoute('/dashboard/organizer/workspaces/create/')(
       { title: 'O05 — Create Workspace: Basic Info | NexSpace Organizer Hub' },
       {
         name: 'description',
-        content: 'Step 1 of 5: Configure public title, category, and specifications for your workspace.'
+        content: 'Step 1 of 4: Configure public title, category, and specifications for your workspace.'
       }
     ]
   }),

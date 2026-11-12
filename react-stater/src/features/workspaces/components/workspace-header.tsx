@@ -1,27 +1,40 @@
 import React from 'react';
-import { Globe, ChevronDown, Check, DoorClosed, DoorOpen } from 'lucide-react';
+import { Globe, ChevronDown, Check, DoorClosed, Home } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Icons } from '@/components/icons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getRoleHomeUrl } from '@/features/auth/utils/role-guard';
+import { UserNav } from '@/components/layout/user-nav';
 
 export function WorkspaceHeader() {
   const { language, setLanguage } = useLanguage();
   const { currency, setCurrency } = useCurrency();
+  const user = useAuthStore((state) => state.user);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const homeUrl = getRoleHomeUrl(user);
 
   return (
     <header className="sticky top-0 z-50 w-full border-b border-border bg-card/90 shadow-sm backdrop-blur-md dark:bg-card/90 dark:shadow-none">
       <div className="mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between px-6 lg:px-12">
         {/* Brand Logo Anchor */}
         <div className="flex items-center gap-8">
-          <Link to="/" className="mr-8 flex items-center transition-opacity hover:opacity-80 active:scale-95 duration-200">
+          <Link to={homeUrl} className="mr-8 flex items-center transition-opacity hover:opacity-80 active:scale-95 duration-200">
             <Icons.nexSpace className="h-9 w-auto cursor-pointer object-contain" />
           </Link>
 
           {/* Desktop Navigation Links */}
           <nav className="hidden items-center gap-6 md:flex">
+            <Link
+              to="/"
+              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+            >
+              <Home className="h-4 w-4" />
+              <span>{language === 'vi' ? 'Trang chủ' : 'Home'}</span>
+            </Link>
             {/* Active: Workspaces */}
             <Link
               to="/workspaces"
@@ -31,11 +44,13 @@ export function WorkspaceHeader() {
               Workspaces
             </Link>
             <Link
-              to="/workspaces/history"
+            <Link
+              to="/workspaces/my-bookings"
               className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
               activeProps={{ className: "border-b-2 border-[#4b41e1] pb-1 font-semibold text-[#4b41e1]" }}
             >
-              My Bookings
+              {language === 'vi' ? 'Đơn của tôi' : 'My Bookings'}
+            </Link>
             </Link>
             <Link
               to="/"
@@ -175,29 +190,20 @@ export function WorkspaceHeader() {
             List Your Space
           </Link>
           
-          {/* Primary Action: Logout */}
-          <Link
-            to='/auth/sign-in'
-            className='group flex h-10 cursor-pointer items-center justify-center gap-1.5 rounded-lg bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 text-sm font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:-translate-y-0.5 active:scale-95 active:translate-y-0'
-          >
-            <span>Logout</span>
-            <div className="relative h-4 w-4">
-              <DoorOpen className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-              <DoorClosed className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
+          {/* Authenticated User Profile Menu OR Sign In Button */}
+          {user || isAuthenticated ? (
+            <div className="ml-2 flex items-center">
+              <UserNav />
             </div>
-          </Link>
-          
-          {/* Profile Avatar Link */}
-          <button
-            aria-label="User account menu"
-            className="ml-2 h-9 w-9 overflow-hidden rounded-full p-0.5 ring-2 ring-border transition-all duration-200 hover:ring-[#4b41e1] hover:shadow-md focus:outline-none focus:ring-[#4b41e1] active:scale-95"
-          >
-            <img
-              alt="User account menu"
-              className="h-full w-full rounded-full object-cover transition-transform duration-300 hover:scale-110"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBNr5Wsv0UwoDkrxmkfmLZpvKFqEr7XKmnlYlRHT0QAiWY80-zXmslj8ot1-8k2CuWr8GFIpsi0TrtVDuIVRYRzXY4DNd3C5nJGMYoU54luMUYv2V8dB4poxznpdVMC-ufXwAqeVirz3p9NhEzqKadujIppwe2zigny4K6qQskHOr-bYnjP2nIXmoWK4726jd7a6DqcU1Eh8Ih2dj434YnJCqe0R2Im_Hryh3EF9ji6Da5PQYLEDiVCw"
-            />
-          </button>
+          ) : (
+            <Link
+              to='/auth/sign-in'
+              className='group flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg active:scale-95'
+            >
+              <span>{language === 'vi' ? 'Đăng nhập' : 'Sign in'}</span>
+              <DoorClosed className="h-3.5 w-3.5" />
+            </Link>
+          )}
         </div>
       </div>
     </header>

@@ -1,15 +1,15 @@
 import test, { describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-export function isDurableMediaUrl(url?: string): boolean {
-  if (!url || typeof url !== 'string') return false;
-  const trimmed = url.trim();
-  if (trimmed.startsWith('/api/v1/media/')) {
-    const filename = trimmed.replace('/api/v1/media/', '').trim();
-    return Boolean(filename && !filename.includes('..') && /^[a-zA-Z0-9_.-]+$/.test(filename));
-  }
-  return trimmed.startsWith('http://') || trimmed.startsWith('https://');
-}
+import { isDurableMediaUrl } from './wizard-api-mapper.ts';
+
+test('accepts actual backend upload URLs while rejecting temporary or unsafe paths', () => {
+  assert.equal(isDurableMediaUrl('/uploads/organizers/1/workspaces/84b96e7a-aafd-4427-9640-dfe4d9223d77.png'), true);
+  assert.equal(isDurableMediaUrl('/uploads/../private/file.png'), false);
+  assert.equal(isDurableMediaUrl('/uploads/%2e%2e/file.png'), false);
+  assert.equal(isDurableMediaUrl('/uploads/'), false);
+  assert.equal(isDurableMediaUrl('blob:http://localhost/preview'), false);
+});
 
 describe('Workspace Gallery Sync & Reorder Logic', () => {
   const sampleMediaItems = [

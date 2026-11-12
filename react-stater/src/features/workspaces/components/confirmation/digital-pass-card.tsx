@@ -27,8 +27,10 @@ interface DigitalPassCardProps {
   endTime?: string;
   holdExpiresAt?: string | null;
   status?: string;
-  qrTokenHash?: string;
+  qrTokenHash?: string | null;
   bookingCode?: string;
+  dateStr?: string;
+  timeSlot?: string;
 }
 
 export function DigitalPassCard({
@@ -42,7 +44,10 @@ export function DigitalPassCard({
   startTime,
   endTime,
   status = 'CONFIRMED',
-  bookingCode
+  bookingCode,
+  dateStr,
+  timeSlot,
+  qrTokenHash
 }: DigitalPassCardProps) {
   const [pinVisible, setPinVisible] = useState(true);
   const [copiedPin, setCopiedPin] = useState(false);
@@ -163,7 +168,7 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Date &amp; Schedule</div>
           <div className='text-foreground text-sm font-medium'>
-            {schedule.dateStr}
+            {dateStr || schedule.dateStr}
           </div>
         </div>
 
@@ -171,10 +176,10 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Time Slot</div>
           <div className='text-foreground text-sm font-medium'>
-            {schedule.timeStr}
+            {timeSlot || schedule.timeStr}
           </div>
           <span className='text-muted-foreground text-[11px] block'>
-            {schedule.durationHours} Hours Reserved
+            {schedule.durationHours ? `${schedule.durationHours} Hours Reserved` : 'Reserved & Guaranteed'}
           </span>
         </div>
 
@@ -303,6 +308,11 @@ export function DigitalPassCard({
             <p className='text-foreground text-xs leading-relaxed font-medium'>
               Scan at turnstile speed gate or door tablet for automatic access release.
             </p>
+            {qrTokenHash && (
+              <div className='font-mono text-[10px] text-muted-foreground/80 mt-1 truncate max-w-[260px]'>
+                Token: {qrTokenHash}
+              </div>
+            )}
             <div className='text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-[11px] sm:justify-start'>
               <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
               <span>Early check-in opens 15 mins prior to reserved slot</span>

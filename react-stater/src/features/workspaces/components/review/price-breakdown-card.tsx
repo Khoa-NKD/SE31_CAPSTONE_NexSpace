@@ -16,6 +16,15 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useCalculatePriceQuery, useCreateBookingMutation, useCancelBookingMutation } from '../../api/booking-queries';
 import type { BookingDto } from '../../api/booking-types';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
+import {
+  useCreatePaymentCheckout,
+  useExchangeRate,
+  useCurrentPendingBooking,
+  paymentKeys
+} from '@/features/payments/api';
+import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import { Link, useNavigate } from '@tanstack/react-router';
 
 interface PriceBreakdownCardProps {
@@ -43,6 +52,8 @@ export function PriceBreakdownCard({
   activeBooking,
   onBookingCreated
 }: PriceBreakdownCardProps) {
+  const queryClient = useQueryClient();
+  const { data: holdData } = useCurrentPendingBooking();
   const { formatPrice, currency } = useCurrency();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -52,6 +63,10 @@ export function PriceBreakdownCard({
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [createdBooking, setCreatedBooking] = useState<BookingDto | null>(activeBooking || null);
   const [bookingError, setBookingError] = useState<string | null>(null);
+  const [checkoutData, setCheckoutData] = useState<PaymentCheckoutResponse | null>(null);
+
+  const { data: exchangeRateData } = useExchangeRate();
+  const exchangeRate = exchangeRateData?.exchangeRate || 25450;
 
   // Price calculation query from backend
   const { data: priceData, isLoading: isCalculating } = useCalculatePriceQuery(
@@ -68,10 +83,27 @@ export function PriceBreakdownCard({
 
   const createBookingMutation = useCreateBookingMutation();
   const cancelBookingMutation = useCancelBookingMutation();
+  const createPaymentMutation = useCreatePaymentCheckout();
+
+  // Price calculations
+  const durationHours = priceData?.durationHours || 4;
+  const unitPrice = priceData?.unitPrice || 2.5;
+  const baseRate = priceData?.baseAmount || durationHours * unitPrice;
+  const platformFee = priceData?.serviceFeeAmount || 1.0;
+  const vat = priceData?.taxAmount || baseRate * 0.08;
+  const promoDiscount = discountApplied ? 1.0 : 0;
+  const totalAmount = priceData
+    ? Math.max(0, priceData.finalPrice - promoDiscount)
+    : Math.max(0, baseRate + platformFee + vat - promoDiscount);
+
+  const totalAmountVnd = Math.round(totalAmount * exchangeRate);
 
   const handleApplyPromo = () => {
     if (promoCode.trim().toUpperCase() === 'NEXFIRST') {
       setDiscountApplied(true);
+      toast.success('Mã giảm giá NEXFIRST đã được áp dụng (-$1.00)');
+    } else {
+      toast.error('Mã giảm giá không hợp lệ');
     }
   };
 
@@ -79,16 +111,18 @@ export function PriceBreakdownCard({
     setBookingError(null);
 
     if (!isAuthenticated) {
-      setBookingError('Please log in or register before confirming your booking hold.');
+      setBookingError('Vui lòng đăng nhập hoặc đăng ký tài khoản trước khi xác nhận giữ chỗ.');
       return;
     }
 
     if (!workspaceId || !resourceId || !startTime || !endTime) {
-      setBookingError('Missing required booking parameters. Please choose a workspace and resource.');
+      setBookingError('Thiếu thông tin đặt chỗ. Vui lòng chọn không gian và vị trí ghế.');
       return;
     }
 
     try {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+
       const booking = await createBookingMutation.mutateAsync({
         workspaceId,
         resourceId,
@@ -100,14 +134,26 @@ export function PriceBreakdownCard({
 
       setCreatedBooking(booking);
       onBookingCreated?.(booking);
-      setCheckoutOpen(true);
+
+      // Attempt to initiate PayOS checkout for this booking
+      createPaymentMutation.mutate(booking.id, {
+        onSuccess: (data: PaymentCheckoutResponse) => {
+          setCheckoutData(data);
+          setCheckoutOpen(true);
+        },
+        onError: () => {
+          // If PayOS payment endpoint fails, open dialog anyway with booking code
+          setCheckoutOpen(true);
+        }
+      });
     } catch (err: unknown) {
       const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
       const msg =
         errorObj?.response?.data?.message ||
         errorObj?.message ||
-        'This seat is currently unavailable or already reserved for the chosen time. Please choose another seat.';
+        'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.';
       setBookingError(msg);
+      toast.error('Không thể giữ chỗ', { description: msg });
     }
   };
 
@@ -120,23 +166,14 @@ export function PriceBreakdownCard({
         reason: 'Customer cancelled during 15-minute hold'
       });
       setCreatedBooking(null);
+      setCheckoutData(null);
       onBookingCreated?.(null);
+      toast.success('Đã hủy giữ chỗ thành công');
     } catch (err: unknown) {
       const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
       setBookingError(errorObj?.response?.data?.message || errorObj?.message || 'Failed to cancel hold.');
     }
   };
-
-  // Base fallback calculation if query is pending or not yet resolved
-  const durationHours = priceData?.durationHours || 4;
-  const unitPrice = priceData?.unitPrice || 2.5;
-  const baseRate = priceData?.baseAmount || durationHours * unitPrice;
-  const platformFee = priceData?.serviceFeeAmount || 1.0;
-  const vat = priceData?.taxAmount || baseRate * 0.08;
-  const promoDiscount = discountApplied ? 1.0 : 0;
-  const totalAmount = priceData
-    ? Math.max(0, priceData.finalPrice - promoDiscount)
-    : Math.max(0, baseRate + platformFee + vat - promoDiscount);
 
   return (
     <>
@@ -161,7 +198,7 @@ export function PriceBreakdownCard({
               {!isAuthenticated && (
                 <div className='mt-2'>
                   <Button size='sm' asChild className='h-7 text-xs'>
-                    <Link to='/auth'>Log in to account</Link>
+                    <Link to='/auth/sign-in'>Đăng nhập vào tài khoản</Link>
                   </Button>
                 </div>
               )}
@@ -183,7 +220,7 @@ export function PriceBreakdownCard({
 
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Platform Service Fee &amp; Infrastructure
+              Platform Service Fee
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
             <span className='font-medium font-mono'>{formatPrice(platformFee)}</span>
@@ -243,7 +280,7 @@ export function PriceBreakdownCard({
                 Total Amount Due
               </span>
               <p className='text-muted-foreground text-xs'>
-                15-Min guaranteed lock • Local taxes included
+                ≈ {totalAmountVnd.toLocaleString('vi-VN')} VND (Tỷ giá: 1$ = {exchangeRate.toLocaleString('vi-VN')}đ)
               </p>
             </div>
             <div className='text-right'>
@@ -265,16 +302,24 @@ export function PriceBreakdownCard({
         {createdBooking ? (
           <div className='space-y-2'>
             <Button
+              onClick={() => setCheckoutOpen(true)}
+              className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
+            >
+              <Wallet className='size-4' />
+              <span>Thanh toán VietQR PayOS ({createdBooking.bookingCode})</span>
+            </Button>
+            <Button
               onClick={() =>
                 navigate({
                   to: '/workspaces/confirmation',
-                  search: { bookingCode: createdBooking.bookingCode }
+                  search: { bookingCode: createdBooking.bookingCode, bookingId: createdBooking.id }
                 })
               }
-              className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-emerald-600 hover:bg-emerald-500 text-white flex items-center justify-center gap-2'
+              variant='secondary'
+              className='h-10 w-full text-xs font-semibold'
             >
-              <CheckCircle2 className='size-4' />
-              <span>View Digital Pass ({createdBooking.bookingCode})</span>
+              <CheckCircle2 className='size-3.5 mr-1.5' />
+              <span>Xem vé điện tử ({createdBooking.bookingCode})</span>
             </Button>
             <Button
               variant='outline'
@@ -285,27 +330,27 @@ export function PriceBreakdownCard({
               {cancelBookingMutation.isPending ? (
                 <>
                   <Loader2 className='size-3.5 animate-spin mr-1.5' />
-                  <span>Releasing hold...</span>
+                  <span>Đang hủy giữ chỗ...</span>
                 </>
               ) : (
-                <span>Cancel Hold &amp; Release Seat</span>
+                <span>Hủy giữ chỗ &amp; giải phóng vị trí</span>
               )}
             </Button>
           </div>
         ) : (
           <Button
             onClick={handleCreateAndHoldBooking}
-            disabled={createBookingMutation.isPending || isCalculating}
+            disabled={createBookingMutation.isPending || isCalculating || createPaymentMutation.isPending}
             className='group h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
           >
-            {createBookingMutation.isPending ? (
+            {createBookingMutation.isPending || createPaymentMutation.isPending ? (
               <>
                 <Loader2 className='size-4 animate-spin' />
-                <span>Locking Seat &amp; Creating Hold...</span>
+                <span>Đang khóa chỗ &amp; tạo cổng PayOS...</span>
               </>
             ) : (
               <>
-                <span>Confirm &amp; Hold 15 Min</span>
+                <span>Xác nhận &amp; Giữ chỗ 15 Phút</span>
                 <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
               </>
             )}
@@ -317,22 +362,22 @@ export function PriceBreakdownCard({
           <div className='flex items-center gap-2.5'>
             <Wallet className='text-primary h-4 w-4 shrink-0' />
             <span>
-              <strong className='text-foreground'>Instant VietQR / PayOS:</strong> Zero latency lock &amp; e-ticket
+              <strong className='text-foreground'>Cổng VietQR PayOS:</strong> Quét bằng app MB, VCB, TCB, MoMo...
             </span>
           </div>
           <div className='flex items-center gap-2.5'>
             <Lock className='text-emerald-600 dark:text-emerald-400 h-4 w-4 shrink-0' />
-            <span>Pessimistic concurrency lock • Anti-double-booking guarantee</span>
+            <span>Khóa giữ chỗ bi quan (Pessimistic) • Chống đặt trùng tuyệt đối</span>
           </div>
           <div className='flex items-center gap-2.5'>
             <FileText className='text-muted-foreground h-4 w-4 shrink-0' />
-            <span>Instant turnstile QR pass issued on hold</span>
+            <span>Hóa đơn điện tử PDF tự động gửi về email &amp; Cloudinary</span>
           </div>
         </div>
 
         {/* Reassurance pill */}
         <div className='bg-muted/70 text-muted-foreground rounded-lg p-2.5 text-center text-xs'>
-          Free cancellation anytime during the 15-minute hold window
+          Miễn phí hủy trong thời gian 15 phút giữ chỗ
         </div>
       </div>
 
@@ -340,9 +385,11 @@ export function PriceBreakdownCard({
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
         totalAmountUsd={totalAmount}
-        seatCode={seatCode}
-        bookingCode={createdBooking?.bookingCode}
-        orderRef={createdBooking ? `#${createdBooking.bookingCode}` : undefined}
+        seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
+        checkoutData={checkoutData}
+        orderRef={createdBooking?.bookingCode ? `#${createdBooking.bookingCode}` : holdData?.bookingCode}
+        isLoading={createPaymentMutation.isPending}
+        onRetry={handleCreateAndHoldBooking}
       />
     </>
   );

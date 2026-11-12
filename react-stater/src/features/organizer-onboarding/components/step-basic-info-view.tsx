@@ -133,7 +133,7 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
     setErrors({});
     setBasicInfo(values);
     await saveDraftToServer({ silent: true });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => prev });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev });
   };
 
   return (
@@ -385,7 +385,7 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
               disabled={isSaving}
               className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
             >
-              <span>Continue to Location &amp; Map</span>
+              <span>Continue to Operating Hours</span>
               {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
             </Button>
           </div>

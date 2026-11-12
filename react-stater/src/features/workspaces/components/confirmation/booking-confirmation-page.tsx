@@ -1,3 +1,4 @@
+import React from 'react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { ConfirmationBreadcrumb } from './confirmation-breadcrumb';
@@ -6,6 +7,8 @@ import { DigitalPassCard } from './digital-pass-card';
 import { ConfirmationActions } from './confirmation-actions';
 import { ConciergeSupportCard } from './concierge-support-card';
 import { useBookingByCodeQuery, useBookingByIdQuery } from '../../api/booking-queries';
+import { useCustomerBookings } from '@/features/payments/api/queries';
+import { useAuthStore } from '@/features/auth/store/auth-store';
 import { Loader2, TicketX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
@@ -18,17 +21,45 @@ export interface BookingConfirmationPageProps {
 
 export function BookingConfirmationPage({
   bookingCode,
-  orderRef,
+  orderRef: propOrderRef,
   bookingId
 }: BookingConfirmationPageProps) {
-  const code = (bookingCode || orderRef?.replace('#', '') || '').trim();
+  const user = useAuthStore((state) => state.user);
+  const code = (bookingCode || propOrderRef?.replace('#', '') || '').trim();
 
   const { data: bookingByCode, isLoading: loadingByCode, error: errorByCode } = useBookingByCodeQuery(code || null);
   const { data: bookingById, isLoading: loadingById, error: errorById } = useBookingByIdQuery(bookingId || null);
 
-  const booking = bookingById || bookingByCode;
-  const isLoading = (Boolean(bookingId) && loadingById) || (Boolean(code) && loadingByCode);
-  const error = bookingId ? errorById : errorByCode;
+  const { data: latestBookingsPage, isLoading: isLoadingLatest } = useCustomerBookings(
+    bookingId || code ? undefined : { status: 'CONFIRMED', page: 0, size: 1, sort: 'createdAt,desc' }
+  );
+  const fallbackBooking = (latestBookingsPage?.content ?? latestBookingsPage?.listObjects ?? [])[0];
+
+  const booking = bookingById || bookingByCode || (fallbackBooking as any);
+  const isLoading = (Boolean(bookingId) && loadingById) || (Boolean(code) && loadingByCode) || (!bookingId && !code && isLoadingLatest);
+  const error = bookingId ? errorById : code ? errorByCode : null;
+
+  const orderRef = booking ? `#${booking.bookingCode}` : propOrderRef || (code ? `#${code}` : '#NX-PASS');
+  const email = booking?.customerEmail || user?.email || 'customer@nexspace.vn';
+
+  let dateStr = 'Jan 25, 2026';
+  let timeSlot = '09:00 AM – 05:00 PM';
+
+  if (booking?.startTime && booking?.endTime) {
+    try {
+      const start = new Date(booking.startTime);
+      const end = new Date(booking.endTime);
+      dateStr = start.toLocaleDateString('vi-VN', {
+        weekday: 'short',
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+      timeSlot = `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+    } catch {
+      // Fallback
+    }
+  }
 
   return (
     <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20 relative'>
@@ -47,25 +78,25 @@ export function BookingConfirmationPage({
       {/* Main Confirmation Content Canvas */}
       <main className='relative z-10 mx-auto w-full max-w-[1200px] flex-1 px-4 py-8 sm:px-6 lg:px-8'>
         {/* Breadcrumb Hierarchy */}
-        <ConfirmationBreadcrumb orderRef={code ? `#${code}` : '#NX-PASS'} />
+        <ConfirmationBreadcrumb orderRef={orderRef} />
 
         {/* Loading State */}
         {isLoading && (
           <div className='flex min-h-[400px] flex-col items-center justify-center gap-3 text-center'>
             <Loader2 className='size-8 animate-spin text-primary' />
             <p className='text-sm text-muted-foreground'>
-              Retrieving verified booking pass and security token...
+              Đang tải thông tin vé điện tử và xác thực mã đặt chỗ...
             </p>
           </div>
         )}
 
-        {/* Not Found / Error State (if code was provided but invalid) */}
-        {!isLoading && (error || (!booking && code)) && (
+        {/* Not Found / Error State (if code/id was provided but invalid) */}
+        {!isLoading && (error || (!booking && (code || bookingId))) && (
           <div className='mx-auto max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-xs'>
             <TicketX className='mx-auto size-12 text-muted-foreground mb-4' />
             <h2 className='text-lg font-bold'>Booking Not Found</h2>
             <p className='mt-2 text-xs text-muted-foreground'>
-              We could not find a booking matching code <span className='font-mono font-bold'>{code}</span>.
+              We could not find a booking matching {code ? `code ${code}` : `ID ${bookingId}`}.
             </p>
             <Button asChild className='mt-6 w-full'>
               <Link to='/workspaces'>Explore Available Workspaces</Link>
@@ -78,40 +109,42 @@ export function BookingConfirmationPage({
           <div className='mx-auto flex w-full max-w-[560px] flex-col items-center py-4'>
             {/* Celebratory Success Badge & Header */}
             <CelebratoryBanner
-              orderRef={booking.bookingCode}
-              email={booking.customerEmail || 'Customer Email'}
+              orderRef={orderRef}
+              email={email}
               paymentMethod={
                 booking.status === 'CONFIRMED'
                   ? 'Paid via PayOS (VietQR)'
                   : `Status: ${booking.status} (15m Hold)`
               }
-              dateStr={formatDate(booking.startTime)}
+              dateStr={dateStr}
               status={booking.status}
             />
 
             {/* Centered Digital Boarding Pass Ticket Container */}
             <DigitalPassCard
-              seatCode={booking.resourceCode || 'Station'}
-              zone={`${booking.floorName || 'Level 14'} • ${booking.zoneName || 'Quiet Zone'}`}
-              hubName={booking.workspaceName || 'NexSpace Prime Hub'}
+              seatCode={booking?.resourceCode || booking?.seatCode || 'Station'}
+              zone={`${booking?.floorName || 'Floor'} • ${booking?.zoneName || booking?.resourceName || 'Reserved Zone'}`}
+              hubName={booking?.workspaceName || 'NexSpace Prime Hub'}
               address={
-                booking.workspaceAddress ||
-                [booking.workspaceDistrict, booking.workspaceCity].filter(Boolean).join(', ') ||
+                booking?.workspaceAddress ||
+                [booking?.workspaceDistrict, booking?.workspaceCity].filter(Boolean).join(', ') ||
                 'Ho Chi Minh City'
               }
-              pinCode={booking.bookingCode.replace(/\D/g, '').slice(-4) || '8492'}
+              pinCode={booking?.pinCode || booking?.bookingCode?.replace(/\D/g, '').slice(-4) || '8492'}
               wifiSsid='NexSpace-5G'
               wifiPass='sprint2026'
-              startTime={booking.startTime}
-              endTime={booking.endTime}
-              holdExpiresAt={booking.holdExpiresAt}
-              status={booking.status}
-              qrTokenHash={booking.qrTokenHash}
-              bookingCode={booking.bookingCode}
+              startTime={booking?.startTime}
+              endTime={booking?.endTime}
+              dateStr={dateStr}
+              timeSlot={timeSlot}
+              holdExpiresAt={booking?.holdExpiresAt}
+              status={booking?.status}
+              qrTokenHash={booking?.qrTokenHash}
+              bookingCode={booking?.bookingCode}
             />
 
             {/* Action Buttons Grid */}
-            <ConfirmationActions orderRef={`#${booking.bookingCode}`} />
+            <ConfirmationActions orderRef={orderRef} bookingId={booking?.id || booking?.bookingId} />
 
             {/* Reassurance & Support Card */}
             <ConciergeSupportCard />
@@ -123,11 +156,11 @@ export function BookingConfirmationPage({
           </div>
         )}
 
-        {/* Fallback Demo State when no booking code was supplied */}
-        {!isLoading && !booking && !code && (
+        {/* Fallback Demo State when no booking parameter was supplied and no history found */}
+        {!isLoading && !booking && !code && !bookingId && (
           <div className='mx-auto flex w-full max-w-[560px] flex-col items-center py-4'>
             <CelebratoryBanner
-              orderRef='NX-DEMO-PASS'
+              orderRef='#NX-DEMO-PASS'
               email='guest@nexspace.io'
               paymentMethod='Ready for Check-in'
               dateStr='Today'
@@ -140,6 +173,8 @@ export function BookingConfirmationPage({
               pinCode='8492'
               wifiSsid='NexSpace-5G'
               wifiPass='sprint2026'
+              dateStr='Today'
+              timeSlot='09:00 AM – 05:00 PM'
             />
             <ConfirmationActions orderRef='#NX-DEMO-PASS' />
             <ConciergeSupportCard />
@@ -151,16 +186,4 @@ export function BookingConfirmationPage({
       <Footer />
     </div>
   );
-}
-
-function formatDate(isoStr?: string) {
-  if (!isoStr) return 'Today';
-  const d = new Date(isoStr);
-  if (isNaN(d.getTime())) return 'Today';
-  return d.toLocaleDateString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  });
 }

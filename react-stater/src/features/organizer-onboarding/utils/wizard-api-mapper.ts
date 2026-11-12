@@ -127,8 +127,12 @@ export function mapCanonicalScheduleToWizard(hours: WorkspaceOperatingHour[]): D
 export function isDurableMediaUrl(url?: string): boolean {
   if (!url || typeof url !== 'string') return false;
   const trimmed = url.trim();
-  if (trimmed.startsWith('/api/v1/media/')) {
-    const filename = trimmed.replace('/api/v1/media/', '').trim();
+  if (trimmed.startsWith('/uploads/')) {
+    const segments = trimmed.slice('/uploads/'.length).split('/');
+    return segments.every(segment => Boolean(segment) && segment !== '.' && segment !== '..' && /^[a-zA-Z0-9_.-]+$/.test(segment));
+  }
+  if (trimmed.startsWith('/api/media/') || trimmed.startsWith('/api/v1/media/')) {
+    const filename = trimmed.replace(/^\/api(\/v1)?\/media\//, '').trim();
     return Boolean(filename && !filename.includes('..') && /^[a-zA-Z0-9_.-]+$/.test(filename));
   }
   return trimmed.startsWith('http://') || trimmed.startsWith('https://');
@@ -137,7 +141,7 @@ export function isDurableMediaUrl(url?: string): boolean {
 /**
  * Maps durable wizard media items to canonical API format.
  * NOTE: Temporary browser blob: URLs are strictly excluded from server persistence.
- * Durable remote URLs (http://, https://) and local development media URLs (/api/v1/media/...) are preserved.
+ * Remote URLs and persisted backend uploads (/uploads/...) or mock media (/api/media/...) are preserved.
  */
 export function mapWizardMediaToCanonical(
   items: MediaItem[],
@@ -231,9 +235,6 @@ export function mapWizardStateToCreateDto(
   return {
     name: state.basicInfo.name || 'Untitled Workspace Draft',
     category: (state.basicInfo.category as WorkspaceCategory) || 'coworking_hub',
-    streetAddress: state.location.streetAddress || '',
-    city: state.location.city || '',
-    district: state.location.district || '',
     buildingName: state.location.floorSuite || undefined,
     facilitySubtitle: state.location.floorSuite || undefined,
     description: state.basicInfo.description || '',
@@ -241,8 +242,6 @@ export function mapWizardStateToCreateDto(
     supportPhone: state.basicInfo.contactPhone || undefined,
     supportEmail: state.basicInfo.contactEmail || undefined,
     organizerId,
-    latitude: typeof state.location.latitude === 'number' && !Number.isNaN(state.location.latitude) && state.location.latitude !== 0 ? state.location.latitude : null,
-    longitude: typeof state.location.longitude === 'number' && !Number.isNaN(state.location.longitude) && state.location.longitude !== 0 ? state.location.longitude : null,
     amenities: state.amenities || [],
     operatingHours,
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
@@ -274,9 +273,6 @@ export function mapWizardStateToUpdateDto(
   const dto: UpdateWorkspaceDto = {
     name: state.basicInfo.name,
     category: state.basicInfo.category as WorkspaceCategory,
-    streetAddress: state.location.streetAddress,
-    city: state.location.city,
-    district: state.location.district,
     buildingName: state.location.floorSuite,
     facilitySubtitle: state.location.floorSuite,
     entryInstructions: state.location.entryNotes,
@@ -284,8 +280,6 @@ export function mapWizardStateToUpdateDto(
     usableAreaSqm: state.basicInfo.totalArea,
     supportPhone: state.basicInfo.contactPhone,
     supportEmail: state.basicInfo.contactEmail,
-    latitude: typeof state.location.latitude === 'number' && !Number.isNaN(state.location.latitude) && state.location.latitude !== 0 ? state.location.latitude : null,
-    longitude: typeof state.location.longitude === 'number' && !Number.isNaN(state.location.longitude) && state.location.longitude !== 0 ? state.location.longitude : null,
     operatingHours,
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     autoBlockPublicHolidays: state.operatingHours.blockHolidays,
@@ -355,12 +349,12 @@ export function mapCanonicalToWizardState(
       contactEmail: cw.supportEmail || existingLocalState?.basicInfo?.contactEmail || ''
     },
     location: {
-      streetAddress: cw.streetAddress || existingLocalState?.location?.streetAddress || '',
-      district: cw.district || existingLocalState?.location?.district || '',
-      city: cw.city || existingLocalState?.location?.city || '',
+      streetAddress: cw.streetAddress || '',
+      district: cw.district || '',
+      city: cw.city || '',
       floorSuite: cw.buildingName || cw.facilitySubtitle || existingLocalState?.location?.floorSuite || '',
-      latitude: typeof cw.latitude === 'number' ? cw.latitude : (typeof existingLocalState?.location?.latitude === 'number' ? existingLocalState.location.latitude : null),
-      longitude: typeof cw.longitude === 'number' ? cw.longitude : (typeof existingLocalState?.location?.longitude === 'number' ? existingLocalState.location.longitude : null),
+      latitude: typeof cw.latitude === 'number' ? cw.latitude : null,
+      longitude: typeof cw.longitude === 'number' ? cw.longitude : null,
       entryNotes: cw.entryInstructions || existingLocalState?.location?.entryNotes || ''
     },
     operatingHours: {

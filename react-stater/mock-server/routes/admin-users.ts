@@ -10,7 +10,7 @@ export interface AdminUserRecord {
   phone: string;
   company: string;
   role: 'Customer' | 'Organizer' | 'Administrator';
-  status: 'Active' | 'Locked' | 'Inactive';
+  status: 'Active' | 'Locked' | 'Inactive' | 'Deleted';
   kycStatus: 'Verified KYC' | 'Pending KYC' | 'Unverified';
   registeredDate: string;
   registeredTimeUtc: string;
@@ -68,7 +68,16 @@ export async function handleGetAdminUsers(
     }
 
     if (role && role !== 'all') {
-      filtered = filtered.filter((u) => u.role.toLowerCase() === role.toLowerCase());
+      const roleUpper = role.toUpperCase();
+      const targetRole =
+        roleUpper === 'ADMIN' || roleUpper === 'ADMINISTRATOR'
+          ? 'administrator'
+          : roleUpper === 'ORGANIZER'
+          ? 'organizer'
+          : roleUpper === 'USER' || roleUpper === 'CUSTOMER'
+          ? 'customer'
+          : role.toLowerCase();
+      filtered = filtered.filter((u) => u.role.toLowerCase() === targetRole);
     }
 
     if (status && status !== 'all') {
@@ -184,6 +193,8 @@ export async function handleUpdateAdminUserStatus(
           ? 'Account Locked by Administrator'
           : value.status === 'Active'
           ? 'Account Unlocked by Administrator'
+          : value.status === 'Deleted'
+          ? 'Account Soft-Deleted by Administrator'
           : `Account Status Changed to ${value.status}`;
 
       const detail =
@@ -237,6 +248,82 @@ export async function handleUpdateAdminUserStatus(
     );
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Error updating user status';
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, error: 'InternalServerError', message: msg }));
+  }
+}
+
+/**
+ * PATCH /api/v1/admin/users/:id/role
+ * Updates user role (Customer | Organizer | Administrator / USER | ORGANIZER | ADMIN) and writes audit log.
+ */
+export async function handleUpdateAdminUserRole(
+  res: ServerResponse,
+  id: string,
+  rawBody: unknown
+): Promise<void> {
+  if (!rawBody || typeof rawBody !== 'object') {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, status: 400, error: 'BadRequest', message: 'Request body must be a valid JSON object' }));
+    return;
+  }
+
+  const b = rawBody as Record<string, unknown>;
+  const roleInput = String(b.role || '').toUpperCase();
+  const reason = String(b.reason || '').trim();
+
+  if (!roleInput) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, status: 400, error: 'BadRequest', message: 'Vai trò không được để trống' }));
+    return;
+  }
+
+  if (!reason) {
+    res.writeHead(400, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: false, status: 400, error: 'BadRequest', message: 'Vui lòng nhập lý do khi thay đổi vai trò người dùng' }));
+    return;
+  }
+
+  let mappedRole: 'Customer' | 'Organizer' | 'Administrator' = 'Customer';
+  if (roleInput === 'ADMIN' || roleInput === 'ADMINISTRATOR') mappedRole = 'Administrator';
+  else if (roleInput === 'ORGANIZER') mappedRole = 'Organizer';
+  else mappedRole = 'Customer';
+
+  try {
+    const updated = await storage.update<AdminUserRecord>('users', id, (current) => {
+      const next = { ...current };
+      const prevRole = current.role;
+      next.role = mappedRole;
+
+      next.activityLogs = [
+        {
+          id: `act-${Date.now()}`,
+          title: `User Role Changed to ${mappedRole}`,
+          timestamp: 'Just now',
+          detail: reason || `Vai trò chuyển đổi từ ${prevRole} sang ${mappedRole}`,
+          type: 'security'
+        },
+        ...(current.activityLogs || [])
+      ];
+
+      return next;
+    });
+
+    if (!updated) {
+      res.writeHead(404, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ success: false, status: 404, error: 'NotFound', message: `User with id '${id}' was not found.` }));
+      return;
+    }
+
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({
+      success: true,
+      message: `Cập nhật vai trò thành công`,
+      data: updated,
+      timestamp: new Date().toISOString()
+    }, null, 2));
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : 'Error updating user role';
     res.writeHead(500, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: false, error: 'InternalServerError', message: msg }));
   }

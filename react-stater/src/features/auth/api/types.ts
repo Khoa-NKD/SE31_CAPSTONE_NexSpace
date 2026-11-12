@@ -3,6 +3,8 @@
  * Strict parity with Spring Boot 3.5 Backend (base.api.feature.auth.dto)
  */
 
+export type UserGender = 'MALE' | 'FEMALE' | 'OTHER';
+
 export interface UserDto {
   id: number;
   userName: string;
@@ -11,12 +13,17 @@ export interface UserDto {
   lastName?: string | null;
   fullName?: string | null;
   phone?: string | null;
-  status: 'ACTIVE' | 'PENDING_VERIFICATION' | 'LOCKED' | 'SUSPENDED';
+  gender?: UserGender | null;
+  birthDate?: string | null;
+  status: 'ACTIVE' | 'PENDING_VERIFICATION' | 'LOCKED' | 'SUSPENDED' | 'INACTIVE' | 'DELETED';
   role?: string;
   roles?: string[];
   avatar?: string | null;
   avatarUrl?: string | null;
   verified?: boolean;
+  twoFactorEnabled?: boolean;
+  lastLoginAt?: string | null;
+  lockedUntil?: string | null;
   createdAt?: string;
   updatedAt?: string;
 }

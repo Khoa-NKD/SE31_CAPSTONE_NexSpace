@@ -1,20 +1,29 @@
 import React from 'react';
+import { useRouter } from '@tanstack/react-router';
 import { SidebarTrigger } from '../ui/sidebar';
 import SearchInput from '../search-input';
+import { Button } from '../ui/button';
 import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 import { UserNav } from './user-nav';
 import { Badge } from '../ui/badge';
-import { ShieldCheck, Activity } from 'lucide-react';
+import { ShieldCheck, Activity, Eye, Home } from 'lucide-react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { DashboardLanguageSwitcher } from './dashboard-language-switcher';
 import { useLanguage } from '@/features/landing/context/language-context';
 
 export default function Header() {
+  const router = useRouter();
   const { language } = useLanguage();
   const user = useAuthStore((state) => state.user);
+  const setAdminViewMode = useAuthStore((state) => state.setAdminViewMode);
   const role = getUserRole(user);
+
+  const handleSwitchToCustomerView = () => {
+    setAdminViewMode('customer');
+    router.navigate({ to: '/', search: { view: 'customer' } });
+  };
 
   const roleLabel =
     role === 'ADMIN'
@@ -67,6 +76,33 @@ export default function Header() {
             {roleLabel}
           </Badge>
         </div>
+
+        {/* Nút về trang chủ cho người dùng */}
+        <Button
+          variant='outline'
+          size='sm'
+          onClick={() => router.navigate({ to: '/' })}
+          className='h-7 px-2.5 text-xs font-semibold gap-1.5 border-border/80 bg-background hover:bg-muted/70 text-foreground transition-colors shadow-2xs cursor-pointer'
+          title='Về trang chủ Landing Page'
+        >
+          <Home className='size-3.5 text-indigo-600 dark:text-indigo-400' />
+          <span className='hidden sm:inline'>{language === 'vi' ? 'Trang chủ' : 'Home'}</span>
+        </Button>
+
+        {/* Nút chuyển đổi sang giao diện Khách hàng cho Admin */}
+        {role === 'ADMIN' && (
+          <Button
+            variant='outline'
+            size='sm'
+            onClick={handleSwitchToCustomerView}
+            className='h-7 px-2.5 text-xs font-semibold gap-1.5 border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs'
+            title='Chuyển sang trải nghiệm giao diện Khách hàng (Customer View / Marketplace)'
+          >
+            <Eye className='size-3.5 text-indigo-600 dark:text-indigo-400' />
+            <span className='hidden md:inline'>Giao diện Khách hàng</span>
+            <span className='md:hidden'>Customer</span>
+          </Button>
+        )}
 
         {/* Theme Mode Toggle (Light/Dark) */}
         <ThemeModeToggle />

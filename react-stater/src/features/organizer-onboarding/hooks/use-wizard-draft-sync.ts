@@ -29,9 +29,9 @@ export function useWizardDraftSync() {
   const fetchedIdRef = useRef<string | null>(null);
 
   /**
-   * Saves the current wizard form state to the centralized Mock REST API.
-   * - If no canonical ID exists, performs POST /api/v1/workspaces (Draft creation).
-   * - If a canonical ID exists, performs PATCH /api/v1/workspaces/:id with optimistic concurrency.
+   * Saves the current wizard form state to the REST API.
+   * - If no canonical ID exists, performs POST /api/workspaces (Draft creation).
+   * - If a canonical ID exists, performs PATCH /api/workspaces/:id with optimistic concurrency.
    * - Never duplicates POST requests if one is currently in flight.
    */
   const saveDraftToServer = useCallback(
