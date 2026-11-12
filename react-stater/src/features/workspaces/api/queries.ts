@@ -275,7 +275,7 @@ export function useAssetMaintenanceLogsQuery(
 
 
 /**
- * TanStack Query options for fetching operating hours.
+ * TanStack Query options for fetching operating hours (authenticated/organizer).
  */
 export const operatingHoursQueryOptions = (workspaceId: string | number | null | undefined) =>
   queryOptions({
@@ -285,8 +285,25 @@ export const operatingHoursQueryOptions = (workspaceId: string | number | null |
   });
 
 /**
+ * TanStack Query options for fetching public operating hours (unauthenticated/customers).
+ */
+export const publicOperatingHoursQueryOptions = (workspaceId: string | number | null | undefined) =>
+  queryOptions({
+    queryKey: ['workspaces', 'public-operating-hours', String(workspaceId)],
+    queryFn: () => (workspaceId ? workspaceService.getPublicOperatingHours(workspaceId) : []),
+    enabled: Boolean(workspaceId)
+  });
+
+/**
  * Hook for querying workspace operating hours.
  */
 export function useOperatingHoursQuery(workspaceId: string | number | null | undefined) {
   return useQuery(operatingHoursQueryOptions(workspaceId));
+}
+
+/**
+ * Hook for querying public workspace operating hours.
+ */
+export function usePublicOperatingHoursQuery(workspaceId: string | number | null | undefined) {
+  return useQuery(publicOperatingHoursQueryOptions(workspaceId));
 }

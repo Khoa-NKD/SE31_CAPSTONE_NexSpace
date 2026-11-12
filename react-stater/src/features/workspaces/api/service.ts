@@ -31,6 +31,14 @@ import type {
   WorkspaceAmenityDto,
   AssignWorkspaceAmenitiesPayload
 } from './types';
+import type {
+  CreateBookingPayload,
+  CalculatePricePayload,
+  PriceCalculationResult,
+  BookingDto,
+  BookingCancellationPreviewDto,
+  ResourceAvailabilityItem
+} from './booking-types';
 
 /**
  * Reconciled legacy identifier mappings discovered across Customer, Organizer, and Admin UI screens.
@@ -629,5 +637,172 @@ export const workspaceService = {
    */
   async getPublicOperatingHours(workspaceId: string | number): Promise<WorkspaceOperatingHour[]> {
     return apiClient.get<WorkspaceOperatingHour[]>(`/public/workspaces/${workspaceId}/operating-hours`);
+  },
+
+  /**
+   * Tạm tính chi phí đặt chỗ theo workspace, resource và khoảng thời gian.
+   */
+  async calculateBookingPrice(payload: CalculatePricePayload): Promise<PriceCalculationResult> {
+    return apiClient.post<PriceCalculationResult>('/bookings/calculate-price', payload);
+  },
+
+  /**
+   * Tạo đơn đặt chỗ mới và giữ chỗ 15 phút.
+   */
+  async createBooking(payload: CreateBookingPayload): Promise<BookingDto> {
+    return apiClient.post<BookingDto>('/bookings', payload);
+  },
+
+  /**
+   * Xem chi tiết đơn đặt chỗ theo ID.
+   */
+  async getBookingById(id: number | string): Promise<BookingDto> {
+    return apiClient.get<BookingDto>(`/bookings/${id}`);
+  },
+
+  /**
+   * Xem chi tiết đơn đặt chỗ theo mã Booking Code.
+   */
+  async getBookingByCode(bookingCode: string): Promise<BookingDto> {
+    return apiClient.get<BookingDto>(`/bookings/code/${encodeURIComponent(bookingCode)}`);
+  },
+
+  /**
+   * Xem trước chính sách hủy và số tiền hoàn dự kiến trước khi hủy.
+   */
+  async getCancellationPreview(bookingId: number | string): Promise<BookingCancellationPreviewDto> {
+    return apiClient.get<BookingCancellationPreviewDto>(`/bookings/${bookingId}/cancellation-preview`);
+  },
+
+  /**
+   * Hủy đơn đặt chỗ hoặc hủy giữ chỗ 15 phút.
+   */
+  async cancelBooking(bookingId: number | string, reason?: string): Promise<BookingDto> {
+    const url = `/bookings/${bookingId}/cancel${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`;
+    return apiClient.post<BookingDto>(url);
+  },
+
+  /**
+   * Organizer phê duyệt đơn đặt chỗ đang ở trạng thái chờ duyệt (PENDING_APPROVAL).
+   */
+  async approveBooking(bookingId: number | string): Promise<BookingDto> {
+    return apiClient.post<BookingDto>(`/bookings/${bookingId}/approve`);
+  },
+
+  /**
+   * Organizer từ chối duyệt đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL) kèm lý do.
+   */
+  async rejectBooking(bookingId: number | string, reason?: string): Promise<BookingDto> {
+    const url = `/bookings/${bookingId}/reject${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`;
+    return apiClient.post<BookingDto>(url);
+  },
+
+  /**
+   * Lấy danh sách lịch sử đặt chỗ của khách hàng đang đăng nhập với bộ lọc trạng thái và phân trang.
+   */
+  async getMyBookings(params?: {
+    status?: string;
+    page?: number;
+    size?: number;
+  }): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number; page: number; size: number }> {
+    return apiClient.get('/bookings/my', {
+      params: {
+        status: params?.status === 'ALL' ? undefined : params?.status,
+        page: params?.page,
+        size: params?.size
+      }
+    });
+  },
+
+  /**
+   * Organizer lấy danh sách đơn đặt chỗ theo workspace, ngày và trạng thái.
+   */
+  async getOrganizerBookings(params?: {
+    workspaceId?: number;
+    status?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+    search?: string;
+    page?: number;
+    size?: number;
+  }): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number; page: number; size: number }> {
+    return apiClient.get('/bookings/organizer', {
+      params: {
+        workspaceId: params?.workspaceId && params.workspaceId > 0 ? params.workspaceId : undefined,
+        status: params?.status === 'ALL' ? undefined : params?.status,
+        date: params?.date,
+        startDate: params?.startDate,
+        endDate: params?.endDate,
+        search: params?.search,
+        page: params?.page,
+        size: params?.size
+      }
+    });
+  },
+
+  /**
+   * Organizer xem danh sách booking dạng sự kiện cho Calendar / Gantt Timeline.
+   */
+  async getOrganizerCalendarEvents(params?: {
+    workspaceId?: number;
+    status?: string;
+    date?: string;
+    startDate?: string;
+    endDate?: string;
+  }): Promise<BookingDto[]> {
+    return apiClient.get('/bookings/organizer/calendar', {
+      params: {
+        workspaceId: params?.workspaceId && params.workspaceId > 0 ? params.workspaceId : undefined,
+        status: params?.status === 'ALL' ? undefined : params?.status,
+        date: params?.date,
+        startDate: params?.startDate,
+        endDate: params?.endDate
+      }
+    });
+  },
+
+  /**
+   * Lấy danh sách đơn đặt chỗ thuộc về một Workspace (dành cho Organizer/Admin).
+   */
+  async getWorkspaceBookings(
+    workspaceId: number | string,
+    page?: number,
+    size?: number
+  ): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number }> {
+    return apiClient.get(`/bookings/workspace/${workspaceId}`, {
+      params: { page, size }
+    });
+  },
+
+  /**
+   * Lấy danh sách toàn bộ đơn đặt chỗ trên sàn (dành cho Admin).
+   */
+  async getAllBookings(
+    page?: number,
+    size?: number
+  ): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number }> {
+    return apiClient.get('/bookings/admin/all', {
+      params: { page, size }
+    });
+  },
+
+  /**
+   * Tra cứu trạng thái chỗ trống trên sơ đồ tầng trong khung thời gian.
+   */
+  async getWorkspaceAvailability(
+    workspaceId: number,
+    startTime: string,
+    endTime: string,
+    floorId?: number
+  ): Promise<ResourceAvailabilityItem[]> {
+    const params: Record<string, string | number | undefined> = {
+      startTime,
+      endTime
+    };
+    if (floorId !== undefined) params.floorId = floorId;
+    return apiClient.get<ResourceAvailabilityItem[]>(`/public/workspaces/${workspaceId}/availability`, {
+      params
+    });
   }
 };

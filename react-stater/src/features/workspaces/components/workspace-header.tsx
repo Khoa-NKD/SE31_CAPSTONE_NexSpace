@@ -25,9 +25,17 @@ export function WorkspaceHeader() {
             {/* Active: Workspaces */}
             <Link
               to="/workspaces"
-              className="border-b-2 border-[#4b41e1] pb-1 text-sm font-semibold text-[#4b41e1] transition-all duration-200 hover:text-[#3d34b8] active:scale-[0.98]"
+              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+              activeProps={{ className: "border-b-2 border-[#4b41e1] pb-1 font-semibold text-[#4b41e1]" }}
             >
               Workspaces
+            </Link>
+            <Link
+              to="/workspaces/history"
+              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+              activeProps={{ className: "border-b-2 border-[#4b41e1] pb-1 font-semibold text-[#4b41e1]" }}
+            >
+              My Bookings
             </Link>
             <Link
               to="/"

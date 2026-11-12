@@ -24,6 +24,7 @@ const viteProcess: ChildProcess = spawn(
   {
     cwd: rootDir,
     stdio: 'inherit',
+    shell: process.platform === 'win32',
     env: { ...process.env }
   }
 );

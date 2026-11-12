@@ -41,6 +41,8 @@ interface BookingsTableProps {
   onViewDetails: (booking: BookingItem) => void;
   onSendReminder: (booking: BookingItem) => void;
   onCancelBooking: (id: string) => void;
+  onApproveBooking?: (booking: BookingItem) => void;
+  onRejectBooking?: (booking: BookingItem) => void;
 }
 
 function getResourceIcon(category: string) {
@@ -78,7 +80,9 @@ export function BookingsTable({
   onToggleSelectRow,
   onViewDetails,
   onSendReminder,
-  onCancelBooking
+  onCancelBooking,
+  onApproveBooking,
+  onRejectBooking
 }: BookingsTableProps) {
   const isAllSelected = bookings.length > 0 && selectedIds.length === bookings.length;
 
@@ -204,6 +208,18 @@ export function BookingsTable({
 
                     {/* Status Badge */}
                     <TableCell>
+                      {row.status === 'PENDING_APPROVAL' && (
+                        <div className="flex flex-col gap-0.5">
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-600 dark:text-purple-400 border border-purple-500/20 w-fit">
+                            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+                            <span>Needs Approval</span>
+                          </span>
+                          <span className="text-[10px] text-purple-600/80 dark:text-purple-400/80">
+                            Manual Confirmation
+                          </span>
+                        </div>
+                      )}
+
                       {row.status === 'CONFIRMED' && (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
@@ -250,6 +266,13 @@ export function BookingsTable({
 
                     {/* Check-in State */}
                     <TableCell>
+                      {row.status === 'PENDING_APPROVAL' && (
+                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-purple-500/10 text-purple-700 dark:text-purple-400 border border-purple-500/20">
+                          <Clock className="w-3 h-3 text-purple-600" />
+                          <span>Awaiting Approval</span>
+                        </span>
+                      )}
+
                       {row.checkInState === 'CHECKED_IN' && (
                         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
                           <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -289,6 +312,28 @@ export function BookingsTable({
                     {/* Actions */}
                     <TableCell className="text-right pr-6">
                       <div className="flex items-center justify-end gap-1.5">
+                        {row.status === 'PENDING_APPROVAL' && (
+                          <>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onApproveBooking?.(row)}
+                              className="h-7 px-2.5 text-xs font-medium bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1"
+                            >
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Approve</span>
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => onRejectBooking?.(row)}
+                              className="h-7 px-2.5 text-xs font-medium bg-rose-500/10 hover:bg-rose-500/20 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1"
+                            >
+                              <span>Reject</span>
+                            </Button>
+                          </>
+                        )}
+
                         {row.status === 'PENDING_PAYMENT' && (
                           <Button
                             variant="outline"
@@ -336,7 +381,25 @@ export function BookingsTable({
                               <Send className="w-3.5 h-3.5" />
                               <span>Resend Confirmation</span>
                             </DropdownMenuItem>
-                            {row.status !== 'CANCELLED' && (
+                            {row.status === 'PENDING_APPROVAL' && (
+                              <>
+                                <DropdownMenuItem
+                                  onClick={() => onApproveBooking?.(row)}
+                                  className="text-xs cursor-pointer text-emerald-600 focus:text-emerald-600 gap-2"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  <span>Approve Booking</span>
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => onRejectBooking?.(row)}
+                                  className="text-xs cursor-pointer text-rose-500 focus:text-rose-500 gap-2"
+                                >
+                                  <LockOpen className="w-3.5 h-3.5" />
+                                  <span>Reject Request</span>
+                                </DropdownMenuItem>
+                              </>
+                            )}
+                            {row.status !== 'CANCELLED' && row.status !== 'PENDING_APPROVAL' && (
                               <DropdownMenuItem
                                 onClick={() => onCancelBooking(row.id)}
                                 className="text-xs cursor-pointer text-rose-500 focus:text-rose-500 gap-2"

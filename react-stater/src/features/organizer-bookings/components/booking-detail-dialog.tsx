@@ -40,6 +40,8 @@ interface BookingDetailDialogProps {
   onSendReminder?: (booking: BookingItem) => void;
   onCancelBooking?: (id: string) => void;
   onCheckInToggle?: (id: string) => void;
+  onApproveBooking?: (booking: BookingItem) => void;
+  onRejectBooking?: (booking: BookingItem) => void;
 }
 
 function getResourceCategoryIcon(category: string) {
@@ -59,6 +61,12 @@ function getResourceCategoryIcon(category: string) {
 
 function getStatusBadge(status: string) {
   switch (status) {
+    case 'PENDING_APPROVAL':
+      return (
+        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/60 font-semibold text-xs">
+          <Clock className="w-3.5 h-3.5 mr-1" /> Needs Approval
+        </Badge>
+      );
     case 'CONFIRMED':
       return (
         <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60 font-semibold text-xs">
@@ -98,7 +106,9 @@ export function BookingDetailDialog({
   onClose,
   onSendReminder,
   onCancelBooking,
-  onCheckInToggle
+  onCheckInToggle,
+  onApproveBooking,
+  onRejectBooking
 }: BookingDetailDialogProps) {
   const [copied, setCopied] = useState(false);
 
@@ -297,10 +307,54 @@ export function BookingDetailDialog({
               <span className="text-muted-foreground">{booking.notes}</span>
             </div>
           )}
+
+          {/* Rejection / Cancellation Reason */}
+          {booking.cancelReason && (
+            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs space-y-1">
+              <div>
+                <span className="font-semibold text-rose-700 dark:text-rose-400">
+                  {booking.cancelSource === 'ORGANIZER' ? 'Lý do hủy bởi Organizer:' : 'Lý do hủy bởi Khách hàng:'}
+                </span>{' '}
+                <span className="text-foreground">{booking.cancelReason}</span>
+              </div>
+              {booking.refundAmount != null && booking.refundAmount > 0 && (
+                <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                  Chính sách hoàn tiền: Hoàn {booking.refundPercent ?? 0}% ({formatCurrency(booking.refundAmount)})
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         <DialogFooter className="p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex items-center gap-2 w-full sm:w-auto">
+            {booking.status === 'PENDING_APPROVAL' && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="default"
+                  size="sm"
+                  className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  onClick={() => {
+                    onApproveBooking?.(booking);
+                    onClose();
+                  }}
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve Booking
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  className="text-xs gap-1.5"
+                  onClick={() => {
+                    onRejectBooking?.(booking);
+                    onClose();
+                  }}
+                >
+                  <XCircle className="w-3.5 h-3.5" /> Reject Request
+                </Button>
+              </div>
+            )}
+
             {booking.status === 'CONFIRMED' && onCancelBooking && (
               <Button
                 variant="destructive"

@@ -23,24 +23,36 @@ interface DigitalPassCardProps {
   pinCode?: string;
   wifiSsid?: string;
   wifiPass?: string;
+  startTime?: string;
+  endTime?: string;
+  holdExpiresAt?: string | null;
+  status?: string;
+  qrTokenHash?: string;
+  bookingCode?: string;
 }
 
 export function DigitalPassCard({
   seatCode = 'Desk A-12',
-  zone = 'Zone A',
-  hubName = 'Saigon Prime Hub',
+  zone = 'Standard Zone',
+  hubName = 'NexSpace Prime Hub',
   address = '72 Le Thanh Ton, District 1, HCMC',
   pinCode = '8492',
   wifiSsid = 'NexSpace-5G',
-  wifiPass = 'sprint2026'
+  wifiPass = 'sprint2026',
+  startTime,
+  endTime,
+  status = 'CONFIRMED',
+  bookingCode
 }: DigitalPassCardProps) {
   const [pinVisible, setPinVisible] = useState(true);
   const [copiedPin, setCopiedPin] = useState(false);
   const [copiedWifi, setCopiedWifi] = useState(false);
   const [walletAdded, setWalletAdded] = useState(false);
 
+  const derivedPin = pinCode || (bookingCode ? bookingCode.replace(/\D/g, '').slice(-4) : '8492');
+
   const handleCopyPin = () => {
-    navigator.clipboard?.writeText(pinCode);
+    navigator.clipboard?.writeText(derivedPin);
     setCopiedPin(true);
     setTimeout(() => setCopiedPin(false), 2000);
   };
@@ -56,6 +68,31 @@ export function DigitalPassCard({
     setTimeout(() => setWalletAdded(false), 3000);
   };
 
+  const schedule = formatSchedule(startTime, endTime);
+
+  const statusBadge =
+    status === 'CONFIRMED' ? (
+      <span className='bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold'>
+        <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
+        CONFIRMED &amp; READY
+      </span>
+    ) : status === 'PENDING_PAYMENT' ? (
+      <span className='bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold'>
+        <span className='h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse' />
+        15-MIN HOLD ACTIVE
+      </span>
+    ) : status === 'PENDING_APPROVAL' ? (
+      <span className='bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold'>
+        <span className='h-1.5 w-1.5 rounded-full bg-blue-500' />
+        PENDING APPROVAL
+      </span>
+    ) : (
+      <span className='bg-primary/10 text-primary border-primary/30 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold'>
+        <span className='h-1.5 w-1.5 rounded-full bg-primary' />
+        {status}
+      </span>
+    );
+
   return (
     <div className='bg-card border-border shadow-xl relative w-full max-w-[540px] overflow-hidden rounded-2xl border transition-all'>
       {/* 1. Ticket Header */}
@@ -67,10 +104,7 @@ export function DigitalPassCard({
               DIGITAL ACCESS PASS
             </span>
           </div>
-          <span className='bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[10px] font-semibold'>
-            <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
-            CONFIRMED &amp; READY
-          </span>
+          {statusBadge}
         </div>
 
         {/* Hub Branding Row */}
@@ -105,11 +139,11 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Assigned Resource</div>
           <div className='flex items-center gap-2'>
-            <span className='text-foreground font-sans text-base font-bold'>
+            <span className='text-foreground font-sans text-base font-bold font-mono'>
               {seatCode}
             </span>
             <span className='bg-primary/10 text-primary rounded px-2 py-0.5 text-[10px] font-medium'>
-              Quiet Zone
+              Quiet Station
             </span>
           </div>
         </div>
@@ -118,10 +152,10 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Floor &amp; Zone</div>
           <div className='text-foreground text-sm font-semibold'>
-            Level 14 • {zone}
+            {zone}
           </div>
           <span className='text-muted-foreground text-[11px] block'>
-            West Window View
+            High-Speed Data &amp; Power
           </span>
         </div>
 
@@ -129,7 +163,7 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Date &amp; Schedule</div>
           <div className='text-foreground text-sm font-medium'>
-            Friday, Jan 25, 2026
+            {schedule.dateStr}
           </div>
         </div>
 
@@ -137,10 +171,10 @@ export function DigitalPassCard({
         <div>
           <div className='text-muted-foreground mb-1 text-xs'>Time Slot</div>
           <div className='text-foreground text-sm font-medium'>
-            09:00 AM – 01:00 PM
+            {schedule.timeStr}
           </div>
           <span className='text-muted-foreground text-[11px] block'>
-            4 Hours Reserved
+            {schedule.durationHours} Hours Reserved
           </span>
         </div>
 
@@ -149,7 +183,7 @@ export function DigitalPassCard({
           <div className='text-muted-foreground mb-1.5 text-xs'>Smart-Lock PIN</div>
           <div className='bg-muted/60 border-border/80 inline-flex items-center gap-2 rounded-lg border px-3 py-1 font-mono text-sm font-bold text-foreground'>
             <Lock className='text-primary h-3.5 w-3.5 shrink-0' />
-            <span>{pinVisible ? pinCode : '••••'}</span>
+            <span>{pinVisible ? derivedPin : '••••'}</span>
             <button
               type='button'
               onClick={() => setPinVisible(!pinVisible)}
@@ -210,25 +244,21 @@ export function DigitalPassCard({
 
       {/* 3. Airline Ticket Perforation Divider */}
       <div className='bg-card relative flex items-center justify-center py-1'>
-        {/* Left cutout notch */}
         <div className='bg-background border-border absolute -left-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-r shadow-inner' />
-        {/* Perforation dashed line */}
         <div className='border-border/80 mx-6 w-full border-b-2 border-dashed' />
-        {/* Right cutout notch */}
         <div className='bg-background border-border absolute -right-2.5 top-1/2 h-5 w-5 -translate-y-1/2 rounded-full border-l shadow-inner' />
       </div>
 
       {/* 4. Ticket Turnstile Check-in Pass & QR Section */}
       <div className='bg-card flex flex-col items-center p-6 pt-5'>
         <div className='bg-muted/30 border-border/80 flex w-full flex-col items-center gap-4 rounded-xl border p-4 sm:flex-row'>
-          {/* Turnstile QR Code with Center NexSpace Mark */}
+          {/* Turnstile QR Code */}
           <div className='bg-card border-border/80 relative flex h-32 w-32 shrink-0 items-center justify-center rounded-xl border p-2 shadow-xs'>
             <svg
               className='h-full w-full text-foreground'
               fill='currentColor'
               viewBox='0 0 100 100'
             >
-              {/* Finders */}
               <rect fill='currentColor' height='26' rx='3' width='26' x='2' y='2' />
               <rect fill='var(--card)' height='18' rx='2' width='18' x='6' y='6' />
               <rect fill='currentColor' height='10' rx='1' width='10' x='10' y='10' />
@@ -241,7 +271,6 @@ export function DigitalPassCard({
               <rect fill='var(--card)' height='18' rx='2' width='18' x='6' y='76' />
               <rect fill='currentColor' height='10' rx='1' width='10' x='10' y='80' />
 
-              {/* Data modules */}
               <rect height='6' rx='1' width='6' x='34' y='6' />
               <rect height='6' rx='1' width='8' x='46' y='6' />
               <rect height='6' rx='1' width='6' x='60' y='6' />
@@ -260,7 +289,6 @@ export function DigitalPassCard({
               <rect height='8' rx='1' width='6' x='88' y='82' />
             </svg>
 
-            {/* Embedded Logo in Center */}
             <div className='bg-card border-border absolute inset-0 m-auto flex h-7 w-7 items-center justify-center rounded-md border shadow-xs z-10'>
               <NexSpaceMark className='h-5 w-5' />
             </div>
@@ -273,11 +301,11 @@ export function DigitalPassCard({
               <span>Instant Contactless Access</span>
             </div>
             <p className='text-foreground text-xs leading-relaxed font-medium'>
-              Scan at speed gate turnstile or concierge tablet on Level 14 for automatic door release.
+              Scan at turnstile speed gate or door tablet for automatic access release.
             </p>
             <div className='text-muted-foreground mt-2 flex items-center justify-center gap-1.5 text-[11px] sm:justify-start'>
               <span className='h-1.5 w-1.5 rounded-full bg-emerald-500' />
-              <span>Valid for entry 15 mins prior to reserved slot</span>
+              <span>Early check-in opens 15 mins prior to reserved slot</span>
             </div>
           </div>
         </div>
@@ -310,4 +338,42 @@ export function DigitalPassCard({
       </div>
     </div>
   );
+}
+
+function formatSchedule(startTime?: string, endTime?: string) {
+  if (!startTime || !endTime) {
+    return {
+      dateStr: 'Today',
+      timeStr: '09:00 AM – 01:00 PM',
+      durationHours: 4
+    };
+  }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const diffMs = Math.max(0, end.getTime() - start.getTime());
+  const hours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 || 1;
+
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  };
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  };
+
+  const dateStr = !isNaN(start.getTime())
+    ? start.toLocaleDateString('en-US', dateOptions)
+    : 'Selected Date';
+
+  const timeStr =
+    !isNaN(start.getTime()) && !isNaN(end.getTime())
+      ? `${start.toLocaleTimeString('en-US', timeOptions)} – ${end.toLocaleTimeString('en-US', timeOptions)}`
+      : '09:00 AM – 01:00 PM';
+
+  return { dateStr, timeStr, durationHours: hours };
 }

@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { ArrowRight, Calendar, ChevronDown, Clock, Lock, Monitor, ShieldCheck } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
-import { DateTimePickerModal } from './date-time-picker-modal';
+import { DateTimePickerModal, type ScheduleSelection } from './date-time-picker-modal';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
 interface WorkspaceBookingCardProps {
@@ -9,6 +10,8 @@ interface WorkspaceBookingCardProps {
 }
 
 export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
+  const [schedule, setSchedule] = useState<ScheduleSelection | null>(null);
+
   const hasHourlyPrice = typeof workspace?.pricePerHour === 'number' && workspace.pricePerHour > 0;
   const hasDailyPrice = typeof workspace?.pricePerDay === 'number' && workspace.pricePerDay > 0;
   const pricePerHour = hasHourlyPrice ? workspace!.pricePerHour : null;
@@ -16,6 +19,9 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
   const deskCategoryLabel = workspace?.category
     ? workspace.category.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())
     : 'Desk / Room';
+
+  const durationHours = schedule ? schedule.durationHours : 1;
+  const calculatedBaseRate = pricePerHour !== null ? pricePerHour * durationHours : null;
 
   return (
     <div className='lg:col-span-4 relative'>
@@ -45,7 +51,16 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
 
         {/* Reservation Configuration Container */}
         <div className='border rounded-xl p-3.5 bg-muted space-y-2.5 mb-5'>
-          <DateTimePickerModal>
+          <DateTimePickerModal
+            workspaceId={workspace?.id}
+            workspaceName={workspace?.name}
+            operatingHours={workspace?.operatingHours}
+            pricePerHour={pricePerHour ?? 2.5}
+            initialDate={schedule?.isoDate}
+            initialStartTime={schedule?.startTime}
+            initialEndTime={schedule?.endTime}
+            onConfirm={(s) => setSchedule(s)}
+          >
             <div className='space-y-2.5'>
               {/* Row 1: Date */}
               <div className='bg-card p-2.5 rounded-lg border border-border/70 flex items-center justify-between cursor-pointer hover:border-primary transition'>
@@ -55,8 +70,8 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
                     <div className='text-[11px] font-semibold uppercase text-muted-foreground'>
                       Date
                     </div>
-                    <div className='text-[13px] font-medium text-muted-foreground'>
-                      Select date in booking flow
+                    <div className='text-[13px] font-medium text-foreground'>
+                      {schedule ? schedule.date : 'Select date in booking flow'}
                     </div>
                   </div>
                 </div>
@@ -71,8 +86,10 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
                     <div className='text-[11px] font-semibold uppercase text-muted-foreground'>
                       Duration &amp; Time
                     </div>
-                    <div className='text-[13px] font-medium text-muted-foreground'>
-                      Configure hours in booking flow
+                    <div className='text-[13px] font-medium text-foreground'>
+                      {schedule
+                        ? `${schedule.startTime} – ${schedule.endTime} (${schedule.durationHours} hrs)`
+                        : 'Configure hours in booking flow'}
                     </div>
                   </div>
                 </div>
@@ -99,15 +116,17 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
 
         {/* Price Breakdown Table */}
         <div className='space-y-2 text-[13px] border-b pb-4 mb-4'>
-          {pricePerHour !== null ? (
+          {calculatedBaseRate !== null && pricePerHour !== null ? (
             <>
               <div className='flex justify-between text-muted-foreground'>
-                <span>Illustrative Base Rate (1 hr × ${pricePerHour.toFixed(2)})</span>
-                <span className='font-medium text-foreground'>${pricePerHour.toFixed(2)}</span>
+                <span>
+                  Base Rate ({durationHours} hr{durationHours > 1 ? 's' : ''} × ${pricePerHour.toFixed(2)})
+                </span>
+                <span className='font-medium text-foreground'>${calculatedBaseRate.toFixed(2)}</span>
               </div>
               <div className='flex justify-between items-center text-sm font-bold text-foreground pt-2'>
                 <span>Estimated Subtotal (Base)</span>
-                <span className='text-lg text-primary'>${pricePerHour.toFixed(2)} USD</span>
+                <span className='text-lg text-primary'>${calculatedBaseRate.toFixed(2)} USD</span>
               </div>
               <div className='text-[11px] text-muted-foreground'>
                 Final total calculated based on your selected duration and add-ons during checkout.
@@ -131,7 +150,10 @@ export function WorkspaceBookingCard({ workspace }: WorkspaceBookingCardProps) {
               workspaceId:
                 Number.isSafeInteger(Number(workspace?.id)) && Number(workspace?.id) > 0
                   ? Number(workspace?.id)
-                  : undefined
+                  : undefined,
+              date: schedule?.isoDate || schedule?.date,
+              startTime: schedule?.isoStartTime,
+              endTime: schedule?.isoEndTime
             }}
           >
             <span>Proceed to Seat Selection</span>

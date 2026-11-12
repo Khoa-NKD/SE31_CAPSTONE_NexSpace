@@ -25,6 +25,7 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
             url.startsWith('/api/admin/organizer-applications') ||
             url.startsWith('/api/admin/workspaces') ||
             url.startsWith('/api/v1/') ||
+            url.startsWith('/api/bookings') ||
             url.startsWith('/api/workspaces') ||
             url.startsWith('/api/public/');
           const targetPort = springRequest ? '8080' : process.env.MOCK_SERVER_PORT || '4000';

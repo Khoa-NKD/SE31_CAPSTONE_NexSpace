@@ -5,7 +5,8 @@ import {
   Download,
   Plus,
   Building2,
-  Radio
+  Radio,
+  Calendar
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -68,6 +69,18 @@ export function BookingsHeaderBar({
 
         {/* Action CTAs */}
         <div className="flex items-center gap-2.5 shrink-0">
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-9 px-3 text-xs gap-1.5 border-border hover:bg-muted/80 shadow-2xs text-muted-foreground hover:text-foreground"
+          >
+            <Link to="/dashboard/organizer/schedule">
+              <Calendar className="w-3.5 h-3.5 text-primary" />
+              <span>Calendar View</span>
+            </Link>
+          </Button>
+
           <Button
             variant="outline"
             size="sm"

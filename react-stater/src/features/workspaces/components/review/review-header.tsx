@@ -1,7 +1,17 @@
 import { Link } from '@tanstack/react-router';
 import { ChevronRight } from 'lucide-react';
 
-export function ReviewHeader() {
+interface ReviewHeaderProps {
+  workspaceId?: number;
+  workspaceName?: string;
+  resourceCode?: string;
+}
+
+export function ReviewHeader({
+  workspaceId,
+  workspaceName,
+  resourceCode
+}: ReviewHeaderProps) {
   return (
     <nav
       aria-label='Breadcrumb'
@@ -14,30 +24,27 @@ export function ReviewHeader() {
         Workspaces
       </Link>
       <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
-      <Link
-        to='/workspaces'
-        className='hover:text-primary transition-colors duration-150'
-      >
-        District 1, HCMC
-      </Link>
-      <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
-      <Link
-        to='/workspaces/$workspaceId'
-        params={{ workspaceId: '1' }}
-        className='hover:text-primary transition-colors duration-150'
-      >
-        NexSpace Central Tower
-      </Link>
+      {workspaceId ? (
+        <Link
+          to='/workspaces/$workspaceId'
+          params={{ workspaceId: String(workspaceId) }}
+          className='hover:text-primary transition-colors duration-150 font-medium'
+        >
+          {workspaceName || `Workspace #${workspaceId}`}
+        </Link>
+      ) : (
+        <span>Workspace</span>
+      )}
       <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
       <Link
         to='/workspaces/seats'
+        search={{ workspaceId }}
         className='hover:text-primary transition-colors duration-150'
       >
-        Available Resources
+        Select Seat {resourceCode ? `(${resourceCode})` : ''}
       </Link>
       <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
-      <span className='text-foreground font-semibold'>Booking Review</span>
+      <span className='text-foreground font-semibold'>Review &amp; Hold</span>
     </nav>
   );
 }
-

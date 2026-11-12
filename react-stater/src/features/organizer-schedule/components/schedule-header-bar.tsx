@@ -23,6 +23,9 @@ interface ScheduleHeaderBarProps {
   occupancyPercent: number;
   onExport: () => void;
   onNewReservation: () => void;
+  workspaces?: { id: number | string; name: string }[];
+  selectedWorkspaceId?: number | string;
+  onSelectWorkspace?: (id: number | string) => void;
 }
 
 export function ScheduleHeaderBar({
@@ -30,8 +33,14 @@ export function ScheduleHeaderBar({
   totalCount,
   occupancyPercent,
   onExport,
-  onNewReservation
+  onNewReservation,
+  workspaces = [],
+  selectedWorkspaceId,
+  onSelectWorkspace
 }: ScheduleHeaderBarProps) {
+  const currentWorkspaceName =
+    workspaces.find((w) => String(w.id) === String(selectedWorkspaceId))?.name ||
+    (workspaces.length > 0 ? workspaces[0].name : 'NexSpace Saigon Prime Hub');
   return (
     <div className="space-y-4 select-none">
       {/* 1. Breadcrumb */}
@@ -58,20 +67,26 @@ export function ScheduleHeaderBar({
                 className="h-10 px-3.5 bg-card hover:bg-muted border-border font-bold text-foreground text-sm shadow-2xs gap-2"
               >
                 <Building2 className="w-4 h-4 text-primary" />
-                <span>NexSpace Saigon Prime Hub</span>
+                <span className="truncate max-w-[220px]">{currentWorkspaceName}</span>
                 <ChevronDown className="w-3.5 h-3.5 text-muted-foreground opacity-80" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" className="w-64">
-              <DropdownMenuItem className="text-xs font-semibold">
-                NexSpace Saigon Prime Hub (Level 1-4)
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs text-muted-foreground">
-                NexSpace Innovation Center (District 7)
-              </DropdownMenuItem>
-              <DropdownMenuItem className="text-xs text-muted-foreground">
-                NexSpace Tech Garden (Thu Duc City)
-              </DropdownMenuItem>
+              {workspaces.length > 0 ? (
+                workspaces.map((w) => (
+                  <DropdownMenuItem
+                    key={w.id}
+                    onClick={() => onSelectWorkspace?.(w.id)}
+                    className={`text-xs ${String(w.id) === String(selectedWorkspaceId) ? 'font-bold text-primary bg-primary/10' : 'text-foreground'}`}
+                  >
+                    {w.name}
+                  </DropdownMenuItem>
+                ))
+              ) : (
+                <DropdownMenuItem className="text-xs font-semibold">
+                  NexSpace Saigon Prime Hub (Level 1-4)
+                </DropdownMenuItem>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
 

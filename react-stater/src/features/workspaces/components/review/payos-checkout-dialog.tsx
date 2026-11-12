@@ -33,6 +33,7 @@ interface PayOSCheckoutDialogProps {
   totalAmountUsd?: number;
   seatCode?: string;
   orderRef?: string;
+  bookingCode?: string;
 }
 
 export function PayOSCheckoutDialog({
@@ -40,22 +41,24 @@ export function PayOSCheckoutDialog({
   onOpenChange,
   totalAmountUsd = 11.0,
   seatCode = 'Desk A-04',
-  orderRef = '#NX-8821'
+  orderRef = '#NX-8821',
+  bookingCode
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
   const [copiedRef, setCopiedRef] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState(510); // 08:30 hold countdown
+  const [secondsRemaining, setSecondsRemaining] = useState(900); // 15 mins hold
 
+  const displayRef = bookingCode || orderRef;
   const approxVnd = Math.round(totalAmountUsd * 25000);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setIsVerifying(false);
       setIsSuccess(false);
-      setSecondsRemaining(510);
+      setSecondsRemaining(900);
     }
     onOpenChange(isOpen);
   };
@@ -69,7 +72,7 @@ export function PayOSCheckoutDialog({
   }, [open]);
 
   const handleCopyRef = () => {
-    navigator.clipboard?.writeText(orderRef.replace('#', ''));
+    navigator.clipboard?.writeText(displayRef.replace('#', ''));
     setCopiedRef(true);
     setTimeout(() => setCopiedRef(false), 2000);
   };
@@ -117,7 +120,7 @@ export function PayOSCheckoutDialog({
           >
             <ArrowLeft className='h-3.5 w-3.5 transition-transform group-hover:-translate-x-0.5' />
             <span>
-              Return to review <strong className='text-foreground font-mono'>({orderRef})</strong>
+              Return to review <strong className='text-foreground font-mono'>({displayRef})</strong>
             </span>
           </button>
           <div className='flex items-center gap-2'>
@@ -167,12 +170,12 @@ export function PayOSCheckoutDialog({
                       Workspace Access Key
                     </span>
                     <h4 className='text-foreground font-sans text-xs sm:text-sm font-bold'>
-                      {seatCode} • Level 14 Quiet Zone
+                      {seatCode}
                     </h4>
                   </div>
                   <div className='bg-primary/10 text-primary border-primary/20 flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-bold'>
                     <KeyRound className='h-3 w-3' />
-                    <span>PIN #8821</span>
+                    <span>PIN #{displayRef.slice(-4)}</span>
                   </div>
                 </div>
 
@@ -182,11 +185,11 @@ export function PayOSCheckoutDialog({
                   </div>
                   <div className='text-xs space-y-0.5'>
                     <div className='text-foreground font-semibold'>
-                      Valid Fri, Jan 25, 2026 • 09:00 AM – 01:00 PM
+                      Booking Confirmed • Access Pass Active
                     </div>
                     <div className='text-muted-foreground text-[11px] flex items-center gap-1.5'>
                       <ShieldCheck className='h-3.5 w-3.5 text-emerald-600' />
-                      <span>Corporate VAT invoice dispatched to email</span>
+                      <span>E-Invoice and turnstile pass generated</span>
                     </div>
                   </div>
                 </div>
@@ -195,7 +198,12 @@ export function PayOSCheckoutDialog({
               <Button
                 onClick={() => {
                   handleOpenChange(false);
-                  navigate({ to: '/workspaces/confirmation' });
+                  navigate({
+                    to: '/workspaces/confirmation',
+                    search: {
+                      bookingCode: bookingCode || orderRef?.replace('#', '')
+                    }
+                  });
                 }}
                 className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md'
               >
@@ -239,9 +247,9 @@ export function PayOSCheckoutDialog({
                         type='button'
                         onClick={handleCopyRef}
                         className='bg-card border-border/80 hover:border-primary/50 flex cursor-pointer items-center gap-1 rounded border px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground transition-colors active:scale-95'
-                        title='Copy order reference'
+                        title='Copy booking reference'
                       >
-                        <span>{orderRef}</span>
+                        <span>{displayRef}</span>
                         {copiedRef ? (
                           <Check className='h-3 w-3 text-emerald-600' />
                         ) : (
@@ -275,11 +283,9 @@ export function PayOSCheckoutDialog({
                 </div>
               </div>
 
-              {/* 3. PayOS Dynamic QR Code Container (Proportioned & Centered) */}
+              {/* 3. PayOS Dynamic QR Code Container */}
               <div className='bg-muted/20 border-border/80 flex flex-col items-center justify-center rounded-xl border p-2.5 sm:p-3'>
-                {/* QR Frame with subtle interactive scanner line */}
                 <div className='relative flex h-48 w-48 sm:h-52 sm:w-52 flex-col items-center justify-between overflow-hidden rounded-2xl border-2 border-indigo-100 bg-white p-2 sm:p-2.5 shadow-xs'>
-                  {/* Top QR Badges: VietQR & NAPAS 24/7 */}
                   <div className='z-10 flex w-full items-center justify-between px-1'>
                     <span className='rounded border border-blue-200 bg-blue-50 px-1.5 py-0.25 text-[10px] font-bold tracking-tighter text-blue-900'>
                       VietQR
@@ -289,26 +295,19 @@ export function PayOSCheckoutDialog({
                     </span>
                   </div>
 
-                  {/* Dynamic QR Graphic Matrix */}
                   <div className='relative my-auto flex h-32 w-32 sm:h-36 sm:w-36 items-center justify-center'>
-                    {/* Simulated Scanning Beam Effect */}
                     <div className='scanner-line absolute left-0 right-0 z-10 h-0.5 bg-gradient-to-r from-transparent via-indigo-600 to-transparent shadow-[0_0_6px_#4F46E5] pointer-events-none' />
 
-                    {/* Crisp Vector QR Code */}
                     <svg className='h-full w-full text-slate-900' fill='currentColor' viewBox='0 0 100 100'>
-                      {/* Top-Left Finder */}
                       <rect fill='#0F172A' height='28' rx='4' width='28' x='0' y='0' />
                       <rect fill='#FFFFFF' height='20' rx='2' width='20' x='4' y='4' />
                       <rect fill='#0F172A' height='12' rx='2' width='12' x='8' y='8' />
-                      {/* Top-Right Finder */}
                       <rect fill='#0F172A' height='28' rx='4' width='28' x='72' y='0' />
                       <rect fill='#FFFFFF' height='20' rx='2' width='20' x='76' y='4' />
                       <rect fill='#0F172A' height='12' rx='2' width='12' x='80' y='8' />
-                      {/* Bottom-Left Finder */}
                       <rect fill='#0F172A' height='28' rx='4' width='28' x='0' y='72' />
                       <rect fill='#FFFFFF' height='20' rx='2' width='20' x='4' y='76' />
                       <rect fill='#0F172A' height='12' rx='2' width='12' x='8' y='80' />
-                      {/* Matrix Data Modules */}
                       <rect height='6' rx='1' width='6' x='36' y='4' />
                       <rect height='6' rx='1' width='6' x='48' y='4' />
                       <rect height='6' rx='1' width='6' x='58' y='4' />
@@ -317,7 +316,6 @@ export function PayOSCheckoutDialog({
                       <rect height='6' rx='1' width='6' x='60' y='14' />
                       <rect height='6' rx='1' width='8' x='36' y='24' />
                       <rect height='6' rx='1' width='6' x='52' y='24' />
-                      {/* Central Area Data Rings */}
                       <rect height='8' rx='1' width='6' x='4' y='36' />
                       <rect height='6' rx='1' width='6' x='14' y='36' />
                       <rect height='6' rx='1' width='8' x='24' y='40' />
@@ -325,7 +323,6 @@ export function PayOSCheckoutDialog({
                       <rect height='6' rx='1' width='8' x='84' y='36' />
                       <rect height='8' rx='1' width='6' x='78' y='48' />
                       <rect height='6' rx='1' width='6' x='90' y='48' />
-                      {/* Lower Mid Data */}
                       <rect height='6' rx='1' width='6' x='36' y='72' />
                       <rect height='6' rx='1' width='8' x='48' y='72' />
                       <rect height='8' rx='1' width='6' x='62' y='72' />
@@ -339,13 +336,11 @@ export function PayOSCheckoutDialog({
                       <rect height='6' rx='1' width='8' x='88' y='88' />
                     </svg>
 
-                    {/* NexSpace Logo Center Embed */}
                     <div className='absolute inset-0 m-auto flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white p-0.5 shadow-md z-20'>
                       <NexSpaceMark className='h-6 w-6' />
                     </div>
                   </div>
 
-                  {/* Bottom Micro Status Bar inside QR Card */}
                   <div className='z-10 flex w-full items-center justify-center gap-1.5 border-t border-slate-100 py-0.5'>
                     <span className='pulse-glow bg-indigo-600 h-1.5 w-1.5 rounded-full' />
                     <span className='font-mono text-[10px] font-semibold text-indigo-600'>
@@ -354,7 +349,6 @@ export function PayOSCheckoutDialog({
                   </div>
                 </div>
 
-                {/* Supported Banks Strip */}
                 <div className='mt-2 flex w-full items-center justify-center gap-1 flex-wrap'>
                   <span className='rounded border border-slate-200 bg-white px-1.5 py-0.5 text-[9px] font-bold tracking-wider uppercase text-slate-700 shadow-2xs'>
                     VCB
@@ -373,13 +367,12 @@ export function PayOSCheckoutDialog({
                   </span>
                 </div>
 
-                {/* Instructional Microcopy */}
                 <p className='text-muted-foreground mt-1.5 px-1 text-center text-[11px] leading-tight'>
                   Scan with banking app (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) or <strong className='text-foreground font-medium'>MoMo</strong> to pay instantly.
                 </p>
               </div>
 
-              {/* 4. Action Controls (Compact) */}
+              {/* 4. Action Controls */}
               <div className='space-y-2 pt-0.5'>
                 <Button
                   onClick={handleSimulatePayment}
@@ -418,7 +411,7 @@ export function PayOSCheckoutDialog({
           )}
         </div>
 
-        {/* Modal Bottom Strip: Compliance & Dismiss (Sticky / Fixed at bottom) */}
+        {/* Modal Bottom Strip */}
         <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2 text-center'>
           <div className='text-muted-foreground flex items-center justify-center gap-1 text-[10px]'>
             <Shield className='h-3 w-3' />
@@ -427,10 +420,18 @@ export function PayOSCheckoutDialog({
           <div>
             <button
               type='button'
-              onClick={() => handleOpenChange(false)}
+              onClick={() => {
+                handleOpenChange(false);
+                if (bookingCode) {
+                  navigate({
+                    to: '/workspaces/confirmation',
+                    search: { bookingCode }
+                  });
+                }
+              }}
               className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
             >
-              Cancel transaction and release workspace hold
+              Close dialog (Booking hold remains active for 15 mins)
             </button>
           </div>
         </div>

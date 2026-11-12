@@ -15,6 +15,29 @@ export const MOCK_BOOKINGS_KPI = INITIAL_BOOKINGS_KPIS;
 
 export const MOCK_BOOKINGS_LEDGER: BookingItem[] = [
   {
+    id: 'book-9822',
+    bookingCode: '#NX-9822',
+    customerName: 'Minh Quan',
+    customerEmail: 'minh.quan@ai-tech.vn',
+    customerPhone: '+84 938 112 233',
+    customerInitials: 'MQ',
+    customerAvatarColor: 'bg-purple-100 text-purple-700',
+    resourceCode: 'OFFICE-A01',
+    resourceName: 'Executive Team Suite A01',
+    resourceCategory: 'EVENT_STAGE',
+    resourceZone: 'Private Office • Level 14',
+    reservedDate: 'Jan 26, 2026',
+    reservedTimeWindow: '08:00 - 18:00 (Full Day)',
+    durationHours: 10,
+    amount: 150.0,
+    paymentGateway: 'PAYOS_QR',
+    paymentGatewayLabel: 'PayOS Banking QR',
+    status: 'PENDING_APPROVAL',
+    checkInState: 'AWAITING_PAYMENT',
+    createdAt: 'Jan 25, 2026 • 11:30',
+    notes: 'Workspace requires manual confirmation before approval.'
+  },
+  {
     id: 'book-9821',
     bookingCode: '#NX-9821',
     customerName: 'Alex Nguyen',

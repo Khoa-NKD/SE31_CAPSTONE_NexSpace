@@ -4,14 +4,22 @@ import { Timer } from 'lucide-react';
 interface HoldUrgencyBannerProps {
   seatCode?: string;
   initialSeconds?: number;
+  holdExpiresAt?: string | null;
 }
 
 export function HoldUrgencyBanner({
-  seatCode = 'Desk A-12',
-  initialSeconds = 585 // 9 mins 45 seconds
+  seatCode = 'Selected Station',
+  initialSeconds = 900, // 15 minutes hold
+  holdExpiresAt
 }: HoldUrgencyBannerProps) {
-  const [secondsRemaining, setSecondsRemaining] = useState(initialSeconds);
-  const totalSeconds = 600; // 10 minutes total
+  const [secondsRemaining, setSecondsRemaining] = useState(() => {
+    if (holdExpiresAt) {
+      const diff = Math.floor((new Date(holdExpiresAt).getTime() - Date.now()) / 1000);
+      return Math.max(0, diff);
+    }
+    return initialSeconds;
+  });
+  const totalSeconds = initialSeconds;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -41,7 +49,7 @@ export function HoldUrgencyBanner({
           <div>
             <div className='flex items-center gap-2'>
               <span className='font-sans text-base font-bold text-amber-950 dark:text-amber-200'>
-                10-Minute Hold Active
+                15-Minute Hold Active
               </span>
               <span className='inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:bg-amber-500/30 dark:text-amber-300'>
                 Reserved
@@ -53,7 +61,7 @@ export function HoldUrgencyBanner({
               <span className='font-mono font-bold tracking-wider text-amber-950 dark:text-amber-100'>
                 {formattedTime}
               </span>{' '}
-              minutes. Complete payment to confirm your booking.
+              minutes. Complete booking to secure your check-in pass.
             </p>
           </div>
         </div>
@@ -80,4 +88,3 @@ export function HoldUrgencyBanner({
     </div>
   );
 }
-

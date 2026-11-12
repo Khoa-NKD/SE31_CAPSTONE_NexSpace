@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { ShieldCheck, RefreshCw } from 'lucide-react';
+import { ShieldCheck, RefreshCw, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import {
   BookingItem,
   BookingStatus,
@@ -13,11 +14,28 @@ import {
 } from '../data/mock-bookings';
 import { BookingsHeaderBar } from './bookings-header-bar';
 import { BookingsKpiRibbon } from './bookings-kpi-ribbon';
-import { BookingsFilterBar } from './bookings-filter-bar';
+import { BookingsFilterBar, WorkspaceOption } from './bookings-filter-bar';
 import { BookingsTable } from './bookings-table';
 import { BookingsPagination } from './bookings-pagination';
 import { BookingDetailDialog } from './booking-detail-dialog';
 import { ManualReservationDialog } from './manual-reservation-dialog';
+import {
+  useOrganizerBookingsQuery,
+  useCancelBookingMutation,
+  useApproveBookingMutation,
+  useRejectBookingMutation
+} from '../../workspaces/api/booking-queries';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter
+} from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { workspaceService } from '../../workspaces/api/service';
+import type { BookingDto } from '../../workspaces/api/booking-types';
 
 function exportBookingsToCsv(bookings: BookingItem[]) {
   const headers = [
@@ -74,13 +92,124 @@ function handleSendReminder(booking: BookingItem) {
   });
 }
 
-export function BookingsManagementView() {
-  const [bookings, setBookings] = useState<BookingItem[]>(MOCK_BOOKINGS_LEDGER);
-  const [kpis, setKpis] = useState<BookingsKpiSummary>(MOCK_BOOKINGS_KPI);
+function mapBookingDtoToItem(dto: BookingDto): BookingItem {
+  const startDate = new Date(dto.startTime);
+  const endDate = new Date(dto.endTime);
+  const dateFormatted = !isNaN(startDate.getTime())
+    ? startDate.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      })
+    : 'N/A';
+  const startStr = !isNaN(startDate.getTime())
+    ? startDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+  const endStr = !isNaN(endDate.getTime())
+    ? endDate.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })
+    : '';
+  const timeWindow = `${startStr} - ${endStr} (${dto.durationHours || 1} hrs)`;
 
+  const initials = (dto.customerName || 'Customer')
+    .split(' ')
+    .filter(Boolean)
+    .map((n) => n[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase();
+
+  const categoryMap: Record<string, BookingResourceType> = {
+    DESK: 'DEDICATED_DESK',
+    HOT_DESK: 'HOT_DESK',
+    MEETING_ROOM: 'MEETING_ROOM',
+    PRIVATE_OFFICE: 'EVENT_STAGE'
+  };
+
+  return {
+    id: String(dto.id),
+    bookingCode: dto.bookingCode,
+    customerName: dto.customerName || 'Khách hàng',
+    customerEmail: dto.customerEmail || 'customer@nexspace.vn',
+    customerPhone: dto.customerPhone || '',
+    customerInitials: initials || 'KH',
+    resourceCode: dto.resourceCode || 'DESK-01',
+    resourceName: dto.resourceName || dto.resourceCode || 'Dedicated Desk',
+    resourceCategory: categoryMap[dto.resourceCategory || 'DESK'] || 'DEDICATED_DESK',
+    resourceZone: dto.zoneName
+      ? `${dto.floorName || ''} - ${dto.zoneName}`
+      : dto.floorName || 'Tầng 1',
+    reservedDate: dateFormatted,
+    reservedTimeWindow: timeWindow,
+    durationHours: dto.durationHours || 1,
+    amount: dto.finalPrice || 0,
+    paymentGateway: 'PAYOS_QR',
+    paymentGatewayLabel: 'PayOS QR',
+    status: dto.status as BookingStatus,
+    statusReason: dto.status === 'CANCELLED' ? (dto.cancelReason || 'Đã hủy') : undefined,
+    cancelReason: dto.cancelReason,
+    cancelSource: dto.cancelSource,
+    refundPercent: dto.refundPercent,
+    refundAmount: dto.refundAmount,
+    checkInState:
+      dto.status === 'CONFIRMED'
+        ? 'UPCOMING'
+        : dto.status === 'PENDING_APPROVAL'
+        ? 'AWAITING_PAYMENT'
+        : dto.status === 'PENDING_PAYMENT'
+        ? 'AWAITING_PAYMENT'
+        : 'RELEASED',
+    createdAt: dto.createdAt
+  };
+}
+
+function computeDateFilterParams(dateFilter: string, customDate: string) {
+  if (dateFilter === 'Today') {
+    const today = new Date().toISOString().slice(0, 10);
+    return { date: today };
+  }
+  if (dateFilter === 'Tomorrow') {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return { date: tomorrow.toISOString().slice(0, 10) };
+  }
+  if (dateFilter === 'Custom Date' && customDate) {
+    return { date: customDate };
+  }
+  if (dateFilter === 'This Week') {
+    const now = new Date();
+    const start = new Date(now);
+    start.setDate(now.getDate() - now.getDay() + 1);
+    const end = new Date(start);
+    end.setDate(start.getDate() + 6);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10)
+    };
+  }
+  if (dateFilter === 'This Month') {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10)
+    };
+  }
+  return {};
+}
+
+function handleCheckInToggle(id: string) {
+  toast.info('Turnstile state updated', {
+    description: `Access gate override applied for booking ${id}.`
+  });
+}
+
+export function BookingsManagementView() {
   // Filters & Search
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
-  const [dateFilter, setDateFilter] = useState('This Week (Jan 20 - Jan 27, 2026)');
+  const [dateFilter, setDateFilter] = useState('All Dates');
+  const [customDate, setCustomDate] = useState('');
   const [resourceType, setResourceType] = useState<'ALL' | BookingResourceType>('ALL');
   const [selectedStatusTab, setSelectedStatusTab] = useState<'ALL' | BookingStatus>('ALL');
 
@@ -92,73 +221,116 @@ export function BookingsManagementView() {
   // Modals & Real-time Sync
   const [activeDetailBooking, setActiveDetailBooking] = useState<BookingItem | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
+  const [rejectingBooking, setRejectingBooking] = useState<BookingItem | null>(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
+  const [cancellingBooking, setCancellingBooking] = useState<BookingItem | null>(null);
+  const [cancelBookingReason, setCancelBookingReason] = useState('');
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState('10:42 AM');
   const [isSyncing, setIsSyncing] = useState(false);
 
-  // Calculate Status counts dynamically based on current base filters
+  // Fetch Organizer Workspaces for dropdown
+  const { data: workspacesResponse } = useQuery({
+    queryKey: ['organizer', 'workspaces-dropdown'],
+    queryFn: () => workspaceService.getWorkspaces({ role: 'organizer' }),
+    staleTime: 60_000
+  });
+
+  const workspaceOptions: WorkspaceOption[] = useMemo(() => {
+    const list = workspacesResponse?.content || workspacesResponse?.listObjects || [];
+    return list.map((w) => ({
+      id: w.id,
+      name: w.name || `Workspace #${w.id}`
+    }));
+  }, [workspacesResponse]);
+
+  // Derived Date Range parameters
+  const dateParams = useMemo(() => {
+    return computeDateFilterParams(dateFilter, customDate);
+  }, [dateFilter, customDate]);
+
+  // Query Backend API for Organizer Bookings
+  const numericWorkspaceId =
+    selectedWorkspaceId !== 'ALL' && Number(selectedWorkspaceId) > 0
+      ? Number(selectedWorkspaceId)
+      : undefined;
+
+  const {
+    data: apiBookingsResponse,
+    isLoading,
+    refetch
+  } = useOrganizerBookingsQuery({
+    workspaceId: numericWorkspaceId,
+    status: selectedStatusTab === 'ALL' ? undefined : selectedStatusTab,
+    date: dateParams.date,
+    startDate: dateParams.startDate,
+    endDate: dateParams.endDate,
+    search: searchQuery.trim() || undefined,
+    page: currentPage,
+    size: pageSize
+  });
+
+  const cancelMutation = useCancelBookingMutation();
+  const approveMutation = useApproveBookingMutation();
+  const rejectMutation = useRejectBookingMutation();
+
+  // Combine API data or fallback to mock data
+  const bookings: BookingItem[] = useMemo(() => {
+    if (apiBookingsResponse?.content && apiBookingsResponse.content.length > 0) {
+      return apiBookingsResponse.content.map(mapBookingDtoToItem);
+    }
+    // Fallback if API returns empty array or mock is active
+    if (apiBookingsResponse && apiBookingsResponse.totalElements === 0) {
+      return [];
+    }
+    return MOCK_BOOKINGS_LEDGER;
+  }, [apiBookingsResponse]);
+
+  const totalItems = apiBookingsResponse?.totalElements ?? bookings.length;
+
+  // Calculate dynamic Status counts
   const statusCounts = useMemo(() => {
     return {
-      all: bookings.length,
+      all: totalItems,
+      pendingApproval: bookings.filter((b) => b.status === 'PENDING_APPROVAL').length,
       confirmed: bookings.filter((b) => b.status === 'CONFIRMED').length,
       pending: bookings.filter((b) => b.status === 'PENDING_PAYMENT').length,
+      completed: bookings.filter((b) => b.status === 'COMPLETED').length,
       cancelled: bookings.filter((b) => b.status === 'CANCELLED').length
     };
-  }, [bookings]);
+  }, [totalItems, bookings]);
 
-  // Filtered dataset
-  const filteredBookings = useMemo(() => {
-    return bookings.filter((b) => {
-      // Status Tab filter
-      if (selectedStatusTab !== 'ALL' && b.status !== selectedStatusTab) {
-        return false;
-      }
+  // KPI Ribbon Summary
+  const kpis: BookingsKpiSummary = useMemo(() => {
+    const confirmedVol = bookings
+      .filter((b) => b.status === 'CONFIRMED')
+      .reduce((sum, b) => sum + (b.amount || 0), 0);
+    const pendingVol = bookings
+      .filter((b) => b.status === 'PENDING_PAYMENT')
+      .reduce((sum, b) => sum + (b.amount || 0), 0);
 
-      // Resource Type filter
-      if (resourceType !== 'ALL' && b.resourceCategory !== resourceType) {
-        return false;
-      }
-
-      // Search Query filter
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesQuery =
-          b.bookingCode.toLowerCase().includes(query) ||
-          b.id.toLowerCase().includes(query) ||
-          b.customerName.toLowerCase().includes(query) ||
-          b.customerEmail.toLowerCase().includes(query) ||
-          b.resourceName.toLowerCase().includes(query) ||
-          b.resourceZone.toLowerCase().includes(query);
-
-        if (!matchesQuery) return false;
-      }
-
-      // Date Range filter (mock evaluation)
-      if (dateFilter === 'Today' && !b.reservedDate.includes('Jan 25')) {
-        return false;
-      }
-
-      return true;
-    });
-  }, [bookings, selectedStatusTab, resourceType, searchQuery, dateFilter]);
-
-  // Paginated dataset
-  const paginatedBookings = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredBookings.slice(startIndex, startIndex + pageSize);
-  }, [filteredBookings, currentPage, pageSize]);
+    return {
+      totalReservations: totalItems,
+      growthMoM: MOCK_BOOKINGS_KPI.growthMoM,
+      confirmedCount: statusCounts.confirmed,
+      confirmedVolume: confirmedVol || MOCK_BOOKINGS_KPI.confirmedVolume,
+      pendingCount: statusCounts.pending,
+      pendingVolume: pendingVol || MOCK_BOOKINGS_KPI.pendingVolume,
+      cancelledCount: statusCounts.cancelled,
+      cancellationRatePercent: totalItems > 0 ? (statusCounts.cancelled / totalItems) * 100 : 0
+    };
+  }, [totalItems, bookings, statusCounts]);
 
   // Multi-selection handlers
   const handleToggleSelectAll = () => {
-    const currentPageIds = paginatedBookings.map((b) => b.id);
+    const currentPageIds = bookings.map((b) => b.id);
     const areAllCurrentSelected = currentPageIds.every((id) => selectedIds.includes(id));
 
     if (areAllCurrentSelected) {
-      // Unselect current page
       setSelectedIds((prev) => prev.filter((id) => !currentPageIds.includes(id)));
     } else {
-      // Select all in current page
-      const newSelection = Array.from(new Set([...selectedIds, ...currentPageIds]));
-      setSelectedIds(newSelection);
+      setSelectedIds(Array.from(new Set([...selectedIds, ...currentPageIds])));
     }
   };
 
@@ -173,74 +345,76 @@ export function BookingsManagementView() {
     setActiveDetailBooking(booking);
   };
 
-  const handleCancelBooking = (id: string) => {
-    setBookings((prev) =>
-      prev.map((b) =>
-        b.id === id
-          ? {
-              ...b,
-              status: 'CANCELLED' as BookingStatus,
-              statusReason: 'Organizer manual cancellation & refund',
-              checkInState: 'RELEASED' as const
-            }
-          : b
-      )
-    );
-
-    // Update KPI counters
-    setKpis((prev) => ({
-      ...prev,
-      confirmedCount: Math.max(0, prev.confirmedCount - 1),
-      cancelledCount: prev.cancelledCount + 1
-    }));
-
-    if (activeDetailBooking && activeDetailBooking.id === id) {
-      setActiveDetailBooking((prev) =>
-        prev
-          ? {
-              ...prev,
-              status: 'CANCELLED',
-              statusReason: 'Organizer manual cancellation & refund',
-              checkInState: 'RELEASED'
-            }
-          : null
-      );
-    }
-
-    toast.warning(`Reservation ${id} cancelled`, {
-      description: 'Customer notification dispatched and PayOS refund sequence queued.'
-    });
+  const handleOpenCancelDialog = (bookingOrId: BookingItem | string) => {
+    const item = typeof bookingOrId === 'string'
+      ? bookings.find((b) => b.id === bookingOrId) || ({ id: bookingOrId, bookingCode: `#${bookingOrId}` } as BookingItem)
+      : bookingOrId;
+    setCancellingBooking(item);
+    setCancelBookingReason('');
+    setIsCancelDialogOpen(true);
   };
 
-  const handleCheckInToggle = (id: string) => {
-    setBookings((prev) =>
-      prev.map((b) => {
-        if (b.id === id) {
-          const nextState = b.checkInState === 'CHECKED_IN' ? 'CHECKED_OUT' : 'CHECKED_IN';
-          const checkInTime = nextState === 'CHECKED_IN' ? 'Just now' : b.checkInTime;
-          return { ...b, checkInState: nextState, checkInTime };
-        }
-        return b;
-      })
-    );
-
-    if (activeDetailBooking && activeDetailBooking.id === id) {
-      setActiveDetailBooking((prev) => {
-        if (!prev) return null;
-        const nextState = prev.checkInState === 'CHECKED_IN' ? 'CHECKED_OUT' : 'CHECKED_IN';
-        return { ...prev, checkInState: nextState, checkInTime: 'Just now' };
+  const handleConfirmCancelReservation = async () => {
+    if (!cancellingBooking) return;
+    try {
+      await cancelMutation.mutateAsync({
+        id: cancellingBooking.id,
+        reason: cancelBookingReason.trim() || 'Organizer cancelled reservation'
       });
+      refetch();
+      setIsCancelDialogOpen(false);
+      setCancellingBooking(null);
+      toast.warning(`Reservation ${cancellingBooking.bookingCode} cancelled`, {
+        description: 'Customer 100% refund initiated and seat released on floor plan.'
+      });
+    } catch {
+      toast.error('Failed to cancel reservation');
     }
+  };
 
-    toast.info('Turnstile state updated', {
-      description: `Access gate override applied for booking ${id}.`
-    });
+  const handleCancelBooking = (id: string) => {
+    handleOpenCancelDialog(id);
+  };
+
+  const handleApproveBooking = async (booking: BookingItem) => {
+    try {
+      await approveMutation.mutateAsync({ id: booking.id });
+      refetch();
+      toast.success(`Booking ${booking.bookingCode} approved`, {
+        description: 'Customer can now proceed to payment within 15 minutes.'
+      });
+    } catch {
+      toast.error('Failed to approve booking request');
+    }
+  };
+
+  const handleOpenRejectDialog = (booking: BookingItem) => {
+    setRejectingBooking(booking);
+    setRejectionReason('');
+    setIsRejectDialogOpen(true);
+  };
+
+  const handleConfirmReject = async () => {
+    if (!rejectingBooking) return;
+    try {
+      await rejectMutation.mutateAsync({
+        id: rejectingBooking.id,
+        reason: rejectionReason.trim() || 'Organizer declined request'
+      });
+      refetch();
+      setIsRejectDialogOpen(false);
+      setRejectingBooking(null);
+      toast.warning(`Booking ${rejectingBooking.bookingCode} rejected`, {
+        description: 'Seat has been released and customer notified.'
+      });
+    } catch {
+      toast.error('Failed to reject booking request');
+    }
   };
 
   const handleExportCsv = () => {
-    const targetBookings = selectedIds.length > 0
-      ? bookings.filter((b) => selectedIds.includes(b.id))
-      : filteredBookings;
+    const targetBookings =
+      selectedIds.length > 0 ? bookings.filter((b) => selectedIds.includes(b.id)) : bookings;
 
     if (targetBookings.length === 0) {
       toast.error('No reservations to export');
@@ -255,39 +429,38 @@ export function BookingsManagementView() {
 
   const handleSync = () => {
     setIsSyncing(true);
-    setTimeout(() => {
+    refetch().finally(() => {
       const now = new Date();
-      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      const timeStr = now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      });
       setLastSyncTime(timeStr);
       setIsSyncing(false);
-      toast.success('Live PayOS Webhook synchronized', {
-        description: `All transactions and turnstile IoT nodes verified at ${timeStr}.`
+      toast.success('Bookings and live node data synchronized', {
+        description: `Verified at ${timeStr}.`
       });
-    }, 600);
+    });
   };
 
   const handleCreateManualBooking = (newBooking: BookingItem) => {
-    setBookings((prev) => [newBooking, ...prev]);
-    setKpis((prev) => ({
-      ...prev,
-      totalReservations: prev.totalReservations + 1,
-      confirmedCount: prev.confirmedCount + 1,
-      confirmedVolume: prev.confirmedVolume + newBooking.amount
-    }));
-
+    refetch();
     toast.success(`Walk-in booked: ${newBooking.bookingCode}`, {
       description: `Confirmed for ${newBooking.customerName} on ${newBooking.resourceName}.`
     });
   };
 
   const handleResetFilters = () => {
+    setSelectedWorkspaceId('ALL');
     setSearchQuery('');
     setSelectedStatusTab('ALL');
     setResourceType('ALL');
-    setDateFilter('This Week (Jan 20 - Jan 27, 2026)');
+    setDateFilter('All Dates');
+    setCustomDate('');
     setCurrentPage(1);
     toast.info('Filters reset', {
-      description: 'Showing all active reservations.'
+      description: 'Showing all reservations.'
     });
   };
 
@@ -307,6 +480,12 @@ export function BookingsManagementView() {
       {/* 3. Filter Bar & Search */}
       <div className="space-y-4">
         <BookingsFilterBar
+          workspaces={workspaceOptions}
+          selectedWorkspaceId={selectedWorkspaceId}
+          onWorkspaceChange={(val) => {
+            setSelectedWorkspaceId(val);
+            setCurrentPage(1);
+          }}
           searchQuery={searchQuery}
           onSearchChange={(val) => {
             setSearchQuery(val);
@@ -327,29 +506,48 @@ export function BookingsManagementView() {
             setDateFilter(val);
             setCurrentPage(1);
           }}
+          customDate={customDate}
+          onCustomDateChange={(val) => {
+            setCustomDate(val);
+            setCurrentPage(1);
+          }}
           totalCount={statusCounts.all}
           confirmedCount={statusCounts.confirmed}
+          pendingApprovalCount={statusCounts.pendingApproval}
           pendingCount={statusCounts.pending}
+          completedCount={statusCounts.completed}
           cancelledCount={statusCounts.cancelled}
           onResetFilters={handleResetFilters}
         />
 
+        {/* Loading Spinner Indicator */}
+        {isLoading && (
+          <div className="flex items-center justify-center p-8 text-muted-foreground gap-2">
+            <Loader2 className="w-5 h-5 animate-spin text-primary" />
+            <span className="text-xs">Loading organizer reservations...</span>
+          </div>
+        )}
+
         {/* 4. Main Reservations Data Table */}
-        <BookingsTable
-          bookings={paginatedBookings}
-          selectedIds={selectedIds}
-          onToggleSelectAll={handleToggleSelectAll}
-          onToggleSelectRow={handleToggleSelectRow}
-          onViewDetails={handleViewDetails}
-          onSendReminder={handleSendReminder}
-          onCancelBooking={handleCancelBooking}
-        />
+        {!isLoading && (
+          <BookingsTable
+            bookings={bookings}
+            selectedIds={selectedIds}
+            onToggleSelectAll={handleToggleSelectAll}
+            onToggleSelectRow={handleToggleSelectRow}
+            onViewDetails={handleViewDetails}
+            onSendReminder={handleSendReminder}
+            onCancelBooking={handleCancelBooking}
+            onApproveBooking={handleApproveBooking}
+            onRejectBooking={handleOpenRejectDialog}
+          />
+        )}
 
         {/* 5. Pagination Bar */}
         <BookingsPagination
           currentPage={currentPage}
           pageSize={pageSize}
-          totalItems={filteredBookings.length}
+          totalItems={totalItems}
           selectedCount={selectedIds.length}
           onPageChange={setCurrentPage}
           onPageSizeChange={(size) => {
@@ -398,6 +596,8 @@ export function BookingsManagementView() {
         onSendReminder={handleSendReminder}
         onCancelBooking={handleCancelBooking}
         onCheckInToggle={handleCheckInToggle}
+        onApproveBooking={handleApproveBooking}
+        onRejectBooking={handleOpenRejectDialog}
       />
 
       <ManualReservationDialog
@@ -405,7 +605,102 @@ export function BookingsManagementView() {
         onClose={() => setIsManualModalOpen(false)}
         onCreateBooking={handleCreateManualBooking}
       />
+
+      {/* 8. Rejection Dialog */}
+      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reject Booking Request</DialogTitle>
+            <DialogDescription>
+              Provide a reason for declining booking {rejectingBooking?.bookingCode}. The customer will be notified and the reserved slot will be released immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <label htmlFor="rejection-reason-textarea" className="text-xs font-semibold text-foreground">
+              Rejection Reason <span className="text-muted-foreground font-normal">(Optional)</span>
+            </label>
+            <textarea
+              id="rejection-reason-textarea"
+              className="w-full rounded-md border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[90px]"
+              placeholder="e.g. Workspace is undergoing maintenance or private event during this time window."
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+            />
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsRejectDialogOpen(false);
+                setRejectingBooking(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={rejectMutation.isPending}
+              onClick={handleConfirmReject}
+            >
+              {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 9. Organizer Cancellation Dialog */}
+      <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel Reservation & Initiate Refund</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to cancel reservation {cancellingBooking?.bookingCode}?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2 text-xs">
+            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400 space-y-1">
+              <span className="font-semibold">Chính sách hủy của Organizer (Host Cancellation):</span>
+              <p className="text-[11px] leading-relaxed">
+                Khi Organizer chủ động hủy đơn đặt chỗ đã xác nhận, hệ thống sẽ tự động kích hoạt chính sách <strong>hoàn tiền 100%</strong> cho khách hàng và giải phóng chỗ trên sơ đồ tầng ngay lập tức.
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="organizer-cancel-reason-textarea" className="font-semibold text-foreground">
+                Lý do hủy đơn <span className="text-muted-foreground font-normal">(Gửi thông báo tới khách hàng)</span>
+              </label>
+              <textarea
+                id="organizer-cancel-reason-textarea"
+                className="w-full rounded-md border border-input bg-background p-2.5 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px]"
+                placeholder="e.g. Không gian cần bảo trì hệ thống điều hòa đột xuất."
+                value={cancelBookingReason}
+                onChange={(e) => setCancelBookingReason(e.target.value)}
+              />
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsCancelDialogOpen(false);
+                setCancellingBooking(null);
+              }}
+            >
+              Giữ lại
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={cancelMutation.isPending}
+              onClick={handleConfirmCancelReservation}
+            >
+              {cancelMutation.isPending ? 'Đang hủy...' : 'Xác nhận hủy & Hoàn 100%'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
-

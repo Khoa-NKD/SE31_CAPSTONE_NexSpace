@@ -1,5 +1,6 @@
 export type BookingStatus =
   | 'CONFIRMED'
+  | 'PENDING_APPROVAL'
   | 'PENDING_PAYMENT'
   | 'COMPLETED'
   | 'CANCELLED';
@@ -44,6 +45,10 @@ export interface BookingItem {
   paymentGatewayLabel: string;
   status: BookingStatus;
   statusReason?: string; // "Auto-expired hold", etc.
+  cancelReason?: string;
+  cancelSource?: string;
+  refundPercent?: number;
+  refundAmount?: number;
   checkInState: CheckInState;
   checkInTime?: string; // "09:05 AM"
   pendingTimeRemaining?: string; // "06:42 remaining"

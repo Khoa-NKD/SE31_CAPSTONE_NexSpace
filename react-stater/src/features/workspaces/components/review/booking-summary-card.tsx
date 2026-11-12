@@ -8,16 +8,68 @@ import {
   Wifi,
   VolumeX,
   Calendar,
-  QrCode
+  QrCode,
+  Loader2
 } from 'lucide-react';
+import type { PublicWorkspaceDetail } from '../../api/types';
 
-export function BookingSummaryCard() {
+interface BookingSummaryCardProps {
+  workspace?: PublicWorkspaceDetail | null;
+  resource?: {
+    id: number;
+    code: string;
+    name: string;
+    category?: string;
+  } | null;
+  floorName?: string;
+  startTime?: string;
+  endTime?: string;
+  date?: string;
+  isLoading?: boolean;
+}
+
+export function BookingSummaryCard({
+  workspace,
+  resource,
+  floorName,
+  startTime,
+  endTime,
+  date,
+  isLoading = false
+}: BookingSummaryCardProps) {
   const amenities = [
     { icon: Zap, label: '65W USB-C PD' },
-    { icon: Armchair, label: 'Aeron Chair' },
-    { icon: Wifi, label: '1 Gbps Fiber' },
-    { icon: VolumeX, label: '45dB Acoustic' }
+    { icon: Armchair, label: 'Aeron Ergonomic' },
+    { icon: Wifi, label: '1 Gbps Ultra-Speed' },
+    { icon: VolumeX, label: 'Acoustic Barrier' }
   ];
+
+  const schedule = formatSchedule(startTime, endTime, date);
+
+  if (isLoading) {
+    return (
+      <section className='bg-card border-border shadow-xs flex min-h-[300px] items-center justify-center rounded-2xl border p-6'>
+        <div className='flex items-center gap-3 text-sm text-muted-foreground'>
+          <Loader2 className='size-5 animate-spin text-primary' />
+          <span>Loading workspace &amp; station specifications...</span>
+        </div>
+      </section>
+    );
+  }
+
+  const workspaceName = workspace?.name || 'NexSpace Workspace';
+  const workspaceAddress =
+    workspace?.streetAddress ||
+    [workspace?.buildingName, workspace?.district, workspace?.city].filter(Boolean).join(', ') ||
+    'District 1, Ho Chi Minh City';
+  const seatCode = resource?.code || 'Desk A-01';
+  const seatName = resource?.name || 'Selected Station';
+  const categoryLabel = resource?.category || 'Hot Desk Pass';
+
+  const workspaceImage =
+    workspace?.coverImageUrl ||
+    workspace?.images?.[0]?.url ||
+    'https://images.unsplash.com/photo-1497366216548-37526070297c?auto=format&fit=crop&w=800&q=80';
 
   return (
     <section className='bg-card border-border shadow-xs space-y-5 rounded-2xl border p-6'>
@@ -30,7 +82,7 @@ export function BookingSummaryCard() {
           </h2>
         </div>
         <span className='bg-primary/10 border-primary/20 text-primary rounded-full border px-2.5 py-0.5 text-xs font-semibold'>
-          Hot Desk Pass
+          {categoryLabel}
         </span>
       </div>
 
@@ -38,19 +90,19 @@ export function BookingSummaryCard() {
       <div className='flex flex-col gap-4 sm:flex-row'>
         <div className='bg-muted border-border/80 relative h-32 w-full shrink-0 overflow-hidden rounded-xl border sm:h-28 sm:w-36'>
           <img
-            alt='Quiet Zone Window Desk'
+            alt={workspaceName}
             className='h-full w-full object-cover'
-            src='https://lh3.googleusercontent.com/aida-public/AB6AXuBQZwPmZNOtnlrl9geScjc2_LqOmO3iMDS2BG-k0Tgq1X_TAZYziP_JtjXehhVwy65X8vHsA_4APFkn3WL2WVgGzqY1tG7ZdFZJDXYAM4yi1F2FPDXomEzGLydbEscOz4j1aqiGm2NgQrLjS1DibSTc9PZwlURmsi_StjnzUaLLvhQQM4505OVD78C0TjezwhaLSUfEmvllqkoEav21e7ZCyOCDC-NkBkMj3OIFbAbhCfiavD0l7zXFXQ'
+            src={workspaceImage}
           />
           <span className='bg-background/90 text-foreground border-border/60 absolute top-2 left-2 rounded border px-1.5 py-0.5 text-[10px] font-bold backdrop-blur-xs'>
-            ZONE A
+            {floorName || 'VERIFIED'}
           </span>
         </div>
 
         <div className='flex-grow space-y-1.5'>
           <div className='flex flex-wrap items-center justify-between gap-2'>
             <h3 className='text-foreground font-sans text-base font-bold'>
-              NexSpace Central Tower
+              {workspaceName}
             </h3>
             <span className='inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400'>
               Instant Access
@@ -59,12 +111,12 @@ export function BookingSummaryCard() {
 
           <div className='text-muted-foreground flex items-start gap-1.5 text-xs'>
             <MapPin className='text-primary mt-0.5 h-3.5 w-3.5 shrink-0' />
-            <span>72 Le Thanh Ton, Ben Nghe, District 1, Ho Chi Minh City</span>
+            <span>{workspaceAddress}</span>
           </div>
 
           <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
             <Layers className='text-primary h-3.5 w-3.5 shrink-0' />
-            <span>Level 14 • Zone A (West Window Quiet Zone)</span>
+            <span>{floorName || 'Main Level'} • Dedicated Quiet &amp; Focus Area</span>
           </div>
         </div>
       </div>
@@ -72,21 +124,21 @@ export function BookingSummaryCard() {
       {/* Highlighted Resource Pill / Badge */}
       <div className='bg-primary/5 border-primary/20 flex flex-wrap items-center justify-between gap-3 rounded-xl border p-3.5'>
         <div className='flex items-center gap-3'>
-          <div className='bg-primary text-primary-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold'>
-            A12
+          <div className='bg-primary text-primary-foreground flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-xs font-bold font-mono'>
+            {seatCode}
           </div>
           <div>
             <div className='text-primary text-xs font-semibold sm:text-sm'>
-              Desk A-12 (Hot Desk, Quiet Zone)
+              {seatName} ({seatCode})
             </div>
             <p className='text-muted-foreground text-xs'>
-              Panoramic city view with sound dampening boundary
+              Ergonomic workspace station with high-bandwidth power &amp; data connection
             </p>
           </div>
         </div>
         <div className='text-amber-600 dark:text-amber-400 flex items-center gap-1 text-xs font-bold uppercase tracking-wider'>
           <Lock className='h-3.5 w-3.5' />
-          <span>Locked</span>
+          <span>Locked for Hold</span>
         </div>
       </div>
 
@@ -119,12 +171,12 @@ export function BookingSummaryCard() {
           </div>
           <div className='space-y-1 text-xs'>
             <div className='text-foreground font-semibold sm:text-sm'>
-              Friday, Jan 25, 2026 • 09:00 AM - 01:00 PM (4 hours)
+              {schedule.dateStr} • {schedule.timeStr}
             </div>
             <p className='text-muted-foreground flex items-center gap-1.5 text-xs'>
               <QrCode className='text-primary h-3.5 w-3.5 shrink-0' />
               <span>
-                Digital QR key will be generated immediately after payment. Early check-in opens 10 minutes prior.
+                Contactless Digital Pass generated upon booking. Check-in opens 15 minutes before reserved slot.
               </span>
             </p>
           </div>
@@ -134,3 +186,40 @@ export function BookingSummaryCard() {
   );
 }
 
+function formatSchedule(startTime?: string, endTime?: string, dateFallback?: string) {
+  if (!startTime || !endTime) {
+    return {
+      dateStr: dateFallback || 'Selected Date',
+      timeStr: '09:00 AM - 01:00 PM (4 hours)',
+      durationHours: 4
+    };
+  }
+
+  const start = new Date(startTime);
+  const end = new Date(endTime);
+  const diffMs = Math.max(0, end.getTime() - start.getTime());
+  const hours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 || 1;
+
+  const dateOptions: Intl.DateTimeFormatOptions = {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric'
+  };
+  const timeOptions: Intl.DateTimeFormatOptions = {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true
+  };
+
+  const dateStr = !isNaN(start.getTime())
+    ? start.toLocaleDateString('en-US', dateOptions)
+    : dateFallback || 'Selected Date';
+
+  const timeStr =
+    !isNaN(start.getTime()) && !isNaN(end.getTime())
+      ? `${start.toLocaleTimeString('en-US', timeOptions)} – ${end.toLocaleTimeString('en-US', timeOptions)} (${hours} hr${hours > 1 ? 's' : ''})`
+      : 'Selected Slot';
+
+  return { dateStr, timeStr, durationHours: hours };
+}

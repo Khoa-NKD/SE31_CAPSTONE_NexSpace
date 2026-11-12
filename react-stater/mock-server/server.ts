@@ -55,6 +55,7 @@ export async function startServer(port = PORT, host = HOST): Promise<http.Server
 const isDirectExecution =
   import.meta.url === `file://${process.argv[1]}` ||
   process.argv[1]?.endsWith('mock-server/server.ts') ||
+  process.argv[1]?.replace(/\\/g, '/').endsWith('mock-server/server.ts') ||
   process.argv[1]?.endsWith('mock-server/server.js');
 
 if (isDirectExecution) {

@@ -30,6 +30,8 @@ interface ScheduleToolbarProps {
   onCategoryChange: (cat: string) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  customDate?: string;
+  onCustomDateChange?: (date: string) => void;
 }
 
 export function ScheduleToolbar({
@@ -44,7 +46,9 @@ export function ScheduleToolbar({
   selectedCategory,
   onCategoryChange,
   searchQuery,
-  onSearchChange
+  onSearchChange,
+  customDate,
+  onCustomDateChange
 }: ScheduleToolbarProps) {
   return (
     <div className="bg-card border border-border rounded-xl p-4 shadow-2xs space-y-4 select-none">
@@ -87,6 +91,16 @@ export function ScheduleToolbar({
           >
             Today
           </Button>
+
+          {onCustomDateChange && (
+            <input
+              type="date"
+              value={customDate || ''}
+              onChange={(e) => onCustomDateChange(e.target.value)}
+              className="h-9 px-2 text-xs rounded-lg border border-border bg-background text-foreground shadow-2xs focus:ring-1 focus:ring-primary focus:outline-hidden"
+              title="Pick a specific date"
+            />
+          )}
 
           {/* View Mode Switcher */}
           <div className="flex items-center bg-muted/60 border border-border rounded-lg p-0.5 text-xs">
