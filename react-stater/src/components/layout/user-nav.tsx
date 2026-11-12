@@ -14,7 +14,7 @@ import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home } from 'lucide-react';
+import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';
@@ -69,7 +69,7 @@ export function UserNav() {
   const handleSwitchToCustomerView = () => {
     setOpen(false);
     useAuthStore.getState().setAdminViewMode('customer');
-    router.navigate({ to: '/?view=customer' });
+    router.navigate({ to: '/', search: { view: 'customer' } });
   };
 
   return (
@@ -120,6 +120,19 @@ export function UserNav() {
             <span>
               {language === 'vi' ? 'Xem hồ sơ cá nhân' : 'My Profile'}
             </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className='cursor-pointer flex items-center gap-2'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/workspaces/my-bookings' });
+            }}
+          >
+            <Calendar className='w-4 h-4 text-muted-foreground' />
+            <span>
+              {language === 'vi' ? 'Đơn đặt chỗ của tôi' : 'My Bookings'}
+            </span>
+          </DropdownMenuItem>
           </DropdownMenuItem>
 
           {/* Nút về trang chủ */}

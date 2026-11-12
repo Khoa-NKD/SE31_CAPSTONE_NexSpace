@@ -6,8 +6,11 @@ import { BookingSummaryCard } from './booking-summary-card';
 import { BookerInfoCard } from './booker-info-card';
 import { CancellationPolicyCard } from './cancellation-policy-card';
 import { PriceBreakdownCard } from './price-breakdown-card';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 
 export function BookingReviewPage() {
+  const { data: holdData } = useCurrentPendingBooking();
+
   return (
     <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
       {/* Shared Global Workspace Navigation Bar */}
@@ -18,8 +21,11 @@ export function BookingReviewPage() {
         {/* Breadcrumb Hierarchy */}
         <ReviewHeader />
 
-        {/* 10-Minute Hold Urgency Top Banner */}
-        <HoldUrgencyBanner seatCode='Desk A-12' />
+        {/* 10-Minute Hold Urgency Top Banner synchronized with pending booking hold */}
+        <HoldUrgencyBanner
+          seatCode={holdData?.seatCode || 'Desk A-12'}
+          expiresAt={holdData?.holdExpiresAt}
+        />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}
         <div className='grid grid-cols-1 items-start gap-8 lg:grid-cols-12'>

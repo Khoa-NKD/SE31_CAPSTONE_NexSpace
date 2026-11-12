@@ -1,5 +1,5 @@
 import React from 'react';
-import { Globe, ChevronDown, Check, DoorClosed, DoorOpen, Home } from 'lucide-react';
+import { Globe, ChevronDown, Check, DoorClosed, Home } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { Icons } from '@/components/icons';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -41,6 +41,12 @@ export function WorkspaceHeader() {
               className="border-b-2 border-[#4b41e1] pb-1 text-sm font-semibold text-[#4b41e1] transition-all duration-200 hover:text-[#3d34b8] active:scale-[0.98]"
             >
               Workspaces
+            </Link>
+            <Link
+              to="/workspaces/my-bookings"
+              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+            >
+              {language === 'vi' ? 'Đơn của tôi' : 'My Bookings'}
             </Link>
             <Link
               to="/"
@@ -181,8 +187,8 @@ export function WorkspaceHeader() {
           </Link>
           
           {/* Authenticated User Profile Menu OR Sign In Button */}
-          {isAuthenticated ? (
-            <div className='flex items-center gap-2 pl-1'>
+          {user || isAuthenticated ? (
+            <div className="ml-2 flex items-center">
               <UserNav />
             </div>
           ) : (

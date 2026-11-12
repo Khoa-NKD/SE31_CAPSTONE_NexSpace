@@ -22,7 +22,7 @@ export default function Header() {
 
   const handleSwitchToCustomerView = () => {
     setAdminViewMode('customer');
-    router.navigate({ to: '/?view=customer' });
+    router.navigate({ to: '/', search: { view: 'customer' } });
   };
 
   const roleLabel =
