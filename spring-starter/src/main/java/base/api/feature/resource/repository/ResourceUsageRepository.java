@@ -87,6 +87,78 @@ public class ResourceUsageRepository {
         return result;
     }
 
+    /** Read-only occupancy snapshot across the entire workspace (all floors). */
+    public java.util.Map<
+                    Long,
+                    java.util.Set<base.api.feature.resource.dto.FloorManagement.AvailabilityState>>
+            occupancyByWorkspace(Long workspaceId, LocalDateTime from, LocalDateTime to, LocalDateTime now) {
+        var result =
+                new java.util.HashMap<
+                        Long,
+                        java.util.Set<
+                                base.api.feature.resource.dto.FloorManagement.AvailabilityState>>();
+        var bookings =
+                em.createQuery(
+                                "select b.resource.id, b.status, b.holdExpiresAt from BookingModel"
+                                    + " b where b.resource.floorPlan.workspace.id=:workspace and b.startTime<:to"
+                                    + " and b.endTime>:from and b.status in :statuses",
+                                Object[].class)
+                        .setParameter("workspace", workspaceId)
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .setParameter(
+                                "statuses",
+                                List.of(
+                                        BookingStatus.CONFIRMED,
+                                        BookingStatus.CHECKED_IN,
+                                        BookingStatus.PENDING_APPROVAL,
+                                        BookingStatus.PENDING_PAYMENT))
+                        .getResultList();
+        for (var row : bookings) {
+            var status = (BookingStatus) row[1];
+            var expiry = (LocalDateTime) row[2];
+            boolean confirmed =
+                    status == BookingStatus.CONFIRMED || status == BookingStatus.CHECKED_IN;
+            if (!confirmed && expiry != null && !expiry.isAfter(now)) continue;
+            result.computeIfAbsent(
+                            (Long) row[0],
+                            ignored ->
+                                    java.util.EnumSet.noneOf(
+                                            base.api.feature.resource.dto.FloorManagement
+                                                    .AvailabilityState.class))
+                    .add(
+                            confirmed
+                                    ? base.api.feature.resource.dto.FloorManagement
+                                            .AvailabilityState.BOOKED
+                                    : base.api.feature.resource.dto.FloorManagement
+                                            .AvailabilityState.LOCKED);
+        }
+        var blocks =
+                em.createQuery(
+                                "select b.resource.id, b.blockType from ResourceBlockedSlotModel b"
+                                    + " where b.resource.floorPlan.workspace.id=:workspace and b.startTime<:to"
+                                    + " and b.endTime>:from",
+                                Object[].class)
+                        .setParameter("workspace", workspaceId)
+                        .setParameter("from", from)
+                        .setParameter("to", to)
+                        .getResultList();
+        for (var row : blocks)
+            result.computeIfAbsent(
+                            (Long) row[0],
+                            ignored ->
+                                    java.util.EnumSet.noneOf(
+                                            base.api.feature.resource.dto.FloorManagement
+                                                    .AvailabilityState.class))
+                    .add(
+                            row[1] == base.api.shared.enums.ResourceBlockType.MAINTENANCE
+                                    ? base.api.feature.resource.dto.FloorManagement
+                                            .AvailabilityState.MAINTENANCE
+                                    : base.api.feature.resource.dto.FloorManagement
+                                            .AvailabilityState.LOCKED);
+        return result;
+    }
+
     public boolean hasAnyBooking(Long resourceId) {
         return count("BookingModel", resourceId) > 0;
     }

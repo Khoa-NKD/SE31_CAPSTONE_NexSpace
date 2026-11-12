@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/public/workspaces")
+@RequestMapping({"/api/v1/public/workspaces", "/api/public/workspaces"})
 @RequiredArgsConstructor
 @Validated
 public class PublicFloorMapController extends BaseAPIController {

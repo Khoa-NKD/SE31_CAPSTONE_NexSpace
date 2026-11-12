@@ -30,6 +30,12 @@ public interface IBookableResourceRepository
             base.api.shared.enums.ResourceCategory category,
             BookableResourceStatus status);
 
+    @org.springframework.data.jpa.repository.EntityGraph(
+            attributePaths = {"resourceType", "floorPlan"})
+    List<BookableResourceModel> findByFloorPlanWorkspaceIdAndStatusNot(
+            Long workspaceId,
+            BookableResourceStatus status);
+
     List<BookableResourceModel> findByFloorPlanIdAndStatus(
             Long floorPlanId, BookableResourceStatus status);
 

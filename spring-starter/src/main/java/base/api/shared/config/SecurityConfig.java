@@ -44,6 +44,8 @@ public class SecurityConfig {
             "/api/auth/forgot-password/complete",
             "/api/v1/public/**",
             "/api/public/**",
+            "/api/v1/bookings/calculate-price",
+            "/api/bookings/calculate-price",
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",

@@ -34,7 +34,11 @@ public class PublicFloorMapService {
             BigDecimal width,
             BigDecimal height,
             BigDecimal rotation,
-            boolean selectable) {}
+            boolean selectable,
+            Integer capacity,
+            String typeName,
+            BigDecimal pricePerHour,
+            String zoneName) {}
 
     public record FloorView(
             Long id,
@@ -93,47 +97,51 @@ public class PublicFloorMapService {
                                                                     && r.getWidth() != null
                                                                     && r.getHeight() != null)
                                             .map(
-                                                    r ->
-                                                            new ObjectView(
-                                                                    r.getId(),
-                                                                    r.getLabel(),
-                                                                    r.getName() == null
-                                                                            ? r.getLabel()
-                                                                            : r.getName(),
-                                                                    r.getResourceType()
-                                                                            .getCategory(),
-                                                                    r.getPosX(),
-                                                                    r.getPosY(),
-                                                                    r.getWidth(),
-                                                                    r.getHeight(),
-                                                                    r.getRotation(),
-                                                                    r.getStatus()
-                                                                                    == BookableResourceStatus
-                                                                                            .ACTIVE
-                                                                            && r.getResourceType()
-                                                                                    .isActive()
-                                                                            && r.getResourceType()
-                                                                                            .getCurrency()
-                                                                                    != null
-                                                                            && !activeParents
-                                                                                    .contains(
-                                                                                            r
-                                                                                                    .getId())
-                                                                            && (r.getParentRoom()
-                                                                                            == null
-                                                                                    || r.getParentRoom()
-                                                                                                    .getStatus()
-                                                                                            != BookableResourceStatus
-                                                                                                    .ACTIVE)))
+                                                    r -> {
+                                                        boolean isRoom = r.getResourceType() != null
+                                                                && r.getResourceType().getCategory() == ResourceCategory.ROOM;
+                                                        boolean selectable = r.getStatus() == BookableResourceStatus.ACTIVE
+                                                                && r.getResourceType() != null
+                                                                && r.getResourceType().isActive()
+                                                                && (isRoom || !activeParents.contains(r.getId()))
+                                                                && (r.getParentRoom() == null
+                                                                        || r.getParentRoom().getStatus() != BookableResourceStatus.ACTIVE);
+
+                                                        Integer capacity = r.getCapacityOverride() != null
+                                                                ? r.getCapacityOverride()
+                                                                : (r.getResourceType() != null ? r.getResourceType().getCapacity() : 1);
+
+                                                        String typeName = r.getResourceType() != null ? r.getResourceType().getName() : null;
+
+                                                        BigDecimal price = r.getPricePerHour() != null
+                                                                ? r.getPricePerHour()
+                                                                : (r.getResourceType() != null ? r.getResourceType().getPricePerHour() : BigDecimal.ZERO);
+
+                                                        return new ObjectView(
+                                                                r.getId(),
+                                                                r.getLabel(),
+                                                                r.getName() == null ? r.getLabel() : r.getName(),
+                                                                r.getResourceType() != null ? r.getResourceType().getCategory() : null,
+                                                                r.getPosX(),
+                                                                r.getPosY(),
+                                                                r.getWidth(),
+                                                                r.getHeight(),
+                                                                r.getRotation(),
+                                                                selectable,
+                                                                capacity,
+                                                                typeName,
+                                                                price,
+                                                                r.getZoneName());
+                                                    })
                                             .toList();
                             return new FloorView(
-                                    f.getId(),
-                                    f.getName(),
-                                    bounds.width(),
-                                    bounds.height(),
-                                    objects,
-                                    ResourceCanvas.decorations(f, false),
-                                    base.api.feature.resource.dto.ResourceResponses.floorOption(f).location());
+                                     f.getId(),
+                                     f.getName(),
+                                     bounds.width(),
+                                     bounds.height(),
+                                     objects,
+                                     ResourceCanvas.decorations(f, false),
+                                     base.api.feature.resource.dto.ResourceResponses.floorOption(f).location());
                         })
                 .toList();
     }

@@ -130,5 +130,20 @@ class PublicWorkspaceControllerTest {
 
         verify(workspaceService).getPublicOperatingHours(1L);
     }
+
+    @Test
+    @DisplayName("GET /api/v1/public/workspaces/{id}/operating-hours - Trả về 404 khi workspace không tồn tại")
+    void getPublicOperatingHours_notFound() throws Exception {
+        when(workspaceService.getPublicOperatingHours(999L))
+                .thenThrow(new base.api.shared.exception.NotFoundException("Không tìm thấy không gian làm việc"));
+
+        mockMvc.perform(get("/api/v1/public/workspaces/999/operating-hours")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.message").value("Không tìm thấy không gian làm việc"));
+
+        verify(workspaceService).getPublicOperatingHours(999L);
+    }
 }
 
