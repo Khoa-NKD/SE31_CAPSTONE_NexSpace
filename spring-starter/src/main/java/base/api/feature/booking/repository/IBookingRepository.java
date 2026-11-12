@@ -47,6 +47,69 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
 
     List<BookingModel> findByCustomerIdAndStatus(Long customerId, BookingStatus status);
 
+    @Query(value = """
+            SELECT b FROM BookingModel b
+            LEFT JOIN FETCH b.customer
+            LEFT JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.workspace.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.workspace.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findAdminBookings(
+            @Param("status") BookingStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT b FROM BookingModel b
+            LEFT JOIN FETCH b.customer
+            LEFT JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE b.workspace.organizer.id = :organizerId
+              AND (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE b.workspace.organizer.id = :organizerId
+              AND (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findOrganizerBookings(
+            @Param("organizerId") Long organizerId,
+            @Param("status") BookingStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    long countByStatus(BookingStatus status);
+
+    long countByWorkspaceOrganizerIdAndStatus(Long organizerId, BookingStatus status);
+
+    long countByWorkspaceOrganizerId(Long organizerId);
+
     Page<BookingModel> findByWorkspaceId(Long workspaceId, Pageable pageable);
 
     long countByWorkspaceId(Long workspaceId);
