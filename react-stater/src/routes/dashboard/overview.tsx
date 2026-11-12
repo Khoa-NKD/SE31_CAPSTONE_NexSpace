@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { MOCK_OVERVIEW_DATA } from '@/features/admin-overview/data/mock-overview';
 import { AdminKpiRow } from '@/features/admin-overview/components/admin-kpi-row';
@@ -7,8 +7,21 @@ import { PriorityTriageGrid } from '@/features/admin-overview/components/priorit
 import { OperationalTrendsChart } from '@/features/admin-overview/components/operational-trends-chart';
 import { LiveSystemAlerts } from '@/features/admin-overview/components/live-system-alerts';
 import { TimeRangeFilter } from '@/features/admin-overview/components/time-range-filter';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 
 export const Route = createFileRoute('/dashboard/overview')({
+  beforeLoad: () => {
+    if (typeof window === 'undefined') return;
+    const auth = useAuthStore.getState();
+    const role = getUserRole(auth.user);
+    if (role === 'ADMIN') return;
+    if (role === 'ORGANIZER') {
+      throw redirect({ to: '/dashboard/organizer/workspaces' });
+    }
+    // Customer (USER) / Guest: Blocked from Admin Dashboard!
+    throw redirect({ to: '/' });
+  },
   head: () => ({
     meta: [
       { title: 'A01 — Administrator Dashboard | NexSpace Console' },
