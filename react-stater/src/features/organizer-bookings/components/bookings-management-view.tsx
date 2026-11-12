@@ -10,7 +10,8 @@ import {
   CheckInState
 } from '../types';
 import {
-  MOCK_BOOKINGS_KPI
+  MOCK_BOOKINGS_KPI,
+  MOCK_BOOKINGS_LEDGER
 } from '../data/mock-bookings';
 import { BookingsHeaderBar } from './bookings-header-bar';
 import { BookingsKpiRibbon } from './bookings-kpi-ribbon';
@@ -205,60 +206,6 @@ function handleCheckInToggle(id: string) {
   });
 }
 
-=======
-    .toUpperCase() || 'KH';
-
-  let status: BookingStatus = 'CONFIRMED';
-  if (b.status === 'PENDING_PAYMENT') status = 'PENDING_PAYMENT';
-  else if (b.status === 'COMPLETED') status = 'COMPLETED';
-  else if (b.status === 'CANCELLED' || b.status === 'EXPIRED') status = 'CANCELLED';
-
-  let checkInState: CheckInState = 'UPCOMING';
-  if (b.status === 'CHECKED_IN') checkInState = 'CHECKED_IN';
-  else if (b.status === 'COMPLETED') checkInState = 'CHECKED_OUT';
-  else if (b.status === 'PENDING_PAYMENT') checkInState = 'AWAITING_PAYMENT';
-  else if (b.status === 'CANCELLED' || b.status === 'EXPIRED') checkInState = 'RELEASED';
-
-  let category: BookingResourceType = 'HOT_DESK';
-  if (b.resourceCategory === 'ROOM' || b.resourceCategory === 'MEETING_ROOM') category = 'MEETING_ROOM';
-  else if (b.resourceCategory === 'BOOTH') category = 'BOOTH';
-  else if (b.resourceCategory === 'STAGE' || b.resourceCategory === 'EVENT_STAGE') category = 'EVENT_STAGE';
-
-  return {
-    id: String(b.id),
-    bookingCode: b.bookingCode || `#NX-${b.id}`,
-    customerName: b.customerName,
-    customerEmail: b.customerEmail,
-    customerPhone: b.customerPhone || '0905123456',
-    customerInitials: initials,
-    customerAvatarColor: 'from-blue-600 to-indigo-600',
-    resourceCode: b.resourceName,
-    resourceName: b.resourceName,
-    resourceCategory: category,
-    resourceZone: b.resourceZone || 'Zone A',
-    reservedDate,
-    reservedTimeWindow,
-    durationHours,
-    amount: b.amount,
-    paymentGateway: 'PAYOS_QR',
-    paymentGatewayLabel: 'PayOS VietQR',
-    status,
-    checkInState,
-    createdAt: b.createdAt
-  };
-}
-
-function handleCancelBooking(id: string) {
-  toast.success(`Booking #${id} Cancelled`, {
-    description: 'Reservation released and updated.'
-  });
-}
-
-function handleCheckInToggle(id: string) {
-  toast.success(`Check-in status updated for booking #${id}`);
-}
-
->>>>>>> origin/feature/frontend
 export function BookingsManagementView() {
   // Filters & Search
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
@@ -315,6 +262,7 @@ export function BookingsManagementView() {
   const {
     data: apiBookingsResponse,
     isLoading,
+    isFetching,
     refetch
   } = useOrganizerBookingsQuery({
     workspaceId: numericWorkspaceId,
@@ -519,7 +467,6 @@ export function BookingsManagementView() {
         description: `Confirmed for ${newBooking.customerName} on ${newBooking.resourceName}.`
       });
     }
-  };
   };
 
   const handleResetFilters = () => {

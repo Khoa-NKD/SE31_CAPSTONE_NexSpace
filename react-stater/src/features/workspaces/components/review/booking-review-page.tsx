@@ -101,7 +101,6 @@ export function BookingReviewPage({
           seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
           holdExpiresAt={activeBooking?.holdExpiresAt || holdData?.holdExpiresAt}
         />
-        />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}
         <div className='grid grid-cols-1 items-start gap-8 lg:grid-cols-12'>

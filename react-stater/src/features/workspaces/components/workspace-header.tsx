@@ -44,13 +44,11 @@ export function WorkspaceHeader() {
               Workspaces
             </Link>
             <Link
-            <Link
               to="/workspaces/my-bookings"
               className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
               activeProps={{ className: "border-b-2 border-[#4b41e1] pb-1 font-semibold text-[#4b41e1]" }}
             >
               {language === 'vi' ? 'Đơn của tôi' : 'My Bookings'}
-            </Link>
             </Link>
             <Link
               to="/"

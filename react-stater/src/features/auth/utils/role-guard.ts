@@ -78,7 +78,16 @@ export function checkRouteAccess(
 
   const role = getUserRole(user);
 
-  // 1. CUSTOMER (USER) RESTRICTION:
+  // 1. ORGANIZER APPLICATION SPECIAL CASE
+  if (
+    (pathname === '/dashboard/organizer/application' ||
+      pathname === '/dashboard/organizer/application/') &&
+    role === 'USER'
+  ) {
+    return { allowed: false, redirectUrl: '/organizer/apply' };
+  }
+
+  // 2. CUSTOMER (USER) RESTRICTION:
   // Khách hàng không được vào dashboard quản trị (Admin/Organizer/Overview).
   // Chỉ được vào xem/cập nhật hồ sơ & cài đặt của mình.
   if (role === 'USER') {
@@ -97,7 +106,7 @@ export function checkRouteAccess(
     return { allowed: true };
   }
 
-  // 2. ADMIN ROUTES: ONLY ADMIN
+  // 3. ADMIN ROUTES: ONLY ADMIN
   if (pathname.startsWith('/dashboard/admin')) {
     if (role === 'ADMIN') {
       return { allowed: true };
@@ -107,15 +116,6 @@ export function checkRouteAccess(
       redirectUrl: '/dashboard/organizer/workspaces',
       reason: 'Access Denied: You do not have administrator permissions.'
     };
-  }
-
-  // 3. ORGANIZER APPLICATION SPECIAL CASE
-  if (
-    (pathname === '/dashboard/organizer/application' ||
-      pathname === '/dashboard/organizer/application/') &&
-    role === 'USER'
-  ) {
-    return { allowed: false, redirectUrl: '/organizer/apply' };
   }
 
   // 4. ORGANIZER OPERATIONAL ROUTES: ONLY ORGANIZER
