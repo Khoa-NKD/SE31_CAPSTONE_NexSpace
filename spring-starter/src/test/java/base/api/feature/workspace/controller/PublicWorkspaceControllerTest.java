@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import java.util.List;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -98,15 +99,15 @@ class PublicWorkspaceControllerTest {
                 .build();
         Page<WorkspaceDto> page = new PageImpl<>(List.of(dto));
 
-        when(workspaceService.getPublicWorkspaces(any(PageRequestDTO.class))).thenReturn(page);
+        when(workspaceService.getPublicWorkspaces(any(PageRequestDTO.class), anyString(), anyString())).thenReturn(page);
 
-        mockMvc.perform(get("/api/v1/public/workspaces?page=1&size=10")
+        mockMvc.perform(get("/api/v1/public/workspaces?page=1&size=10&sortBy=pricePerHour&sortDir=asc")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].name").value("Public Central Hub"));
 
-        verify(workspaceService).getPublicWorkspaces(any(PageRequestDTO.class));
+        verify(workspaceService).getPublicWorkspaces(any(PageRequestDTO.class), eq("pricePerHour"), eq("asc"));
     }
 
     @Test

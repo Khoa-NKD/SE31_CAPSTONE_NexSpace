@@ -85,9 +85,17 @@ public interface IWorkspaceService {
 
     /**
      * Xem danh sách không gian làm việc công khai (chỉ hiển thị workspace ACTIVE).
+     * Hỗ trợ tìm kiếm từ khóa đa trường và sắp xếp (giá, rating, độ phổ biến, mới nhất, tên).
      *
-     * @param pageRequest Tham số phân trang, tìm kiếm, sắp xếp
+     * @param pageRequest Tham số phân trang và tìm kiếm từ khóa
+     * @param sortBy Tiêu chí sắp xếp
+     * @param sortDir Chiều sắp xếp (asc/desc)
      * @return Trang danh sách WorkspaceDto công khai
+     */
+    Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest, String sortBy, String sortDir);
+
+    /**
+     * Tương thích ngược với PageRequestDTO cũ.
      */
     Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest);
 

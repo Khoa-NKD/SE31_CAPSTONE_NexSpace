@@ -36,6 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -408,5 +409,77 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(day1, day2)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Trùng lặp cấu hình cho thứ 3");
+    }
+
+    @Test
+    @DisplayName("Tìm kiếm công khai theo từ khóa tìm trong tên, địa chỉ và mô tả")
+    void getPublicWorkspaces_withSearch() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSearch("Sài Gòn");
+        pageRequest.setPage(1);
+        pageRequest.setSize(10);
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublic(eq(WorkspaceStatus.ACTIVE), eq("Sài Gòn"), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(100L);
+        verify(workspaceRepository).searchPublic(eq(WorkspaceStatus.ACTIVE), eq("Sài Gòn"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo giá thấp nhất (pricePerHour asc)")
+    void getPublicWorkspaces_sortByPriceAsc() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("pricePerHour");
+        pageRequest.setSortDir("asc");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByPriceAsc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByPriceAsc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo đánh giá cao nhất (rating desc)")
+    void getPublicWorkspaces_sortByRating() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("rating");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByRatingDesc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByRatingDesc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo độ phổ biến (popular desc)")
+    void getPublicWorkspaces_sortByPopular() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("popular");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByPopular(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByPopular(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
     }
 }
