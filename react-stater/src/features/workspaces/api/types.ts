@@ -256,7 +256,7 @@ export interface PublicWorkspaceFilterParams {
   category?: WorkspaceCategory | string;
   page?: number;
   limit?: number;
-  sortBy?: 'name' | 'rating' | 'pricePerHour' | 'featuredPosition';
+  sortBy?: 'name' | 'rating' | 'pricePerHour' | 'featuredPosition' | 'popular' | 'createdAt' | string;
   sortOrder?: 'asc' | 'desc';
 }
 
