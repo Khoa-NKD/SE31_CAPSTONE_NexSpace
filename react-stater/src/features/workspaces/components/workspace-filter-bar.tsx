@@ -53,6 +53,32 @@ export function WorkspaceFilterBar({
   onRadiusKmChange,
   isLocating = false
 }: WorkspaceFilterBarProps) {
+  const [localSearch, setLocalSearch] = React.useState(search);
+
+  React.useEffect(() => {
+    setLocalSearch(search);
+  }, [search]);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== search) {
+        onSearchChange?.(localSearch);
+      }
+    }, 350);
+    return () => clearTimeout(timer);
+  }, [localSearch, search, onSearchChange]);
+
+  const handleClear = () => {
+    setLocalSearch('');
+    onSearchChange?.('');
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      onSearchChange?.(localSearch);
+    }
+  };
+
   return (
     <section className="relative z-40 w-full border-b border-border bg-card shadow-xs">
       {/* Tier 1: Primary Search, Near Me GPS & Filter Triggers */}
@@ -67,15 +93,16 @@ export function WorkspaceFilterBar({
                 type="text"
                 className="w-full truncate border-0 bg-transparent p-0 text-xs sm:text-sm font-medium text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/70"
                 placeholder="Tìm theo tên, địa chỉ, quận, tòa nhà..."
-                value={search}
-                onChange={(e) => onSearchChange?.(e.target.value)}
+                value={localSearch}
+                onChange={(e) => setLocalSearch(e.target.value)}
+                onKeyDown={handleKeyDown}
                 aria-label="Tìm kiếm không gian"
               />
-              {search && (
+              {localSearch && (
                 <button
                   type="button"
                   aria-label="Xóa tìm kiếm"
-                  onClick={() => onSearchChange?.('')}
+                  onClick={handleClear}
                   className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />

@@ -33,8 +33,8 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
             url.startsWith('/api/customer-preferences');
           const targetPort = springRequest ? '8080' : process.env.MOCK_SERVER_PORT || '4000';
           const targetBase = springRequest
-            ? process.env.VITE_SPRING_API_PROXY_TARGET || proxyTarget || 'http://localhost:8080'
-            : process.env.VITE_API_PROXY_TARGET || `http://localhost:${targetPort}`;
+            ? process.env.VITE_SPRING_API_PROXY_TARGET || 'http://localhost:8080'
+            : process.env.VITE_API_PROXY_TARGET || proxyTarget || `http://localhost:${targetPort}`;
           const targetUrl = new URL(url, targetBase);
           const port = targetUrl.port || (targetUrl.protocol === 'https:' ? '443' : '80');
           const proxyReq = http.request(
