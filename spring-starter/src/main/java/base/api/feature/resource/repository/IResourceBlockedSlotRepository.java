@@ -22,4 +22,15 @@ public interface IResourceBlockedSlotRepository extends JpaRepository<ResourceBl
             @Param("resourceId") Long resourceId,
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime);
+
+    @Query("""
+            SELECT s FROM ResourceBlockedSlotModel s
+            WHERE s.resource.id IN :resourceIds
+              AND s.startTime < :endTime
+              AND s.endTime > :startTime
+            """)
+    List<ResourceBlockedSlotModel> findActiveBlockedSlotsByResourceIds(
+            @Param("resourceIds") List<Long> resourceIds,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
 }

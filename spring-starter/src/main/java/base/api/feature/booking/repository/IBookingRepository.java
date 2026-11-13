@@ -245,4 +245,23 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("status") BookingStatus status,
             @Param("now") LocalDateTime now
     );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND b.holdExpiresAt > :now)
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    List<BookingModel> findOverlappingBookingsByResourceIds(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime
+    );
 }
