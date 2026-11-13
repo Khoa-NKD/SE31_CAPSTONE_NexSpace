@@ -122,7 +122,7 @@ export const PLATFORM_LAYERS: PlatformLayer[] = [
     description:
       'Book private suites, quiet focus pods, and high-spec meeting rooms by the hour, day, month—or longer. Empower individuals, distributed teams, or your full enterprise workforce across 500+ curated premium hubs.',
     iconName: 'Compass',
-    href: '#workspaces',
+    href: '/workspaces',
     ctaText: 'Explore Spaces',
     highlights: [
       'Instant On-Demand Booking',

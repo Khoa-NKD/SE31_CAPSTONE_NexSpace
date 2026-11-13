@@ -214,6 +214,10 @@ export function RealInteractiveMap({
         await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl.css');
         mapLibreModuleRef.current = maplibregl;
 
+        if (typeof maplibregl.setWorkerUrl === 'function') {
+          maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
+        }
+
         if (!isMounted || !mapContainerRef.current) return;
 
         const { lat: initLat, lng: initLng } = initialCoordsRef.current;

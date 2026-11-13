@@ -11,7 +11,7 @@ export interface SolutionItem {
 }
 
 export const MAIN_NAV_ITEMS: NavItem[] = [
-  { label: 'Workspaces', href: '#workspaces' },
+  { label: 'Workspaces', href: '/workspaces' },
   { label: 'Platform', href: '#platform' },
   { label: 'Enterprise', href: '#enterprise' },
   { label: 'Resources', href: '#resources' }
@@ -39,11 +39,11 @@ export const FOOTER_COLUMNS = [
   {
     title: 'Workspaces',
     links: [
-      { label: 'Hot Desks', href: '#workspaces' },
-      { label: 'Dedicated Suites', href: '#workspaces' },
-      { label: 'Meeting Rooms', href: '#workspaces' },
+      { label: 'Hot Desks', href: '/workspaces' },
+      { label: 'Dedicated Suites', href: '/workspaces' },
+      { label: 'Meeting Rooms', href: '/workspaces' },
       { label: 'Enterprise Hybrid', href: '#enterprise' },
-      { label: 'Day Passes', href: '#workspaces' }
+      { label: 'Day Passes', href: '/workspaces' }
     ]
   },
   {

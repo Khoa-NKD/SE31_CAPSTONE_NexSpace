@@ -147,6 +147,10 @@ export function WorkspaceGoongMap({
         await import(/* @vite-ignore */ 'maplibre-gl/dist/maplibre-gl.css');
         mapLibreModuleRef.current = maplibregl;
 
+        if (typeof maplibregl.setWorkerUrl === 'function') {
+          maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
+        }
+
         if (!isMounted.current || !mapContainerRef.current) return;
 
         const initialStyle = resolveStyle('streets');
