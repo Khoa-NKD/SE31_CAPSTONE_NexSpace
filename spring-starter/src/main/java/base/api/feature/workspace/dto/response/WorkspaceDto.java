@@ -42,6 +42,10 @@ public class WorkspaceDto {
     String organizerName;
     Long bookingCount;
     Long totalBookings;
+    BigDecimal pricePerHour;
+    Double rating;
+    Long reviewsCount;
+    String coverImageUrl;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

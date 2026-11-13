@@ -54,10 +54,13 @@ public class PublicWorkspaceController extends BaseAPIController {
         return success(detail);
     }
 
-    @Operation(summary = "Xem danh sách không gian công khai", description = "Khách hàng xem danh sách không gian làm việc đang hoạt động (ACTIVE)")
+    @Operation(summary = "Xem danh sách không gian công khai", description = "Khách hàng xem danh sách không gian làm việc đang hoạt động (ACTIVE) kèm tìm kiếm từ khóa và sắp xếp")
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getPublicWorkspaces(@ModelAttribute PageRequestDTO pageRequest) {
-        Page<WorkspaceDto> page = workspaceService.getPublicWorkspaces(pageRequest);
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getPublicWorkspaces(
+            @ModelAttribute PageRequestDTO pageRequest,
+            @RequestParam(required = false, defaultValue = "featuredPosition") String sortBy,
+            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
+        Page<WorkspaceDto> page = workspaceService.getPublicWorkspaces(pageRequest, sortBy, sortDir);
         return successPage(page);
     }
 
@@ -85,4 +88,3 @@ public class PublicWorkspaceController extends BaseAPIController {
         }
     }
 }
-

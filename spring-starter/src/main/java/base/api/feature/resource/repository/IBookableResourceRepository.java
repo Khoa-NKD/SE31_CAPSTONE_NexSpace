@@ -60,4 +60,15 @@ public interface IBookableResourceRepository
             @org.springframework.data.repository.query.Param("id") Long id);
 
     boolean existsByFloorPlanIdAndLabelIgnoreCaseAndIdNot(Long floorPlanId, String label, Long id);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r.floorPlan.workspace.id, MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
+            FROM BookableResourceModel r
+            WHERE r.floorPlan.workspace.id IN :workspaceIds
+              AND r.status = :status
+            GROUP BY r.floorPlan.workspace.id
+            """)
+    List<Object[]> findMinPricePerHourByWorkspaceIds(
+            @org.springframework.data.repository.query.Param("workspaceIds") List<Long> workspaceIds,
+            @org.springframework.data.repository.query.Param("status") BookableResourceStatus status);
 }

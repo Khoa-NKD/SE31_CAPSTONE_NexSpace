@@ -45,9 +45,88 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
                    OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
-                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%')))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))
             """)
     Page<WorkspaceModel> searchPublic(
+            @Param("status") WorkspaceStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))
+            ORDER BY (
+                SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 999999999)
+                FROM BookableResourceModel r
+                WHERE r.buildingFloor.building.workspace.id = w.id
+                  AND r.status = 'ACTIVE'
+            ) ASC, w.id DESC
+            """)
+    Page<WorkspaceModel> searchPublicOrderByPriceAsc(
+            @Param("status") WorkspaceStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))
+            ORDER BY (
+                SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 0)
+                FROM BookableResourceModel r
+                WHERE r.buildingFloor.building.workspace.id = w.id
+                  AND r.status = 'ACTIVE'
+            ) DESC, w.id DESC
+            """)
+    Page<WorkspaceModel> searchPublicOrderByPriceDesc(
+            @Param("status") WorkspaceStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))
+            ORDER BY (
+                SELECT COALESCE(AVG(rev.rating), 0.0)
+                FROM CustomerReviewModel rev
+                WHERE rev.workspace.id = w.id
+            ) DESC, w.id DESC
+            """)
+    Page<WorkspaceModel> searchPublicOrderByRatingDesc(
+            @Param("status") WorkspaceStatus status,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query(value = """
+            SELECT w FROM WorkspaceModel w
+            WHERE w.status = :status
+              AND (:search IS NULL OR LOWER(w.name) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.address) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.district) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.city) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(w.description) LIKE LOWER(CONCAT('%', :search, '%')))
+            ORDER BY (
+                SELECT COUNT(b.id)
+                FROM BookingModel b
+                WHERE b.workspace.id = w.id
+            ) DESC, w.id DESC
+            """)
+    Page<WorkspaceModel> searchPublicOrderByPopular(
             @Param("status") WorkspaceStatus status,
             @Param("search") String search,
             Pageable pageable);
@@ -105,4 +184,3 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             @Param("radiusKm") Double radiusKm,
             Pageable pageable);
 }
-
