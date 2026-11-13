@@ -64,7 +64,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 999999999)
                 FROM BookableResourceModel r
-                WHERE r.buildingFloor.building.workspace.id = w.id
+                WHERE r.floorPlan.workspace.id = w.id
                   AND r.status = 'ACTIVE'
             ) ASC, w.id DESC
             """)
@@ -84,7 +84,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 0)
                 FROM BookableResourceModel r
-                WHERE r.buildingFloor.building.workspace.id = w.id
+                WHERE r.floorPlan.workspace.id = w.id
                   AND r.status = 'ACTIVE'
             ) DESC, w.id DESC
             """)
