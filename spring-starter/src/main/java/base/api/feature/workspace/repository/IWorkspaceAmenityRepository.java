@@ -35,6 +35,8 @@ public interface IWorkspaceAmenityRepository extends JpaRepository<WorkspaceAmen
 
     boolean existsByWorkspaceIdAndAmenityIdAndResourceIsNull(Long workspaceId, Long amenityId);
 
+    boolean existsByAmenityId(Long amenityId);
+
     @Modifying
     @Query("DELETE FROM WorkspaceAmenityModel wa WHERE wa.workspace.id = :workspaceId AND wa.resource IS NULL")
     void deleteAllByWorkspaceIdAndResourceIsNull(@Param("workspaceId") Long workspaceId);

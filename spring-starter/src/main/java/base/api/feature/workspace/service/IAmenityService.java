@@ -23,4 +23,20 @@ public interface IAmenityService {
     Page<AmenityResponseDto> listAmenities(AmenityFilterDto filter);
 
     void deleteAmenity(Long actorId, Long amenityId);
+
+    // ==========================================
+    // ORGANIZER CUSTOM AMENITY MANAGEMENT
+    // ==========================================
+
+    AmenityResponseDto createOrganizerAmenity(Long organizerId, CreateAmenityDto dto);
+
+    AmenityResponseDto updateOrganizerAmenity(Long organizerId, Long amenityId, UpdateAmenityDto dto);
+
+    void toggleOrganizerAmenityStatus(Long organizerId, Long amenityId, boolean active);
+
+    void deleteOrganizerAmenity(Long organizerId, Long amenityId);
+
+    List<AmenityResponseDto> getAvailableAmenitiesForOrganizer(Long organizerId);
+
+    Page<AmenityResponseDto> listOrganizerAmenities(Long organizerId, AmenityFilterDto filter);
 }

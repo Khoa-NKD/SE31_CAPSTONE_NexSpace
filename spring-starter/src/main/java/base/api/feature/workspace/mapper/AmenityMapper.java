@@ -20,6 +20,8 @@ public final class AmenityMapper {
                 .icon(model.getIcon())
                 .description(model.getDescription())
                 .active(model.isActive())
+                .organizerId(model.getOrganizer() != null ? model.getOrganizer().getId() : null)
+                .custom(model.getOrganizer() != null)
                 .createdAt(model.getCreatedAt())
                 .updatedAt(model.getUpdatedAt())
                 .build();
