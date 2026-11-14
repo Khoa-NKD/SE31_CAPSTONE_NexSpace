@@ -39,12 +39,18 @@ import {
   Loader2
 } from 'lucide-react';
 import type { AmenityDto, AmenityCategory } from '../api/types';
-import { useCreateAmenityMutation, useUpdateAmenityMutation } from '../api/mutations';
+import {
+  useCreateAmenityMutation,
+  useUpdateAmenityMutation,
+  useCreateOrganizerAmenityMutation,
+  useUpdateOrganizerAmenityMutation
+} from '../api/mutations';
 
 interface AmenityFormDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   amenity?: AmenityDto | null; // null = Create mode, not null = Edit mode
+  isOrganizer?: boolean;
 }
 
 const AVAILABLE_ICONS = [
@@ -70,12 +76,15 @@ const AVAILABLE_ICONS = [
 interface AmenityFormContentProps {
   amenity?: AmenityDto | null;
   onClose: () => void;
+  isOrganizer?: boolean;
 }
 
-function AmenityFormContent({ amenity, onClose }: AmenityFormContentProps) {
+function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormContentProps) {
   const isEditing = !!amenity;
-  const createMutation = useCreateAmenityMutation();
-  const updateMutation = useUpdateAmenityMutation();
+  const adminCreateMutation = useCreateAmenityMutation();
+  const adminUpdateMutation = useUpdateAmenityMutation();
+  const orgCreateMutation = useCreateOrganizerAmenityMutation();
+  const orgUpdateMutation = useUpdateOrganizerAmenityMutation();
 
   const [name, setName] = useState(amenity?.name ?? '');
   const [category, setCategory] = useState<AmenityCategory>(amenity?.category ?? 'TECH');
@@ -87,28 +96,49 @@ function AmenityFormContent({ amenity, onClose }: AmenityFormContentProps) {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('Amenity name cannot be empty.');
+      setError('Tên tiện ích không được để trống.');
       return;
     }
 
     try {
       if (isEditing && amenity) {
-        await updateMutation.mutateAsync({
-          id: amenity.id,
-          payload: {
+        if (isOrganizer) {
+          await orgUpdateMutation.mutateAsync({
+            id: amenity.id,
+            payload: {
+              name: trimmedName,
+              category,
+              icon,
+              description: description.trim()
+            }
+          });
+        } else {
+          await adminUpdateMutation.mutateAsync({
+            id: amenity.id,
+            payload: {
+              name: trimmedName,
+              category,
+              icon,
+              description: description.trim()
+            }
+          });
+        }
+      } else {
+        if (isOrganizer) {
+          await orgCreateMutation.mutateAsync({
             name: trimmedName,
             category,
             icon,
             description: description.trim()
-          }
-        });
-      } else {
-        await createMutation.mutateAsync({
-          name: trimmedName,
-          category,
-          icon,
-          description: description.trim()
-        });
+          });
+        } else {
+          await adminCreateMutation.mutateAsync({
+            name: trimmedName,
+            category,
+            icon,
+            description: description.trim()
+          });
+        }
       }
       onClose();
     } catch {
@@ -116,7 +146,9 @@ function AmenityFormContent({ amenity, onClose }: AmenityFormContentProps) {
     }
   };
 
-  const isSubmitting = createMutation.isPending || updateMutation.isPending;
+  const isSubmitting = isOrganizer
+    ? orgCreateMutation.isPending || orgUpdateMutation.isPending
+    : adminCreateMutation.isPending || adminUpdateMutation.isPending;
 
   return (
     <form onSubmit={handleSubmit} className='space-y-4 py-2'>
@@ -222,7 +254,8 @@ function AmenityFormContent({ amenity, onClose }: AmenityFormContentProps) {
 export function AmenityFormDialog({
   open,
   onOpenChange,
-  amenity
+  amenity,
+  isOrganizer
 }: AmenityFormDialogProps) {
   const isEditing = !!amenity;
 
@@ -231,12 +264,22 @@ export function AmenityFormDialog({
       <DialogContent className='sm:max-w-[480px]'>
         <DialogHeader>
           <DialogTitle>
-            {isEditing ? 'Edit Amenity' : 'Add New Amenity'}
+            {isOrganizer
+              ? isEditing
+                ? 'Chỉnh sửa tiện ích riêng'
+                : 'Thêm tiện ích riêng'
+              : isEditing
+                ? 'Edit Amenity'
+                : 'Add New Amenity'}
           </DialogTitle>
           <DialogDescription>
-            {isEditing
-              ? 'Update amenity information in the global platform catalog.'
-              : 'Create a new amenity available across all NexSpace workspaces.'}
+            {isOrganizer
+              ? isEditing
+                ? 'Cập nhật thông tin tiện ích riêng của tổ chức bạn.'
+                : 'Tạo tiện ích mới dành riêng cho các không gian làm việc của tổ chức bạn.'
+              : isEditing
+                ? 'Update amenity information in the global platform catalog.'
+                : 'Create a new amenity available across all NexSpace workspaces.'}
           </DialogDescription>
         </DialogHeader>
 
@@ -244,6 +287,7 @@ export function AmenityFormDialog({
           <AmenityFormContent
             key={amenity ? `edit-${amenity.id}` : 'create'}
             amenity={amenity}
+            isOrganizer={isOrganizer}
             onClose={() => onOpenChange(false)}
           />
         )}

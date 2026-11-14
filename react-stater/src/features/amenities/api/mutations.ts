@@ -101,3 +101,83 @@ export function useSyncWorkspaceAmenitiesMutation() {
   });
 }
 
+export function useCreateOrganizerAmenityMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (payload: CreateAmenityPayload) =>
+      amenityService.createOrganizerAmenity(payload),
+    onSuccess: (data) => {
+      toast.success('Tạo tiện ích thành công', {
+        description: `Tiện ích riêng "${data.name}" đã được thêm vào danh sách của tổ chức.`
+      });
+      queryClient.invalidateQueries({ queryKey: amenityQueries.all });
+    },
+    onError: (error: Error) => {
+      toast.error('Không thể tạo tiện ích', {
+        description: error.message || 'Đã có lỗi xảy ra khi tạo tiện ích riêng.'
+      });
+    }
+  });
+}
+
+export function useUpdateOrganizerAmenityMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, payload }: { id: number; payload: UpdateAmenityPayload }) =>
+      amenityService.updateOrganizerAmenity(id, payload),
+    onSuccess: (data) => {
+      toast.success('Cập nhật tiện ích thành công', {
+        description: `Tiện ích "${data.name}" đã được cập nhật.`
+      });
+      queryClient.invalidateQueries({ queryKey: amenityQueries.all });
+    },
+    onError: (error: Error) => {
+      toast.error('Không thể cập nhật tiện ích', {
+        description: error.message || 'Đã có lỗi xảy ra khi cập nhật tiện ích.'
+      });
+    }
+  });
+}
+
+export function useToggleOrganizerAmenityStatusMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ id, active }: { id: number; active: boolean }) =>
+      amenityService.toggleOrganizerAmenityStatus(id, active),
+    onSuccess: (_, variables) => {
+      const msg = variables.active
+        ? 'Đã kích hoạt tiện ích'
+        : 'Đã vô hiệu hóa tiện ích';
+      toast.success(msg);
+      queryClient.invalidateQueries({ queryKey: amenityQueries.all });
+    },
+    onError: (error: Error) => {
+      toast.error('Không thể đổi trạng thái', {
+        description: error.message || 'Đã có lỗi xảy ra.'
+      });
+    }
+  });
+}
+
+export function useDeleteOrganizerAmenityMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (id: number) => amenityService.deleteOrganizerAmenity(id),
+    onSuccess: () => {
+      toast.success('Xóa tiện ích thành công', {
+        description: 'Tiện ích riêng đã được gỡ khỏi danh sách tổ chức.'
+      });
+      queryClient.invalidateQueries({ queryKey: amenityQueries.all });
+    },
+    onError: (error: Error) => {
+      toast.error('Không thể xóa tiện ích', {
+        description: error.message || 'Không thể xóa tiện ích (có thể tiện ích đang được gắn vào không gian).'
+      });
+    }
+  });
+}
+

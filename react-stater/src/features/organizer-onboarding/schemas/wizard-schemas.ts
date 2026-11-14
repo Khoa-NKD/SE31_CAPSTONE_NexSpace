@@ -72,9 +72,7 @@ export const operatingHoursSchema = z
     }
   );
 
-export const amenitiesSchema = z
-  .array(z.string())
-  .min(1, 'Please select at least 1 amenity for your workspace');
+export const amenitiesSchema = z.array(z.string());
 
 export const mediaItemSchema = z.object({
   id: z.string(),
