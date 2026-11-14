@@ -33,7 +33,16 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
   const [isPending, setIsPending] = useState(false);
   const submitting = useRef(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [globalError, setGlobalError] = useState<string | null>(null);
+  const [globalError, setGlobalError] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const redirectReason = sessionStorage.getItem('auth_redirect_reason');
+      if (redirectReason) {
+        sessionStorage.removeItem('auth_redirect_reason');
+        return redirectReason;
+      }
+    }
+    return null;
+  });
   const [resendingVerification, setResendingVerification] = useState(false);
 
   const needsEmailVerification = Boolean(
