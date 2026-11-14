@@ -8,6 +8,7 @@ import base.api.feature.workspace.dto.request.UpdateAmenityDto;
 import base.api.feature.workspace.dto.response.AmenityResponseDto;
 import base.api.feature.workspace.mapper.AmenityMapper;
 import base.api.feature.workspace.repository.IAmenityRepository;
+import base.api.feature.workspace.repository.IWorkspaceAmenityRepository;
 import base.api.feature.workspace.service.IAmenityService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.AmenityModel;
@@ -32,6 +33,7 @@ public class AmenityServiceImpl implements IAmenityService {
     );
 
     private final IAmenityRepository amenityRepository;
+    private final IWorkspaceAmenityRepository workspaceAmenityRepository;
     private final IUserRepository userRepository;
     private final IAuditService auditService;
 
@@ -39,7 +41,7 @@ public class AmenityServiceImpl implements IAmenityService {
     @Transactional
     public AmenityResponseDto createAmenity(Long actorId, CreateAmenityDto dto) {
         String trimmedName = dto.getName().trim();
-        if (amenityRepository.existsByNameIgnoreCase(trimmedName)) {
+        if (amenityRepository.existsByNameIgnoreCaseAndOrganizerIsNull(trimmedName)) {
             throw new ConflictException("Tên tiện ích '" + trimmedName + "' đã tồn tại trong hệ thống");
         }
 
@@ -52,6 +54,7 @@ public class AmenityServiceImpl implements IAmenityService {
         amenity.setIcon(dto.getIcon());
         amenity.setDescription(dto.getDescription());
         amenity.setActive(true);
+        amenity.setOrganizer(null);
 
         AmenityModel saved = amenityRepository.save(amenity);
         auditService.log(
@@ -60,7 +63,7 @@ public class AmenityServiceImpl implements IAmenityService {
                 "CREATE",
                 "AmenityModel",
                 saved.getId(),
-                "Tạo tiện ích mới: " + saved.getName()
+                "Tạo tiện ích hệ thống mới: " + saved.getName()
         );
 
         return AmenityMapper.toResponseDto(saved);
@@ -73,7 +76,7 @@ public class AmenityServiceImpl implements IAmenityService {
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId));
 
         String trimmedName = dto.getName().trim();
-        if (amenityRepository.existsByNameIgnoreCaseAndIdNot(trimmedName, amenityId)) {
+        if (amenityRepository.existsByNameIgnoreCaseAndOrganizerIsNullAndIdNot(trimmedName, amenityId)) {
             throw new ConflictException("Tên tiện ích '" + trimmedName + "' đã được sử dụng bởi tiện ích khác");
         }
 
@@ -95,7 +98,7 @@ public class AmenityServiceImpl implements IAmenityService {
                 "UPDATE",
                 "AmenityModel",
                 saved.getId(),
-                "Cập nhật tiện ích: " + saved.getName()
+                "Cập nhật tiện ích hệ thống: " + saved.getName()
         );
 
         return AmenityMapper.toResponseDto(saved);
@@ -113,7 +116,7 @@ public class AmenityServiceImpl implements IAmenityService {
     @Override
     @Transactional(readOnly = true)
     public List<AmenityResponseDto> getActiveAmenities() {
-        return amenityRepository.findByActiveTrueOrderByNameAsc()
+        return amenityRepository.findByOrganizerIsNullAndActiveTrueOrderByNameAsc()
                 .stream()
                 .map(AmenityMapper::toResponseDto)
                 .toList();
@@ -144,6 +147,138 @@ public class AmenityServiceImpl implements IAmenityService {
     public void deleteAmenity(Long actorId, Long amenityId) {
         AmenityModel amenity = amenityRepository.findById(amenityId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId));
+        if (workspaceAmenityRepository.existsByAmenityId(amenityId)) {
+            throw new ConflictException("Tiện ích đang được sử dụng trong không gian làm việc, không thể xóa");
+        }
         amenityRepository.delete(amenity);
+    }
+
+    // ==========================================
+    // ORGANIZER CUSTOM AMENITY MANAGEMENT
+    // ==========================================
+
+    @Override
+    @Transactional
+    public AmenityResponseDto createOrganizerAmenity(Long organizerId, CreateAmenityDto dto) {
+        String trimmedName = dto.getName().trim();
+        if (amenityRepository.existsByNameIgnoreCaseAndOrganizerId(trimmedName, organizerId)) {
+            throw new ConflictException("Bạn đã có tiện ích mang tên '" + trimmedName + "' trong danh mục của mình");
+        }
+
+        UserModel organizer = userRepository.findById(organizerId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin đối tác"));
+
+        AmenityModel amenity = new AmenityModel();
+        amenity.setName(trimmedName);
+        amenity.setCategory(dto.getCategory());
+        amenity.setIcon(dto.getIcon());
+        amenity.setDescription(dto.getDescription());
+        amenity.setActive(true);
+        amenity.setOrganizer(organizer);
+
+        AmenityModel saved = amenityRepository.save(amenity);
+        auditService.log(
+                organizer,
+                "AMENITY",
+                "CREATE_CUSTOM",
+                "AmenityModel",
+                saved.getId(),
+                "Đối tác tạo tiện ích riêng: " + saved.getName()
+        );
+
+        return AmenityMapper.toResponseDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public AmenityResponseDto updateOrganizerAmenity(Long organizerId, Long amenityId, UpdateAmenityDto dto) {
+        AmenityModel amenity = amenityRepository.findById(amenityId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId));
+
+        // Strict Ownership Defense
+        if (amenity.getOrganizer() == null || !amenity.getOrganizer().getId().equals(organizerId)) {
+            throw new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId);
+        }
+
+        String trimmedName = dto.getName().trim();
+        if (amenityRepository.existsByNameIgnoreCaseAndOrganizerIdAndIdNot(trimmedName, organizerId, amenityId)) {
+            throw new ConflictException("Tên tiện ích '" + trimmedName + "' đã được sử dụng bởi tiện ích khác của bạn");
+        }
+
+        UserModel organizer = userRepository.findById(organizerId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy thông tin đối tác"));
+
+        amenity.setName(trimmedName);
+        amenity.setCategory(dto.getCategory());
+        amenity.setIcon(dto.getIcon());
+        amenity.setDescription(dto.getDescription());
+        if (dto.getActive() != null) {
+            amenity.setActive(dto.getActive());
+        }
+
+        AmenityModel saved = amenityRepository.save(amenity);
+        auditService.log(
+                organizer,
+                "AMENITY",
+                "UPDATE_CUSTOM",
+                "AmenityModel",
+                saved.getId(),
+                "Đối tác cập nhật tiện ích riêng: " + saved.getName()
+        );
+
+        return AmenityMapper.toResponseDto(saved);
+    }
+
+    @Override
+    @Transactional
+    public void toggleOrganizerAmenityStatus(Long organizerId, Long amenityId, boolean active) {
+        AmenityModel amenity = amenityRepository.findById(amenityId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId));
+
+        if (amenity.getOrganizer() == null || !amenity.getOrganizer().getId().equals(organizerId)) {
+            throw new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId);
+        }
+
+        amenity.setActive(active);
+        amenityRepository.save(amenity);
+    }
+
+    @Override
+    @Transactional
+    public void deleteOrganizerAmenity(Long organizerId, Long amenityId) {
+        AmenityModel amenity = amenityRepository.findById(amenityId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId));
+
+        if (amenity.getOrganizer() == null || !amenity.getOrganizer().getId().equals(organizerId)) {
+            throw new NotFoundException("Không tìm thấy tiện ích với ID: " + amenityId);
+        }
+
+        if (workspaceAmenityRepository.existsByAmenityId(amenityId)) {
+            throw new ConflictException("Tiện ích đang được gán cho không gian làm việc của bạn, vui lòng gỡ bỏ trước khi xóa");
+        }
+
+        amenityRepository.delete(amenity);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<AmenityResponseDto> getAvailableAmenitiesForOrganizer(Long organizerId) {
+        return amenityRepository.findAvailableForOrganizer(organizerId)
+                .stream()
+                .map(AmenityMapper::toResponseDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<AmenityResponseDto> listOrganizerAmenities(Long organizerId, AmenityFilterDto filter) {
+        Pageable pageable = filter.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS);
+        return amenityRepository.findByOrganizerFiltered(
+                organizerId,
+                filter.getCategory(),
+                filter.getActive(),
+                filter.normalizedSearch(),
+                pageable
+        ).map(AmenityMapper::toResponseDto);
     }
 }

@@ -98,6 +98,15 @@ public class WorkspaceAmenityServiceImpl implements IWorkspaceAmenityService {
                 throw new BadRequestException("Tiện ích \"" + amenity.getName() + "\" hiện đang bị vô hiệu hóa.");
             }
 
+            // An organizer can only assign standard system amenities OR their own custom amenities
+            boolean isSystemAmenity = amenity.getOrganizer() == null;
+            boolean isOwner = amenity.getOrganizer() != null
+                    && workspace.getOrganizer() != null
+                    && amenity.getOrganizer().getId().equals(workspace.getOrganizer().getId());
+            if (!isSystemAmenity && !isOwner && !currentUserProvider.isAdmin()) {
+                throw new BadRequestException("Tiện ích \"" + amenity.getName() + "\" không thuộc quyền quản lý của không gian này.");
+            }
+
             BigDecimal price = item.getAddonPricePerHour();
             if (price != null && price.compareTo(BigDecimal.ZERO) < 0) {
                 throw new BadRequestException("Phụ thu theo giờ không được là số âm.");
@@ -146,6 +155,14 @@ public class WorkspaceAmenityServiceImpl implements IWorkspaceAmenityService {
 
         if (!amenity.isActive()) {
             throw new BadRequestException("Tiện ích \"" + amenity.getName() + "\" hiện đang bị vô hiệu hóa.");
+        }
+
+        boolean isSystemAmenity = amenity.getOrganizer() == null;
+        boolean isOwner = amenity.getOrganizer() != null
+                && workspace.getOrganizer() != null
+                && amenity.getOrganizer().getId().equals(workspace.getOrganizer().getId());
+        if (!isSystemAmenity && !isOwner && !currentUserProvider.isAdmin()) {
+            throw new BadRequestException("Tiện ích \"" + amenity.getName() + "\" không thuộc quyền quản lý của không gian này.");
         }
 
         BigDecimal price = dto.getAddonPricePerHour();
