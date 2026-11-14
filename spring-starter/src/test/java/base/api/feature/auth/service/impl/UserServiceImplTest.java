@@ -4,6 +4,7 @@ import base.api.feature.auth.dto.request.ChangePasswordDto;
 import base.api.feature.auth.dto.request.DeleteAccountDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.response.UserDto;
+import base.api.feature.auth.repository.IEmailVerificationTokenRepository;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.repository.IUserSessionRepository;
@@ -11,6 +12,8 @@ import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
+import base.api.shared.config.EmailService;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.identity.UserSessionModel;
@@ -31,6 +34,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Optional;
@@ -52,6 +56,9 @@ class UserServiceImplTest {
     private IMediaStorageService mediaStorageService;
     private IRoleRepository roleRepository;
     private ITokenRevocationService tokenRevocationService;
+    private EmailService emailService;
+    private TrustedClockService trustedClockService;
+    private IEmailVerificationTokenRepository emailVerificationTokenRepository;
     private UserServiceImpl service;
     private UserModel user;
     private UserModel admin;
@@ -64,7 +71,23 @@ class UserServiceImplTest {
         mediaStorageService = mock(IMediaStorageService.class);
         roleRepository = mock(IRoleRepository.class);
         tokenRevocationService = mock(ITokenRevocationService.class);
-        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService, roleRepository, tokenRevocationService);
+        emailService = mock(EmailService.class);
+        trustedClockService = mock(TrustedClockService.class);
+        emailVerificationTokenRepository = mock(IEmailVerificationTokenRepository.class);
+        when(trustedClockService.nowInVietnam()).thenAnswer(inv -> LocalDateTime.now(ZoneId.of("Asia/Ho_Chi_Minh")));
+
+        service = new UserServiceImpl(
+                userRepository,
+                userSessionRepository,
+                passwordEncoder,
+                auditService,
+                mediaStorageService,
+                roleRepository,
+                tokenRevocationService,
+                emailService,
+                trustedClockService,
+                emailVerificationTokenRepository
+        );
 
         user = new UserModel();
         user.setId(1L);
@@ -504,6 +527,8 @@ class UserServiceImplTest {
         assertThat(result.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(user.getFailedLoginCount()).isZero();
         assertThat(user.getLockedUntil()).isNull();
+        verify(tokenRevocationService).revokeAllUserTokens(1L);
+        verify(emailService).sendHtmlEmail(eq("john@example.com"), eq("[NexSpace] Tài khoản của bạn đã được kích hoạt / mở khóa"), any());
         verify(auditService).log(
                 eq(admin),
                 eq(AuditActorType.USER),
@@ -528,6 +553,8 @@ class UserServiceImplTest {
 
         assertThat(result.getStatus()).isEqualTo(UserStatus.LOCKED);
         assertThat(user.getLockedUntil()).isEqualTo(lockedUntil);
+        verify(tokenRevocationService).revokeAllUserTokens(1L);
+        verify(emailService).sendHtmlEmail(eq("john@example.com"), eq("[NexSpace] Thông báo: Tài khoản của bạn đã bị tạm khóa"), any());
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         verify(auditService).log(
                 eq(admin),
@@ -760,6 +787,10 @@ class UserServiceImplTest {
         assertThat(result.getStatus()).isEqualTo(UserStatus.INACTIVE);
         assertThat(user.isVerified()).isFalse();
         assertThat(activeSession.getRevokedAt()).isNotNull();
+        verify(tokenRevocationService).revokeAllUserTokens(1L);
+        verify(emailVerificationTokenRepository).deleteByUserId(1L);
+        verify(emailVerificationTokenRepository).save(any());
+        verify(emailService).sendHtmlEmail(eq("john@example.com"), eq("[NexSpace] Thông báo: Tài khoản tạm ngưng hoạt động do lâu không đăng nhập"), any());
     }
 
     @Test

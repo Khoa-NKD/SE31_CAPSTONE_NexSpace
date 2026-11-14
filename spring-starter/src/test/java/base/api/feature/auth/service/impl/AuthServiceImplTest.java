@@ -13,6 +13,7 @@ import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.shared.config.EmailService;
 import base.api.shared.config.JwtUtil;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.entity.EmailVerificationTokenModel;
 import base.api.shared.entity.PasswordResetTokenModel;
 import base.api.shared.entity.RoleModel;
@@ -34,6 +35,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +51,11 @@ import static org.mockito.Mockito.when;
 class AuthServiceImplTest {
 
     private final PasswordEncoder passwordEncoder = new BCryptPasswordEncoder(4);
+    private static final ZoneId VIETNAM_ZONE = ZoneId.of("Asia/Ho_Chi_Minh");
+
+    private LocalDateTime nowInVietnam() {
+        return LocalDateTime.now(VIETNAM_ZONE);
+    }
 
     private AuthenticationManager authenticationManager;
     private IUserRepository userRepository;
@@ -59,6 +66,7 @@ class AuthServiceImplTest {
     private JwtUtil jwtUtil;
     private EmailService emailService;
     private EmailDeliverabilityValidator emailDeliverabilityValidator;
+    private TrustedClockService trustedClockService;
 
     private AuthServiceImpl authService;
     private UserModel activeUser;
@@ -74,6 +82,8 @@ class AuthServiceImplTest {
         jwtUtil = mock(JwtUtil.class);
         emailService = mock(EmailService.class);
         emailDeliverabilityValidator = mock(EmailDeliverabilityValidator.class);
+        trustedClockService = mock(TrustedClockService.class);
+        when(trustedClockService.nowInVietnam()).thenAnswer(inv -> nowInVietnam());
 
         authService = new AuthServiceImpl(
                 authenticationManager,
@@ -85,7 +95,8 @@ class AuthServiceImplTest {
                 passwordEncoder,
                 jwtUtil,
                 emailService,
-                emailDeliverabilityValidator
+                emailDeliverabilityValidator,
+                trustedClockService
         );
 
         ReflectionTestUtils.setField(authService, "emailVerificationEnabled", false);
@@ -273,7 +284,7 @@ class AuthServiceImplTest {
 
         assertThat(activeUser.getFailedLoginCount()).isEqualTo(5);
         assertThat(activeUser.getLockedUntil()).isNotNull();
-        assertThat(activeUser.getLockedUntil()).isAfter(LocalDateTime.now().plusMinutes(14));
+        assertThat(activeUser.getLockedUntil()).isAfter(nowInVietnam().plusMinutes(14));
     }
 
     @Test
@@ -283,7 +294,7 @@ class AuthServiceImplTest {
         req.setUsername("tester");
         req.setPassword("AnyPassword");
 
-        activeUser.setLockedUntil(LocalDateTime.now().plusMinutes(10));
+        activeUser.setLockedUntil(nowInVietnam().plusMinutes(10));
         when(userRepository.findByLogin("tester")).thenReturn(Optional.of(activeUser));
 
         assertThatThrownBy(() -> authService.login(req))
@@ -301,7 +312,7 @@ class AuthServiceImplTest {
         req.setPassword("Password@123");
 
         activeUser.setFailedLoginCount(5);
-        activeUser.setLockedUntil(LocalDateTime.now().minusMinutes(1)); // Đã hết hạn phạt
+        activeUser.setLockedUntil(nowInVietnam().minusMinutes(1)); // Đã hết hạn phạt
         when(userRepository.findByLogin("tester")).thenReturn(Optional.of(activeUser));
         when(jwtUtil.generateToken(activeUser)).thenReturn("valid.token");
         when(jwtUtil.extractExpiration("valid.token")).thenReturn(Instant.now().plusSeconds(3600));
@@ -460,7 +471,7 @@ class AuthServiceImplTest {
         tokenModel.setUsed(false);
 
         activeUser.setFailedLoginCount(5);
-        activeUser.setLockedUntil(LocalDateTime.now().plusMinutes(10));
+        activeUser.setLockedUntil(nowInVietnam().plusMinutes(10));
 
         when(passwordResetTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(tokenModel));
         when(userRepository.findById(activeUser.getId())).thenReturn(Optional.of(activeUser));
@@ -636,7 +647,7 @@ class AuthServiceImplTest {
 
         assertThat(activeUser.getStatus()).isEqualTo(UserStatus.ACTIVE);
         assertThat(activeUser.isVerified()).isTrue();
-        assertThat(activeUser.getLastLoginAt()).isAfter(LocalDateTime.now().minusMinutes(1));
+        assertThat(activeUser.getLastLoginAt()).isAfter(nowInVietnam().minusMinutes(1));
     }
 
     @Test

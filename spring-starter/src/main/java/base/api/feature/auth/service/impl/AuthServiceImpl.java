@@ -15,6 +15,7 @@ import base.api.feature.auth.service.IAuthService;
 import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.shared.config.EmailService;
 import base.api.shared.config.JwtUtil;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.entity.EmailVerificationTokenModel;
 import base.api.shared.entity.PasswordResetTokenModel;
 import base.api.shared.entity.RoleModel;
@@ -64,6 +65,7 @@ public class AuthServiceImpl implements IAuthService {
     private final JwtUtil jwtUtil;
     private final EmailService emailService;
     private final EmailDeliverabilityValidator emailDeliverabilityValidator;
+    private final TrustedClockService trustedClockService;
 
     @Value("${app.auth.email-verification-enabled:false}")
     private boolean emailVerificationEnabled;
@@ -109,10 +111,10 @@ public class AuthServiceImpl implements IAuthService {
         // 2. Kiểm tra tài khoản bị khóa (vĩnh viễn hoặc có thời hạn)
         if (candidate.getStatus() == UserStatus.LOCKED) {
             if (candidate.getLockedUntil() != null) {
-                LocalDateTime now = LocalDateTime.now();
+                LocalDateTime now = trustedClockService.nowInVietnam();
                 if (now.isBefore(candidate.getLockedUntil())) {
                     long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
-                    throw new UnauthorizedException("Tài khoản đang bị khóa đến " + candidate.getLockedUntil().format(DATE_TIME_FORMATTER) + " (vui lòng thử lại sau " + remainingMinutes + " phút)");
+                    throw new UnauthorizedException("Tài khoản đang bị khóa đến " + candidate.getLockedUntil().format(DATE_TIME_FORMATTER) + " (Giờ Việt Nam GMT+7). Vui lòng thử lại sau " + remainingMinutes + " phút");
                 } else {
                     // Đã hết thời hạn khóa => tự động mở lại
                     candidate.setStatus(UserStatus.ACTIVE);
@@ -127,7 +129,7 @@ public class AuthServiceImpl implements IAuthService {
 
         // 3. Kiểm tra tài khoản bị tạm khóa do nhập sai nhiều lần (BR-03)
         if (candidate.getLockedUntil() != null) {
-            LocalDateTime now = LocalDateTime.now();
+            LocalDateTime now = trustedClockService.nowInVietnam();
             if (now.isBefore(candidate.getLockedUntil())) {
                 long remainingMinutes = Duration.between(now, candidate.getLockedUntil()).toMinutes() + 1;
                 throw new UnauthorizedException("Tài khoản đang bị tạm khóa do nhập sai mật khẩu quá 5 lần. Vui lòng thử lại sau " + remainingMinutes + " phút");
@@ -148,7 +150,7 @@ public class AuthServiceImpl implements IAuthService {
             int currentFailures = candidate.getFailedLoginCount() + 1;
             candidate.setFailedLoginCount(currentFailures);
             if (currentFailures >= MAX_FAILED_LOGIN_ATTEMPTS) {
-                candidate.setLockedUntil(LocalDateTime.now().plusMinutes(LOCKOUT_DURATION_MINUTES));
+                candidate.setLockedUntil(trustedClockService.nowInVietnam().plusMinutes(LOCKOUT_DURATION_MINUTES));
                 userRepository.save(candidate);
                 throw new UnauthorizedException("Tài khoản đã bị tạm khóa 15 phút do nhập sai mật khẩu 5 lần liên tiếp");
             }
@@ -162,7 +164,7 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         // Kiểm tra ngưỡng thời gian không đăng nhập (mặc định 90 ngày ~ 3 tháng, cấu hình qua biến môi trường)
-        LocalDateTime nowInVietnam = LocalDateTime.now(VIETNAM_ZONE);
+        LocalDateTime nowInVietnam = trustedClockService.nowInVietnam();
         if (isInactiveDueToLongAbsence(user, nowInVietnam)) {
             user.setStatus(UserStatus.INACTIVE);
             user.setVerified(false);
@@ -261,7 +263,7 @@ public class AuthServiceImpl implements IAuthService {
         if (user.getStatus() == UserStatus.LOCKED) {
             throw new BadRequestException("Tài khoản đang bị khóa bởi Quản trị viên");
         }
-        LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+        LocalDateTime now = trustedClockService.nowInVietnam();
         user.setVerified(true);
         user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerifiedAt(now);
@@ -314,7 +316,7 @@ public class AuthServiceImpl implements IAuthService {
         PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
         tokenModel.setToken(UUID.randomUUID().toString());
         tokenModel.setUserId(user.getId());
-        tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(resetTtlMinutes));
+        tokenModel.setExpiresAt(trustedClockService.nowInVietnam().plusMinutes(resetTtlMinutes));
         passwordResetTokenRepository.save(tokenModel);
 
         log.info("[AUTH] Đã tạo Password Reset Token cho user {}: {}", user.getEmail(), tokenModel.getToken());
@@ -439,7 +441,7 @@ public class AuthServiceImpl implements IAuthService {
         EmailVerificationTokenModel tokenModel = new EmailVerificationTokenModel();
         tokenModel.setToken(UUID.randomUUID().toString());
         tokenModel.setUserId(user.getId());
-        tokenModel.setExpiresAt(LocalDateTime.now().plusHours(verificationTtlHours));
+        tokenModel.setExpiresAt(trustedClockService.nowInVietnam().plusHours(verificationTtlHours));
         emailVerificationTokenRepository.save(tokenModel);
 
         log.info("[AUTH] Đã tạo Email Verification Token cho user {}: {}", user.getEmail(), tokenModel.getToken());

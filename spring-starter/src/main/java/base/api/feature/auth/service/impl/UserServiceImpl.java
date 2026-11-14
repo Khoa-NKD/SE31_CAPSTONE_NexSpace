@@ -12,8 +12,12 @@ import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.feature.auth.service.IUserService;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
+import base.api.feature.auth.repository.IEmailVerificationTokenRepository;
 import base.api.feature.workspace.service.IMediaStorageService;
+import base.api.shared.config.EmailService;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.entity.EmailVerificationTokenModel;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.identity.UserSessionModel;
@@ -26,6 +30,7 @@ import base.api.shared.exception.NotFoundException;
 import base.api.shared.exception.UnauthorizedException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Sort;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -39,6 +44,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 @Slf4j
 @Service
@@ -58,6 +64,12 @@ public class UserServiceImpl implements IUserService {
     private final IMediaStorageService mediaStorageService;
     private final IRoleRepository roleRepository;
     private final ITokenRevocationService tokenRevocationService;
+    private final EmailService emailService;
+    private final TrustedClockService trustedClockService;
+    private final IEmailVerificationTokenRepository emailVerificationTokenRepository;
+
+    @Value("${app.api-url:http://localhost:8080}")
+    private String apiUrl = "http://localhost:8080";
 
     @Override
     @Transactional(readOnly = true)
@@ -390,7 +402,7 @@ public class UserServiceImpl implements IUserService {
                 throw new BadRequestException("Vui lòng nhập lý do khi khóa tài khoản");
             }
             if (lockedUntil != null) {
-                LocalDateTime nowInVietnam = LocalDateTime.now(VIETNAM_ZONE);
+                LocalDateTime nowInVietnam = trustedClockService.nowInVietnam();
                 if (lockedUntil.isBefore(nowInVietnam)) {
                     throw new BadRequestException("Thời hạn khóa tài khoản phải là thời điểm trong tương lai (theo múi giờ Việt Nam GMT+7)");
                 }
@@ -410,12 +422,13 @@ public class UserServiceImpl implements IUserService {
             }
         }
 
+        String verifyUrl = null;
         target.setStatus(status);
         if (status == UserStatus.ACTIVE) {
             target.setFailedLoginCount(0);
             target.setLockedUntil(null);
             if (oldStatus == UserStatus.INACTIVE || oldStatus == UserStatus.DELETED) {
-                LocalDateTime now = LocalDateTime.now(VIETNAM_ZONE);
+                LocalDateTime now = trustedClockService.nowInVietnam();
                 target.setVerified(true);
                 target.setLastLoginAt(now);
                 if (target.getEmailVerifiedAt() == null) {
@@ -424,21 +437,49 @@ public class UserServiceImpl implements IUserService {
             }
         } else if (status == UserStatus.LOCKED) {
             target.setLockedUntil(lockedUntil);
-            tokenRevocationService.revokeAllUserTokens(targetUserId);
-            revokeActiveSessions(targetUserId);
         } else if (status == UserStatus.INACTIVE) {
             // Đánh dấu cần xác thực lại email trước khi đăng nhập
             target.setVerified(false);
             target.setLockedUntil(null);
-            tokenRevocationService.revokeAllUserTokens(targetUserId);
-            revokeActiveSessions(targetUserId);
+            // Tạo token xác thực email để gửi kèm nút bấm trong email
+            emailVerificationTokenRepository.deleteByUserId(targetUserId);
+            EmailVerificationTokenModel tokenModel = new EmailVerificationTokenModel();
+            tokenModel.setToken(UUID.randomUUID().toString());
+            tokenModel.setUserId(targetUserId);
+            tokenModel.setExpiresAt(trustedClockService.nowInVietnam().plusHours(24));
+            emailVerificationTokenRepository.save(tokenModel);
+            verifyUrl = apiUrl + "/api/auth/verify-email?token=" + tokenModel.getToken();
+            log.info("Đã tạo liên kết xác thực email cho tài khoản INACTIVE (user {}): {}", target.getEmail(), verifyUrl);
         } else if (status == UserStatus.DELETED) {
             target.setLockedUntil(null);
-            tokenRevocationService.revokeAllUserTokens(targetUserId);
-            revokeActiveSessions(targetUserId);
         }
 
+        // Đăng xuất ngay lập tức tài khoản bị đổi trạng thái trên mọi thiết bị
+        tokenRevocationService.revokeAllUserTokens(targetUserId);
+        revokeActiveSessions(targetUserId);
+
         UserModel saved = userRepository.saveAndFlush(target);
+
+        // Gửi email thông báo cập nhật trạng thái kèm lý do cho người dùng bị chuyển trạng thái
+        if (target.getEmail() != null && !target.getEmail().isBlank()) {
+            try {
+                String emailSubject = resolveStatusEmailSubject(status);
+                String recipientName = target.getFullName() != null && !target.getFullName().isBlank()
+                        ? target.getFullName()
+                        : target.getUserName();
+                String emailContent = AuthEmailTemplates.userStatusChanged(
+                        recipientName,
+                        status,
+                        reason,
+                        lockedUntil,
+                        verifyUrl
+                );
+                emailService.sendHtmlEmail(target.getEmail(), emailSubject, emailContent);
+                log.info("Đã gửi email thông báo chuyển trạng thái ({}) tới người dùng {}", status, target.getEmail());
+            } catch (Exception ex) {
+                log.error("Không thể gửi email thông báo trạng thái tới {}: {}", target.getEmail(), ex.getMessage());
+            }
+        }
 
         String action = resolveStatusAuditAction(oldStatus, status);
         String auditDetail = resolveStatusAuditDetail(status, reason, lockedUntil);
@@ -457,6 +498,15 @@ public class UserServiceImpl implements IUserService {
         );
 
         return UserMapper.toDto(saved);
+    }
+
+    private String resolveStatusEmailSubject(UserStatus status) {
+        return switch (status) {
+            case ACTIVE -> "[NexSpace] Tài khoản của bạn đã được kích hoạt / mở khóa";
+            case LOCKED -> "[NexSpace] Thông báo: Tài khoản của bạn đã bị tạm khóa";
+            case INACTIVE -> "[NexSpace] Thông báo: Tài khoản tạm ngưng hoạt động do lâu không đăng nhập";
+            case DELETED -> "[NexSpace] Thông báo: Tài khoản của bạn đã bị xóa";
+        };
     }
 
     @Override
