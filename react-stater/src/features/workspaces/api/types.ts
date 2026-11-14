@@ -258,6 +258,11 @@ export interface PublicWorkspaceFilterParams {
   limit?: number;
   sortBy?: 'name' | 'rating' | 'pricePerHour' | 'featuredPosition' | 'popular' | 'createdAt' | string;
   sortOrder?: 'asc' | 'desc';
+  minPrice?: number;
+  maxPrice?: number;
+  amenityIds?: number[];
+  resourceCategories?: string[];
+  minRating?: number;
 }
 
 export interface NearbyWorkspacesParams {
@@ -266,6 +271,37 @@ export interface NearbyWorkspacesParams {
   radiusKm?: number;
   page?: number;
   limit?: number;
+}
+
+export interface WorkspaceSuggestionItem {
+  id: number | string;
+  name: string;
+  address?: string;
+  district?: string;
+  city?: string;
+  category?: WorkspaceCategory | string;
+  coverImageUrl?: string;
+  pricePerHour?: number;
+  rating?: number;
+}
+
+export interface LocationSuggestionItem {
+  label: string;
+  type: 'DISTRICT' | 'CITY' | string;
+  city?: string;
+  district?: string;
+}
+
+export interface CategorySuggestionItem {
+  category: WorkspaceCategory | string;
+  label: string;
+  description?: string;
+}
+
+export interface WorkspaceSuggestionsResponse {
+  workspaces: WorkspaceSuggestionItem[];
+  locations: LocationSuggestionItem[];
+  categories: CategorySuggestionItem[];
 }
 
 export interface CreateWorkspaceDto {
@@ -615,6 +651,33 @@ export interface WorkspaceAmenityDto {
 
 export interface AssignWorkspaceAmenitiesPayload {
   amenityIds: number[];
+}
+
+export interface SavedSearchCriteria {
+  search?: string;
+  category?: string;
+  city?: string;
+  district?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  amenityIds?: number[];
+  seatTypes?: string[];
+  minRating?: number;
+  sortBy?: string;
+  sortOrder?: string;
+}
+
+export interface SavedSearchFilterItem {
+  id: string | number;
+  name: string;
+  criteria: SavedSearchCriteria;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface CreateSavedSearchFilterPayload {
+  name: string;
+  criteria: SavedSearchCriteria;
 }
 
 

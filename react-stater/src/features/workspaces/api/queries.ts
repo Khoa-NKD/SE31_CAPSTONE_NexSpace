@@ -27,6 +27,7 @@ export const workspaceQueryKeys = {
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
   featured: () => [...workspaceQueryKeys.all, 'featured'] as const,
   nearby: (params: NearbyWorkspacesParams) => [...workspaceQueryKeys.all, 'nearby', params] as const,
+  suggestions: (query: string) => [...workspaceQueryKeys.all, 'suggestions', query] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
 
@@ -128,6 +129,19 @@ export function useWorkspaceDetailQuery(
  */
 export function usePublicWorkspaceDetailQuery(id: string | null) {
   return useQuery(publicWorkspaceDetailQueryOptions(id));
+}
+
+/**
+ * Hook for fast autocomplete suggestions (min 2 characters).
+ */
+export function useWorkspaceSuggestionsQuery(query: string) {
+  const trimmed = query?.trim() ?? '';
+  return useQuery({
+    queryKey: workspaceQueryKeys.suggestions(trimmed),
+    queryFn: () => workspaceService.getWorkspaceSuggestions(trimmed),
+    enabled: trimmed.length >= 2,
+    staleTime: 60 * 1000
+  });
 }
 
 /**

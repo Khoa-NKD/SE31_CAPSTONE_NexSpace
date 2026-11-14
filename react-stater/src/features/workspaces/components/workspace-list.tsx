@@ -16,6 +16,13 @@ import { Button } from '@/components/ui/button';
 interface WorkspaceListProps {
   search?: string;
   category?: string;
+  city?: string;
+  district?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  amenityIds?: number[];
+  resourceCategories?: string[];
+  minRating?: number;
   sortBy?: 'featuredPosition' | 'pricePerHour' | 'rating' | 'name' | 'popular' | string;
   sortOrder?: 'asc' | 'desc';
   onTotalCountChange?: (count: number) => void;
@@ -32,6 +39,13 @@ interface WorkspaceListProps {
 export function WorkspaceList({
   search,
   category,
+  city,
+  district,
+  minPrice,
+  maxPrice,
+  amenityIds,
+  resourceCategories,
+  minRating,
   sortBy,
   sortOrder,
   onTotalCountChange,
@@ -53,10 +67,17 @@ export function WorkspaceList({
 
   const isNearbyEnabled = Boolean(isNearMeActive && nearMeCoords?.lat && nearMeCoords?.lng);
 
-  // Reset pagination to page 1 whenever search, category, or sorting changes
+  // Reset pagination to page 1 whenever any search, filter, or sorting changes
   const [prevFilterState, setPrevFilterState] = React.useState({
     search,
     category,
+    city,
+    district,
+    minPrice,
+    maxPrice,
+    amenityIds,
+    resourceCategories,
+    minRating,
     activeSortBy,
     activeSortOrder,
     isNearbyEnabled,
@@ -65,12 +86,33 @@ export function WorkspaceList({
   if (
     prevFilterState.search !== search ||
     prevFilterState.category !== category ||
+    prevFilterState.city !== city ||
+    prevFilterState.district !== district ||
+    prevFilterState.minPrice !== minPrice ||
+    prevFilterState.maxPrice !== maxPrice ||
+    prevFilterState.amenityIds !== amenityIds ||
+    prevFilterState.resourceCategories !== resourceCategories ||
+    prevFilterState.minRating !== minRating ||
     prevFilterState.activeSortBy !== activeSortBy ||
     prevFilterState.activeSortOrder !== activeSortOrder ||
     prevFilterState.isNearbyEnabled !== isNearbyEnabled ||
     prevFilterState.radiusKm !== radiusKm
   ) {
-    setPrevFilterState({ search, category, activeSortBy, activeSortOrder, isNearbyEnabled, radiusKm });
+    setPrevFilterState({
+      search,
+      category,
+      city,
+      district,
+      minPrice,
+      maxPrice,
+      amenityIds,
+      resourceCategories,
+      minRating,
+      activeSortBy,
+      activeSortOrder,
+      isNearbyEnabled,
+      radiusKm
+    });
     setPage(1);
   }
 
@@ -78,6 +120,13 @@ export function WorkspaceList({
     {
       search: search?.trim() || undefined,
       category: category || undefined,
+      city: city?.trim() || undefined,
+      district: district?.trim() || undefined,
+      minPrice,
+      maxPrice,
+      amenityIds: amenityIds && amenityIds.length > 0 ? amenityIds : undefined,
+      resourceCategories: resourceCategories && resourceCategories.length > 0 ? resourceCategories : undefined,
+      minRating,
       sortBy: activeSortBy,
       sortOrder: activeSortOrder,
       page,
