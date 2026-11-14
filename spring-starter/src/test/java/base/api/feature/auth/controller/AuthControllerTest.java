@@ -11,6 +11,7 @@ import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.service.IAuthService;
 import base.api.feature.auth.service.IUserService;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
 import base.api.shared.enums.UserRole;
@@ -55,15 +56,19 @@ class AuthControllerTest {
     private MockMvc mockMvc;
     private IAuthService authService;
     private IUserService userService;
+    private TrustedClockService trustedClockService;
     private ObjectMapper objectMapper;
 
     @BeforeEach
     void setUp() {
         authService = mock(IAuthService.class);
         userService = mock(IUserService.class);
+        trustedClockService = mock(TrustedClockService.class);
+        when(trustedClockService.nowInVietnam()).thenReturn(java.time.LocalDateTime.now());
+        when(trustedClockService.nowInstant()).thenReturn(java.time.Instant.now());
         objectMapper = new ObjectMapper();
 
-        AuthController controller = new AuthController(authService, userService);
+        AuthController controller = new AuthController(authService, userService, trustedClockService);
         ReflectionTestUtils.setField(controller, "clientUrl", "http://localhost:5173");
         ReflectionTestUtils.setField(controller, "currentUserProvider", new base.api.shared.security.CurrentUserProvider());
 
@@ -301,5 +306,16 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.data.userId").value(10))
                 .andExpect(jsonPath("$.data.role").value("USER"))
                 .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
+
+    @Test
+    @DisplayName("GET /api/auth/server-time - Lấy thời gian thực máy chủ trả về 200 OK")
+    void getServerTime_Success() throws Exception {
+        mockMvc.perform(get("/api/auth/server-time"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.utcInstant").isNotEmpty())
+                .andExpect(jsonPath("$.data.vietnamTime").isNotEmpty())
+                .andExpect(jsonPath("$.data.epochMilli").isNotEmpty());
     }
 }

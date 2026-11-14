@@ -13,6 +13,7 @@ import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.service.IAuthService;
 import base.api.feature.auth.service.IUserService;
 import base.api.shared.base.BaseAPIController;
+import base.api.shared.config.TrustedClockService;
 import base.api.shared.dto.ApiResponse;
 import base.api.shared.exception.UnauthorizedException;
 import io.swagger.v3.oas.annotations.Operation;
@@ -45,6 +46,7 @@ public class AuthController extends BaseAPIController {
 
     private final IAuthService authService;
     private final IUserService userService;
+    private final TrustedClockService trustedClockService;
 
     @Value("${app.client-url}")
     private String clientUrl;
@@ -88,11 +90,17 @@ public class AuthController extends BaseAPIController {
             success = false;
         }
 
-        String targetUrl = clientUrl + (success ? "/auth/sign-in?verified=true" : "/auth/sign-in?verified=false");
+        String encodedEmail = (email != null && !email.isBlank())
+                ? java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8)
+                : "";
+        String targetUrl = clientUrl + (success
+                ? "/auth/sign-in?verified=true" + (encodedEmail.isEmpty() ? "" : "&email=" + encodedEmail)
+                : "/auth/sign-in?verified=false");
 
         String html = "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'>"
                 + "<title>Xác thực tài khoản - NexSpace</title>"
                 + "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
+                + (success ? "<meta http-equiv='refresh' content='1;url=" + targetUrl + "'>" : "")
                 + "<style>"
                 + "body{background:#0b0f19;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
                 + "display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:16px;box-sizing:border-box}"
@@ -108,14 +116,13 @@ public class AuthController extends BaseAPIController {
                 + "<div class='card'>"
                 + "<div class='icon'>" + (success ? "✓" : "✕") + "</div>"
                 + "<h2>" + (success ? "Xác thực email thành công!" : "Xác thực không thành công") + "</h2>"
-                + "<p>" + (success ? "Tài khoản của bạn đã được kích hoạt thành công. Đang đồng bộ và chuyển hướng..." : "Liên kết xác thực không hợp lệ hoặc đã hết hạn.") + "</p>"
+                + "<p>" + (success ? "Tài khoản của bạn đã được kích hoạt thành công (ACTIVE). Đang tự động chuyển hướng đến trang đăng nhập..." : "Liên kết xác thực không hợp lệ hoặc đã hết hạn.") + "</p>"
                 + "<a class='btn' href='" + targetUrl + "'>Tiếp tục đến Đăng nhập</a>"
                 + "</div>"
                 + "<script>"
                 + (success
                    ? "try{var bc=new BroadcastChannel('nexspace_auth_sync');bc.postMessage({type:'EMAIL_VERIFIED_SUCCESS'});}catch(e){}"
                      + "try{localStorage.setItem('nexspace_auth_sync_event',JSON.stringify({type:'EMAIL_VERIFIED_SUCCESS',timestamp:Date.now()}));}catch(e){}"
-                     + "try{window.close();}catch(e){}"
                      + "setTimeout(function(){window.location.replace('" + targetUrl + "');},1000);"
                    : "setTimeout(function(){window.location.replace('" + targetUrl + "');},3000);")
                 + "</script></body></html>";
@@ -190,7 +197,19 @@ public class AuthController extends BaseAPIController {
         payload.put("userId", userId);
         payload.put("role", user.getRole() != null ? user.getRole().name() : null);
         payload.put("status", user.getStatus() != null ? user.getStatus().name() : null);
+        payload.put("serverTime", trustedClockService.nowInVietnam().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
         return success(payload, "Phiên làm việc hợp lệ");
+    }
+
+    @Operation(summary = "Lấy thời gian thực máy chủ (Server Time)", description = "**Public.** Trả về mốc thời gian chuẩn UTC và giờ Việt Nam GMT+7 từ Trusted Clock.")
+    @SecurityRequirements
+    @GetMapping("/server-time")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> getServerTime() {
+        return success(java.util.Map.of(
+                "utcInstant", trustedClockService.nowInstant().toString(),
+                "vietnamTime", trustedClockService.nowInVietnam().format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")),
+                "epochMilli", trustedClockService.nowInstant().toEpochMilli()
+        ));
     }
 
     @Operation(summary = "Cập nhật hồ sơ")
