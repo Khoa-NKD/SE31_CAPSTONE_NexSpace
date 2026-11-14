@@ -181,6 +181,18 @@ public class AuthController extends BaseAPIController {
         return success(userService.getById(getCurrentUserId()));
     }
 
+    @Operation(summary = "Kiểm tra nhịp tim phiên đăng nhập", description = "Kiểm tra định kỳ tính hợp lệ của token và vai trò người dùng theo thời gian thực")
+    @GetMapping("/heartbeat")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Object>>> heartbeat() {
+        Long userId = getCurrentUserId();
+        UserDto user = userService.getById(userId);
+        java.util.Map<String, Object> payload = new java.util.HashMap<>();
+        payload.put("userId", userId);
+        payload.put("role", user.getRole() != null ? user.getRole().name() : null);
+        payload.put("status", user.getStatus() != null ? user.getStatus().name() : null);
+        return success(payload, "Phiên làm việc hợp lệ");
+    }
+
     @Operation(summary = "Cập nhật hồ sơ")
     @PutMapping("/me")
     public ResponseEntity<ApiResponse<UserDto>> updateProfile(@Valid @RequestBody UpdateProfileDto dto) {

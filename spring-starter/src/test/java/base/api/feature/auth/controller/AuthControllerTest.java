@@ -272,4 +272,34 @@ class AuthControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.message").value("Đổi mật khẩu thành công"));
     }
+
+    @Test
+    @DisplayName("GET /api/auth/heartbeat - Kiểm tra nhịp tim phiên trả về 200 OK kèm thông tin vai trò")
+    void heartbeat_Success() throws Exception {
+        UserModel userModel = new UserModel();
+        userModel.setId(10L);
+        userModel.setUserName("tester");
+        userModel.setRoleEntity(new RoleModel("USER", null));
+        userModel.setStatus(UserStatus.ACTIVE);
+        AuthUser authUser = new AuthUser(userModel);
+
+        SecurityContextHolder.getContext().setAuthentication(
+                new UsernamePasswordAuthenticationToken(authUser, null, authUser.getAuthorities())
+        );
+
+        UserDto userDto = UserDto.builder()
+                .id(10L)
+                .userName("tester")
+                .role(UserRole.USER)
+                .status(UserStatus.ACTIVE)
+                .build();
+        when(userService.getById(10L)).thenReturn(userDto);
+
+        mockMvc.perform(get("/api/auth/heartbeat"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.userId").value(10))
+                .andExpect(jsonPath("$.data.role").value("USER"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"));
+    }
 }
