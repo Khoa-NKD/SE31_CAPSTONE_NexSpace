@@ -32,6 +32,7 @@ import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
+import { isOperatingTimeRangeValid } from '../schemas/wizard-schemas';
 
 function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolean {
   if (!item.url) return false;
@@ -77,7 +78,11 @@ export function StepReviewChecklistView() {
       location.longitude !== 0
     );
   const isOperatingHoursValid =
-    operatingHours.is247 || operatingHours.schedule.some((s) => s.isOpen);
+    operatingHours.is247 ||
+    (operatingHours.schedule.some((s) => s.isOpen) &&
+      operatingHours.schedule.every(
+        (s) => !s.isOpen || isOperatingTimeRangeValid(s.openTime, s.closeTime)
+      ));
   const isAmenitiesValid = amenities.length >= 1;
 
   const durableMediaCount = media.items.filter(isItemValidMedia).length;

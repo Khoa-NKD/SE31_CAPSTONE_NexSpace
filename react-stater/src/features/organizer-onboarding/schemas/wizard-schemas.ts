@@ -38,21 +38,50 @@ export const locationSchema = z.object({
 export type BasicInfoSchemaValues = z.infer<typeof basicInfoSchema>;
 export type LocationSchemaValues = z.infer<typeof locationSchema>;
 
-export const dayScheduleSchema = z.object({
-  day: z.enum([
-    'monday',
-    'tuesday',
-    'wednesday',
-    'thursday',
-    'friday',
-    'saturday',
-    'sunday'
-  ]),
-  label: z.string(),
-  isOpen: z.boolean(),
-  openTime: z.string(),
-  closeTime: z.string()
-});
+export function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(' ');
+  if (parts.length < 2) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  const [time, modifier] = parts;
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier?.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (modifier?.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + (minutes || 0);
+}
+
+export function isOperatingTimeRangeValid(openTime: string, closeTime: string): boolean {
+  return parseTimeToMinutes(closeTime) > parseTimeToMinutes(openTime);
+}
+
+export const dayScheduleSchema = z
+  .object({
+    day: z.enum([
+      'monday',
+      'tuesday',
+      'wednesday',
+      'thursday',
+      'friday',
+      'saturday',
+      'sunday'
+    ]),
+    label: z.string(),
+    isOpen: z.boolean(),
+    openTime: z.string(),
+    closeTime: z.string()
+  })
+  .refine(
+    (data) => {
+      if (!data.isOpen) return true;
+      return parseTimeToMinutes(data.closeTime) > parseTimeToMinutes(data.openTime);
+    },
+    {
+      message: 'Giờ đóng cửa phải sau giờ mở cửa (Closing time must be after opening time)',
+      path: ['closeTime']
+    }
+  );
 
 export const operatingHoursSchema = z
   .object({
@@ -67,7 +96,19 @@ export const operatingHoursSchema = z
       return data.schedule.some((item) => item.isOpen);
     },
     {
-      message: 'At least one day must be configured as Open, or enable 24/7 Access',
+      message: 'Vui lòng cấu hình ít nhất 1 ngày mở cửa hoặc bật chế độ Mở cửa 24/7 (At least one day must be configured as Open, or enable 24/7 Access)',
+      path: ['schedule']
+    }
+  )
+  .refine(
+    (data) => {
+      if (data.is247) return true;
+      return data.schedule.every(
+        (item) => !item.isOpen || parseTimeToMinutes(item.closeTime) > parseTimeToMinutes(item.openTime)
+      );
+    },
+    {
+      message: 'Giờ đóng cửa phải sau giờ mở cửa cho tất cả các ngày mở cửa (Closing time must be after opening time for all open days)',
       path: ['schedule']
     }
   );
