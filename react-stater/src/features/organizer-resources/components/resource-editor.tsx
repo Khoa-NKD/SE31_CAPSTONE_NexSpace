@@ -725,8 +725,8 @@ export function ResourceEditor({
                   </Field>
                   <p className='text-xs text-muted-foreground'>
                     {c(
-                      'Choose a room only when this desk is physically inside it. Coordinates stay relative to the floor. Whole-room and desk sales cannot be active together.',
-                      'Chỉ chọn phòng khi ghế thực sự nằm trong phòng đó. Tọa độ vẫn tính theo tầng. Không bật bán nguyên phòng đồng thời với ghế bên trong.'
+                      'Choose a room when this seat is physically inside it. Coordinates are relative to the floor. The seat follows the room and is included in the room booking.',
+                      'Chọn phòng khi ghế nằm trong phòng đó. Tọa độ tính theo tầng. Ghế bật/tắt theo phòng và đi kèm khi khách đặt nguyên phòng.'
                     )}
                   </p>
                 </div>
