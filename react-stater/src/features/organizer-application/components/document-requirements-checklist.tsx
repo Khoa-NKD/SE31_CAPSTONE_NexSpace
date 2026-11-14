@@ -29,6 +29,7 @@ export function DocumentRequirementsChecklist({
   return (
     <section
       className='bg-card overflow-hidden rounded-2xl border border-indigo-500/15 shadow-sm'
+      id='organizer-required-documents'
       aria-label={vi ? 'Giấy tờ bắt buộc' : 'Required documents'}
     >
       <div className='flex flex-wrap items-center justify-between gap-3 border-b border-indigo-500/10 bg-gradient-to-r from-indigo-500/10 via-violet-500/5 to-transparent px-5 py-4'>
@@ -74,9 +75,10 @@ export function DocumentRequirementsChecklist({
           >
             {policy.requiredDocuments.map((requirement) => {
               const needed = missing.some((item) => item.documentType === requirement.documentType);
-              const uploaded = documents.data?.documents.find(
+              const uploaded = documents.data?.documents.filter(
                 (item) => item.documentType === requirement.documentType
-              );
+              ) ?? [];
+              const verified = uploaded.length > 0 && uploaded.every((item) => item.status === 'VERIFIED');
               return (
                 <li
                   key={requirement.documentType}
@@ -94,6 +96,7 @@ export function DocumentRequirementsChecklist({
                   <div className='min-w-0'>
                     <p className='text-sm font-semibold leading-6'>
                       {documentTypeLabel(requirement.documentType, language, policy)}
+                      <span aria-hidden='true' className='ml-1 text-destructive'>*</span>
                     </p>
                     <p className='text-muted-foreground mt-1 text-xs leading-5'>
                       {vi ? requirement.guidanceVi : requirement.guidanceEn}
@@ -110,10 +113,10 @@ export function DocumentRequirementsChecklist({
                             ? 'Requested replacement needed'
                             : 'Upload needed'
                         : vi
-                          ? uploaded?.status === 'VERIFIED'
+                          ? verified
                             ? 'Đã xác minh'
                             : 'Đã tải lên'
-                          : uploaded?.status === 'VERIFIED'
+                          : verified
                             ? 'Verified'
                             : 'Uploaded'}
                     </p>

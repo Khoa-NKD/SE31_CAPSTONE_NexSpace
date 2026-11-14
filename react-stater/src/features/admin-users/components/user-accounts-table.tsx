@@ -1,4 +1,7 @@
 import React, { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { MoreHorizontal } from 'lucide-react';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -164,7 +167,7 @@ export function UserAccountsTable({
                   key={user.id}
                   onClick={() => onSelectUser(user)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
+                    if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) {
                       e.preventDefault();
                       onSelectUser(user);
                     }
@@ -227,6 +230,22 @@ export function UserAccountsTable({
                           {displayCompany}
                         </span>
                       </div>
+                      {isOrg && !isDeleted && (
+                        <div onClick={(event) => event.stopPropagation()}>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant='ghost' size='icon' aria-label={`Thao tác đối tác ${displayName}`}>
+                                <MoreHorizontal className='size-4' />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align='end'>
+                              <DropdownMenuItem asChild>
+                                <Link to='/dashboard/admin/organizer-partners' search={{ organizerId: String(user.id) }}>Xem đối tác</Link>
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </div>
+                      )}
                     </div>
                   </td>
 

@@ -50,8 +50,8 @@ export const authService = {
   /**
    * Get current authenticated user profile.
    */
-  getMe: async (): Promise<UserDto> => {
-    return authApiClient.get<UserDto>('/auth/me');
+  getMe: async (signal?: AbortSignal): Promise<UserDto> => {
+    return authApiClient.get<UserDto>('/auth/me', { signal });
   },
 
   /**

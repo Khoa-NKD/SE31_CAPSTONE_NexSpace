@@ -6,7 +6,48 @@ import {
 } from '../../src/features/organizer-resources/utils/ai-chat-history.ts';
 import { matchFurnishingIcon } from '../../src/features/organizer-resources/utils/furnishing-icon-catalog.ts';
 import { aiPreviewGeometry } from '../../src/features/organizer-resources/utils/ai-preview-geometry.ts';
-import type { FloorLayout } from '../../src/features/organizer-resources/api/resources.ts';
+import type {
+  FloorLayout,
+  TypeOption
+} from '../../src/features/organizer-resources/api/resources.ts';
+import {
+  promptWithAiTypePreferences,
+  validAiTypePreferences
+} from '../../src/features/organizer-resources/utils/ai-type-preferences.ts';
+
+test('AI preferences use only currently configured workspace types and respect the prompt limit', () => {
+  const valid: TypeOption = {
+    id: 2,
+    name: 'Work seat',
+    category: 'DESK',
+    currency: 'VND',
+    capacity: 1,
+    pricePerHour: '50000',
+    pricePerDay: null,
+    pricePerMonth: null,
+    active: true,
+    revision: '1',
+    usageKind: 'WORK_SEAT',
+    standardWidthM: '0.60',
+    standardLengthM: '0.70'
+  };
+  const ids = validAiTypePreferences(
+    [2, 3, 4, 5, 6],
+    [
+      valid,
+      { ...valid, id: 3, active: false },
+      { ...valid, id: 4, standardWidthM: null },
+      { ...valid, id: 5, pricePerHour: null },
+      { ...valid, id: 7 }
+    ]
+  );
+  assert.deepEqual(ids, [2]);
+  const request = 'Use a different chair if needed.';
+  const enriched = promptWithAiTypePreferences(request, ids);
+  assert.match(enriched, /catalog: 2\./);
+  assert.ok(enriched.endsWith(request));
+  assert.equal(promptWithAiTypePreferences('x'.repeat(4000), ids).length, 4000);
+});
 
 test('history accepts only text messages, discards images and tolerates corrupt storage', () => {
   assert.deepEqual(parseFloorChat('{invalid'), []);

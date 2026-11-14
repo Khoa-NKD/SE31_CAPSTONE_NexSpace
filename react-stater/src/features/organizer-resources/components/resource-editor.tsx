@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import {
@@ -15,6 +15,7 @@ import { moveWithRoom } from '../utils/placement';
 import { layoutGeometry, insideRoom, previewLayout } from '../utils/layout-placement';
 import { useBlocker } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
+import { designMetricsOptions, saveDesignMetrics, type DesignMetrics } from '../api/floor-design';
 import type { ResourceUsageKind } from '../api/resources';
 import { FloorAllocationDialog } from './floor-allocation-dialog';
 import {
@@ -25,6 +26,7 @@ import {
   Armchair,
   DoorOpen,
   MapPin,
+  Ruler,
   SlidersHorizontal,
   Copy,
   ClipboardPaste,
@@ -77,9 +79,12 @@ function useCopy() {
   return (en: string, vi: string) => (language === 'vi' ? vi : en);
 }
 
+const hasStandardSize = (item?: TypeOption) =>
+  Number(item?.standardWidthM) > 0 && Number(item?.standardLengthM) > 0;
+
 export function ResourceEditor({
   workspaceId,
-  options,
+  options: initialOptions,
   current: initialCurrent,
   onClose,
   onSaved
@@ -91,11 +96,21 @@ export function ResourceEditor({
   onSaved: () => Promise<void>;
 }) {
   const c = useCopy();
+  const [addedTypes, setAddedTypes] = useState<TypeOption[]>([]);
+  const [creatingType, setCreatingType] = useState(false);
+  const [editingDimensions, setEditingDimensions] = useState(false);
+  const options = {
+    ...initialOptions,
+    types: [
+      ...initialOptions.types,
+      ...addedTypes.filter((added) => !initialOptions.types.some((type) => type.id === added.id))
+    ]
+  };
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [current, setCurrent] = useState(initialCurrent);
-  const [form, setActiveForm] = useState(() => resourceDraftForm(options, initialCurrent));
+  const [activeForm, setActiveForm] = useState(() => resourceDraftForm(options, initialCurrent));
   const [activeKey, setActiveKey] = useState(initialCurrent?.id ?? -1);
   const nextKey = useRef(-2);
   const [staged, setStaged] = useState<ResourceDraft[]>([]);
@@ -112,11 +127,51 @@ export function ResourceEditor({
     objects: import('../api/resources').FloorDecoration[];
   } | null>(null);
   const actorId = useAuthStore((state) => state.user?.id ?? 0);
+  const floorId = Number(activeForm.floorPlanId);
   const floorQuery = useQuery({
-    ...floorLayoutOptions(actorId, workspaceId, Number(form.floorPlanId)),
-    enabled: actorId > 0 && !!form.floorPlanId
+    ...floorLayoutOptions(actorId, workspaceId, floorId),
+    enabled: actorId > 0 && floorId > 0
   });
-  const drafts: ResourceDraft[] = [...staged, { key: activeKey, form, current }];
+  const metrics = useQuery({
+    ...designMetricsOptions(actorId, workspaceId, floorId),
+    enabled: actorId > 0 && floorId > 0
+  });
+  const type = options.types.find((item) => item.id === Number(activeForm.resourceTypeId));
+  const standardSize = (item?: TypeOption) => {
+    const layout = floorQuery.data;
+    const scale = metrics.data;
+    if (
+      !hasStandardSize(item) ||
+      !layout?.width ||
+      !layout.height ||
+      !scale?.widthM ||
+      !scale.lengthM
+    )
+      return undefined;
+    return {
+      width: String(
+        Number(((Number(item?.standardWidthM) * layout.width) / scale.widthM).toFixed(2))
+      ),
+      height: String(
+        Number(((Number(item?.standardLengthM) * layout.height) / scale.lengthM).toFixed(2))
+      )
+    };
+  };
+  const inheritSize = (draft: ResourceDraft): ResourceDraft => {
+    if (draft.current?.resourceTypeId === Number(draft.form.resourceTypeId)) return draft;
+    const draftType = options.types.find((item) => item.id === Number(draft.form.resourceTypeId));
+    const size = standardSize(draftType);
+    return size ? { ...draft, form: { ...draft.form, ...size } } : draft;
+  };
+  const activeDraft = inheritSize({ key: activeKey, form: activeForm, current });
+  const form = activeDraft.form;
+  const drafts = [...staged.map(inheritSize), activeDraft];
+  const sizeLocked = hasStandardSize(type);
+  const sizeUnavailable = drafts.some((draft) => {
+    if (draft.current?.resourceTypeId === Number(draft.form.resourceTypeId)) return false;
+    const draftType = options.types.find((item) => item.id === Number(draft.form.resourceTypeId));
+    return hasStandardSize(draftType) && !standardSize(draftType);
+  });
   const composed = floorQuery.data
     ? resourceDraftLayout(floorQuery.data, drafts, options)
     : undefined;
@@ -160,10 +215,10 @@ export function ResourceEditor({
     setActiveForm(next);
   };
   const [initialPosition, setInitialPosition] = useState(() => selectPlacementFields(form));
-  const [initialForm] = useState(() => JSON.stringify(form));
+  const [initialForm] = useState(() => JSON.stringify(activeForm));
   const [confirmClose, setConfirmClose] = useState(false);
   const dirty =
-    staged.length > 0 || extraDecorations.length > 0 || JSON.stringify(form) !== initialForm;
+    staged.length > 0 || extraDecorations.length > 0 || JSON.stringify(activeForm) !== initialForm;
   const navigation = useBlocker({
     shouldBlockFn: () => dirty || busy,
     enableBeforeUnload: () => dirty || busy,
@@ -202,7 +257,6 @@ export function ResourceEditor({
     if (['posX', 'posY', 'width', 'height', 'rotation'].includes(key)) checkpoint();
     setForm((v) => ({ ...v, [key]: value }));
   };
-  const type = options.types.find((t) => t.id === Number(form.resourceTypeId));
   const placement = usePlacementValidation(
     workspaceId,
     Number(form.floorPlanId),
@@ -370,13 +424,25 @@ export function ResourceEditor({
       toast.error(c('Save before adding more resources.', 'Lưu trước khi thêm chỗ mới.'));
       return;
     }
+    const size = standardSize(deskType);
+    if (hasStandardSize(deskType) && !size) {
+      toast.error(
+        c(
+          'Set the physical floor dimensions first.',
+          'Hãy cấu hình kích thước thực của tầng trước.'
+        )
+      );
+      return;
+    }
+    const width = Number(size?.width ?? 50);
+    const height = Number(size?.height ?? 50);
     const key = nextKey.current--;
     let pose: ReturnType<typeof draftGeometry>;
     let attempts = 0;
-    for (let y = 15; y + 50 < room.height && !pose && attempts < 2000; y += 70)
-      for (let x = 15; x + 50 < room.width && !pose && attempts++ < 2000; x += 70) {
+    for (let y = 15; y + height < room.height && !pose && attempts < 2000; y += height + 20)
+      for (let x = 15; x + width < room.width && !pose && attempts++ < 2000; x += width + 20) {
         const candidate = moveWithRoom(
-          { x: room.x + x, y: room.y + y, width: 50, height: 50, rotation: 0 },
+          { x: room.x + x, y: room.y + y, width, height, rotation: 0 },
           { ...room, rotation: 0 },
           room
         );
@@ -414,8 +480,8 @@ export function ResourceEditor({
         zoneName: form.zoneName,
         posX: String(pose.x),
         posY: String(pose.y),
-        width: '50',
-        height: '50',
+        width: String(width),
+        height: String(height),
         rotation: String(pose.rotation)
       }
     };
@@ -439,7 +505,7 @@ export function ResourceEditor({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || placement.blocked) return;
+    if (busy || placement.blocked || sizeUnavailable) return;
     setErrors({});
     setError('');
     const parsed = resourceFormSchema.safeParse({
@@ -630,6 +696,17 @@ export function ResourceEditor({
                     </option>
                   ))}
                 </select>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='sm'
+                  className='mt-1 px-2 text-primary'
+                  disabled={busy}
+                  onClick={() => setCreatingType(true)}
+                >
+                  <Plus className='size-4' />
+                  {c('Create a resource type', 'Tạo loại chỗ mới')}
+                </Button>
               </Field>
               {type?.category === 'DESK' && options.rooms && (
                 <div className='sm:col-span-2 xl:col-span-1 rounded-xl border border-border bg-muted/30 p-4 space-y-2'>
@@ -770,12 +847,67 @@ export function ResourceEditor({
                     <Input
                       value={form[key]}
                       disabled={busy}
+                      readOnly={sizeLocked && (key === 'width' || key === 'height')}
                       inputMode='decimal'
                       onChange={(e) => set(key, e.target.value)}
                     />
                   </Field>
                 ))}
               </div>
+              {sizeUnavailable ? (
+                <div className='mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm'>
+                  <p className='font-medium'>
+                    {floorQuery.isError || metrics.isError
+                      ? c('Could not load floor dimensions.', 'Không tải được kích thước tầng.')
+                      : floorQuery.isPending || metrics.isPending
+                        ? c('Loading floor dimensions…', 'Đang tải kích thước tầng…')
+                        : floorQuery.data?.floor.location
+                          ? c('Set the floor dimensions to use this resource type.', 'Nhập kích thước thực của tầng để dùng loại chỗ này.')
+                          : c('Link the layout to a physical floor first.', 'Hãy liên kết sơ đồ với một tầng vật lý trước.')}
+                  </p>
+                  {(floorQuery.isError || metrics.isError) && (
+                    <Button type='button' variant='outline' size='sm' className='mt-2' onClick={() => {
+                      if (floorQuery.isError) void floorQuery.refetch();
+                      if (metrics.isError) void metrics.refetch();
+                    }}>
+                      {c('Retry', 'Thử lại')}
+                    </Button>
+                  )}
+                </div>
+              ) : (
+                sizeLocked && (
+                  <div className='mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                    <span>
+                      {c(
+                        'Size follows the selected type. Choose a separate type for a different size.',
+                        'Kích thước theo loại chỗ. Muốn dùng kích thước khác, hãy chọn loại chỗ riêng.'
+                      )}
+                    </span>
+                    {current && standardSize(type) && (
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        disabled={busy}
+                        onClick={() =>
+                          changePosition({ ...selectPlacementFields(form), ...standardSize(type) })
+                        }
+                      >
+                        {c('Use standard size', 'Dùng kích thước chuẩn')}
+                      </Button>
+                    )}
+                  </div>
+                )
+              )}
+              {floorQuery.data?.floor.location && metrics.data && (
+                <Button type='button' size='sm' variant='outline' className='mt-3' disabled={busy}
+                  onClick={() => setEditingDimensions(true)}>
+                  <Ruler className='size-4' />
+                  {metrics.data.physicalWidthM && metrics.data.physicalLengthM
+                    ? c('Edit floor dimensions', 'Sửa kích thước tầng')
+                    : c('Set floor dimensions', 'Cấu hình kích thước tầng')}
+                </Button>
+              )}
             </div>
             <div className='flex h-[680px] min-h-[540px] flex-col xl:h-[calc(100dvh-340px)]'>
               <ResourcePlacementEditor
@@ -912,6 +1044,7 @@ export function ResourceEditor({
                 category={type?.category}
                 value={form}
                 disabled={busy}
+                sizeLocked={sizeLocked}
                 onBegin={checkpoint}
                 onChange={changePosition}
                 onUndo={undoPosition}
@@ -944,7 +1077,7 @@ export function ResourceEditor({
             <Button type='button' variant='outline' disabled={busy} onClick={close}>
               {c('Cancel', 'Hủy')}
             </Button>
-            <Button type='submit' disabled={busy || placement.blocked}>
+            <Button type='submit' disabled={busy || placement.blocked || sizeUnavailable}>
               {busy ? (
                 <LoaderCircle className='size-4 animate-spin' />
               ) : (
@@ -957,6 +1090,31 @@ export function ResourceEditor({
           </div>
         </footer>
       </form>
+      {editingDimensions && metrics.data && (
+        <FloorDimensionsDialog
+          key={floorId}
+          actorId={actorId}
+          workspaceId={workspaceId}
+          floorId={floorId}
+          metrics={metrics.data}
+          onClose={() => setEditingDimensions(false)}
+        />
+      )}
+      {creatingType && (
+        <ResourceTypeSetupDialog
+          workspaceId={workspaceId}
+          onClose={() => setCreatingType(false)}
+          onSaved={onSaved}
+          onTypeSaved={(savedType) => {
+            setAddedTypes((types) => [...types, savedType]);
+            setForm((value) => ({
+              ...value,
+              resourceTypeId: String(savedType.id),
+              parentRoomId: savedType.category === 'ROOM' ? '' : value.parentRoomId
+            }));
+          }}
+        />
+      )}
       <Dialog
         open={confirmClose || navigation.status === 'blocked'}
         onOpenChange={(open) => {
@@ -1006,19 +1164,113 @@ export function ResourceEditor({
   );
 }
 
+function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose }: {
+  actorId: number;
+  workspaceId: number;
+  floorId: number;
+  metrics: DesignMetrics;
+  onClose: () => void;
+}) {
+  const c = useCopy();
+  const queryClient = useQueryClient();
+  const [width, setWidth] = useState(String(metrics.physicalWidthM ?? ''));
+  const [length, setLength] = useState(String(metrics.physicalLengthM ?? ''));
+  const [initialMetrics] = useState(metrics);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [conflict, setConflict] = useState(false);
+  const saving = useRef(false);
+  const queryKey = designMetricsOptions(actorId, workspaceId, floorId).queryKey;
+  const outdated = conflict || initialMetrics.revision !== metrics.revision;
+
+  async function submit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving.current || outdated) return;
+    saving.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const saved = await saveDesignMetrics(workspaceId, floorId, {
+        expectedRevision: initialMetrics.revision,
+        widthM: Number(width),
+        lengthM: Number(length),
+        maxOccupancy: initialMetrics.maxOccupancy,
+        occupancyLimit: initialMetrics.occupancyLimit
+      });
+      await queryClient.cancelQueries({ queryKey });
+      queryClient.setQueryData(queryKey, saved);
+      void queryClient.invalidateQueries({
+        predicate: ({ queryKey: key }) => key[0] === 'organizer-resources' &&
+          key[1] === actorId && key[3] === 'design-metrics' &&
+          (key[2] !== workspaceId || key[4] !== floorId)
+      });
+      toast.success(c('Floor dimensions saved.', 'Đã lưu kích thước tầng.'));
+      onClose();
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 409) {
+        setConflict(true);
+        void queryClient.invalidateQueries({ queryKey });
+      }
+      setError(e instanceof Error ? e.message : c('Could not save floor dimensions.', 'Không lưu được kích thước tầng.'));
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Dialog open onOpenChange={(open) => { if (!open && !saving.current) onClose(); }}>
+      <DialogContent className='sm:max-w-md'>
+        <DialogHeader>
+          <DialogTitle className='flex items-center gap-2'><Ruler className='size-5 text-primary' />{c('Physical floor dimensions', 'Kích thước thực của tầng')}</DialogTitle>
+          <DialogDescription>
+            {c('Use the measurements of the entire physical floor. All workspaces on this floor share them.', 'Nhập số đo của toàn tầng vật lý. Các workspace trên cùng tầng dùng chung số đo này.')}
+          </DialogDescription>
+        </DialogHeader>
+        <form className='space-y-4' onSubmit={submit}>
+          <div className='grid grid-cols-2 gap-3'>
+            <Field label={c('Floor width (m)', 'Rộng toàn tầng (m)')}>
+              <Input type='number' min='0.01' max='10000' step='0.01' required value={width} disabled={busy} onChange={(event) => setWidth(event.target.value)} />
+            </Field>
+            <Field label={c('Floor length (m)', 'Dài toàn tầng (m)')}>
+              <Input type='number' min='0.01' max='10000' step='0.01' required value={length} disabled={busy} onChange={(event) => setLength(event.target.value)} />
+            </Field>
+          </div>
+          {(outdated || error) && <p role='alert' className='text-sm text-destructive'>
+            {outdated
+              ? c('Close and reopen this dialog to review the latest floor settings.', 'Đóng rồi mở lại hộp thoại để kiểm tra cấu hình tầng mới nhất.')
+              : error}
+          </p>}
+          <div className='flex justify-end gap-2'>
+            <Button type='button' variant='outline' disabled={busy} onClick={onClose}>{c('Cancel', 'Hủy')}</Button>
+            <Button type='submit' disabled={busy || outdated}>
+              {busy ? <LoaderCircle className='size-4 animate-spin' /> : <Save className='size-4' />}
+              {c('Save dimensions', 'Lưu kích thước')}
+            </Button>
+          </div>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function ResourceSetupDialog(props: {
   workspaceId: number;
   kind: 'floor' | 'type';
   current?: TypeOption;
   floors?: FloorOption[];
+  defaultFloorName?: string;
   onClose: () => void;
   onSaved: () => Promise<void>;
+  onFloorLinked?: (floor: FloorOption) => void;
 }) {
   return props.kind === 'floor' ? (
     <FloorAllocationDialog
       workspaceId={props.workspaceId}
       floors={props.floors ?? []}
+      defaultName={props.defaultFloorName}
       onSaved={props.onSaved}
+      onLinked={props.onFloorLinked}
       onClose={props.onClose}
     />
   ) : (
@@ -1030,12 +1282,14 @@ function ResourceTypeSetupDialog({
   workspaceId,
   current,
   onClose,
-  onSaved
+  onSaved,
+  onTypeSaved
 }: {
   workspaceId: number;
   current?: TypeOption;
   onClose: () => void;
   onSaved: () => Promise<void>;
+  onTypeSaved?: (type: TypeOption) => void;
 }) {
   const c = useCopy();
   const [busy, setBusy] = useState(false);
@@ -1106,7 +1360,7 @@ function ResourceTypeSetupDialog({
     }
     setBusy(true);
     try {
-      await saveResourceType(
+      const savedType = await saveResourceType(
         workspaceId,
         {
           name: name.trim(),
@@ -1124,6 +1378,7 @@ function ResourceTypeSetupDialog({
         current
       );
       await onSaved();
+      onTypeSaved?.(savedType);
       onClose();
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Save failed');

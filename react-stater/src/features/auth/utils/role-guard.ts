@@ -146,3 +146,20 @@ export function checkRouteAccess(
 
   return { allowed: true };
 }
+
+/** Accept only an authorized, same-origin return destination. */
+export function getSignInReturnPath(target: string | null, user: UserDto): string | undefined {
+  if (!target?.startsWith('/') || target.startsWith('//') || target.includes('\\') ||
+    Array.from(target).some((character) => character <= ' ' || character === '\u007f')) {
+    return;
+  }
+
+  const base = 'https://nexspace.invalid';
+  const url = new URL(target, base);
+  if (url.origin !== base || url.pathname.startsWith('//') || /^\/auth\/sign-in\/?$/.test(url.pathname)) {
+    return;
+  }
+  if (checkRouteAccess(url.pathname, true, user).allowed) {
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+}

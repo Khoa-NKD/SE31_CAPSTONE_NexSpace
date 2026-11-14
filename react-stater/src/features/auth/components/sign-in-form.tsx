@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils';
 import { Link, useRouter } from '@tanstack/react-router';
 import { authService } from '../api/auth-service';
 import { useAuthStore } from '../store/auth-store';
-import { getUserRole, checkRouteAccess } from '../utils/role-guard';
+import { getRoleHomeUrl, getSignInReturnPath } from '../utils/role-guard';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
 
@@ -111,29 +111,10 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       if (onSuccess) {
         onSuccess();
       } else {
-        // Preserve role-aware navigation and authorized return destinations.
-        const role = getUserRole(response.user);
-        let targetUrl = '';
-
-        if (typeof window !== 'undefined') {
-          const params = new URLSearchParams(window.location.search);
-          const redirectParam = params.get('redirect');
-          if (redirectParam && checkRouteAccess(redirectParam, true, response.user).allowed) {
-            targetUrl = redirectParam;
-          }
-        }
-
-        if (!targetUrl) {
-          if (role === 'ADMIN') {
-            targetUrl = '/dashboard/overview';
-          } else if (role === 'ORGANIZER') {
-            targetUrl = '/dashboard/organizer/workspaces';
-          } else {
-            targetUrl = '/';
-          }
-        }
-
-        router.navigate({ to: targetUrl });
+        const target = new URLSearchParams(window.location.search).get('redirect');
+        const returnPath = getSignInReturnPath(target, response.user);
+        if (returnPath) window.location.replace(returnPath);
+        else router.navigate({ to: getRoleHomeUrl(response.user) });
       }
     } catch (err: unknown) {
       if (err instanceof ApiError) {

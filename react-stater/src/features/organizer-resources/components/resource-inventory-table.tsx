@@ -1,4 +1,5 @@
 import { Armchair, DoorOpen, Pencil, Trash2 } from 'lucide-react';
+import { Link } from '@tanstack/react-router';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,6 +9,7 @@ import type { ResourceDetail, ResourceOptions, ResourcePage } from '../api/resou
 export function ResourceInventoryTable({
   data,
   options,
+  workspaceId,
   workspaceStatus,
   writable,
   busy,
@@ -17,6 +19,7 @@ export function ResourceInventoryTable({
 }: {
   data: ResourcePage;
   options?: ResourceOptions;
+  workspaceId: number;
   workspaceStatus: string;
   writable: boolean;
   busy: boolean;
@@ -58,11 +61,26 @@ export function ResourceInventoryTable({
             const floor = options?.floors.find((f) => f.id === resource.floorPlanId);
             const type = options?.types.find((t) => t.id === resource.resourceTypeId);
             const archived = resource.status === 'ARCHIVED';
-            const canActivate =
-              workspaceStatus === 'ACTIVE' &&
-              floor?.status === 'PUBLISHED' &&
-              type?.active &&
-              !!type.currency;
+            const hasPrice = [
+              resource.pricePerHour,
+              type?.pricePerHour,
+              type?.pricePerDay,
+              type?.pricePerMonth
+            ].some((price) => Number(price) > 0);
+            const activationIssue =
+              workspaceStatus !== 'ACTIVE'
+                ? c('Workspace is not active.', 'Workspace chưa hoạt động.')
+                : floor?.status !== 'PUBLISHED'
+                  ? c('Floor plan is not published.', 'Sơ đồ tầng chưa xuất bản.')
+                  : !type?.active || !type.currency
+                    ? c('Check the resource type and currency.', 'Kiểm tra loại chỗ và tiền tệ.')
+                    : !hasPrice
+                      ? c(
+                          'Add a base price before activation.',
+                          'Cần có giá cơ bản để bật nhận đặt.'
+                        )
+                      : null;
+            const canActivate = !activationIssue;
             return (
               <tr key={resource.id} className='hover:bg-muted/20 transition-colors'>
                 <td className='px-5 py-4' aria-label={resource.name}>
@@ -149,9 +167,15 @@ export function ResourceInventoryTable({
                   </div>
                   {resource.status !== 'ACTIVE' && !canActivate && !archived && (
                     <p className='text-muted-foreground mt-2 max-w-52 text-[11px]'>
-                      {c(
-                        'Requires active workspace, published floor and confirmed type.',
-                        'Cần workspace hoạt động, tầng đã publish và loại chỗ hợp lệ.'
+                      {activationIssue}
+                      {workspaceStatus === 'ACTIVE' && floor && floor.status !== 'PUBLISHED' && (
+                        <Link
+                          className='mt-1 block text-primary hover:underline'
+                          to='/dashboard/organizer/floorplan'
+                          search={{ workspaceId, floorId: floor.id }}
+                        >
+                          {c('Open floor plan', 'Mở sơ đồ tầng')}
+                        </Link>
                       )}
                     </p>
                   )}

@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert';
-import { getUserRole, checkRouteAccess } from './role-guard.ts';
+import { getUserRole, checkRouteAccess, getSignInReturnPath } from './role-guard.ts';
 import type { UserDto } from '../api/types.ts';
 
 describe('Role Guard Access Control', () => {
@@ -44,6 +44,18 @@ describe('Role Guard Access Control', () => {
     assert.strictEqual(checkRouteAccess('/workspaces/1', false, null).allowed, true);
     assert.strictEqual(checkRouteAccess('/auth/sign-in', false, null).allowed, true);
     assert.strictEqual(checkRouteAccess('/about', true, adminUser).allowed, true);
+  });
+
+  it('preserves authorized Organizer email destinations and rejects invalid return paths', () => {
+    assert.strictEqual(getSignInReturnPath('/organizer/apply', customerUser), '/organizer/apply');
+    assert.strictEqual(
+      getSignInReturnPath('/dashboard/organizer/application?view=contract#agreement', organizerUser),
+      '/dashboard/organizer/application?view=contract#agreement'
+    );
+    assert.strictEqual(getSignInReturnPath('/dashboard/organizer/application', customerUser), undefined);
+    for (const path of ['//example.com', '/\\example.com', '/foo/../dashboard/admin', '/auth/sign-in/']) {
+      assert.strictEqual(getSignInReturnPath(path, organizerUser), undefined);
+    }
   });
 
   it('redirects unauthenticated users attempting to access dashboard', () => {

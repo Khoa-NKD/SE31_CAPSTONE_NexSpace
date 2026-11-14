@@ -1,6 +1,6 @@
 import type { AllocationInput, PhysicalFloor } from '../api/buildings';
 import type { FloorOption } from '../api/resources';
-import { allocationError } from './building-allocation.ts';
+import { allocationError, suggestAllocation } from './building-allocation.ts';
 
 export type AreaFields = { x: string; y: string; width: string; height: string };
 export interface FloorSelection {
@@ -55,7 +55,14 @@ export function floorBatchSelection(
   selected = [...selected].sort((a, b) => a.floorNumber - b.floorNumber || a.id - b.id);
   const rows = selected.map((floor) => {
     const custom = state.overrides[floor.id] ?? {};
-    const fields = { x: '0', y: '0', width: '', height: '', ...custom };
+    const suggested = suggestAllocation(floor);
+    const fields = {
+      x: String(suggested.x),
+      y: String(suggested.y),
+      width: String(suggested.width),
+      height: String(suggested.height),
+      ...custom
+    };
     const allocation: AllocationInput = {
       buildingFloorId: floor.id,
       x: Number(fields.x),

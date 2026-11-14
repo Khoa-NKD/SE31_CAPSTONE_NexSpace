@@ -32,15 +32,21 @@ const OverviewMap = lazy(() =>
   import('./building-overview-map').then((module) => ({ default: module.BuildingOverviewMap }))
 );
 
-export function BuildingManagementView() {
+export function BuildingManagementView({
+  onCreated,
+  onCancel
+}: {
+  onCreated?: (buildingId: number) => void;
+  onCancel?: () => void;
+} = {}) {
   const actorId = useAuthStore((state) => state.user?.id ?? 0);
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
   const client = useQueryClient();
-  const query = useQuery({ ...buildingsOptions(actorId), enabled: actorId > 0 });
+  const query = useQuery({ ...buildingsOptions(actorId), enabled: actorId > 0 && !onCreated });
   const [search, setSearch] = useState('');
   const [cityFilter, setCityFilter] = useState('');
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(!!onCreated);
   const [selected, setSelected] = useState<Building | null>(null);
   const [editTarget, setEditTarget] = useState<Building | null>(null);
   const [administration, setAdministration] = useState({ city: '', ward: '' });
@@ -132,7 +138,7 @@ export function BuildingManagementView() {
     setBusy(true);
     setError('');
     try {
-      await saveBuilding(
+      const buildingId = await saveBuilding(
         {
           name: name.trim(),
           address: address.trim(),
@@ -152,7 +158,15 @@ export function BuildingManagementView() {
       );
       await client.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
       await client.invalidateQueries({ queryKey: ['workspaces'] });
+      if (!editTarget && typeof buildingId === 'number') onCreated?.(buildingId);
     } catch (failure) {
+      if (failure instanceof Error && failure.message === 'A building with this address already exists') {
+        setError(c(
+          'You already have a building at this address. Select the existing building to link a workspace.',
+          'Bạn đã có tòa nhà tại địa chỉ này. Hãy chọn tòa nhà hiện có để liên kết workspace.'
+        ));
+        return;
+      }
       setError(
         failure instanceof Error
           ? failure.message
@@ -180,6 +194,10 @@ export function BuildingManagementView() {
             size='icon'
             disabled={busy}
             onClick={() => {
+              if (onCancel) {
+                onCancel();
+                return;
+              }
               setCreating(false);
               setSelected(null);
             }}
@@ -349,7 +367,7 @@ export function BuildingManagementView() {
                   type='button'
                   variant='outline'
                   disabled={busy}
-                  onClick={() => setCreating(false)}
+                  onClick={() => (onCancel ? onCancel() : setCreating(false))}
                 >
                   {c('Cancel', 'Hủy')}
                 </Button>

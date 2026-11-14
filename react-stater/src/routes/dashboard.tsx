@@ -7,9 +7,12 @@ import { InfoSidebar } from '@/components/layout/info-sidebar';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { checkRouteAccess } from '@/features/auth/utils/role-guard';
+import { checkRouteAccess, getUserRole } from '@/features/auth/utils/role-guard';
 import { toast } from 'sonner';
 import { ShieldAlert, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { getOrganizerOperationalStatus, organizerOperationalStatusKey } from '@/features/admin-organizers/api/partners';
 
 const emptySubscribe = () => () => {};
 
@@ -88,6 +91,9 @@ function DashboardLayout() {
         <AppSidebar />
         <SidebarInset id='main-content' tabIndex={-1}>
           <Header />
+          {mounted && user && getUserRole(user) === 'ORGANIZER' && pathname.startsWith('/dashboard/organizer') && (
+            <OrganizerOperationalNotice userId={user.id} />
+          )}
           <InfobarProvider defaultOpen={false}>
             <Outlet />
             <InfoSidebar side='right' />
@@ -95,5 +101,25 @@ function DashboardLayout() {
         </SidebarInset>
       </SidebarProvider>
     </CommandMenu>
+  );
+}
+
+function OrganizerOperationalNotice({ userId }: { userId: number }) {
+  const status = useQuery({
+    queryKey: organizerOperationalStatusKey(userId),
+    queryFn: ({ signal }) => getOrganizerOperationalStatus(signal),
+    retry: false
+  });
+  if (!status.data?.suspended) return null;
+
+  return (
+    <Alert variant='destructive' className='mx-4 mt-4 w-auto sm:mx-7'>
+      <ShieldAlert className='size-4' />
+      <AlertTitle>Quyền hoạt động đối tác đang tạm ngưng</AlertTitle>
+      <AlertDescription>
+        <p>Bạn vẫn có thể xem hồ sơ và xử lý booking đã tạo. Các workspace tạm ngưng nhận đặt mới.</p>
+        {status.data.reason && <p className='whitespace-pre-wrap break-words'>Lý do tạm ngưng · {status.data.reason}</p>}
+      </AlertDescription>
+    </Alert>
   );
 }

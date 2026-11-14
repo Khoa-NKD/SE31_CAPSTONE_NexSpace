@@ -5,7 +5,14 @@ export interface FloorChatMessage {
   kind?: 'warning';
 }
 const MAX_MESSAGES = 200;
-/** Persist text only. Reference images remain request-scoped and never enter browser storage. */
+const MAX_SAVED_IMAGES = 8;
+const MAX_THUMBNAIL_LENGTH = 160_000;
+
+function safeThumbnail(image: unknown): image is string {
+  return typeof image === 'string' && image.length <= MAX_THUMBNAIL_LENGTH &&
+    image.startsWith('data:image/jpeg;base64,');
+}
+
 export function parseFloorChat(raw: string | null): FloorChatMessage[] {
   try {
     const parsed: unknown = raw ? JSON.parse(raw) : [];
@@ -18,9 +25,10 @@ export function parseFloorChat(raw: string | null): FloorChatMessage[] {
           typeof item.text === 'string'
       )
       .slice(-MAX_MESSAGES)
-      .map(({ role, text, kind }) => ({
+      .map(({ role, text, kind, image }) => ({
         role,
         text: text.slice(0, 4000),
+        ...(role === 'user' && safeThumbnail(image) ? { image } : {}),
         ...(role === 'assistant' && kind === 'warning' ? { kind } : {})
       }));
   } catch {
@@ -35,15 +43,16 @@ export function readFloorChat(key: string): FloorChatMessage[] {
   }
 }
 export function writeFloorChat(key: string, messages: FloorChatMessage[]) {
+  const recent = messages.slice(-MAX_MESSAGES);
+  const textMessages = recent.map(({ role, text, kind }) => ({ role, text: text.slice(0, 4000), kind }));
+  const thumbs = recent.map((item, index) => item.role === 'user' && safeThumbnail(item.image) ? index : -1)
+    .filter((index) => index >= 0).slice(-MAX_SAVED_IMAGES);
   try {
-    const textMessages = messages.slice(-MAX_MESSAGES).map(({ role, text, kind }) => ({
-      role,
-      text: text.slice(0, 4000),
-      kind
-    }));
-    window.localStorage.setItem(key, JSON.stringify(textMessages));
+    window.localStorage.setItem(key, JSON.stringify(textMessages.map((item, index) =>
+      thumbs.includes(index) ? { ...item, image: recent[index].image } : item)));
     return true;
   } catch {
+    try { window.localStorage.setItem(key, JSON.stringify(textMessages)); } catch { /* Keep the previous history. */ }
     return false;
   }
 }

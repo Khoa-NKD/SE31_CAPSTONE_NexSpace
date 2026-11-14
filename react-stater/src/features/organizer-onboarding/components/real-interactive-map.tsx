@@ -37,6 +37,9 @@ interface RealInteractiveMapProps {
 }
 
 type MapLayerType = 'map' | 'satellite';
+type MapProvider = 'goong' | 'street' | 'satellite';
+const MAP_LOAD_TIMEOUT_MS = 8_000;
+const GOONG_FIRST_TILE_TIMEOUT_MS = 1_800;
 
 interface SearchSuggestion {
   id: string;
@@ -97,14 +100,13 @@ const FALLBACK_RASTER_SATELLITE_STYLE: MapLibreGL.StyleSpecification = {
 };
 
 function resolveMapStyle(
-  layer: MapLayerType,
-  isGoongActive: boolean,
+  provider: MapProvider,
   goongKey: string
 ): MapLibreGL.StyleSpecification | string {
-  if (layer === 'satellite') {
+  if (provider === 'satellite') {
     return FALLBACK_RASTER_SATELLITE_STYLE;
   }
-  if (isGoongActive && goongKey) {
+  if (provider === 'goong') {
     return `https://tiles.goong.io/assets/goong_map_web.json?api_key=${encodeURIComponent(goongKey)}`;
   }
   return FALLBACK_RASTER_STREET_STYLE;
@@ -147,6 +149,7 @@ export function RealInteractiveMap({
   const mapInstanceRef = useRef<MapLibreGL.Map | null>(null);
   const markerInstanceRef = useRef<MapLibreGL.Marker | null>(null);
   const mapLibreModuleRef = useRef<typeof MapLibreGL | null>(null);
+  const loadMapProviderRef = useRef<((provider: MapProvider) => void) | null>(null);
 
   const safeLat = typeof latitude === 'number' && !Number.isNaN(latitude) && latitude !== 0 ? latitude : 10.7769;
   const safeLng = typeof longitude === 'number' && !Number.isNaN(longitude) && longitude !== 0 ? longitude : 106.7009;
@@ -160,7 +163,7 @@ export function RealInteractiveMap({
   // Goong Map Keys from environment
   const goongMaptilesKey = (import.meta.env.VITE_GOONG_MAPTILES_KEY as string | undefined)?.trim() || '';
   const goongApiKey = (import.meta.env.VITE_GOONG_API_KEY as string | undefined)?.trim() || '';
-  const isGoongTilesActive = Boolean(goongMaptilesKey);
+  const streetProvider = goongMaptilesKey ? 'goong' : 'street';
   const isGoongApiActive = Boolean(goongApiKey);
 
   useEffect(() => {
@@ -191,7 +194,10 @@ export function RealInteractiveMap({
 
   const [activeLayer, setActiveLayer] = useState<MapLayerType>('map');
   const [mapSearch, setMapSearch] = useState('');
-  const [isLoaded, setIsLoaded] = useState(false);
+  const [mapStatus, setMapStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [mapProvider, setMapProvider] = useState<MapProvider>(streetProvider);
+  const [mapAttempt, setMapAttempt] = useState(0);
+  const isLoaded = mapStatus === 'ready';
   const [isLocating, setIsLocating] = useState(false);
 
   // Google Maps-like Autocomplete Suggestions State
@@ -204,6 +210,8 @@ export function RealInteractiveMap({
   // Initialize MapLibre GL map on client mount
   useEffect(() => {
     let isMounted = true;
+    let cancelStyleLoad: (() => void) | undefined;
+    let resizeObserver: ResizeObserver | undefined;
 
     async function initMap() {
       if (typeof window === 'undefined' || !mapContainerRef.current) return;
@@ -217,23 +225,69 @@ export function RealInteractiveMap({
         if (!isMounted || !mapContainerRef.current) return;
 
         const { lat: initLat, lng: initLng } = initialCoordsRef.current;
-        const initialStyle = resolveMapStyle('map', isGoongTilesActive, goongMaptilesKey);
-
         // Initialize MapLibre Map with street-level zoom (16)
         const map = new maplibregl.Map({
           container: mapContainerRef.current,
-          style: initialStyle,
           center: [initLng, initLat],
           zoom: 16,
           minZoom: 5,
           maxZoom: 19,
           attributionControl: false
         });
+        mapInstanceRef.current = map;
 
-        map.on('load', () => {
-          if (!isMounted) return;
-          setIsLoaded(true);
-        });
+        // MapLibre otherwise logs errors that can include provider credentials in URLs.
+        map.on('error', () => {});
+
+        function loadProvider(provider: MapProvider) {
+          cancelStyleLoad?.();
+          setMapProvider(provider);
+          setMapStatus('loading');
+
+          const fail = () => {
+            cancelStyleLoad?.();
+            if (provider === 'goong') {
+              loadProvider('street');
+            } else {
+              setMapStatus('error');
+            }
+          };
+          const onTile = (event: MapLibreGL.MapSourceDataEvent) => {
+            // A style can finish loading even when every visible tile failed.
+            if (event.tile?.state !== 'loaded') return;
+            cancelStyleLoad?.();
+            setMapStatus('ready');
+          };
+          let timeout = window.setTimeout(
+            fail,
+            provider === 'goong' ? GOONG_FIRST_TILE_TIMEOUT_MS : MAP_LOAD_TIMEOUT_MS
+          );
+          const onError = ({ error, tile }: { error: { status?: number }; tile?: unknown }) => {
+            // A missing individual tile can be recovered by MapLibre using a nearby zoom level.
+            if (provider !== 'goong' || (tile && error.status !== 401 && error.status !== 403)) return;
+            window.clearTimeout(timeout);
+            // Switch styles after MapLibre finishes dispatching the current event.
+            timeout = window.setTimeout(fail, 0);
+          };
+          cancelStyleLoad = () => {
+            window.clearTimeout(timeout);
+            map.off('sourcedata', onTile);
+            map.off('error', onError);
+            cancelStyleLoad = undefined;
+          };
+          map.on('sourcedata', onTile);
+          map.on('error', onError);
+          try {
+            map.setStyle(resolveMapStyle(provider, goongMaptilesKey), { diff: false });
+          } catch {
+            fail();
+          }
+        }
+
+        loadMapProviderRef.current = loadProvider;
+        resizeObserver = new ResizeObserver(() => map.resize());
+        resizeObserver.observe(mapContainerRef.current);
+        loadProvider(streetProvider);
 
         // Click map to reposition marker
         map.on('click', (e: { lngLat: { lng: number; lat: number } }) => {
@@ -274,10 +328,15 @@ export function RealInteractiveMap({
           );
         });
 
-        mapInstanceRef.current = map;
         markerInstanceRef.current = marker;
-      } catch (err) {
-        console.error('Failed to initialize MapLibre / Goong map:', err);
+      } catch {
+        cancelStyleLoad?.();
+        resizeObserver?.disconnect();
+        loadMapProviderRef.current = null;
+        mapInstanceRef.current?.remove();
+        mapInstanceRef.current = null;
+        markerInstanceRef.current = null;
+        if (isMounted) setMapStatus('error');
       }
     }
 
@@ -285,6 +344,9 @@ export function RealInteractiveMap({
 
     return () => {
       isMounted = false;
+      cancelStyleLoad?.();
+      resizeObserver?.disconnect();
+      loadMapProviderRef.current = null;
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current);
       }
@@ -294,11 +356,13 @@ export function RealInteractiveMap({
       }
       markerInstanceRef.current = null;
     };
-  }, [isGoongTilesActive, goongMaptilesKey]);
+    // Retrying after an initialization failure recreates the MapLibre instance.
+    // oxlint-disable-next-line react/exhaustive-deps
+  }, [goongMaptilesKey, streetProvider, mapAttempt, readOnly]);
 
   // Synchronize external coordinate changes to marker position
   useEffect(() => {
-    if (!markerInstanceRef.current || !mapInstanceRef.current) return;
+    if (!isLoaded || !markerInstanceRef.current || !mapInstanceRef.current) return;
     if (typeof latitude !== 'number' || typeof longitude !== 'number') return;
     const currentLngLat = markerInstanceRef.current.getLngLat();
     const diffLat = Math.abs(currentLngLat.lat - latitude);
@@ -314,10 +378,19 @@ export function RealInteractiveMap({
 
   // Switch Layer (Street vs Satellite)
   const handleLayerChange = (layer: MapLayerType) => {
-    if (!mapInstanceRef.current || layer === activeLayer) return;
+    if (!loadMapProviderRef.current || layer === activeLayer) return;
     setActiveLayer(layer);
-    const nextStyle = resolveMapStyle(layer, isGoongTilesActive, goongMaptilesKey);
-    mapInstanceRef.current.setStyle(nextStyle);
+    loadMapProviderRef.current(layer === 'map' ? streetProvider : 'satellite');
+  };
+
+  const handleRetryMap = () => {
+    if (loadMapProviderRef.current) {
+      loadMapProviderRef.current(activeLayer === 'map' ? streetProvider : 'satellite');
+      return;
+    }
+    setMapStatus('loading');
+    setActiveLayer('map');
+    setMapAttempt((attempt) => attempt + 1);
   };
 
   // Zoom In
@@ -637,26 +710,6 @@ export function RealInteractiveMap({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Handle container resizing
-  useEffect(() => {
-    if (!isLoaded || !mapInstanceRef.current || !mapContainerRef.current) return;
-    const map = mapInstanceRef.current;
-    const container = mapContainerRef.current;
-
-    const resizeObserver = new ResizeObserver(() => {
-      map.resize();
-    });
-
-    resizeObserver.observe(container);
-    // Initialization is asynchronous; resize after the loaded map enters its final layout.
-    const frame = requestAnimationFrame(() => map.resize());
-
-    return () => {
-      cancelAnimationFrame(frame);
-      resizeObserver.disconnect();
-    };
-  }, [isLoaded]);
-
   return (
     <div className='relative w-full h-full rounded-xl border border-border overflow-hidden bg-card shadow-2xs flex flex-col select-none min-h-[500px]'>
       {/* Map Subheader Toolbar */}
@@ -737,11 +790,16 @@ export function RealInteractiveMap({
 
         {/* Map Layer Toggle (Đường phố vs Vệ tinh) & Provider Badge */}
         <div className='flex items-center gap-2'>
-          {isGoongTilesActive && (
+          {isLoaded && mapProvider === 'goong' && (
             <span className='inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200/60 dark:border-emerald-800/60 text-[11px] font-medium'>
               <CheckCircle2 className='size-3 text-emerald-600' />
-              <span>Goong Map Active</span>
+              <span>Bản đồ Goong</span>
             </span>
+          )}
+          {isLoaded && mapProvider === 'street' && streetProvider === 'goong' && (
+            <Button type='button' variant='ghost' size='sm' onClick={handleRetryMap} title='Thử tải lại bản đồ Goong'>
+              Đang dùng bản đồ dự phòng
+            </Button>
           )}
           <div className='inline-flex rounded-lg bg-muted p-1 border border-border text-xs font-medium'>
             <button
@@ -753,7 +811,7 @@ export function RealInteractiveMap({
                   : 'text-muted-foreground hover:text-foreground'
               }`}
             >
-              {isGoongTilesActive ? 'Bản đồ Goong' : 'Bản đồ đường phố'}
+              Bản đồ đường phố
             </button>
             <button
               type='button'
@@ -775,11 +833,19 @@ export function RealInteractiveMap({
         <div ref={mapContainerRef} className='absolute inset-0 size-full z-10' />
 
         {/* Loading Spinner Skeleton */}
-        {!isLoaded && (
-          <div className='absolute inset-0 bg-muted/40 backdrop-blur-xs flex items-center justify-center z-15'>
+        {mapStatus === 'loading' && (
+          <div role='status' className='pointer-events-none absolute inset-x-0 bottom-4 z-15 flex justify-center'>
             <div className='flex items-center gap-2.5 px-4 py-2 rounded-lg bg-card border border-border shadow-md text-xs font-medium text-foreground'>
               <div className='size-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin' />
               <span>Đang tải bản đồ tương tác...</span>
+            </div>
+          </div>
+        )}
+        {mapStatus === 'error' && (
+          <div className='pointer-events-none absolute inset-0 flex items-center justify-center z-15 px-4'>
+            <div className='pointer-events-auto flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card px-4 py-2 text-sm shadow-md'>
+              <span role='status'>Không tải được nền bản đồ.</span>
+              <Button type='button' variant='outline' size='sm' onClick={handleRetryMap}>Thử lại</Button>
             </div>
           </div>
         )}

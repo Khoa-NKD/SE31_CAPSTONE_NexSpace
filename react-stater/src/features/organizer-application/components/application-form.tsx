@@ -10,7 +10,7 @@ import { useOrganizerTranslation } from '@/features/organizer-application/hooks/
 import { useEffect, useRef, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { ApiError } from '@/lib/api-client';
 import { currentUser } from '@/features/auth/api/session';
 import type { SessionUser } from '@/features/auth/api/session';
@@ -23,6 +23,7 @@ import {
   registrationReasonSubmissionSchema,
   currentApplication,
   startApplicationDraft,
+  applicationHistory,
   saveApplicationDraft,
   submitApplicationDraft
 } from '../api/application';
@@ -37,6 +38,7 @@ import {
   RefreshCw,
   MessageSquareText,
   FileText,
+  ArrowDown,
   ArrowDownRight,
   LockKeyhole
 } from 'lucide-react';
@@ -112,6 +114,11 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   const [confirmResubmit, setConfirmResubmit] = useState(false);
   const operation = useRef(false);
   const queryClient = useQueryClient();
+  const history = useQuery({
+    queryKey: ['organizer-application-history', user?.id],
+    queryFn: applicationHistory,
+    enabled: !!user && !!details
+  });
   const form = useForm<ApplicationInput>({ defaultValues: formValues(null) });
   const isDirty = form.formState.isDirty;
   const [focusRequest, setFocusRequest] = useState<{
@@ -132,7 +139,23 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         .getElementById('organizer-verification-documents')
         ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
-  const selectedBusinessType = form.watch('businessType');
+  const selectedBusinessType = useWatch({ control: form.control, name: 'businessType' });
+  const availableBusinessTypes = businessTypes.options.filter((option) => option.code !== 'OTHER');
+  const householdBusiness = selectedBusinessType === 'HOUSEHOLD_BUSINESS';
+  const legacyBusinessType = selectedBusinessType === 'OTHER';
+  function taxIdFormatError(value: string) {
+    if (!value || legacyBusinessType || (householdBusiness ? /^[0-9]{12}$/ : /^[0-9]{10}$/).test(value.trim())) return;
+    return householdBusiness
+      ? "Enter the representative's 12-digit personal identification number"
+      : 'Enter the 10-digit business tax ID';
+  }
+
+  function checkTaxId() {
+    const value = form.getValues('taxId').trim();
+    const message = value ? taxIdFormatError(value) : 'This field is required.';
+    if (message) form.setError('taxId', { type: 'taxIdFormat', message });
+    else if (form.getFieldState('taxId').error?.type === 'taxIdFormat') form.clearErrors('taxId');
+  }
 
   useEffect(() => {
     const controller = new AbortController();
@@ -187,6 +210,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         const draft = await startApplicationDraft();
         setDetails(draft);
         form.reset(formValues(draft, user?.email));
+        await queryClient.invalidateQueries({ queryKey: ['organizer-application-history', user?.id] });
         successMessage = 'Draft created. Save your details and upload your business license below.';
       } else if (details?.status === 'REVISION_REQUESTED') {
         if (action !== 'submit')
@@ -199,7 +223,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         successMessage =
           'Application submitted. Your account permissions change only after approval.';
       } else {
-        if (!businessTypes.options.length)
+        if (!availableBusinessTypes.length)
           throw new Error('Load the business type catalog before saving or submitting.');
         // Both actions persist the visible snapshot; only explicit submission changes status.
 
@@ -208,15 +232,30 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           for (const issue of parsed.error.issues)
             form.setError(issue.path[0] as keyof ApplicationInput, { message: issue.message });
           setError('Correct the highlighted fields before saving or submitting.');
+          document.getElementById(String(parsed.error.issues[0].path[0]))?.scrollIntoView({ block: 'center' });
           return;
         }
         if (action === 'submit') {
+          const requiredFields = fields.map(([name]) => name).filter((name) => !parsed.data[name]);
+          for (const name of requiredFields) {
+            form.setError(name, { message: tr('This field is required.') });
+          }
+          if (legacyBusinessType) {
+            form.setError('businessType', { message: tr('Choose a supported business type') });
+          }
+          const taxError = taxIdFormatError(parsed.data.taxId);
+          if (taxError) form.setError('taxId', { type: 'taxIdFormat', message: taxError });
           const reason = registrationReasonSubmissionSchema.safeParse(
             parsed.data.registrationReason
           );
           if (!reason.success) {
             form.setError('registrationReason', { message: reason.error.issues[0].message });
-            setError('Enter your registration reason before submitting.');
+          }
+          const firstInvalid = (['businessType', ...fields.map(([name]) => name), 'registrationReason'] as const)
+            .find((name) => form.getFieldState(name).invalid);
+          if (firstInvalid) {
+            setError('Correct the highlighted fields before saving or submitting.');
+            document.getElementById(firstInvalid)?.scrollIntoView({ block: 'center' });
             return;
           }
         }
@@ -226,7 +265,8 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           if (!policy) throw new Error('Reload the document requirements before submitting.');
           const uploaded = await queryClient.fetchQuery(verificationDocumentsQueryOptions(user.id));
           const missing = missingRequiredDocuments(policy, uploaded.documents);
-          if (missing.length)
+          if (missing.length) {
+            document.getElementById('organizer-required-documents')?.scrollIntoView({ block: 'center' });
             throw new Error(
               (businessTypes.language === 'vi'
                 ? 'Còn thiếu hoặc cần thay tài liệu: '
@@ -235,6 +275,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   .map((item) => (businessTypes.language === 'vi' ? item.labelVi : item.labelEn))
                   .join(', ')
             );
+          }
         }
         const saved = await saveApplicationDraft(parsed.data);
         if (!saved) throw new Error('Application no longer exists. Reload this page.');
@@ -348,10 +389,26 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
   };
   return (
     <div className='space-y-6 [&_input]:rounded-md [&_input]:bg-background [&_input]:shadow-none [&_select]:rounded-md [&_textarea]:rounded-md'>
+      {details && (
+        <nav aria-label={tr('Business application')} className='flex flex-wrap gap-2 rounded-2xl border bg-card p-2'>
+          {([
+            ['organizer-application-progress', 'Application progress', ClipboardCheck],
+            ['organizer-application-form', 'Business details', Building2],
+            ['organizer-verification-documents', 'Verification documents', Files]
+          ] as const).map(([target, label, Icon]) => (
+            <a key={target} href={`#${target}`} className='inline-flex min-h-10 flex-1 items-center gap-2 rounded-xl px-3 text-sm font-medium hover:bg-indigo-500/10 focus-visible:ring-2 focus-visible:ring-ring'>
+              <Icon className='size-4 shrink-0 text-indigo-600 dark:text-indigo-300' aria-hidden='true' />
+              {tr(label)}
+              <ArrowDown className='ml-auto size-3 shrink-0 text-muted-foreground' aria-hidden='true' />
+            </a>
+          ))}
+        </nav>
+      )}
       {details ? (
         <section
+          id='organizer-application-progress'
           aria-label='Application status and review feedback'
-          className='rounded-lg border bg-card p-5 shadow-sm sm:p-7'
+          className='scroll-mt-24 rounded-2xl border bg-card p-5 shadow-sm sm:p-6'
         >
           <div className='flex flex-wrap items-start justify-between gap-4'>
             <div className='flex items-center gap-3'>
@@ -376,7 +433,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           <p role='status' className='mt-4 text-sm leading-6 text-muted-foreground'>
             {tr(applicationStatusPresentation(details.status).description)}
           </p>
-          <div className='mt-5 grid gap-4 border-t pt-5 text-sm sm:grid-cols-2'>
+          {details.status !== 'DRAFT' && <div className='mt-5 grid gap-4 rounded-xl border bg-muted/20 p-4 text-sm sm:grid-cols-2'>
             <div>
               <p className='text-xs text-muted-foreground'>{tr('Submitted at')}</p>
               <p className='mt-1 font-medium'>
@@ -393,7 +450,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   : tr('Awaiting review')}
               </p>
             </div>
-          </div>
+          </div>}
           {(correcting || details.status === 'REJECTED') && (
             <div className='border-border bg-background mt-6 overflow-hidden rounded-xl border'>
               <div className='border-border bg-muted/25 flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3 sm:px-5'>
@@ -509,6 +566,27 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             <RefreshCw className={`size-4 ${busy ? 'animate-spin' : ''}`} aria-hidden='true' />{' '}
             {tr('Refresh status')}{' '}
           </Button>
+          {details.status === 'REJECTED' && (
+            <Button type='button' className='mt-5 ml-2' disabled={busy} onClick={() => void run('start')}>
+              {businessTypes.language === 'vi' ? 'Đăng ký lại' : 'Start a new application'}
+            </Button>
+          )}
+          {history.data?.some((item) => item.id !== details.id) && (
+            <details className='mt-5 border-t pt-4'>
+              <summary className='cursor-pointer text-sm font-medium'>
+                {businessTypes.language === 'vi' ? 'Lịch sử đơn bị từ chối' : 'Rejected application history'}
+              </summary>
+              <ul className='mt-3 space-y-2'>
+                {history.data.filter((item) => item.id !== details.id).map((item) => (
+                  <li key={item.id} className='rounded-lg border p-3 text-sm'>
+                    <p className='font-medium'>#{item.id} · {item.legalName}</p>
+                    {item.reviewedAt && <p className='text-muted-foreground'>{item.reviewedAt.replace('T', ' ')} UTC</p>}
+                    <p className='mt-1 whitespace-pre-wrap'>{item.reviewFeedback}</p>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </section>
       ) : (
         <section className='space-y-4 rounded-lg border bg-card p-6 shadow-sm'>
@@ -535,7 +613,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           <form
             id='organizer-application-form'
             noValidate
-            className='space-y-6 rounded-lg border bg-card p-5 shadow-sm sm:p-7'
+            className='scroll-mt-24 space-y-6 rounded-2xl border bg-card p-5 shadow-sm sm:p-7'
             onSubmit={(event) => {
               event.preventDefault();
               if (editable) void run('save');
@@ -557,24 +635,32 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
               className='grid gap-5 sm:grid-cols-2 disabled:opacity-70'
             >
               <legend className='sr-only'>{tr('Business application')}</legend>
+              <p className='text-muted-foreground text-xs sm:col-span-2'>
+                <span className='text-destructive'>*</span> {tr('Required when submitting')}
+              </p>
               <div className='space-y-2 sm:col-span-2'>
                 <label htmlFor='businessType' className='text-sm font-medium'>
                   {businessTypes.language === 'vi' ? 'Loại hình kinh doanh' : tr('Business type')}
+                  <span aria-hidden='true' className='ml-1 text-destructive'>*</span>
                 </label>
                 <select
                   id='businessType'
                   {...form.register('businessType')}
-                  disabled={!businessTypes.options.length}
+                  disabled={!availableBusinessTypes.length}
+                  aria-required='true'
                   className='h-10 w-full rounded-md border border-input bg-background px-3'
                 >
-                  {!businessTypes.options.length && (
+                  {!availableBusinessTypes.length && !legacyBusinessType && (
                     <option value={form.getValues('businessType')}>
                       {businessTypes.query.isError
                         ? tr('Could not load business types')
                         : tr('Loading business types…')}
                     </option>
                   )}
-                  {businessTypes.options.map((option) => (
+                  {legacyBusinessType && (
+                    <option value='OTHER' disabled>{businessTypes.label('OTHER')}</option>
+                  )}
+                  {availableBusinessTypes.map((option) => (
                     <option key={option.code} value={option.code}>
                       {businessTypes.label(option.code)}
                     </option>
@@ -582,8 +668,8 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                 </select>
                 <p className='text-muted-foreground text-xs leading-5'>
                   {businessTypes.language === 'vi'
-                    ? 'Chọn đúng loại hình trên giấy đăng ký. Doanh nghiệp tư nhân khác hộ kinh doanh; OTHER dành cho tổ chức có giấy tờ tương đương, không dùng cho cá nhân.'
-                    : 'Match the type on your registration document. A sole proprietor differs from a household business. OTHER is for organizations with equivalent documents, not individuals.'}
+                    ? 'Chọn đúng loại hình trên giấy đăng ký.'
+                    : 'Match the type on your registration document.'}
                 </p>
                 {details.status === 'DRAFT' && selectedBusinessType !== details.businessType && (
                   <p className='text-primary text-xs'>
@@ -614,7 +700,10 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                   className={`space-y-2 ${name === 'address' ? 'sm:col-span-2' : ''}`}
                 >
                   <label htmlFor={name} className='text-sm font-medium'>
-                    {tr(label)}
+                    {tr(name === 'taxId' && !legacyBusinessType
+                      ? householdBusiness ? 'Representative’s personal identification number' : 'Business tax ID'
+                      : label)}
+                    <span aria-hidden='true' className='ml-1 text-destructive'>*</span>
                   </label>
                   <Input
                     id={name}
@@ -622,10 +711,22 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                       name === 'contactEmail' ? 'email' : name === 'contactPhone' ? 'tel' : 'text'
                     }
                     maxLength={maxLength}
-                    {...form.register(name)}
+                    inputMode={name === 'taxId' && !legacyBusinessType ? 'numeric' : undefined}
+                    aria-required='true'
+                    {...form.register(name, name === 'taxId' ? { onBlur: checkTaxId, onChange: () => {
+                      if (form.getFieldState('taxId').error?.type === 'taxIdFormat') checkTaxId();
+                    } } : undefined)}
+                    onKeyDown={name === 'taxId' ? (event) => {
+                      if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+                      event.preventDefault();
+                      checkTaxId();
+                    } : undefined}
                     aria-invalid={!!form.formState.errors[name]}
                     aria-describedby={form.formState.errors[name] ? `${name}-error` : undefined}
                   />
+                  {name === 'taxId' && !legacyBusinessType && !form.formState.errors.taxId && (
+                    <p className='text-muted-foreground text-xs'>{tr(householdBusiness ? '12 digits' : '10 digits')}</p>
+                  )}
                   {form.formState.errors[name] && (
                     <p id={`${name}-error`} role='alert' className='text-sm text-red-600'>
                       {tr(form.formState.errors[name]?.message)}
@@ -636,11 +737,13 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
               <div className='space-y-2 sm:col-span-2'>
                 <label htmlFor='registrationReason' className='text-sm font-medium'>
                   {tr('Registration reason')}{' '}
+                  <span aria-hidden='true' className='text-destructive'>*</span>
                 </label>
                 <textarea
                   id='registrationReason'
                   maxLength={2000}
                   rows={5}
+                  aria-required='true'
                   {...form.register('registrationReason')}
                   aria-invalid={!!form.formState.errors.registrationReason}
                   aria-describedby={
@@ -692,7 +795,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
           {editable && (
             <DocumentRequirementsChecklist actorId={user.id} businessType={selectedBusinessType} revisionRequested={correcting} />
           )}
-          <div className='flex items-center gap-3 px-1'>
+          <div className='flex items-center gap-3 rounded-xl border bg-card px-4 py-3'>
             <Files className='size-5 text-indigo-600 dark:text-indigo-300' aria-hidden='true' />
             <div>
               <h2 className='text-lg font-semibold'>{tr('Verification documents')}</h2>
@@ -732,7 +835,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
         </section>
       )}
       {editable && (
-        <div className='flex flex-wrap items-center justify-between gap-4 rounded-lg border bg-card p-5 shadow-sm'>
+        <div className='flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-card p-4 shadow-sm sm:p-5'>
           <p className='max-w-md text-sm text-muted-foreground'>
             {tr(
               'Save your progress at any time. Submit only when your details and documents are ready.'
@@ -745,7 +848,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                 form='organizer-application-form'
                 variant='outline'
                 className='rounded-md'
-                disabled={busy || !businessTypes.options.length}
+                disabled={busy || !availableBusinessTypes.length}
               >
                 {busy ? tr('Saving…') : tr('Save draft')}
               </Button>
@@ -753,7 +856,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             <Button
               type='button'
               className='rounded-md bg-primary text-primary-foreground hover:bg-primary/90'
-              disabled={busy || !businessTypes.options.length}
+              disabled={busy || !availableBusinessTypes.length}
               onClick={() => (correcting ? setConfirmResubmit(true) : void run('submit'))}
             >
               {correcting ? tr('Resubmit for review') : tr('Submit for review')}
@@ -776,6 +879,14 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
               )}{' '}
             </DialogDescription>
           </DialogHeader>
+          {error === 'This tax ID belongs to an approved or contract-pending Organizer' && (
+            <div role='alert' className='rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm'>
+              <p className='font-medium text-destructive'>{tr(error)}</p>
+              <p className='mt-1 text-muted-foreground'>
+                {tr('Contact the reviewer. If the tax ID on this application is incorrect, ask the reviewer to reject it so you can start a new application with the correct tax ID.')}
+              </p>
+            </div>
+          )}
           <div className='flex justify-end gap-3'>
             <Button variant='outline' disabled={busy} onClick={() => setConfirmResubmit(false)}>
               {tr('Cancel')}{' '}

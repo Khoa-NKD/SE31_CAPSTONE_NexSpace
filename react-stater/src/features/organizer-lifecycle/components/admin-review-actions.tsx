@@ -164,7 +164,7 @@ export function AdminReviewActions({
                   </span>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  disabled={!data.canReject || !data.currentDocumentIds.length}
+                  disabled={data.status !== 'PENDING_REVIEW' || !data.canReject || !data.currentDocumentIds.length}
                   onSelect={() => open('request-changes')}
                   className='gap-3 rounded-lg p-3'
                 >
@@ -213,6 +213,11 @@ export function AdminReviewActions({
         <p className='text-sm text-muted-foreground'>
           Approval requires an eligible applicant, complete business information and valid current
           documents.
+        </p>
+      )}
+      {data.status === 'REVISION_REQUESTED' && data.canReject && (
+        <p className='text-sm text-muted-foreground'>
+          The tax ID is already in use. Reject this application so the applicant can start a new one with the correct tax ID.
         </p>
       )}
       {feedback && <p role='status'>{feedback}</p>}

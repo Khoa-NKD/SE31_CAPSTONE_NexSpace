@@ -8,9 +8,15 @@ const positiveId = (value: unknown) => {
 };
 
 export const Route = createFileRoute('/dashboard/organizer/floorplan/')({
-  validateSearch: (search: Record<string, unknown>): { workspaceId?: number; floorId?: number } => {
+  validateSearch: (
+    search: Record<string, unknown>
+  ): { workspaceId?: number; floorId?: number; setup?: boolean } => {
     const workspaceId = positiveId(search.workspaceId);
-    return { workspaceId, floorId: workspaceId ? positiveId(search.floorId) : undefined };
+    return {
+      workspaceId,
+      floorId: workspaceId ? positiveId(search.floorId) : undefined,
+      setup: workspaceId && search.setup === true ? true : undefined
+    };
   },
   head: () => ({
     meta: [

@@ -9,6 +9,15 @@ export interface AdminOrganizerDocument extends VerificationDocument {
   adminFeedback?: string | null;
 }
 
+export interface AdminOrganizerReviewDecision {
+  id: number;
+  decision: 'APPROVED' | 'REJECTED' | 'CHANGES_REQUESTED';
+  reviewedAt: string;
+  reviewerName?: string | null;
+  feedback?: string | null;
+  documentFeedback: { documentId: number; feedback: string }[];
+}
+
 export interface AdminOrganizerApplicationDetails {
   id: number;
   legalName?: string | null;
@@ -25,6 +34,7 @@ export interface AdminOrganizerApplicationDetails {
   reviewedAt?: string | null;
   reviewFeedback?: string | null;
   documents: AdminOrganizerDocument[];
+  reviewHistory?: AdminOrganizerReviewDecision[];
 }
 
 /** Validate decimal Long IDs as strings so deep links never lose integer precision. */

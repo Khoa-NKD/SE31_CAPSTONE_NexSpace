@@ -2,6 +2,7 @@ export interface AiReferenceImage {
   mimeType: 'image/jpeg';
   base64: string;
   preview: string;
+  thumbnail: string;
   name: string;
 }
 
@@ -31,7 +32,14 @@ export async function prepareAiReferenceImage(file: File): Promise<AiReferenceIm
     const preview = canvas.toDataURL('image/jpeg', 0.9);
     const base64 = preview.slice(preview.indexOf(',') + 1);
     if (base64.length > 6990508) throw new Error('IMAGE_SIZE');
-    return { mimeType: 'image/jpeg', base64, preview, name: file.name || 'Screenshot' };
+    const thumbnailScale = Math.min(1, 480 / Math.max(canvas.width, canvas.height));
+    canvas.width = Math.max(1, Math.round(canvas.width * thumbnailScale));
+    canvas.height = Math.max(1, Math.round(canvas.height * thumbnailScale));
+    context.fillStyle = '#ffffff';
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    const thumbnail = canvas.toDataURL('image/jpeg', 0.75);
+    return { mimeType: 'image/jpeg', base64, preview, thumbnail, name: file.name || 'Screenshot' };
   } finally {
     bitmap.close();
   }

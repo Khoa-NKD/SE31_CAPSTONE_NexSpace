@@ -165,12 +165,12 @@ export function correctionDocumentPayload(
 ) {
   revision(revisionValue);
   if (
-    !['BUSINESS_LICENSE', 'ID_CARD_FRONT', 'ID_CARD_BACK', 'TAX_CERTIFICATE', 'OTHER'].includes(
+    !['BUSINESS_LICENSE', 'ID_CARD_FRONT', 'ID_CARD_BACK', 'TAX_CERTIFICATE', 'WORKSPACE_OVERVIEW', 'OTHER'].includes(
       documentType
     )
   )
     throw new Error('Unsupported document type.');
-  const error = documentFileError(file);
+  const error = documentFileError(file, undefined, documentType);
   if (error) throw new Error(error);
   const data = new FormData();
   data.append('revision', String(revisionValue));
@@ -193,6 +193,38 @@ export function correctDocument(
     '/organizer/applications/current/correction-documents',
     'POST',
     correctionDocumentPayload(revisionValue, type, currentId, file)
+  );
+}
+export function checkIdentityPhoto(applicationId: number, type: UploadDocumentType, file: File, signal: AbortSignal) {
+  const payload = new FormData();
+  payload.append('applicationId', String(applicationId));
+  payload.append('documentType', type);
+  payload.append('file', file);
+  return backendRequest<{ valid: boolean }>(
+    '/organizer/applications/current/identity-photo-check', 'POST', payload, true, signal
+  );
+}
+
+export function addDocumentPages(applicationId: number, revisionValue: number, type: UploadDocumentType, files: File[]) {
+  revision(revisionValue);
+  const payload = new FormData();
+  payload.append('applicationId', String(applicationId));
+  payload.append('revision', String(revisionValue));
+  payload.append('documentType', type);
+  for (const file of files) {
+    const error = documentFileError(file, undefined, type);
+    if (error) throw new Error(error);
+    payload.append('files', file);
+  }
+  return backendRequest<LifecycleContext>(
+    '/organizer/applications/current/correction-documents/pages', 'POST', payload
+  );
+}
+export function deleteDraftDocument(revisionValue: number, documentId: number) {
+  revision(revisionValue);
+  return backendRequest<LifecycleContext>(
+    `/organizer/applications/current/correction-documents/${documentId}?revision=${revisionValue}`,
+    'DELETE'
   );
 }
 export async function invalidateLifecycle(client: QueryClient) {

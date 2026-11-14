@@ -69,7 +69,6 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
   const [name, setName] = useState(basicInfo.name);
   const [category, setCategory] = useState<SpaceCategory>(basicInfo.category);
   const [description, setDescription] = useState(basicInfo.description);
-  const [totalArea, setTotalArea] = useState<string>(basicInfo.totalArea ? String(basicInfo.totalArea) : '');
   const [contactPhone, setContactPhone] = useState(basicInfo.contactPhone);
   const [contactEmail, setContactEmail] = useState(basicInfo.contactEmail);
 
@@ -78,8 +77,6 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
     setName((prev) => (prev !== basicInfo.name ? basicInfo.name : prev));
     setCategory((prev) => (prev !== basicInfo.category ? basicInfo.category : prev));
     setDescription((prev) => (prev !== basicInfo.description ? basicInfo.description : prev));
-    const nextArea = basicInfo.totalArea ? String(basicInfo.totalArea) : '';
-    setTotalArea((prev) => (prev !== nextArea ? nextArea : prev));
     setContactPhone((prev) => (prev !== basicInfo.contactPhone ? basicInfo.contactPhone : prev));
     setContactEmail((prev) => (prev !== basicInfo.contactEmail ? basicInfo.contactEmail : prev));
   }, [basicInfo]);
@@ -88,12 +85,10 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const handleSaveDraft = async () => {
-    const numericArea = parseFloat(totalArea.replace(/,/g, '')) || 0;
     setBasicInfo({
       name,
       category,
       description,
-      totalArea: numericArea,
       contactPhone,
       contactEmail
     });
@@ -102,13 +97,10 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
 
   const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numericArea = parseFloat(totalArea.replace(/,/g, '')) || 0;
-
     const values = {
       name: name.trim(),
       category,
       description: description.trim(),
-      totalArea: numericArea,
       contactPhone: contactPhone.trim(),
       contactEmail: contactEmail.trim()
     };
@@ -298,33 +290,7 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
             {errors.description && <p className='text-xs text-destructive mt-1 font-medium'>{errors.description}</p>}
           </div>
 
-          {/* Field 4: Total Usable Area */}
-          <div>
-            <label htmlFor='workspace-area' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-              Total Usable Area <span className='text-destructive'>*</span>
-            </label>
-            <p className='text-xs text-muted-foreground mb-2'>
-              Gross usable floor space including shared common areas and meeting rooms.
-            </p>
-            <div className='flex rounded-lg border border-border overflow-hidden max-w-xs focus-within:border-indigo-600 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all'>
-              <Input
-                id='workspace-area'
-                type='text'
-                value={totalArea}
-                onChange={(e) => {
-                  setTotalArea(e.target.value);
-                  if (errors.totalArea) setErrors((prev) => ({ ...prev, totalArea: '' }));
-                }}
-                className='h-10 border-0 text-right tabular-nums text-xs sm:text-sm focus-visible:ring-0 rounded-none'
-              />
-              <div className='bg-muted border-l border-border text-muted-foreground text-xs px-3.5 flex items-center select-none whitespace-nowrap font-medium'>
-                sqm (m²)
-              </div>
-            </div>
-            {errors.totalArea && <p className='text-xs text-destructive mt-1 font-medium'>{errors.totalArea}</p>}
-          </div>
-
-          {/* Field 5: Contact Phone & Support Email (2 Columns) */}
+          {/* Contact phone and support email */}
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <div>
               <label htmlFor='contact-phone' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
