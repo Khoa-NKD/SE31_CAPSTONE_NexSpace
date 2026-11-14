@@ -130,7 +130,7 @@ function ChangeRoleDialogContent({
               </DialogTitle>
             </div>
             <DialogDescription className='text-xs text-muted-foreground'>
-              Gán vai trò mới cho tài khoản <strong className='text-foreground'>{user.name}</strong> ({user.email}). Phiên làm việc hiện tại của người dùng sẽ được thu hồi ngay lập tức.
+              Gán vai trò mới cho tài khoản <strong className='text-foreground'>{user.name}</strong> ({user.email}). Sau khi đổi vai trò, hệ thống sẽ tự động đăng xuất tài khoản này trên mọi thiết bị và yêu cầu người dùng đăng nhập lại.
             </DialogDescription>
           </DialogHeader>
 
@@ -186,6 +186,10 @@ function ChangeRoleDialogContent({
                   </SelectItem>
                 </SelectContent>
               </Select>
+              <p className='text-[11px] text-muted-foreground flex items-center gap-1.5 pt-0.5'>
+                <span className='inline-block size-1.5 rounded-full bg-amber-500' />
+                <span>Toàn bộ phiên hoạt động trên các thiết bị khác sẽ bị đăng xuất ngay lập tức.</span>
+              </p>
             </div>
 
             {/* Cảnh báo bảo mật khi nâng hoặc hạ quyền ADMIN */}

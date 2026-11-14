@@ -96,7 +96,7 @@ export function useUpdateUserRoleMutation() {
 
       const displayName = variables.userName || updatedUser.name;
       toast.success(`Cập nhật vai trò thành công`, {
-        description: `Tài khoản ${displayName} đã được chuyển sang vai trò ${variables.role}.`
+        description: `Tài khoản ${displayName} đã được chuyển sang vai trò ${variables.role}. Hệ thống đã tự động đăng xuất tài khoản trên mọi thiết bị.`
       });
     },
 

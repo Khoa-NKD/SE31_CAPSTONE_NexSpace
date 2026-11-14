@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { setAuthHeaderProvider } from '../../../lib/api-client.ts';
+import { setAuthHeaderProvider, setUnauthorizedHandler } from '../../../lib/api-client.ts';
+import { spaNavigate } from '../../../lib/spa-navigation.ts';
+import { broadcastAuthSync } from '../utils/auth-sync.ts';
 import type { UserDto } from '../api/types';
 
 const AUTH_STORAGE_KEY = 'nexspace_auth_session_v1';
@@ -94,6 +96,30 @@ export const useAuthStore = create<AuthState>()(
 setAuthHeaderProvider(() => {
   const token = useAuthStore.getState().accessToken;
   return token ? `Bearer ${token}` : null;
+});
+
+// Register dynamic 401 handler for immediate logout & cross-device session termination
+setUnauthorizedHandler((status, message) => {
+  const state = useAuthStore.getState();
+  if (state.isAuthenticated) {
+    state.clearAuth();
+    if (typeof window !== 'undefined') {
+      const reason =
+        message ||
+        'Phiên làm việc đã hết hạn hoặc vai trò tài khoản đã thay đổi. Vui lòng đăng nhập lại.';
+      sessionStorage.setItem('auth_redirect_reason', reason);
+      broadcastAuthSync({ type: 'SESSION_REVOKED', reason });
+
+      if (
+        !window.location.pathname.startsWith('/auth/sign-in') &&
+        !window.location.pathname.startsWith('/auth/login') &&
+        !window.location.pathname.startsWith('/auth/sign-up')
+      ) {
+        const currentPath = window.location.pathname + window.location.search;
+        spaNavigate(`/auth/sign-in?redirect=${encodeURIComponent(currentPath)}`);
+      }
+    }
+  }
 });
 
 export default useAuthStore;
