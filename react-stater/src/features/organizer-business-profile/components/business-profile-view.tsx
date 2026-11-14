@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { BankSelector } from './bank-selector';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -212,23 +213,14 @@ function BusinessContactForm({
 
   return (
     <div className='mx-auto w-full max-w-6xl space-y-6 pb-6'>
-      <div className='flex flex-wrap items-start justify-between gap-4'>
-        <div className='flex items-center gap-4'>
-          <div className='bg-primary/10 text-primary flex size-14 shrink-0 items-center justify-center rounded-2xl'>
-            <Building2 className='size-7' />
-          </div>
-          <div>
-            <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>
-              {c('Business Profile', 'Hồ sơ doanh nghiệp')}
-            </h1>
-            <p className='text-muted-foreground mt-1 text-sm'>
-              {c(
-                'Manage your business contact and banking details.',
-                'Quản lý thông tin liên hệ và tài khoản ngân hàng doanh nghiệp.'
-              )}
-            </p>
-          </div>
-        </div>
+      <OrganizerPageHeader
+        title={c('Business Profile', 'Hồ sơ doanh nghiệp')}
+        description={c(
+          'Manage your business contact and banking details.',
+          'Quản lý thông tin liên hệ và tài khoản ngân hàng doanh nghiệp.'
+        )}
+        icon={<Building2 />}
+      >
         <Badge
           variant='outline'
           className='border-primary/20 bg-primary/5 text-primary gap-1.5 px-3 py-1.5'
@@ -236,7 +228,7 @@ function BusinessContactForm({
           <ShieldCheck />
           {c('Verified business', 'Doanh nghiệp đã xác minh')}
         </Badge>
-      </div>
+      </OrganizerPageHeader>
       <form
         noValidate
         onSubmit={(event) => {

@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { ResourceInventoryTable } from './resource-inventory-table';
 import { ResourceFloorManager } from './resource-floor-manager';
@@ -170,28 +171,25 @@ export function ResourceManagementView({
       for (const resource of result.listObjects) rows.set(resource.id, resource);
     }
 
-    const activeRooms = new Set<number>();
-    const roomsWithDesks = new Set<number>();
-    for (const resource of rows.values()) {
-      if (resource.category === 'ROOM' && resource.status === 'ACTIVE')
-        activeRooms.add(resource.id);
-      if (resource.parentRoomId != null && resource.status !== 'ARCHIVED')
-        roomsWithDesks.add(resource.parentRoomId);
-    }
+    const roomsWithUnsyncedSeats = new Set(
+      [...rows.values()]
+        .filter(
+          (seat) =>
+            seat.parentRoomId != null && seat.status !== 'ARCHIVED' && seat.status !== status
+        )
+        .map((seat) => seat.parentRoomId)
+    );
     let changed = 0;
-    let keptMode = 0;
     const failures: string[] = [];
     for (const resource of rows.values()) {
-      if (resource.status === 'ARCHIVED' || resource.status === status) continue;
-      if (status === 'DISABLED' && resource.status !== 'ACTIVE') continue;
+      if (resource.status === 'ARCHIVED' || resource.parentRoomId != null) continue;
       if (
-        status === 'ACTIVE' &&
-        (roomsWithDesks.has(resource.id) ||
-          (resource.parentRoomId != null && activeRooms.has(resource.parentRoomId)))
-      ) {
-        keptMode++;
+        resource.category !== 'ROOM' &&
+        (resource.status === status || (status === 'DISABLED' && resource.status !== 'ACTIVE'))
+      )
         continue;
-      }
+      if (resource.status === status && !roomsWithUnsyncedSeats.has(resource.id)) continue;
+      if (status === 'DISABLED' && resource.status === 'DRAFT') continue;
       try {
         await setResourceStatus(resource, status);
         changed++;
@@ -204,15 +202,10 @@ export function ResourceManagementView({
       }
     }
     setBulkStatus(null);
-    const summary =
-      c(`Updated ${changed} seats/rooms.`, `Đã cập nhật ${changed} ghế/phòng.`) +
-      (keptMode
-        ? ' ' +
-          c(
-            `Skipped ${keptMode} to avoid offering a room and its desks at the same time.`,
-            `Bỏ qua ${keptMode} chỗ để tránh mở nhận đặt trùng giữa phòng và ghế bên trong.`
-          )
-        : '');
+    const summary = c(
+      `Updated ${changed} rooms or open-area seats.`,
+      `Đã cập nhật ${changed} phòng hoặc ghế khu mở.`
+    );
     if (failures.length) {
       return {
         success: '',
@@ -261,28 +254,16 @@ export function ResourceManagementView({
     })[status] ?? status;
   return (
     <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-6'>
-      <header className='flex flex-wrap items-start justify-between gap-4'>
-        <div className='flex items-center gap-3'>
-          <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-2xl'>
-            <Armchair className='size-6' />
-          </span>
-          <div>
-            <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>
-              {c('Resource Management', 'Quản lý ghế & phòng')}
-            </h1>
-            <p className='text-muted-foreground mt-1 text-sm'>
-              {c(
-                'A real inventory of bookable desks and rooms across your workspaces.',
-                'Quản lý danh sách ghế, phòng và trạng thái nhận đặt tại workspace của bạn.'
-              )}
-            </p>
-          </div>
-        </div>
-        <Button disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
+      <OrganizerPageHeader
+        title={c('Seats & Rooms', 'Quản lý ghế & phòng')}
+        description={c('Manage seats, rooms and booking availability.', 'Quản lý ghế, phòng và trạng thái nhận đặt.')}
+        icon={<Armchair aria-hidden='true' />}
+      >
+        <Button size='sm' disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
           <Plus className='size-4' />
           {c('Create resource', 'Tạo ghế/phòng')}
         </Button>
-      </header>
+      </OrganizerPageHeader>
       {workspaces.isError ? (
         <div role='alert' className='border-destructive/20 text-destructive rounded-xl border p-4'>
           <p>{workspaces.error.message}</p>
@@ -707,8 +688,8 @@ export function ResourceManagementView({
           <p className='text-muted-foreground text-sm'>
             {bulkStatus === 'ACTIVE'
               ? c(
-                  'Rooms already accepting whole-room bookings keep that mode. For other rooms with desks, enable individual desks when eligible.',
-                  'Phòng đang nhận đặt nguyên phòng giữ chế độ hiện tại. Với các phòng còn lại có ghế, hệ thống bật từng ghế đủ điều kiện.'
+                  'Enable eligible rooms and open-area seats. Seats inside a room follow its status and are included in the room booking.',
+                  'Bật phòng và ghế khu mở đủ điều kiện. Ghế trong phòng tự bật theo và được sử dụng khi khách đặt nguyên phòng.'
                 )
               : c(
                   'Stops new bookings for active seats and rooms. Existing bookings are kept.',

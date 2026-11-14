@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import {
   Clock,
@@ -15,22 +16,15 @@ interface ScheduleKpiRibbonProps {
 
 export function ScheduleKpiRibbon({ kpis }: ScheduleKpiRibbonProps) {
   return (
-    <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5 select-none">
-      {/* Title & Subtitle */}
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-foreground">
-          Resource Schedule & Gantt Timeline
-        </h1>
-        <p className="text-xs text-muted-foreground mt-1 max-w-2xl">
-          Interactive real-time schedule audit, booking allocation, and maintenance blocks across all floor resources.
-        </p>
-      </div>
-
-      {/* 4 Ribbon Metric Badges */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 self-stretch xl:self-auto">
+    <div className="grid gap-3 2xl:grid-cols-[minmax(16rem,1fr)_minmax(0,2fr)]">
+      <OrganizerPageHeader
+        title="Resource Schedule & Gantt Timeline"
+        description="Review reservations and maintenance across floor resources."
+      />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {/* Metric 1: Booked Hours */}
         <Card className="bg-card border-border shadow-2xs hover:shadow-xs transition-shadow">
-          <CardContent className="p-3.5 space-y-1">
+          <CardContent className="space-y-1 p-2.5">
             <div className="flex items-center justify-between text-muted-foreground">
               <span className="text-[11px] font-bold uppercase tracking-wider">Booked Hours</span>
               <Clock className="w-3.5 h-3.5 text-primary" />

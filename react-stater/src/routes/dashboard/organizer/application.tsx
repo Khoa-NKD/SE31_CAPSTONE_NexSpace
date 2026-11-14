@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { ApprovedApplicationView } from '@/features/organizer-application/components/approved-application-view';
@@ -11,13 +12,14 @@ export const Route = createFileRoute('/dashboard/organizer/application')({
 function ApplicationManagementPage() {
   const tr = useOrganizerTranslation();
   return (
-    <PageContainer
-      pageTitle={tr('Application Management')}
-      pageDescription={tr(
-        'View your approved application, cooperation agreement and verification documents.'
-      )}
-    >
-      <div className='w-full max-w-6xl space-y-5 pb-6'>
+    <PageContainer>
+      <div className='w-full max-w-6xl space-y-4 pb-6'>
+        <OrganizerPageHeader
+          title={tr('Application Management')}
+          description={tr(
+            'View your approved application, cooperation agreement and verification documents.'
+          )}
+        />
         <ApprovedApplicationView />
       </div>
     </PageContainer>

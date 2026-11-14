@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useRef, useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -587,43 +588,21 @@ export function ResourceEditor({
   }
   return (
     <div className='mx-auto w-full max-w-[1800px] pb-4'>
-      <header className='mb-5 flex flex-wrap items-center gap-4 rounded-2xl border border-border bg-gradient-to-r from-primary/10 via-card to-card p-5'>
-        <Button
-          type='button'
-          variant='outline'
-          size='icon'
-          className='shrink-0 rounded-xl'
-          disabled={busy}
-          onClick={close}
-          aria-label={c('Back', 'Quay lại')}
-        >
-          <ArrowLeft className='size-5' />
-        </Button>
-        <div className='flex-1'>
-          <p className='mb-1 text-xs font-semibold uppercase tracking-widest text-primary'>
-            {c('Seats & Rooms', 'Quản lý ghế & phòng')}
-          </p>
-          <h1 className='flex items-center gap-2 text-2xl font-semibold tracking-tight'>
-            {type?.category === 'ROOM' ? (
-              <DoorOpen className='size-6 text-primary' />
-            ) : (
-              <Armchair className='size-6 text-primary' />
-            )}
-            {current
-              ? c('Edit resource', 'Cập nhật ghế/phòng')
-              : c('Create resource', 'Tạo ghế/phòng')}
-          </h1>
-          <p className='mt-1 text-sm text-muted-foreground'>
-            {c(
-              'Save as draft first. Activation is a separate, validated action.',
-              'Tạo ở trạng thái nháp. Bật đặt chỗ là thao tác riêng có kiểm tra điều kiện.'
-            )}
-          </p>
-        </div>
-        <span className='rounded-full border border-primary/20 bg-primary/10 px-3 py-1.5 text-xs font-medium text-primary'>
+      <OrganizerPageHeader
+        className='mb-4'
+        title={current ? c('Edit resource', 'Cập nhật ghế/phòng') : c('Create resource', 'Tạo ghế/phòng')}
+        description={current ? undefined : c('Save as a draft before enabling bookings.', 'Lưu bản nháp trước khi bật nhận đặt.')}
+        leading={
+          <Button type='button' variant='outline' size='icon' className='size-9 shrink-0' disabled={busy} onClick={close} aria-label={c('Back', 'Quay lại')}>
+            <ArrowLeft className='size-4' />
+          </Button>
+        }
+      >
+        <span className='inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
+          {type?.category === 'ROOM' ? <DoorOpen className='size-3.5' /> : <Armchair className='size-3.5' />}
           {type?.category === 'ROOM' ? c('Meeting room', 'Phòng') : c('Work seat', 'Ghế làm việc')}
         </span>
-      </header>
+      </OrganizerPageHeader>
       <form onSubmit={submit} noValidate className='space-y-4'>
         {error && (
           <p
@@ -746,8 +725,8 @@ export function ResourceEditor({
                   </Field>
                   <p className='text-xs text-muted-foreground'>
                     {c(
-                      'Choose a room only when this desk is physically inside it. Coordinates stay relative to the floor. Whole-room and desk sales cannot be active together.',
-                      'Chỉ chọn phòng khi ghế thực sự nằm trong phòng đó. Tọa độ vẫn tính theo tầng. Không bật bán nguyên phòng đồng thời với ghế bên trong.'
+                      'Choose a room when this seat is physically inside it. Coordinates are relative to the floor. The seat follows the room and is included in the room booking.',
+                      'Chọn phòng khi ghế nằm trong phòng đó. Tọa độ tính theo tầng. Ghế bật/tắt theo phòng và đi kèm khi khách đặt nguyên phòng.'
                     )}
                   </p>
                 </div>

@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useState } from 'react';
 import {
   ArrowUpRight,
@@ -91,52 +92,24 @@ export function WorkspaceFloorGallery({
   );
   return (
     <div className='space-y-6 pb-6'>
-      <header className='relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-primary/10 via-card to-card px-6 py-8 sm:px-8'>
-        <div className='pointer-events-none absolute -right-8 -top-20 size-72 rounded-full border-[40px] border-primary/[0.04]' />
-        <div className='relative flex flex-wrap items-end justify-between gap-6'>
-          <div className='max-w-2xl'>
-            <p className='mb-3 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.2em] text-primary'>
-              <span className='size-1.5 rounded-full bg-primary' />
-              NexSpace Floor Studio
-            </p>
-            <h1 className='text-3xl font-semibold tracking-tight sm:text-4xl'>
-              {c('Design spaces that work.', 'Thiết kế không gian của bạn.')}
-            </h1>
-            <p className='mt-3 max-w-xl text-sm leading-relaxed text-muted-foreground'>
-              {c(
-                'Choose a workspace, explore its floors in 3D, then shape every seat, room and detail on the canvas.',
-                'Chọn không gian, khám phá các tầng qua mô hình 3D và thiết kế từng ghế, phòng, đồ bố trí trên canvas.'
-              )}
-            </p>
-          </div>
-          <div className='flex gap-6 rounded-2xl border border-border/70 bg-background/70 px-5 py-4 backdrop-blur'>
-            <div>
-              <p className='text-2xl font-semibold tabular-nums'>{workspaces.length}</p>
-              <p className='mt-1 text-[10px] text-muted-foreground'>
-                {c('Workspaces', 'Không gian')}
-              </p>
-            </div>
-            <span className='border-l border-border' />
-            <div>
-              <p className='text-2xl font-semibold tabular-nums text-primary'>
-                {workspaces.filter((item) => canConfigureWorkspaceResources(item.status)).length}
-              </p>
-              <p className='mt-1 text-[10px] text-muted-foreground'>
-                {c('Editable', 'Có thể thiết kế')}
-              </p>
-            </div>
-          </div>
-        </div>
-      </header>
+      <OrganizerPageHeader
+        title={c('Floor Plans & Zones', 'Sơ đồ tầng & khu vực')}
+        description={c('Choose a workspace to explore its floors and edit the layout.', 'Chọn workspace để xem tầng và chỉnh sửa sơ đồ.')}
+        icon={<Layers3 aria-hidden='true' />}
+      >
+        <span className='text-xs text-muted-foreground'>
+          <strong className='font-semibold tabular-nums text-foreground'>{workspaces.length}</strong>{' '}
+          {c('workspaces', 'không gian')}
+          <span className='mx-2 text-border' aria-hidden='true'>·</span>
+          <strong className='font-semibold tabular-nums text-primary'>
+            {workspaces.filter((item) => canConfigureWorkspaceResources(item.status)).length}
+          </strong>{' '}
+          {c('editable', 'có thể thiết kế')}
+        </span>
+      </OrganizerPageHeader>
       <div className='flex flex-wrap items-center justify-between gap-3'>
         <div>
           <h2 className='text-base font-semibold'>{c('Your workspaces', 'Không gian của bạn')}</h2>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            {c(
-              'A dedicated design studio for each workspace.',
-              'Mỗi không gian, một khu vực thiết kế riêng.'
-            )}
-          </p>
         </div>
         <div className='flex w-full gap-2 sm:w-auto'>
           <div className='relative min-w-0 flex-1 sm:w-64'>
