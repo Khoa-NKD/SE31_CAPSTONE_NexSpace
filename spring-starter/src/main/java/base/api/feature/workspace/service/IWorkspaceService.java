@@ -85,19 +85,29 @@ public interface IWorkspaceService {
 
     /**
      * Xem danh sách không gian làm việc công khai (chỉ hiển thị workspace ACTIVE).
-     * Hỗ trợ tìm kiếm từ khóa đa trường và sắp xếp (giá, rating, độ phổ biến, mới nhất, tên).
      *
-     * @param pageRequest Tham số phân trang và tìm kiếm từ khóa
-     * @param sortBy Tiêu chí sắp xếp
-     * @param sortDir Chiều sắp xếp (asc/desc)
+     * @param pageRequest Tham số phân trang, tìm kiếm, lọc và sắp xếp
      * @return Trang danh sách WorkspaceDto công khai
      */
-    Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest, String sortBy, String sortDir);
+    Page<WorkspaceDto> getPublicWorkspaces(base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto pageRequest);
 
     /**
      * Tương thích ngược với PageRequestDTO cũ.
      */
-    Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest);
+    default Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest) {
+        if (pageRequest instanceof base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto dto) {
+            return getPublicWorkspaces(dto);
+        }
+        base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto dto = new base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto();
+        if (pageRequest != null) {
+            dto.setPage(pageRequest.getPage());
+            dto.setSize(pageRequest.getSize());
+            dto.setSortBy(pageRequest.getSortBy());
+            dto.setSortDir(pageRequest.getSortDir());
+            dto.setSearch(pageRequest.getSearch());
+        }
+        return getPublicWorkspaces(dto);
+    }
 
     /**
      * Tìm kiếm không gian làm việc lân cận theo tọa độ GPS và bán kính (km).
@@ -110,6 +120,14 @@ public interface IWorkspaceService {
      * @return Trang danh sách WorkspaceDto kèm khoảng cách distanceKm
      */
     Page<WorkspaceDto> findNearbyWorkspaces(Double lat, Double lng, Double radiusKm, PageRequestDTO pageRequest);
+
+    /**
+     * Gợi ý tìm kiếm nhanh phân nhóm (Top 5 workspaces, Top 3 địa điểm, Top 3 loại hình).
+     *
+     * @param query Từ khóa tìm kiếm
+     * @return WorkspaceSuggestionsResponseDto
+     */
+    base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto getSearchSuggestions(String query);
 
     /**
      * Lấy cấu hình giờ hoạt động cho workspace.
