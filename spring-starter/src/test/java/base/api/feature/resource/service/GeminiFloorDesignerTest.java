@@ -56,24 +56,39 @@ class GeminiFloorDesignerTest {
     }
     @Test void repeatedServiceFailureReportsActualHttpStatusWithoutProviderBody() throws Exception {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
-                .thenReturn(response(503, "private-provider-detail"), response(503, "private-provider-detail"));
+                .thenReturn(response(503, "private-provider-detail"), response(503, "private-provider-detail"),
+                        response(200, "{\"models\":[]}"));
         assertThatThrownBy(() -> designer.design(Map.of())).isInstanceOf(ConflictException.class)
                 .hasMessageContaining("HTTP 503").hasMessageNotContaining("private-provider-detail");
-        verify(http, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+        verify(http, times(3)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
-    @Test void switchesFromMissingModelToAnotherAfterQuotaFailure() throws Exception {
+    @Test void switchesToAnotherModelAfterRepeatedHttp503() throws Exception {
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
+                .thenReturn(response(503, "{}"), response(503, "{}"), response(200, """
+                        {"models":[{"name":"models/gemini-fallback","supportedGenerationMethods":["generateContent"]}]}
+                        """), response(200, successfulBody()));
+
+        assertThat(designer.design(Map.of("prompt", "Preview only")).message()).isEqualTo("Preview only");
+        var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(4)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(requests.getAllValues().get(3).uri().getPath()).endsWith("/gemini-fallback:generateContent");
+    }
+    @Test void switchesAfterQuotaFailureAndStartsTheNextRequestWithTheWorkingModel() throws Exception {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
                 .thenReturn(response(404, "{\"error\":{\"status\":\"NOT_FOUND\"}}"), response(200, """
                         {"models":[
                           {"name":"models/gemini-first","supportedGenerationMethods":["generateContent"]},
                           {"name":"models/gemini-second","supportedGenerationMethods":["generateContent"]}
                         ]}
-                        """), response(429, "{}"), response(200, successfulBody()));
+                        """), response(429, "{}"), response(200, successfulBody()),
+                        response(200, successfulBody()));
         assertThat(designer.design(Map.of()).message()).isEqualTo("Preview only");
+        assertThat(designer.design(Map.of("prompt", "Next design")).message()).isEqualTo("Preview only");
         var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
-        verify(http, times(4)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        verify(http, times(5)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
         assertThat(requests.getAllValues().get(2).uri().getPath()).endsWith("/gemini-first:generateContent");
         assertThat(requests.getAllValues().get(3).uri().getPath()).endsWith("/gemini-second:generateContent");
+        assertThat(requests.getAllValues().get(4).uri().getPath()).endsWith("/gemini-second:generateContent");
     }
     @Test void discoversPagedDesignModelsAndSendsOnlyAnAvailableSelection() throws Exception {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))

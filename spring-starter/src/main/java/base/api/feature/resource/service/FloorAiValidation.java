@@ -5,6 +5,7 @@ import base.api.shared.entity.resource.*;
 import base.api.shared.enums.*;
 import base.api.shared.exception.BadRequestException;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 
 /** Pure final-state validation, shared by proposal preview and apply. */
@@ -169,8 +170,8 @@ public final class FloorAiValidation {
         var width = change.width().multiply(metrics.widthM()).divide(layout.width(), 2, java.math.RoundingMode.HALF_UP);
         var length = change.height().multiply(metrics.lengthM()).divide(layout.height(), 2, java.math.RoundingMode.HALF_UP);
         // One centimetre absorbs pixel/metre round-trip rounding, not a different-sized configuration.
-        if (width.subtract(type.standardWidthM()).abs().compareTo(new BigDecimal("0.01")) > 0
-                || length.subtract(type.standardLengthM()).abs().compareTo(new BigDecimal("0.01")) > 0)
+        if (!ResourceCanvas.matchesStandardDimension(change.width(), metrics.widthM(), layout.width(), type.standardWidthM())
+                || !ResourceCanvas.matchesStandardDimension(change.height(), metrics.lengthM(), layout.height(), type.standardLengthM()))
             fail("Resource footprint mismatch: " + change.name() + " (" + width.toPlainString() + " × "
                     + length.toPlainString() + " m) / " + type.name() + " ("
                     + type.standardWidthM().toPlainString() + " × " + type.standardLengthM().toPlainString() + " m)");
@@ -180,6 +181,94 @@ public final class FloorAiValidation {
         return type.usageKind() != null && type.usageKind().category() == type.category()
                 && type.standardWidthM() != null && type.standardWidthM().signum() > 0
                 && type.standardLengthM() != null && type.standardLengthM().signum() > 0;
+    }
+
+    /** Gemini selects a type and position. The workspace catalog owns its configuration. */
+    static FloorDesign.Design normalizeProposal(FloorDesign.Design proposal, ResourceResponses.Options options,
+            FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
+        if (proposal.question() != null && !proposal.question().isBlank()) return proposal;
+        var configured = new HashMap<Long, ResourceResponses.TypeOption>();
+        for (var type : options.types())
+            if (type.active() && type.currency() != null && hasConfirmedConfiguration(type))
+                configured.put(type.id(), type);
+        var proposedTypes = new ArrayList<>(proposal.newTypes());
+        var changes = new ArrayList<FloorDesign.ResourceChange>();
+        for (var change : proposal.resources()) {
+            if (change.id() != null) {
+                changes.add(change);
+                continue;
+            }
+            var type = configured.get(change.resourceTypeId());
+            if (type != null && (change.usageKind() == null || change.usageKind() == type.usageKind())) {
+                changes.add(withType(change, type.id(), type.usageKind(), type.capacity(), type.standardWidthM(),
+                        type.standardLengthM(), metrics, layout));
+                continue;
+            }
+            var proposed = proposedTypes.stream()
+                    .filter(candidate -> candidate.tempId().equals(change.resourceTypeId())).findFirst().orElse(null);
+            if (proposed == null && change.usageKind() != null && options.types().stream()
+                    .noneMatch(candidate -> candidate.category() == change.usageKind().category())) {
+                proposed = inferMissingCategoryType(change, proposedTypes, options, metrics, layout);
+            }
+            changes.add(proposed == null ? change
+                    : withType(change, proposed.tempId(), proposed.usageKind(), proposed.capacity(),
+                            proposed.standardWidthM(), proposed.standardLengthM(), metrics, layout));
+        }
+        return new FloorDesign.Design(proposal.message(), proposal.question(), changes, proposal.removeResourceIds(),
+                proposal.decorations(), proposal.templates(), proposedTypes);
+    }
+
+    private static FloorDesign.NewType inferMissingCategoryType(FloorDesign.ResourceChange change,
+            List<FloorDesign.NewType> types, ResourceResponses.Options options,
+            FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
+        var usage = change.usageKind();
+        if (usage == null) return null;
+        var width = change.width().multiply(metrics.widthM()).divide(layout.width(), 2, RoundingMode.HALF_UP);
+        var length = change.height().multiply(metrics.lengthM()).divide(layout.height(), 2, RoundingMode.HALF_UP);
+        if (width.signum() <= 0 || length.signum() <= 0
+                || width.compareTo(BigDecimal.valueOf(10000)) > 0 || length.compareTo(BigDecimal.valueOf(10000)) > 0)
+            return null;
+        var category = usage.category();
+        if (category == ResourceCategory.ROOM && change.capacity() == null) return null;
+        int capacity = category == ResourceCategory.DESK ? 1 : change.capacity();
+        var currencies = options.types().stream().filter(ResourceResponses.TypeOption::active)
+                .map(ResourceResponses.TypeOption::currency).filter(Objects::nonNull).distinct().toList();
+        var currency = currencies.size() == 1 ? currencies.get(0) : ResourceCurrency.VND;
+        for (var candidate : types)
+            if (candidate.usageKind() == usage && candidate.capacity() == capacity
+                    && candidate.currency() == currency
+                    && candidate.pricePerHour() == null && candidate.pricePerDay() == null && candidate.pricePerMonth() == null
+                    && candidate.standardWidthM().compareTo(width) == 0
+                    && candidate.standardLengthM().compareTo(length) == 0)
+                return candidate;
+        long tempId = -1;
+        var usedIds = types.stream().map(FloorDesign.NewType::tempId).collect(java.util.stream.Collectors.toSet());
+        while (usedIds.contains(tempId)) tempId--;
+        if (tempId < -20) return null;
+        var name = change.name().trim();
+        if (name.length() > 90) name = name.substring(0, 90).trim();
+        var usedNames = new HashSet<String>();
+        options.types().forEach(type -> usedNames.add(type.name().trim().toLowerCase(Locale.ROOT)));
+        types.forEach(type -> usedNames.add(type.name().trim().toLowerCase(Locale.ROOT)));
+        var uniqueName = name;
+        for (int suffix = 2; usedNames.contains(uniqueName.toLowerCase(Locale.ROOT)); suffix++)
+            uniqueName = name + " (" + suffix + ")";
+        var proposed = new FloorDesign.NewType(tempId, uniqueName, category, currency,
+                capacity, null, null, null, usage, width, length);
+        types.add(proposed);
+        return proposed;
+    }
+
+    private static FloorDesign.ResourceChange withType(FloorDesign.ResourceChange change, Long typeId,
+            ResourceUsageKind usage, int capacity, BigDecimal width, BigDecimal length, FloorDesign.Metrics metrics,
+            ResourceResponses.FloorLayout layout) {
+        var widthPx = width.multiply(layout.width()).divide(metrics.widthM(), 2, RoundingMode.HALF_UP);
+        var heightPx = length.multiply(layout.height()).divide(metrics.lengthM(), 2, RoundingMode.HALF_UP);
+        if (typeId.equals(change.resourceTypeId()) && usage == change.usageKind()
+                && Objects.equals(capacity, change.capacity()) && widthPx.compareTo(change.width()) == 0
+                && heightPx.compareTo(change.height()) == 0) return change;
+        return new FloorDesign.ResourceChange(change.key(), null, typeId, change.name(), change.parentKey(), capacity,
+                change.posX(), change.posY(), widthPx, heightPx, change.rotation(), usage);
     }
 
     private static BookableResourceModel shape(ResourceResponses.Detail item) {

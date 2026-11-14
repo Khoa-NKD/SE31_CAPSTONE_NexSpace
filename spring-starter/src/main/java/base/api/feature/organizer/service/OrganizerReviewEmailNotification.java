@@ -39,6 +39,24 @@ public class OrganizerReviewEmailNotification {
 
     record Content(String subject, String html) { }
 
+    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+    public void onOperationalStatusChanged(OrganizerPartnerService.StatusChanged notification) {
+        try {
+            String title = notification.suspended() ? "Quyền hoạt động đối tác đã tạm ngưng"
+                    : "Quyền hoạt động đối tác đã được khôi phục";
+            String explanation = notification.suspended()
+                    ? "Các workspace của bạn tạm ngưng nhận đặt chỗ mới. Bạn vẫn có thể đăng nhập, xem hồ sơ và xử lý các đặt chỗ đã tạo."
+                    : "Bạn có thể tiếp tục quản lý workspace. Các chỗ đủ điều kiện có thể nhận đặt mới.";
+            String url = clientBase(clientUrl) + "/dashboard/organizer/application";
+            email.sendHtmlEmail(notification.recipient(), "[NexSpace] " + title,
+                    "<h1>" + title + "</h1><p>" + explanation + "</p><p><strong>Lý do</strong></p><p>"
+                            + escape(notification.reason()) + "</p><p><a href='" + escape(url)
+                            + "'>Mở trang Quản lý hồ sơ đối tác</a></p>");
+        } catch (RuntimeException ex) {
+            log.error("Organizer operational status email could not be queued for organizer {}", notification.organizerId());
+        }
+    }
+
     static Content compose(OrganizerReviewNotification n, String configuredClientUrl) {
         String title;
         String explanation;
@@ -117,6 +135,7 @@ public class OrganizerReviewEmailNotification {
             case ID_CARD_FRONT -> "CCCD / giấy tờ định danh – mặt trước";
             case ID_CARD_BACK -> "CCCD / giấy tờ định danh – mặt sau";
             case TAX_CERTIFICATE -> "Giấy chứng nhận thuế";
+            case WORKSPACE_OVERVIEW -> "Hồ sơ giới thiệu workspace";
             case OTHER -> "Giấy tờ sở hữu, vận hành hoặc tài liệu khác";
             default -> "Tài liệu xác minh";
         };

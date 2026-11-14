@@ -43,12 +43,20 @@ class OrganizerOperationalAccessTest {
         var account=new UserModel();account.setId(7L);account.setUserName("actor");account.setRoleEntity(new RoleModel(role,null));
         return new AuthUser(account);
     }
-    @Test void retiredSuspensionFlagDoesNotOverrideNormalOrganizerAuthorization() throws Exception {
-        when(profiles.existsByOrganizerIdAndSuspendedTrue(7L)).thenReturn(true);
+    @Test void organizerRetainsReadAccess() throws Exception {
         when(workspaces.getMyWorkspaces(eq(7L),any(),any())).thenReturn(org.springframework.data.domain.Page.empty());
         for(String path:List.of("/api/workspaces/mine","/api/v1/workspaces/mine"))
             mvc.perform(get(path).with(user(principal("ORGANIZER")))).andExpect(status().isOk());
         verifyNoInteractions(profiles);
+    }
+    @Test void suspendedOrganizerCannotEditWorkspaceThroughEitherApiAlias() throws Exception {
+        var profile = new base.api.shared.entity.organizer.OrganizerProfileModel();
+        profile.setSuspended(true);
+        when(profiles.findByOrganizerId(7L)).thenReturn(java.util.Optional.of(profile));
+        for (String path : List.of("/api/workspaces/1/archive", "/api/v1/workspaces/1/archive")) {
+            mvc.perform(post(path).with(user(principal("ORGANIZER")))).andExpect(status().isForbidden());
+        }
+        verifyNoInteractions(workspaces);
     }
     @Test void suspendedAccountRetainsApplicationStatusAccess() throws Exception {
         when(lifecycle.ownerContext(7L)).thenReturn(new OrganizerLifecycleContext(42L,OrganizerProfileStatus.APPROVED,12L,true,"Policy violation",false,false,false,false,List.of(9L)));

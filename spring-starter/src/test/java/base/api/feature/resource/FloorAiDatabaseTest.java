@@ -236,14 +236,14 @@ class FloorAiDatabaseTest {
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false))).isInstanceOf(ConflictException.class);
     }
 
-    @Test void newSeatsCannotReuseTypesWithDifferentFootprintsOrUsageOrUnknownMetadata() {
+    @Test void newSeatsInheritTheCatalogFootprintAndRejectDifferentUsageOrUnknownMetadata() {
         var original = proposal(false).resources().get(0);
         var wider = new FloorDesign.ResourceChange(original.key(), null, type, original.name(), null, 1,
                 original.posX(), original.posY(), new BigDecimal("40"), original.height(), original.rotation(), ResourceUsageKind.WORK_SEAT);
         when(gemini.design(any())).thenReturn(new FloorDesign.Design("Wider seat", null, List.of(wider), List.of(), List.of(), List.of()));
-        var mismatched = ai.propose(owner,workspace,floor,request());
-        assertThat(mismatched.applicable()).isFalse();
-        assertThat(mismatched.issues()).anyMatch(message -> message.contains("footprint"));
+        var normalized = ai.propose(owner,workspace,floor,request());
+        assertThat(normalized.applicable()).isTrue();
+        assertThat(normalized.design().resources().get(0).width()).isEqualByComparingTo(original.width());
         var sofa = new FloorDesign.ResourceChange(original.key(), null, type, "Sofa seat", null, 1,
                 original.posX(), original.posY(), original.width(), original.height(), original.rotation(), ResourceUsageKind.SOFA_SEAT);
         when(gemini.design(any())).thenReturn(new FloorDesign.Design("Sofa", null, List.of(sofa), List.of(), List.of(), List.of()));
@@ -252,6 +252,68 @@ class FloorAiDatabaseTest {
         when(gemini.design(any())).thenReturn(proposal(false));
         assertThat(ai.propose(owner,workspace,floor,request()).applicable()).isFalse();
         assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
+    }
+
+    @Test void emptyCatalogOffersAnUnpricedDraftEvenIfProviderReturnsAnUnknownTypeId() {
+        tx.execute(status -> { em.remove(em.find(ResourceTypeModel.class, type)); return null; });
+        when(gemini.design(any())).thenReturn(proposal(false));
+        var draft = ai.propose(owner, workspace, floor, request());
+
+        assertThat(draft.issues()).isEmpty();
+        assertThat(draft.applicable()).isTrue();
+        assertThat(draft.design().newTypes()).singleElement().satisfies(proposed -> {
+            assertThat(proposed.tempId()).isNegative();
+            assertThat(proposed.pricePerHour()).isNull();
+            assertThat(proposed.standardWidthM()).isEqualByComparingTo("0.60");
+            assertThat(draft.design().resources().get(0).resourceTypeId()).isEqualTo(proposed.tempId());
+        });
+        assertThat(resources.options(owner, workspace).types()).isEmpty();
+        assertThat(resources.floorLayout(owner, workspace, floor).resources()).isEmpty();
+    }
+
+    @Test void roomOnlyCatalogOffersOneNewDeskTypeAndUsesItsDimensionsForAllNewDesks() {
+        tx.execute(status -> {
+            var roomType = em.find(ResourceTypeModel.class, type);
+            roomType.setName("VIP Room");
+            roomType.setCategory(ResourceCategory.ROOM);
+            roomType.setUsageKind(ResourceUsageKind.PRIVATE_OFFICE);
+            roomType.setStandardWidthM(new BigDecimal("5"));
+            roomType.setStandardLengthM(new BigDecimal("4"));
+            roomType.setCapacity(4);
+            return null;
+        });
+        var first = new FloorDesign.ResourceChange("n_first", null, type, "Desk 1", null, 1,
+                new BigDecimal("100"), new BigDecimal("100"), new BigDecimal("30"), new BigDecimal("60"),
+                BigDecimal.ZERO, ResourceUsageKind.WORK_SEAT);
+        var second = new FloorDesign.ResourceChange("n_second", null, type, "Desk 2", null, 1,
+                new BigDecimal("200"), new BigDecimal("100"), first.width(), first.height(),
+                BigDecimal.ZERO, ResourceUsageKind.WORK_SEAT);
+        var wrongReference = new FloorDesign.Design("Two desks", null, List.of(first, second), List.of(),
+                List.of(), List.of());
+        when(gemini.design(any())).thenReturn(wrongReference);
+
+        var draft = ai.propose(owner, workspace, floor, request());
+        assertThat(draft.issues()).isEmpty();
+        assertThat(draft.applicable()).isTrue();
+        assertThat(draft.design().newTypes()).hasSize(1);
+        var proposed = draft.design().newTypes().get(0);
+        assertThat(proposed.category()).isEqualTo(ResourceCategory.DESK);
+        assertThat(proposed.pricePerHour()).isNull();
+        assertThat(draft.design().resources()).extracting(FloorDesign.ResourceChange::resourceTypeId)
+                .containsExactly(proposed.tempId(), proposed.tempId());
+        assertThat(resources.options(owner, workspace).types()).hasSize(1);
+
+        var priced = new FloorDesign.NewType(proposed.tempId(), proposed.name(), proposed.category(),
+                proposed.currency(), proposed.capacity(), new BigDecimal("30000"), null, null,
+                proposed.usageKind(), proposed.standardWidthM(), proposed.standardLengthM());
+        var confirmed = new FloorDesign.Design("Two desks", null, draft.design().resources(), List.of(),
+                List.of(), List.of(), List.of(priced));
+        var saved = ai.apply(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false, confirmed, true));
+        assertThat(saved.resources()).hasSize(2).allSatisfy(seat -> {
+            assertThat(seat.resourceTypeId()).isPositive().isNotEqualTo(type);
+            assertThat(seat.height()).isEqualByComparingTo("60");
+        });
+        assertThat(resources.options(owner, workspace).types()).hasSize(2);
     }
 
 }

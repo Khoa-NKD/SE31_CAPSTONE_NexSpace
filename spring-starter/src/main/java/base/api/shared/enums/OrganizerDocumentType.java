@@ -5,6 +5,7 @@ public enum OrganizerDocumentType {
     ID_CARD_FRONT,
     ID_CARD_BACK,
     TAX_CERTIFICATE,
+    WORKSPACE_OVERVIEW,
     BANK_CERTIFICATE,
     OTHER
 }

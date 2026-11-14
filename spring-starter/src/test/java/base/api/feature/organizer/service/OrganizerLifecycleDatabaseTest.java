@@ -74,6 +74,12 @@ class OrganizerLifecycleDatabaseTest {
         @Bean IUserRepository users(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IUserRepository.class); }
         @Bean IRoleRepository roles(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IRoleRepository.class); }
         @Bean IOrganizerProfileRepository profiles(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerProfileRepository.class); }
+        @Bean OrganizerPartnerService partners(IOrganizerProfileRepository profiles, IUserRepository users,
+                OrganizerLifecycleAudit audit, org.springframework.context.ApplicationEventPublisher events) {
+            return new OrganizerPartnerService(profiles, users,
+                    org.mockito.Mockito.mock(base.api.feature.workspace.repository.IWorkspaceRepository.class),
+                    org.mockito.Mockito.mock(base.api.feature.booking.repository.IBookingRepository.class), audit, events);
+        }
         @Bean IOrganizerDocumentRepository documents(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerDocumentRepository.class); }
         @Bean IOrganizerContractRepository contracts(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerContractRepository.class); }
         @Bean OrganizerContractService contractService(IOrganizerContractRepository contracts, IOrganizerProfileRepository profiles,
@@ -147,6 +153,33 @@ class OrganizerLifecycleDatabaseTest {
     long events() { return tx.execute(status -> em.createQuery("select count(a) from AuditLogModel a", Long.class).getSingleResult()); }
 
     OrganizerContractService agreements() { return context.getBean(OrganizerContractService.class); }
+
+    @Test void partnerSuspensionAndRestorePreserveApprovalAndRecordBothDecisions() {
+        var partners = context.getBean(OrganizerPartnerService.class);
+        tx.executeWithoutResult(status -> {
+            var profile = em.find(OrganizerProfileModel.class, profileId);
+            profile.setStatus(OrganizerProfileStatus.APPROVED);
+            profile.getOrganizer().setRoleEntity(em.createQuery(
+                    "select r from RoleModel r where r.name = 'ORGANIZER'", RoleModel.class).getSingleResult());
+        });
+        var request = new base.api.shared.dto.PageRequestDTO();
+        request.setSearch("OWNER@example.test");
+        assertThat(partners.list(adminId, request, false).getContent()).hasSize(1);
+        assertThatThrownBy(() -> partners.detail(ownerId, ownerId)).isInstanceOf(ForbiddenException.class);
+
+        var paused = partners.change(adminId, ownerId, new Reason(0L, "Policy review"), true);
+        assertThat(paused.partner().suspended()).isTrue();
+        assertThat(partners.status(ownerId).reason()).isEqualTo("Policy review");
+        assertThat(partners.list(adminId, request, false).getContent()).isEmpty();
+        assertThatThrownBy(() -> partners.change(adminId, ownerId, new Reason(0L, "Stale"), false))
+                .isInstanceOf(ConflictException.class);
+
+        var restored = partners.change(adminId, ownerId, new Reason(paused.revision(), "Review completed"), false);
+        assertThat(restored.partner().suspended()).isFalse();
+        assertThat(events()).isEqualTo(2);
+        var approvalStatus = tx.execute(status -> em.find(OrganizerProfileModel.class, profileId).getStatus());
+        assertThat(approvalStatus).isEqualTo(OrganizerProfileStatus.APPROVED);
+    }
     base.api.feature.organizer.dto.response.OrganizerContractResponse issueAgreement() {
         service.approve(adminId, profileId, approval(0)); authentication("USER");
         return agreements().current(ownerId);
@@ -435,6 +468,30 @@ class OrganizerLifecycleDatabaseTest {
                 saved.currentDocumentIds().get(0), pdf("blocked.pdf"))).isInstanceOf(ConflictException.class);
     }
 
+    @Test void draftPagesCanBeAddedAndRemovedIndividually() {
+        tx.executeWithoutResult(status -> {
+            var profile = em.find(OrganizerProfileModel.class, profileId);
+            profile.setStatus(OrganizerProfileStatus.DRAFT);
+            profile.setSubmittedAt(null);
+            em.remove(em.find(OrganizerDocumentModel.class, documentId));
+        });
+        authentication("USER");
+        var png = java.util.Base64.getDecoder().decode(
+                "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+kvxUAAAAASUVORK5CYII=");
+        var first = new MockMultipartFile("files", "page-1.png", "image/png", png);
+        var second = new MockMultipartFile("files", "page-2.png", "image/png", png);
+        assertThatThrownBy(() -> service.appendPages(ownerId, profileId + 1, 0L,
+                OrganizerDocumentType.BUSINESS_LICENSE, List.of(first, second))).isInstanceOf(ConflictException.class);
+        var added = service.appendPages(ownerId, profileId, 0L, OrganizerDocumentType.BUSINESS_LICENSE,
+                List.of(first, second));
+        assertThat(added.currentDocumentIds()).hasSize(2);
+        assertThatThrownBy(() -> service.appendPages(ownerId, profileId, added.revision(),
+                OrganizerDocumentType.BUSINESS_LICENSE, List.of(pdf("extra.pdf"))))
+                .isInstanceOf(base.api.shared.exception.BadRequestException.class);
+        var after = service.deleteDraftDocument(ownerId, added.revision(), added.currentDocumentIds().get(0));
+        assertThat(after.currentDocumentIds()).containsExactly(added.currentDocumentIds().get(1));
+    }
+
     @Test void replacementRetainsMetadataAndDeletesOldFileAfterCommit() throws Exception {
         var rejected = requestDocumentChanges("Upload a clearer license");
         var storage = context.getBean(PrivateOrganizerDocumentStorage.class);
@@ -536,6 +593,25 @@ class OrganizerLifecycleDatabaseTest {
     private OrganizerLifecycleContext requestDocumentChanges(String reason) {
         return service.requestChanges(adminId, profileId, new Rejection(0L, reason, List.of(new DocumentFeedback(documentId, reason))));
     }
+    @Test void adminCanRejectRevisionBlockedByAnotherApprovedTaxId() {
+        var requested = requestDocumentChanges("Replace the license");
+        assertThat(service.adminContext(adminId, profileId).canReject()).isFalse();
+        tx.executeWithoutResult(status -> {
+            var role = em.createQuery("select r from RoleModel r where r.name='USER'", RoleModel.class).getSingleResult();
+            var other = account("existing-owner", role);
+            em.persist(other);
+            var approved = profile(other, "0400000123");
+            approved.setStatus(OrganizerProfileStatus.APPROVED);
+            em.persist(approved);
+        });
+
+        var context = service.adminContext(adminId, profileId);
+        assertThat(context.canApprove()).isFalse();
+        assertThat(context.canReject()).isTrue();
+        assertThat(service.reject(adminId, profileId, new Rejection(requested.revision(), "Tax ID already in use")).status())
+                .isEqualTo(OrganizerProfileStatus.REJECTED);
+    }
+
     @Test void finalRejectionBlocksEveryCorrectionAndResubmissionPath() {
         var rejected = service.reject(adminId, profileId, new Rejection(0L, "Application does not meet requirements"));
         authentication("USER");

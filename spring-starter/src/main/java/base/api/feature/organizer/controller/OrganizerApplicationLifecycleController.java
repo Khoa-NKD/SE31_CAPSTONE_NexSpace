@@ -21,6 +21,15 @@ public class OrganizerApplicationLifecycleController extends BaseAPIController {
         return success(service.requestChanges(getCurrentUserId(), id, request), "Document changes requested");
     }
     private final OrganizerApplicationLifecycleService service;
+
+    @PostMapping(value = "/api/organizer/applications/current/identity-photo-check", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public ResponseEntity<ApiResponse<java.util.Map<String, Boolean>>> checkIdentityPhoto(
+            @RequestParam Long applicationId, @RequestParam OrganizerDocumentType documentType,
+            @RequestPart MultipartFile file) {
+        service.checkIdentityPhoto(getCurrentUserId(), applicationId, documentType, file);
+        return success(java.util.Map.of("valid", true));
+    }
     @GetMapping("/api/admin/organizer-applications/{id}/lifecycle") @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> adminContext(@PathVariable Long id) { return success(service.adminContext(getCurrentUserId(), id)); }
     @PostMapping("/api/admin/organizer-applications/{id}/approve") @PreAuthorize("hasRole('ADMIN')")
@@ -38,4 +47,17 @@ public class OrganizerApplicationLifecycleController extends BaseAPIController {
     }
     @PostMapping("/api/organizer/applications/current/resubmit") @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
     public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> resubmit(@Valid @RequestBody Revision request) { return success(service.resubmit(getCurrentUserId(), request), "Application resubmitted for review"); }
+
+    @PostMapping(value="/api/organizer/applications/current/correction-documents/pages", consumes="multipart/form-data")
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> pages(@RequestParam Long applicationId, @RequestParam Long revision,
+            @RequestParam OrganizerDocumentType documentType, @RequestPart("files") java.util.List<MultipartFile> files) {
+        return success(service.appendPages(getCurrentUserId(), applicationId, revision, documentType, files));
+    }
+
+    @DeleteMapping("/api/organizer/applications/current/correction-documents/{documentId}")
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> deleteDraftDocument(@PathVariable Long documentId, @RequestParam Long revision) {
+        return success(service.deleteDraftDocument(getCurrentUserId(), revision, documentId));
+    }
 }

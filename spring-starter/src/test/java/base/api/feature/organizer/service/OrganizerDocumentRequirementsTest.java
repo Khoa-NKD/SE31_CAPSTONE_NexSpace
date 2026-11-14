@@ -28,7 +28,11 @@ class OrganizerDocumentRequirementsTest {
         assertThat(OrganizerDocumentRequirements.errors(BusinessType.LIMITED_LIABILITY, List.of(license, identity), false)).containsKey("documents");
         identity.setCurrent(false);
         assertThat(OrganizerDocumentRequirements.errors(BusinessType.HOUSEHOLD_BUSINESS, List.of(license, identity), false)).containsKey("documents.ID_CARD_FRONT");
-        assertThat(OrganizerDocumentRequirements.errors(BusinessType.LIMITED_LIABILITY, List.of(license, license), false)).containsKey("documents");
+        assertThat(OrganizerDocumentRequirements.errors(BusinessType.LIMITED_LIABILITY,
+                List.of(license, document(OrganizerDocumentType.BUSINESS_LICENSE)), false)).isEmpty();
+        assertThat(OrganizerDocumentRequirements.errors(BusinessType.LIMITED_LIABILITY,
+                List.of(license, document(OrganizerDocumentType.ID_CARD_FRONT),
+                        document(OrganizerDocumentType.ID_CARD_FRONT)), false)).containsKey("documents");
         assertThat(OrganizerDocumentRequirements.errors(BusinessType.HOUSEHOLD_BUSINESS, List.of(), true)).containsKeys("documents.ID_CARD_FRONT", "documents.ID_CARD_BACK").doesNotContainKey("businessLicense");
     }
 }

@@ -44,7 +44,7 @@ class OrganizerApplicationServiceTest {
     UserModel user;
     TransactionTemplate transaction;
     static final SubmitOrganizerApplicationRequest REQUEST = new SubmitOrganizerApplicationRequest(
-            " Example Company ", BusinessType.LIMITED_LIABILITY, " TAX-123 ", " Representative ",
+            " Example Company ", BusinessType.LIMITED_LIABILITY, " 0400000123 ", " Representative ",
             " Business address ", "+84901234567", " contact@example.com ", " Offer flexible workspaces to local businesses. ");
 
     @BeforeEach
@@ -80,7 +80,7 @@ class OrganizerApplicationServiceTest {
             OrganizerProfileModel profile = invocation.getArgument(0);
             profile.setId(42L);
             assertThat(profile.getLegalName()).isEqualTo("Example Company");
-            assertThat(profile.getTaxId()).isEqualTo("TAX-123");
+            assertThat(profile.getTaxId()).isEqualTo("0400000123");
             assertThat(profile.getOrganizer()).isSameAs(user);
             return profile;
         });
@@ -111,8 +111,7 @@ class OrganizerApplicationServiceTest {
 
     @Test
     void rejectsApprovedTaxId() {
-        when(profiles.findByTaxIdAndStatus("TAX-123", OrganizerProfileStatus.APPROVED))
-                .thenReturn(Optional.of(new OrganizerProfileModel()));
+        when(profiles.existsByTaxIdAndStatusIn("0400000123", OrganizerApplicationService.TAX_ID_RESERVING_STATUSES)).thenReturn(true);
         assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, REQUEST, license())))
                 .isInstanceOf(ConflictException.class);
     }
@@ -294,12 +293,13 @@ class OrganizerApplicationServiceTest {
         var profile = draft();
         transaction.execute(status -> service.saveDraft(7L, draftRequest()));
         profile.setBusinessType(BusinessType.HOUSEHOLD_BUSINESS);
+        profile.setTaxId("048090000123");
         currentLicense();
         assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L)))
                 .isInstanceOfSatisfying(OrganizerApplicationValidationException.class, error -> assertThat(error.getErrors())
                         .containsKeys("documents.ID_CARD_FRONT", "documents.ID_CARD_BACK"));
         var household = new SubmitOrganizerApplicationRequest(REQUEST.legalName(), BusinessType.HOUSEHOLD_BUSINESS,
-                REQUEST.taxId(), REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail(), REQUEST.registrationReason());
+                "048090000123", REQUEST.representativeName(), REQUEST.address(), REQUEST.contactPhone(), REQUEST.contactEmail(), REQUEST.registrationReason());
         assertThatThrownBy(() -> transaction.execute(status -> service.submit(7L, household, null)))
                 .isInstanceOf(OrganizerApplicationValidationException.class);
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
@@ -313,7 +313,7 @@ class OrganizerApplicationServiceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = OrganizerProfileStatus.class, names = "DRAFT", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = OrganizerProfileStatus.class, names = {"DRAFT", "REJECTED"}, mode = EnumSource.Mode.EXCLUDE)
     void draftCommandsRejectAllNonDraftStates(OrganizerProfileStatus state) {
         var profile = draft(); profile.setStatus(state);
         assertThatThrownBy(() -> transaction.execute(status -> service.startDraft(7L))).isInstanceOf(ConflictException.class);
@@ -322,6 +322,27 @@ class OrganizerApplicationServiceTest {
         assertThat(profile.getStatus()).isEqualTo(state);
         verifyNoInteractions(documents);
         verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void reapplicationCreatesAnEmptyDraftAndPreservesTheRejectedApplication() {
+        var previous = draft();
+        previous.setStatus(OrganizerProfileStatus.REJECTED);
+        previous.setReviewFeedback("Previous decision");
+        when(profiles.saveAndFlush(any())).thenAnswer(invocation -> {
+            OrganizerProfileModel created = invocation.getArgument(0);
+            created.setId(501L);
+            assertThat(created).isNotSameAs(previous);
+            assertThat(created.getTaxId()).isNull();
+            return created;
+        });
+
+        var next = transaction.execute(status -> service.startDraft(7L));
+
+        assertThat(next.id()).isEqualTo(501L);
+        assertThat(next.status()).isEqualTo(OrganizerProfileStatus.DRAFT);
+        assertThat(previous.getStatus()).isEqualTo(OrganizerProfileStatus.REJECTED);
+        assertThat(previous.getReviewFeedback()).isEqualTo("Previous decision");
     }
 
     @Test
@@ -334,11 +355,25 @@ class OrganizerApplicationServiceTest {
     }
 
     @Test
+    void draftSaveRejectsApprovedTaxIdBeforeChangingExistingValues() {
+        var profile = draft();
+        profile.setTaxId("0400000999");
+        when(profiles.existsByTaxIdAndStatusIn(REQUEST.taxId(), java.util.List.of(
+                OrganizerProfileStatus.APPROVED, OrganizerProfileStatus.CONTRACT_PENDING))).thenReturn(true);
+
+        assertThatThrownBy(() -> transaction.execute(status -> service.saveDraft(7L, draftRequest())))
+                .isInstanceOfSatisfying(OrganizerApplicationValidationException.class,
+                        ex -> assertThat(ex.getErrors()).containsKey("taxId"));
+        assertThat(profile.getTaxId()).isEqualTo("0400000999");
+        verify(profiles, never()).saveAndFlush(any());
+    }
+
+    @Test
     void draftSubmissionStillRejectsApprovedTaxId() {
         var profile = draft();
         transaction.execute(status -> service.saveDraft(7L, draftRequest()));
         currentLicense();
-        when(profiles.findByTaxIdAndStatus(REQUEST.taxId(), OrganizerProfileStatus.APPROVED)).thenReturn(Optional.of(new OrganizerProfileModel()));
+        when(profiles.existsByTaxIdAndStatusIn(REQUEST.taxId(), OrganizerApplicationService.TAX_ID_RESERVING_STATUSES)).thenReturn(true);
         assertThatThrownBy(() -> transaction.execute(status -> service.submitDraft(7L))).isInstanceOf(ConflictException.class);
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.DRAFT);
     }

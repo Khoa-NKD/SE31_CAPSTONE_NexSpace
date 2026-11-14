@@ -1,5 +1,6 @@
 package base.api.feature.booking.service.impl;
 
+import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.dto.request.CalculatePriceRequestDto;
 import base.api.feature.booking.dto.request.CreateBookingRequestDto;
@@ -85,6 +86,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final IBookingRepository bookingRepository;
     private final IBookableResourceRepository resourceRepository;
     private final IWorkspaceRepository workspaceRepository;
+    private final IOrganizerProfileRepository organizerProfiles;
     private final IUserRepository userRepository;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IWorkspaceCancellationRuleRepository cancellationRuleRepository;
@@ -115,6 +117,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         if (workspace.getStatus() != WorkspaceStatus.ACTIVE) {
             throw new BadRequestException("Không gian làm việc hiện không ở trạng thái sẵn sàng nhận đặt chỗ");
+        }
+
+        // Serialize new holds against an administrator's suspension without locking other resources.
+        if (workspace.getOrganizer() != null && organizerProfiles.findByOrganizerIdForBooking(workspace.getOrganizer().getId())
+                .filter(profile -> profile.isSuspended()).isPresent()) {
+            throw new BadRequestException("Không gian làm việc đang tạm ngưng nhận đặt chỗ mới");
         }
 
         // 3. Acquire Pessimistic Write Lock on Bookable Resource
@@ -443,9 +451,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         var occupancyMap = floorId != null
                 ? resourceUsageRepository.occupancy(floorId, startTime, endTime, now)
                 : resourceUsageRepository.occupancyByWorkspace(workspaceId, startTime, endTime, now);
+        boolean suspended = workspaceRepository.findById(workspaceId)
+                .map(WorkspaceModel::getOrganizer)
+                .flatMap(organizer -> organizerProfiles.findByOrganizerId(organizer.getId()))
+                .filter(profile -> profile.isSuspended()).isPresent();
 
         List<ResourceAvailabilityDto> results = new ArrayList<>();
         for (BookableResourceModel res : resources) {
+            if (!workspaceId.equals(res.getFloorPlan().getWorkspace().getId())) continue;
             Set<AvailabilityState> flags = occupancyMap.getOrDefault(res.getId(), Collections.emptySet());
 
             AvailabilityState state = AvailabilityState.AVAILABLE;
@@ -457,6 +470,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 state = AvailabilityState.BOOKED;
             } else if (flags.contains(AvailabilityState.LOCKED)) {
                 state = AvailabilityState.LOCKED;
+            } else if (suspended) {
+                state = AvailabilityState.DISABLED;
             }
 
             BigDecimal price = res.getPricePerHour() != null

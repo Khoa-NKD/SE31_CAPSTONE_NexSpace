@@ -440,6 +440,8 @@ public class OrganizerResourceService {
             var previousParent = item.getParentRoom();
             boolean editing = item.getId() != null;
             if (editing && !item.getResourceType().getId().equals(type.getId())) throw new ConflictException("AI cannot change an existing pricing type");
+            if (!editing || different(item.getWidth(), change.width()) || different(item.getHeight(), change.height()))
+                ResourceCanvas.requireStandardFootprint(floor, type, change.width(), change.height());
             Integer capacity = change.capacity() == null && editing ? item.getCapacityOverride() : change.capacity();
             boolean parentChanged = editing && !Objects.equals(previousParent == null ? null : "r_" + previousParent.getId(), change.parentKey());
             boolean geometryChanged = editing && (different(item.getPosX(), change.posX()) || different(item.getPosY(),change.posY())
@@ -1033,6 +1035,10 @@ public class OrganizerResourceService {
         if ((input.posX() == null) != (input.posY() == null)
                 || (input.width() == null) != (input.height() == null))
             throw new BadRequestException("Coordinates and dimensions must be supplied in pairs");
+        if (!editing || !resource.getResourceType().getId().equals(type.getId())
+                || different(resource.getWidth(), input.width())
+                || different(resource.getHeight(), input.height()))
+            ResourceCanvas.requireStandardFootprint(resource.getFloorPlan(), type, input.width(), input.height());
         var previousParent = resource.getParentRoom();
         var parent = parentRoom(workspaceId, resource, input.parentRoomId(), type.getCategory());
         boolean parentChanged =

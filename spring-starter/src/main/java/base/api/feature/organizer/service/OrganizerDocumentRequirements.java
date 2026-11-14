@@ -22,6 +22,17 @@ public final class OrganizerDocumentRequirements {
                 requiredTypes(type).stream().map(document -> describe(type, document)).toList())).toList();
     }
 
+    public static boolean allowsPages(OrganizerDocumentType type) {
+        return type == OrganizerDocumentType.BUSINESS_LICENSE
+                || type == OrganizerDocumentType.TAX_CERTIFICATE || type == OrganizerDocumentType.OTHER;
+    }
+
+    static boolean hasDuplicateSingleFileTypes(List<OrganizerDocumentModel> current) {
+        var seen = EnumSet.noneOf(OrganizerDocumentType.class);
+        return current.stream().map(OrganizerDocumentModel::getDocumentType)
+                .anyMatch(type -> !allowsPages(type) && !seen.add(type));
+    }
+
     public static Map<String, String> errors(BusinessType type, List<OrganizerDocumentModel> current, boolean incomingLicense) {
         var errors = new LinkedHashMap<String, String>();
         for (var required : requiredTypes(type)) {
@@ -31,8 +42,8 @@ public final class OrganizerDocumentRequirements {
                         "Upload a current, non-rejected document: " + describe(type, required).labelEn());
         }
         if (current.stream().anyMatch(document -> !usable(document))
-                || current.stream().map(OrganizerDocumentModel::getDocumentType).distinct().count() != current.size())
-            errors.put("documents", "Every current document must be valid, non-rejected and unique per type");
+                || hasDuplicateSingleFileTypes(current))
+            errors.put("documents", "Every current file must be valid; single-file document types cannot be duplicated");
         return errors;
     }
 

@@ -2,11 +2,13 @@ package base.api.feature.resource.service;
 
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.resource.FloorPlanModel;
+import base.api.shared.entity.resource.ResourceTypeModel;
 import base.api.shared.exception.ConflictException;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Map;
 
 /** Coordinates are top-left canvas pixels; rotation is around the rectangle center. */
@@ -14,6 +16,26 @@ public final class ResourceCanvas {
     private ResourceCanvas() {}
 
     public static final String SCHEMA = "nexspace.resource-canvas.v1";
+
+    static boolean matchesStandardDimension(BigDecimal pixels, BigDecimal metres, BigDecimal canvas,
+            BigDecimal standard) {
+        return pixels != null && pixels.multiply(metres).divide(canvas, 2, RoundingMode.HALF_UP)
+                .subtract(standard).abs().compareTo(new BigDecimal("0.01")) <= 0;
+    }
+
+    static void requireStandardFootprint(FloorPlanModel floor, ResourceTypeModel type,
+            BigDecimal width, BigDecimal height) {
+        if (type.getStandardWidthM() == null || type.getStandardLengthM() == null) return;
+        var bounds = editorBounds(floor);
+        var measuredWidth = FloorDesignService.measuredWidth(floor);
+        var measuredLength = FloorDesignService.measuredLength(floor);
+        if (bounds == null || measuredWidth == null || measuredLength == null)
+            throw new ConflictException("Set the physical floor dimensions before sizing this resource");
+        if (!matchesStandardDimension(width, measuredWidth, bounds.width(), type.getStandardWidthM())
+                || !matchesStandardDimension(height, measuredLength, bounds.height(), type.getStandardLengthM()))
+            throw new ConflictException("Use the standard dimensions for " + type.getName()
+                    + " or choose a separate resource type for a different size");
+    }
 
     /** Unknown layouts may contain walls, zones or IDs that cannot safely be copied or deleted. */
     public static boolean simpleLayout(String json, boolean requireEmpty) {

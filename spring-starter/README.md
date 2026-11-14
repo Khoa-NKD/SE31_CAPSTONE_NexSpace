@@ -74,6 +74,12 @@ Response luôn có dạng:
 | `app.cors.allowed-origins` | `CORS_ALLOWED_ORIGINS` | (localhost:* luôn được phép) |
 | `spring.mail.username/password` | `MAIL_USERNAME`, `MAIL_PASSWORD` | — (trống = bỏ qua gửi mail) |
 
+## Organizer identity photo OCR
+
+The backend uses Tesseract with the `vie` and `eng` language packs. The backend Docker image installs and checks both packs at build time. For a native Maven run, install Tesseract and both language packs once on the host.
+
+Windows detects the standard Program Files installation and can pick up both language files from `%LOCALAPPDATA%\NexSpace\tessdata`. Other installations can use `tesseract` on `PATH` and the standard language directory. Set `OCR_TESSERACT_COMMAND` to the executable or `OCR_TESSDATA_DIR` to the directory containing both `.traineddata` files to override discovery. The language directory can also be set using Tesseract's `TESSDATA_PREFIX`.
+
 ## Docker
 
 ```bash

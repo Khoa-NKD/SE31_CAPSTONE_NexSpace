@@ -46,6 +46,12 @@ public class OrganizerApplicationController extends BaseAPIController {
     }
 
     @PreAuthorize("hasAnyRole('USER', 'ORGANIZER')")
+    @GetMapping("/history")
+    public ResponseEntity<ApiResponse<java.util.List<OrganizerApplicationDetailsResponse>>> history() {
+        return success(service.history(getCurrentUserId()));
+    }
+
+    @PreAuthorize("hasAnyRole('USER', 'ORGANIZER')")
     @PostMapping("/draft")
     public ResponseEntity<ApiResponse<OrganizerApplicationDetailsResponse>> startDraft() {
         return success(service.startDraft(getCurrentUserId()), "Draft application is ready");

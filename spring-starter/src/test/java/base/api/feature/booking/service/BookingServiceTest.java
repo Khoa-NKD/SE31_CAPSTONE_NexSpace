@@ -74,6 +74,9 @@ class BookingServiceTest {
     private IWorkspaceRepository workspaceRepository;
 
     @Mock
+    private base.api.feature.organizer.repository.IOrganizerProfileRepository organizerProfiles;
+
+    @Mock
     private IUserRepository userRepository;
 
     @Mock
@@ -170,6 +173,21 @@ class BookingServiceTest {
                 .with(TemporalAdjusters.next(DayOfWeek.MONDAY))
                 .withHour(9).withMinute(0).withSecond(0).withNano(0);
         futureMondayEnd = futureMondayStart.plusHours(4);
+    }
+
+    @Test
+    void suspendedOrganizerCannotReceiveNewBookingOrHold() {
+        var profile = new base.api.shared.entity.organizer.OrganizerProfileModel();
+        profile.setSuspended(true);
+        var request = CreateBookingRequestDto.builder().workspaceId(mockWorkspace.getId())
+                .resourceId(mockResource.getId()).build();
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
+        when(organizerProfiles.findByOrganizerIdForBooking(mockHost.getId())).thenReturn(Optional.of(profile));
+
+        assertThatThrownBy(() -> bookingService.createBooking(mockCustomer.getId(), request))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("tạm ngưng");
+        verifyNoInteractions(resourceRepository, bookingRepository);
     }
 
     @Test

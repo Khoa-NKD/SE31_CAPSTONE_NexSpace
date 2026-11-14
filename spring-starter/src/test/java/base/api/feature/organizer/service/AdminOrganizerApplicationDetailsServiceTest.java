@@ -1,14 +1,17 @@
 package base.api.feature.organizer.service;
 
 import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.governance.repository.IAuditLogRepository;
 import base.api.feature.organizer.dto.response.AdminOrganizerDocumentResponse;
 import base.api.feature.organizer.repository.IOrganizerDocumentRepository;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.shared.entity.RoleModel;
 import base.api.shared.entity.UserModel;
+import base.api.shared.entity.governance.AuditLogModel;
 import base.api.shared.entity.organizer.OrganizerProfileModel;
 import base.api.shared.enums.*;
 import base.api.shared.exception.*;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -27,12 +30,14 @@ class AdminOrganizerApplicationDetailsServiceTest {
     @Mock IUserRepository users;
     @Mock IOrganizerProfileRepository profiles;
     @Mock IOrganizerDocumentRepository documents;
+    @Mock IAuditLogRepository records;
     AdminOrganizerApplicationDetailsService service;
     UserModel admin;
 
     @BeforeEach
     void setUp() {
-        service = new AdminOrganizerApplicationDetailsService(users, profiles, documents);
+        service = new AdminOrganizerApplicationDetailsService(users, profiles, documents,
+                new OrganizerLifecycleAudit(records, new ObjectMapper()));
         admin = new UserModel(); admin.setId(1L); admin.setRoleEntity(new RoleModel("ADMIN", null));
         when(users.findById(1L)).thenReturn(Optional.of(admin));
     }
@@ -88,6 +93,50 @@ class AdminOrganizerApplicationDetailsServiceTest {
         assertThat(result.documents()).isEmpty(); assertThat(result.reviewedAt()).isNull();
         assertThat(result.reviewFeedback()).isNull();
         assertThat(result.registrationReason()).isNull();
+        assertThat(result.reviewHistory()).isEmpty();
+    }
+
+    @Test
+    void readsPreviousDecisionsAndTheirDocumentFeedbackAfterResubmission() {
+        var profile = profile();
+        profile.setStatus(OrganizerProfileStatus.PENDING_REVIEW);
+        profile.setReviewedAt(null);
+        profile.setReviewFeedback(null);
+        when(profiles.findSubmittedApplicationDetails(7L)).thenReturn(Optional.of(profile));
+        admin.setFirstName("Test");
+        admin.setLastName("Reviewer");
+        var latest = review(12L, "Replace the blurry page", """
+                {"documents":[{"id":9,"status":"REJECTED","feedback":"Page is blurry"},
+                              {"id":10,"status":"PENDING","feedback":null}]}
+                """);
+        var previous = review(10L, "Upload both pages", """
+                {"documents":[{"id":8,"status":"REJECTED","feedback":"Page two is missing"}]}
+                """);
+        when(records.findByModuleAndEntityTypeAndEntityIdAndActionInOrderByCreatedAtDescIdDesc(
+                "ORGANIZER_ONBOARDING", "OrganizerProfile", 7L,
+                java.util.Set.of("Organizer.Approve", "Organizer.Reject", "Organizer.RequestChanges")))
+                .thenReturn(List.of(latest, previous));
+
+        var history = service.getDetails(1L, 7L).reviewHistory();
+
+        assertThat(history).extracting(decision -> decision.id()).containsExactly(12L, 10L);
+        assertThat(history.get(0).reviewerName()).isEqualTo("Test Reviewer");
+        assertThat(history.get(0).feedback()).isEqualTo("Replace the blurry page");
+        assertThat(history.get(0).documentFeedback()).singleElement()
+                .satisfies(feedback -> assertThat(feedback.documentId()).isEqualTo(9L));
+        assertThat(history.get(1).documentFeedback()).singleElement()
+                .satisfies(feedback -> assertThat(feedback.feedback()).isEqualTo("Page two is missing"));
+    }
+
+    private AuditLogModel review(long id, String reason, String snapshot) {
+        var record = new AuditLogModel();
+        record.setId(id);
+        record.setAction("Organizer.RequestChanges");
+        record.setCreatedAt(LocalDateTime.of(2026, 11, 5, 9, (int) id));
+        record.setUser(admin);
+        record.setReason(reason);
+        record.setNewValue(snapshot);
+        return record;
     }
 
     @ParameterizedTest
@@ -96,7 +145,7 @@ class AdminOrganizerApplicationDetailsServiceTest {
         if (role.equals("LOCKED")) admin.setStatus(UserStatus.LOCKED);
         else admin.setRoleEntity(new RoleModel(role, null));
         assertThatThrownBy(() -> service.getDetails(1L, 7L)).isInstanceOf(ForbiddenException.class);
-        verifyNoInteractions(profiles, documents);
+        verifyNoInteractions(profiles, documents, records);
     }
 
     @Test
@@ -106,13 +155,13 @@ class AdminOrganizerApplicationDetailsServiceTest {
         assertThatThrownBy(() -> service.getDetails(1L, -1L)).isInstanceOf(BadRequestException.class);
         when(users.findById(1L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.getDetails(1L, 7L)).isInstanceOf(UnauthorizedException.class);
-        verifyNoInteractions(profiles, documents);
+        verifyNoInteractions(profiles, documents, records);
     }
 
     @Test
     void missingOrUnsubmittedProfileDoesNotQueryDocuments() {
         when(profiles.findSubmittedApplicationDetails(7L)).thenReturn(Optional.empty());
         assertThatThrownBy(() -> service.getDetails(1L, 7L)).isInstanceOf(NotFoundException.class);
-        verifyNoInteractions(documents);
+        verifyNoInteractions(documents, records);
     }
 }

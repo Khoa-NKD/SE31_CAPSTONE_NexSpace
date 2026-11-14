@@ -18,6 +18,8 @@ import java.util.Optional;
 
 @Repository
 public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
+    long countByWorkspaceOrganizerIdAndStatusInAndEndTimeAfter(
+            Long organizerId, Collection<BookingStatus> statuses, LocalDateTime now);
 
     Optional<BookingModel> findByBookingCode(String bookingCode);
 

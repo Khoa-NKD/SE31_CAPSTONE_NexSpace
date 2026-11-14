@@ -2,6 +2,7 @@ package base.api.feature.resource;
 
 import static org.assertj.core.api.Assertions.*;
 
+import base.api.feature.resource.dto.BuildingRequests.Building;
 import base.api.feature.resource.dto.FloorManagement;
 import base.api.feature.resource.dto.ResourceRequests.*;
 import base.api.feature.resource.repository.IBookableResourceRepository;
@@ -55,6 +56,24 @@ import java.util.List;
     OrganizerResourceDatabaseTest.TestClock.class
 })
 class OrganizerResourceDatabaseTest {
+
+    @Test
+    void buildingAddressMustBeUniqueWithinOrganizerCatalog() {
+        String address = "42 Trần Phú, Đà Nẵng";
+        buildings.createBuilding(owner.getId(), new Building("West Tower", address, null));
+        var otherBuildingId = buildings.createBuilding(owner.getId(), new Building("East Tower", "44 Trần Phú, Đà Nẵng", null));
+        var east = buildings.catalog(owner.getId()).stream()
+                .filter(building -> building.id().equals(otherBuildingId))
+                .findFirst().orElseThrow();
+        buildings.createBuilding(other.getId(), new Building("Other Organizer Tower", address, null));
+
+        assertThatThrownBy(() -> buildings.createBuilding(owner.getId(),
+                new Building("New Tower", "42  TRẦN PHÚ , ĐÀ NẴNG", null)))
+                .isInstanceOf(ConflictException.class).hasMessage("A building with this address already exists");
+        assertThatThrownBy(() -> buildings.updateBuilding(owner.getId(), east.id(),
+                new Building(east.name(), address, east.revision())))
+                .isInstanceOf(ConflictException.class).hasMessage("A building with this address already exists");
+    }
 
     @Test
     void allocationInheritsBuildingLocationAndRemovingLastDraftAllocationClearsIt() {

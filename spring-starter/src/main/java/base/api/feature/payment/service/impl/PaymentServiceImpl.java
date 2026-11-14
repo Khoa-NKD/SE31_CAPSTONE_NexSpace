@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.BookingHoldResponseDTO;
@@ -57,6 +58,7 @@ public class PaymentServiceImpl implements IPaymentService {
     private final IPaymentTransactionRepository paymentTransactionRepository;
     private final IUserRepository userRepository;
     private final IWorkspaceRepository workspaceRepository;
+    private final IOrganizerProfileRepository organizerProfiles;
     private final IBookableResourceRepository bookableResourceRepository;
     private final PayOS payOS;
 
@@ -313,6 +315,14 @@ public class PaymentServiceImpl implements IPaymentService {
         return PaymentTransactionMapper.toDto(tx);
     }
 
+    private void requireOrganizerAcceptingHolds(WorkspaceModel workspace) {
+        if (workspace != null && workspace.getOrganizer() != null
+                && organizerProfiles.findByOrganizerIdForBooking(workspace.getOrganizer().getId())
+                        .filter(profile -> profile.isSuspended()).isPresent()) {
+            throw new base.api.shared.exception.BadRequestException("Không gian làm việc đang tạm ngưng nhận đặt chỗ mới");
+        }
+    }
+
     private long generateOrderCode() {
         long timestamp = System.currentTimeMillis() % 1_000_000_000L;
         long randomSuffix = ThreadLocalRandom.current().nextLong(1000L, 9999L);
@@ -349,6 +359,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking.setBaseAmount(BigDecimal.valueOf(2000));
             booking.setFinalPrice(BigDecimal.valueOf(2000));
             if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now)) {
+                requireOrganizerAcceptingHolds(booking.getWorkspace());
                 booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
             }
             booking = bookingRepository.save(booking);
@@ -357,9 +368,14 @@ public class PaymentServiceImpl implements IPaymentService {
             WorkspaceModel workspace = workspaceRepository.findById(1L)
                     .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
                             .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
+            requireOrganizerAcceptingHolds(workspace);
             BookableResourceModel resource = bookableResourceRepository.findById(1L)
                     .orElseGet(() -> bookableResourceRepository.findAll().stream().findFirst()
                             .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên chỗ ngồi")));
+            if (resource.getFloorPlan() != null && resource.getFloorPlan().getWorkspace() != null
+                    && !workspace.getId().equals(resource.getFloorPlan().getWorkspace().getId())) {
+                requireOrganizerAcceptingHolds(resource.getFloorPlan().getWorkspace());
+            }
 
             String bookingCode = "NXB-" + (System.currentTimeMillis() % 10000000);
 

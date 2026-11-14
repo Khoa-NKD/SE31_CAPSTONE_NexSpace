@@ -43,6 +43,7 @@ class OrganizerResourceControllerTest {
 
     @Autowired MockMvc mvc;
     @MockitoBean OrganizerResourceService service;
+    @MockitoBean base.api.feature.organizer.repository.IOrganizerProfileRepository organizerProfiles;
     @MockitoBean base.api.feature.resource.service.FloorDesignService design;
     @MockitoBean base.api.feature.resource.service.FloorAiService ai;
     @MockitoBean base.api.feature.resource.service.BuildingService buildings;
