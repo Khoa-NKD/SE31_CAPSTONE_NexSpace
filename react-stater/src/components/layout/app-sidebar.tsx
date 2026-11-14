@@ -113,6 +113,11 @@ export default function AppSidebar() {
   }));
   const [incidentModalOpen, setIncidentModalOpen] = React.useState(false);
 
+  // Customer không có trang dashboard và không sử dụng thanh sidebar này
+  if (!isAdmin && !isOrganizer) {
+    return null;
+  }
+
   const handleIncidentSubmit = () => {
     setIncidentModalOpen(false);
     toast.error('Incident Escalated (Simulated)', {
@@ -327,6 +332,13 @@ export default function AppSidebar() {
                     >
                       <Icons.user className='mr-2 h-4 w-4 text-indigo-600' />
                       {language === 'vi' ? 'Hồ sơ cá nhân' : 'Profile Settings'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
+                      onClick={() => router.navigate({ to: '/dashboard/preferences' })}
+                    >
+                      <Icons.adjustments className='mr-2 h-4 w-4 text-primary' />
+                      {language === 'vi' ? 'Sở thích không gian' : 'Space Preferences'}
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
