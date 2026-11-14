@@ -242,6 +242,12 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
+        title: 'Amenities',
+        url: '/dashboard/organizer/amenities',
+        icon: 'sparkles',
+        isActive: false
+      },
+      {
         title: 'Pricing Matrix',
         url: '/dashboard/organizer/pricing',
         icon: 'pricing',
@@ -282,44 +288,9 @@ export const organizerNavGroups: NavGroup[] = [
 
 /**
  * Navigation configuration for regular Customers / Users
+ * Customer không sử dụng dashboard nên danh sách trống.
  */
-export const customerNavGroups: NavGroup[] = [
-  {
-    label: 'User Workspace',
-    items: [
-      {
-        title: 'Overview',
-        url: '/dashboard/overview',
-        icon: 'dashboard',
-        isActive: false,
-        shortcut: ['d', 'd']
-      },
-      {
-        title: 'Explore Workspaces',
-        url: '/workspaces',
-        icon: 'workspace',
-        isActive: false
-      }
-    ]
-  },
-  {
-    label: 'Collaboration & Tools',
-    items: [
-      {
-        title: 'Chat',
-        url: '/dashboard/chat',
-        icon: 'chat',
-        isActive: false
-      },
-      {
-        title: 'Kanban',
-        url: '/dashboard/kanban',
-        icon: 'kanban',
-        isActive: false
-      }
-    ]
-  }
-];
+export const customerNavGroups: NavGroup[] = [];
 
 export const organizerExtendedNavGroups: NavGroup[] = [
   ...organizerNavGroups,

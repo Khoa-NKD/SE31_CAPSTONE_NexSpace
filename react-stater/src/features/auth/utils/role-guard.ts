@@ -91,7 +91,12 @@ export function checkRouteAccess(
   // Khách hàng không được vào dashboard quản trị (Admin/Organizer/Overview).
   // Chỉ được vào xem/cập nhật hồ sơ & cài đặt của mình.
   if (role === 'USER') {
-    const allowedCustomerPaths = ['/dashboard/settings', '/dashboard/profile', '/dashboard/notifications'];
+    const allowedCustomerPaths = [
+      '/dashboard/settings',
+      '/dashboard/profile',
+      '/dashboard/preferences',
+      '/dashboard/notifications'
+    ];
     const isAllowed = allowedCustomerPaths.some(
       (allowedPath) => pathname === allowedPath || pathname.startsWith(allowedPath + '/')
     );

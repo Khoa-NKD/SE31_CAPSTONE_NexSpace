@@ -30,12 +30,23 @@ export interface RequestOptions extends Omit<RequestInit, 'body'> {
 type AuthHeaderProvider = () => string | null | Promise<string | null>;
 let authHeaderProvider: AuthHeaderProvider | null = null;
 
+export type UnauthorizedHandler = (status: number, message?: string) => void;
+let unauthorizedHandler: UnauthorizedHandler | null = null;
+
 /**
  * Configure dynamic authentication header integration point.
  * Insulates the HTTP client from specific storage mechanisms (cookies, tokens, etc.).
  */
 export function setAuthHeaderProvider(provider: AuthHeaderProvider | null): void {
   authHeaderProvider = provider;
+}
+
+/**
+ * Configure dynamic handler for 401 Unauthorized responses.
+ * Triggers session invalidation and re-authentication across tabs and devices.
+ */
+export function setUnauthorizedHandler(handler: UnauthorizedHandler | null): void {
+  unauthorizedHandler = handler;
 }
 
 /**
@@ -145,6 +156,10 @@ export async function request<T>(
   }
 
   if (!response.ok) {
+    if (response.status === 401 && unauthorizedHandler) {
+      const errorPayload = responseData as { message?: string } | null;
+      unauthorizedHandler(response.status, errorPayload?.message);
+    }
     throw new ApiError(response.status, response.statusText, responseData);
   }
 

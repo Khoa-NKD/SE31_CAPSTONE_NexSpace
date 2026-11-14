@@ -265,6 +265,7 @@ export function WorkspaceCard({ workspace, isActive }: WorkspaceCardProps) {
             {pricePerHour > 0 ? (
               <>
                 <div className="flex items-baseline gap-1">
+                  <span className="text-[11px] font-medium text-muted-foreground mr-0.5">Từ</span>
                   <span className="text-base sm:text-lg font-bold text-foreground leading-none">
                     {formatPrice(pricePerHour)}
                   </span>

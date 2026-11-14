@@ -54,20 +54,7 @@ export const INITIAL_OPERATING_HOURS: OperatingHoursValues = {
   allowGracePeriod: false
 };
 
-export const INITIAL_AMENITIES: string[] = [
-  'fast-wifi',
-  'phone-booth',
-  'screen-casting',
-  'dual-monitors',
-  'ergonomic-chairs',
-  'standing-desks',
-  'espresso-bar',
-  'filtered-water-tea',
-  'smart-lock-247',
-  'community-manager',
-  'cctv-security',
-  'mail-handling'
-];
+export const INITIAL_AMENITIES: string[] = [];
 
 export const INITIAL_MEDIA_GALLERY: MediaGalleryValues = {
   coverPhotoId: '',

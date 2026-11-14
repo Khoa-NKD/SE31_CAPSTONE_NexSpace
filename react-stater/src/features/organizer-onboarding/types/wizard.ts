@@ -63,6 +63,7 @@ export interface AmenityItem {
   category: 'technology' | 'facilities' | 'hospitality' | 'security';
   icon: string;
   isCommon?: boolean;
+  custom?: boolean;
 }
 
 export type MediaUploadStatus = 'uploaded' | 'uploading' | 'error';

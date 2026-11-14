@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { User, KeyRound, ShieldCheck, Shield, Building2, CheckCircle2, Clock, Eye, EyeOff } from 'lucide-react';
+import { User, KeyRound, ShieldCheck, Shield, Building2, CheckCircle2, Clock, Eye, EyeOff, SlidersHorizontal } from 'lucide-react';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -13,6 +13,7 @@ import { profileQueryOptions } from '../api/queries';
 import { ProfileOverviewCard } from './profile-overview-card';
 import { ProfileForm } from './profile-form';
 import { AvatarManagerDialog } from './avatar-manager-dialog';
+import { CustomerPreferenceView } from '@/features/customer-preferences';
 
 function getPasswordStrength(password: string) {
   if (!password) return 0;
@@ -118,17 +119,21 @@ export function ProfileManagementView() {
 
       {/* 2. Main Tabs */}
       <Tabs defaultValue='profile' className='w-full'>
-        <TabsList className='grid grid-cols-3 max-w-md mb-6'>
-          <TabsTrigger value='profile' className='flex items-center gap-2 cursor-pointer'>
-            <User className='w-4 h-4' />
+        <TabsList className='inline-flex w-auto max-w-none h-auto p-1.5 gap-1.5 mb-6 bg-muted/80 rounded-xl'>
+          <TabsTrigger value='profile' className='flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium cursor-pointer'>
+            <User className='w-4 h-4 shrink-0' />
             <span>Hồ sơ cá nhân</span>
           </TabsTrigger>
-          <TabsTrigger value='security' className='flex items-center gap-2 cursor-pointer'>
-            <KeyRound className='w-4 h-4' />
+          <TabsTrigger value='preferences' className='flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium cursor-pointer'>
+            <SlidersHorizontal className='w-4 h-4 shrink-0 text-primary' />
+            <span>Sở thích không gian</span>
+          </TabsTrigger>
+          <TabsTrigger value='security' className='flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium cursor-pointer'>
+            <KeyRound className='w-4 h-4 shrink-0' />
             <span>Đổi mật khẩu</span>
           </TabsTrigger>
-          <TabsTrigger value='audit' className='flex items-center gap-2 cursor-pointer'>
-            <ShieldCheck className='w-4 h-4' />
+          <TabsTrigger value='audit' className='flex items-center gap-2 px-3.5 py-2 text-xs sm:text-sm font-medium cursor-pointer'>
+            <ShieldCheck className='w-4 h-4 shrink-0' />
             <span>An toàn & BR-03</span>
           </TabsTrigger>
         </TabsList>
@@ -136,6 +141,25 @@ export function ProfileManagementView() {
         {/* TAB 1: PROFILE MANAGEMENT & FORM */}
         <TabsContent value='profile' className='space-y-4'>
           <ProfileForm user={activeUser} />
+        </TabsContent>
+
+        {/* TAB 2: CUSTOMER PREFERENCES */}
+        <TabsContent value='preferences' className='space-y-4'>
+          {activeUser?.role === 'USER' || !activeUser ? (
+            <CustomerPreferenceView />
+          ) : (
+            <Card className='border border-border/80'>
+              <CardHeader>
+                <div className='flex items-center gap-2 text-primary'>
+                  <SlidersHorizontal className='w-5 h-5' />
+                  <CardTitle className='text-base font-bold'>Sở thích không gian cá nhân</CardTitle>
+                </div>
+                <CardDescription>
+                  Tính năng thiết lập sở thích không gian chỉ áp dụng cho tài khoản Khách hàng (Customer) để phục vụ thuật toán đề xuất không gian làm việc phù hợp.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          )}
         </TabsContent>
 
         {/* TAB 2: SECURITY & PASSWORD CHANGE */}
@@ -150,11 +174,12 @@ export function ProfileManagementView() {
             <form onSubmit={handleChangePassword}>
               <CardContent className='space-y-4 max-w-lg'>
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='oldPasswordInput' className='block text-xs font-medium text-foreground mb-1.5'>
                     Mật khẩu hiện tại:
                   </label>
                   <div className='relative'>
                     <input
+                      id='oldPasswordInput'
                       type={showOldPassword ? 'text' : 'password'}
                       value={oldPassword}
                       onChange={(e) => setOldPassword(e.target.value)}
@@ -173,11 +198,12 @@ export function ProfileManagementView() {
                 </div>
 
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='newPasswordInput' className='block text-xs font-medium text-foreground mb-1.5'>
                     Mật khẩu mới (Tối thiểu 8 ký tự):
                   </label>
                   <div className='relative'>
                     <input
+                      id='newPasswordInput'
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
@@ -224,11 +250,12 @@ export function ProfileManagementView() {
                 </div>
 
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='confirmNewPasswordInput' className='block text-xs font-medium text-foreground mb-1.5'>
                     Xác nhận mật khẩu mới:
                   </label>
                   <div className='relative'>
                     <input
+                      id='confirmNewPasswordInput'
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}

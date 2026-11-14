@@ -14,7 +14,7 @@ import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar } from 'lucide-react';
+import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar, SlidersHorizontal } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';
@@ -119,6 +119,18 @@ export function UserNav() {
             <User className='w-4 h-4 text-indigo-600 dark:text-indigo-400' />
             <span>
               {language === 'vi' ? 'Xem hồ sơ cá nhân' : 'My Profile'}
+            </span>
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            className='cursor-pointer flex items-center gap-2'
+            onClick={() => {
+              setOpen(false);
+              router.navigate({ to: '/dashboard/preferences' });
+            }}
+          >
+            <SlidersHorizontal className='w-4 h-4 text-indigo-600 dark:text-indigo-400' />
+            <span>
+              {language === 'vi' ? 'Sở thích không gian' : 'Space Preferences'}
             </span>
           </DropdownMenuItem>
           <DropdownMenuItem

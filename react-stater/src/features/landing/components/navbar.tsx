@@ -32,7 +32,10 @@ export function Navbar() {
 
   const navItems = [
     { label: language === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
-    { label: t('nav.workspaces'), href: '#workspaces' },
+    { label: t('nav.workspaces'), href: '/workspaces' },
+    ...(isAuthenticated && getUserRole(user) === 'USER'
+      ? [{ label: language === 'vi' ? 'Sở thích không gian' : 'Space Preferences', href: '/dashboard/preferences' }]
+      : []),
     { label: t('nav.platform'), href: '#platform' },
     { label: t('nav.reviews'), href: '#reviews' },
     { label: t('nav.resources'), href: '#resources' }
@@ -74,15 +77,26 @@ export function Navbar() {
 
         {/* Center Desktop Navigation */}
         <nav aria-label='Main Navigation' className='hidden items-center space-x-7 md:flex'>
-          {navItems.map((item) => (
-            <a
-              key={item.href}
-              href={item.href}
-              className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors duration-150 active:scale-[0.98]'
-            >
-              {item.label}
-            </a>
-          ))}
+          {navItems.map((item) => {
+            const isInternal = item.href.startsWith('/');
+            return isInternal ? (
+              <Link
+                key={item.href}
+                to={item.href}
+                className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors duration-150 active:scale-[0.98]'
+              >
+                {item.label}
+              </Link>
+            ) : (
+              <a
+                key={item.href}
+                href={item.href}
+                className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors duration-150 active:scale-[0.98]'
+              >
+                {item.label}
+              </a>
+            );
+          })}
 
           {/* Solutions Dropdown Menu */}
           <DropdownMenu>
@@ -291,16 +305,28 @@ export function Navbar() {
                   <SheetTitle className='text-lg font-bold'>Menu</SheetTitle>
                 </SheetHeader>
                 <div className='mt-6 flex flex-col gap-4'>
-                  {navItems.map((item) => (
-                    <a
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className='py-2 text-base font-medium text-foreground transition-colors hover:text-indigo-600'
-                    >
-                      {item.label}
-                    </a>
-                  ))}
+                  {navItems.map((item) => {
+                    const isInternal = item.href.startsWith('/');
+                    return isInternal ? (
+                      <button
+                        key={item.href}
+                        type='button'
+                        onClick={() => handleMobileNavigate(item.href)}
+                        className='text-left py-2 text-base font-medium text-foreground transition-colors hover:text-indigo-600 cursor-pointer bg-transparent border-none'
+                      >
+                        {item.label}
+                      </button>
+                    ) : (
+                      <a
+                        key={item.href}
+                        href={item.href}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className='py-2 text-base font-medium text-foreground transition-colors hover:text-indigo-600'
+                      >
+                        {item.label}
+                      </a>
+                    );
+                  })}
 
                   <div className='my-2 border-t border-border/60 pt-4'>
                     <div className='mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground'>

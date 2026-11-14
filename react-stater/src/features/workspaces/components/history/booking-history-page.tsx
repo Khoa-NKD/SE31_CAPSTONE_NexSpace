@@ -43,17 +43,17 @@ export function BookingHistoryPage() {
     size: pageSize
   });
 
-  const bookings = data?.content ?? [];
+  const bookings: BookingDto[] = data?.content ?? [];
   const totalElements = data?.totalElements ?? 0;
   const totalPages = data?.totalPages ?? 1;
 
   // Overview Query to compute global KPI metrics
   const { data: allData } = useMyBookingsQuery({ page: 1, size: 100 });
-  const allBookings = allData?.content ?? [];
+  const allBookings: BookingDto[] = allData?.content ?? [];
 
   const totalCount = allData?.totalElements ?? bookings.length;
-  const activeCount = allBookings.filter((b) => b.status === 'CONFIRMED').length;
-  const pendingCount = allBookings.filter((b) => b.status === 'PENDING_PAYMENT').length;
+  const activeCount = allBookings.filter((b: BookingDto) => b.status === 'CONFIRMED').length;
+  const pendingCount = allBookings.filter((b: BookingDto) => b.status === 'PENDING_PAYMENT').length;
 
   const handleTabChange = (tab: StatusFilterTab) => {
     setSelectedTab(tab);

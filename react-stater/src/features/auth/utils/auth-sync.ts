@@ -16,7 +16,8 @@ export type AuthSyncEvent =
   | { type: 'CHECK_EXISTING_RESET_TAB' }
   | { type: 'RESET_TAB_ALREADY_ACTIVE' }
   | { type: 'RESET_TOKEN_CLICKED'; token: string; email?: string }
-  | { type: 'RESET_PASSWORD_COMPLETED' };
+  | { type: 'RESET_PASSWORD_COMPLETED' }
+  | { type: 'SESSION_REVOKED'; reason?: string };
 
 const CHANNEL_NAME = 'nexspace_auth_sync';
 const STORAGE_KEY = 'nexspace_auth_sync_event';

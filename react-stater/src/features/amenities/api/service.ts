@@ -63,6 +63,50 @@ export const amenityService = {
   },
 
   /**
+   * Organizer paginated list of custom amenities
+   */
+  async listOrganizerAmenities(params?: AmenityFilterParams): Promise<AmenityPageResponse> {
+    return apiClient.get<AmenityPageResponse>('/organizer/amenities', { params });
+  },
+
+  /**
+   * Organizer available amenities (system standard + organizer custom)
+   */
+  async getOrganizerAvailableAmenities(): Promise<AmenityDto[]> {
+    return apiClient.get<AmenityDto[]>('/organizer/amenities/available');
+  },
+
+  /**
+   * Organizer create custom amenity
+   */
+  async createOrganizerAmenity(payload: CreateAmenityPayload): Promise<AmenityDto> {
+    return apiClient.post<AmenityDto>('/organizer/amenities', payload);
+  },
+
+  /**
+   * Organizer update custom amenity
+   */
+  async updateOrganizerAmenity(id: number, payload: UpdateAmenityPayload): Promise<AmenityDto> {
+    return apiClient.put<AmenityDto>(`/organizer/amenities/${id}`, payload);
+  },
+
+  /**
+   * Organizer toggle custom amenity status
+   */
+  async toggleOrganizerAmenityStatus(id: number, active: boolean): Promise<void> {
+    return apiClient.patch<void>(`/organizer/amenities/${id}/status`, undefined, {
+      params: { active }
+    });
+  },
+
+  /**
+   * Organizer delete custom amenity
+   */
+  async deleteOrganizerAmenity(id: number): Promise<void> {
+    return apiClient.delete<void>(`/organizer/amenities/${id}`);
+  },
+
+  /**
    * Get all amenities assigned to a workspace
    */
   async getWorkspaceAmenities(workspaceId: number | string): Promise<WorkspaceAmenityDto[]> {

@@ -13,6 +13,7 @@ import { ShieldAlert, Loader2 } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { getOrganizerOperationalStatus, organizerOperationalStatusKey } from '@/features/admin-organizers/api/partners';
+import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 
 const emptySubscribe = () => () => {};
 
@@ -75,6 +76,19 @@ function DashboardLayout() {
           </p>
           <Loader2 className='size-5 animate-spin text-muted-foreground mt-2' />
         </div>
+      </div>
+    );
+  }
+
+  // Khách hàng (Customer) không có trang dashboard và không sử dụng thanh sidebar bên trái
+  const role = getUserRole(user);
+  if (role === 'USER') {
+    return (
+      <div className='min-h-screen flex flex-col bg-background'>
+        <WorkspaceHeader />
+        <main id='main-content' className='flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8'>
+          <Outlet />
+        </main>
       </div>
     );
   }

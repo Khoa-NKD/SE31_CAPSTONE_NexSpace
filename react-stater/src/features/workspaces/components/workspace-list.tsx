@@ -16,7 +16,14 @@ import { Button } from '@/components/ui/button';
 interface WorkspaceListProps {
   search?: string;
   category?: string;
-  sortBy?: 'featuredPosition' | 'pricePerHour' | 'rating' | 'name';
+  city?: string;
+  district?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  amenityIds?: number[];
+  resourceCategories?: string[];
+  minRating?: number;
+  sortBy?: 'featuredPosition' | 'pricePerHour' | 'rating' | 'name' | 'popular' | string;
   sortOrder?: 'asc' | 'desc';
   onTotalCountChange?: (count: number) => void;
   onWorkspacesLoaded?: (workspaces: PublicWorkspaceSummary[]) => void;
@@ -32,6 +39,13 @@ interface WorkspaceListProps {
 export function WorkspaceList({
   search,
   category,
+  city,
+  district,
+  minPrice,
+  maxPrice,
+  amenityIds,
+  resourceCategories,
+  minRating,
   sortBy,
   sortOrder,
   onTotalCountChange,
@@ -43,8 +57,8 @@ export function WorkspaceList({
   onHoverWorkspace,
   hoveredWorkspaceId
 }: WorkspaceListProps) {
-  const [internalSortBy, setInternalSortBy] = React.useState<'featuredPosition' | 'pricePerHour' | 'rating' | 'name'>('featuredPosition');
-  const [internalSortOrder, setInternalSortOrder] = React.useState<'asc' | 'desc'>('asc');
+  const [internalSortBy, setInternalSortBy] = React.useState<string>('featuredPosition');
+  const [internalSortOrder, setInternalSortOrder] = React.useState<'asc' | 'desc'>('desc');
   const [page, setPage] = React.useState(1);
   const limit = 6;
 
@@ -53,10 +67,17 @@ export function WorkspaceList({
 
   const isNearbyEnabled = Boolean(isNearMeActive && nearMeCoords?.lat && nearMeCoords?.lng);
 
-  // Reset pagination to page 1 whenever search, category, or sorting changes
+  // Reset pagination to page 1 whenever any search, filter, or sorting changes
   const [prevFilterState, setPrevFilterState] = React.useState({
     search,
     category,
+    city,
+    district,
+    minPrice,
+    maxPrice,
+    amenityIds,
+    resourceCategories,
+    minRating,
     activeSortBy,
     activeSortOrder,
     isNearbyEnabled,
@@ -65,12 +86,33 @@ export function WorkspaceList({
   if (
     prevFilterState.search !== search ||
     prevFilterState.category !== category ||
+    prevFilterState.city !== city ||
+    prevFilterState.district !== district ||
+    prevFilterState.minPrice !== minPrice ||
+    prevFilterState.maxPrice !== maxPrice ||
+    prevFilterState.amenityIds !== amenityIds ||
+    prevFilterState.resourceCategories !== resourceCategories ||
+    prevFilterState.minRating !== minRating ||
     prevFilterState.activeSortBy !== activeSortBy ||
     prevFilterState.activeSortOrder !== activeSortOrder ||
     prevFilterState.isNearbyEnabled !== isNearbyEnabled ||
     prevFilterState.radiusKm !== radiusKm
   ) {
-    setPrevFilterState({ search, category, activeSortBy, activeSortOrder, isNearbyEnabled, radiusKm });
+    setPrevFilterState({
+      search,
+      category,
+      city,
+      district,
+      minPrice,
+      maxPrice,
+      amenityIds,
+      resourceCategories,
+      minRating,
+      activeSortBy,
+      activeSortOrder,
+      isNearbyEnabled,
+      radiusKm
+    });
     setPage(1);
   }
 
@@ -78,6 +120,13 @@ export function WorkspaceList({
     {
       search: search?.trim() || undefined,
       category: category || undefined,
+      city: city?.trim() || undefined,
+      district: district?.trim() || undefined,
+      minPrice,
+      maxPrice,
+      amenityIds: amenityIds && amenityIds.length > 0 ? amenityIds : undefined,
+      resourceCategories: resourceCategories && resourceCategories.length > 0 ? resourceCategories : undefined,
+      minRating,
       sortBy: activeSortBy,
       sortOrder: activeSortOrder,
       page,
@@ -126,15 +175,21 @@ export function WorkspaceList({
     if (val === 'lowest') {
       setInternalSortBy('pricePerHour');
       setInternalSortOrder('asc');
+    } else if (val === 'highest_price') {
+      setInternalSortBy('pricePerHour');
+      setInternalSortOrder('desc');
     } else if (val === 'highest') {
       setInternalSortBy('rating');
+      setInternalSortOrder('desc');
+    } else if (val === 'popular') {
+      setInternalSortBy('popular');
       setInternalSortOrder('desc');
     } else if (val === 'name') {
       setInternalSortBy('name');
       setInternalSortOrder('asc');
     } else {
       setInternalSortBy('featuredPosition');
-      setInternalSortOrder('asc');
+      setInternalSortOrder('desc');
     }
   };
 
@@ -172,10 +227,12 @@ export function WorkspaceList({
               defaultValue="recommended"
               className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-xs font-semibold text-foreground shadow-sm transition-all cursor-pointer hover:border-border/80 focus:border-[#4b41e1] focus:ring-1 focus:ring-[#4b41e1]"
             >
-              <option value="recommended">{isNearbyEnabled ? 'Gần nhất (Khoảng cách)' : 'Được đề xuất'}</option>
-              <option value="lowest">Giá thấp nhất</option>
+              <option value="recommended">{isNearbyEnabled ? 'Gần nhất (Khoảng cách)' : 'Mới nhất / Được đề xuất'}</option>
+              <option value="lowest">Giá: Thấp đến cao</option>
+              <option value="highest_price">Giá: Cao đến thấp</option>
               <option value="highest">Đánh giá cao nhất</option>
-              <option value="name">Tên không gian</option>
+              <option value="popular">Phổ biến nhất</option>
+              <option value="name">Tên: A → Z</option>
             </select>
             <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
           </div>

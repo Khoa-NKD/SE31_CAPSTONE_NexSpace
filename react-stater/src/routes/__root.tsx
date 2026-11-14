@@ -19,6 +19,7 @@ import { seo } from '@/lib/seo';
 import { LanguageProvider } from '@/features/landing/context/language-context';
 import { CurrencyProvider } from '@/features/landing/context/currency-context';
 import { AdminPreviewBanner } from '@/components/layout/admin-preview-banner';
+import { SessionHeartbeatProvider } from '@/features/auth/components/session-heartbeat-provider';
 
 import appCss from '@/styles/globals.css?url';
 
@@ -126,6 +127,7 @@ function RootDocument() {
               <CurrencyProvider>
                 <TooltipProvider>
                   <Toaster />
+                  <SessionHeartbeatProvider />
                   <AdminPreviewBanner />
                   <Outlet />
                 </TooltipProvider>
