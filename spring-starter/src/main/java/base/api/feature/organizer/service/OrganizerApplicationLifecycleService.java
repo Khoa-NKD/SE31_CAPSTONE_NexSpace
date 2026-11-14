@@ -37,7 +37,7 @@ public class OrganizerApplicationLifecycleService {
     private final OrganizerContractService contracts;
     private static final Set<OrganizerDocumentType> CORRECTION_TYPES = Set.of(OrganizerDocumentType.BUSINESS_LICENSE,
             OrganizerDocumentType.ID_CARD_FRONT, OrganizerDocumentType.ID_CARD_BACK,
-            OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.OTHER);
+            OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.WORKSPACE_OVERVIEW, OrganizerDocumentType.OTHER);
 
     private record DocumentState(Long id, OrganizerDocumentStatus status, boolean current, String feedback) {}
     private record State(OrganizerProfileStatus status, UserRole role, boolean suspended,
@@ -111,7 +111,8 @@ public class OrganizerApplicationLifecycleService {
     private OrganizerLifecycleContext decideReview(Long actorId, Long applicationId, Rejection request, boolean changesRequested) {
         var actor = admin(actorId); validate(request);
         var profile = lockAdminTarget(actorId, applicationId);
-        requirePending(profile); requireApplicant(profile.getOrganizer()); revision(profile, request.revision());
+        if (changesRequested || !hasUncorrectableTaxIdConflict(profile)) requirePending(profile);
+        requireApplicant(profile.getOrganizer()); revision(profile, request.revision());
         var current = currentDocuments(profile); var before = snapshot(profile, current);
         var currentIds = new HashSet<>(current.stream().map(OrganizerDocumentModel::getId).toList());
         var feedbacks = new HashMap<Long, String>();
@@ -150,21 +151,58 @@ public class OrganizerApplicationLifecycleService {
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public OrganizerLifecycleContext correctDocument(Long actorId, Long expectedRevision, OrganizerDocumentType type,
             Long expectedCurrentDocumentId, MultipartFile file) {
-        var profile = lockOwnerDocumentEditing(actorId); revision(profile, expectedRevision);
+        if (file == null) throw new BadRequestException("Choose a replacement document");
+        return changeDocuments(actorId, null, expectedRevision, type, expectedCurrentDocumentId, List.of(file), false);
+    }
+
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public OrganizerLifecycleContext appendPages(Long actorId, Long applicationId, Long revision,
+            OrganizerDocumentType type, List<MultipartFile> files) {
+        return changeDocuments(actorId, applicationId, revision, type, null, files, true);
+    }
+
+    private OrganizerLifecycleContext changeDocuments(Long actorId, Long applicationId, Long expectedRevision, OrganizerDocumentType type,
+            Long expectedCurrentDocumentId, List<MultipartFile> files, boolean append) {
+        var profile = lockOwnerDocumentEditing(actorId);
+        if (append && !profile.getId().equals(applicationId))
+            throw new ConflictException("The current application changed. Reload before adding files");
+        revision(profile, expectedRevision);
         if (type == null || !CORRECTION_TYPES.contains(type)) throw new BadRequestException("Unsupported correction document type");
         var current = currentDocuments(profile);
         var matching = current.stream().filter(document -> document.getDocumentType() == type).toList();
-        if (matching.size() > 1) throw new ConflictException("Multiple current documents require administrator investigation");
-        var old = matching.isEmpty() ? null : matching.get(0);
-        if (profile.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED
-                && (old == null || old.getStatus() != OrganizerDocumentStatus.REJECTED))
-            throw new ConflictException("Only documents explicitly requested for replacement can be changed");
-        if (!Objects.equals(old == null ? null : old.getId(), expectedCurrentDocumentId)) {
-            throw new ConflictException("The current document changed. Reload before explicitly replacing it");
+        var old = expectedCurrentDocumentId == null ? null : matching.stream()
+                .filter(document -> expectedCurrentDocumentId.equals(document.getId())).findFirst()
+                .orElseThrow(() -> new ConflictException("The selected page changed. Reload before replacing it"));
+        if (files.isEmpty() || files.stream().anyMatch(Objects::isNull)) throw new BadRequestException("Choose a document");
+        if (append && (!OrganizerDocumentRequirements.allowsPages(type) || matching.size() + files.size() > 10))
+            throw new BadRequestException("This document type does not accept additional pages or would exceed 10 files");
+        if (!append && old == null && !matching.isEmpty())
+            throw new ConflictException("A current document already exists. Choose a file to replace or add pages");
+        if (OrganizerDocumentRequirements.allowsPages(type)) {
+            long remaining = matching.size() - (old == null ? 0 : 1);
+            boolean existingPdf = matching.stream().filter(document -> document != old)
+                    .anyMatch(document -> document.getFileName() != null && document.getFileName().toLowerCase(Locale.ROOT).endsWith(".pdf"));
+            boolean incomingPdf = files.stream().anyMatch(file -> "application/pdf".equals(file.getContentType()));
+            if (remaining + files.size() > 1 && (existingPdf || incomingPdf))
+                throw new BadRequestException("Upload multiple images or a single PDF for each document type");
         }
-        if (file == null) throw new BadRequestException("Choose a replacement document");
+        if (profile.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED
+                && (append ? matching.stream().noneMatch(d -> d.getStatus() == OrganizerDocumentStatus.REJECTED)
+                    : old == null || old.getStatus() != OrganizerDocumentStatus.REJECTED))
+            throw new ConflictException("Only documents explicitly requested for replacement can be changed");
         var before = snapshot(profile, current);
-        var stored = storage.store(file, profile.getId());
+        if (old != null) { old.setCurrent(false); old.setStatus(OrganizerDocumentStatus.REPLACED); documents.save(old); }
+        for (var file : files) storePage(profile, type, file, old);
+        audit.write(profile.getOrganizer(), profile.getId(), "Organizer.CorrectDocument", before,
+                snapshot(profile, currentDocuments(profile)), old == null ? "Added document files" : "Replaced a current file");
+        return context(profile, actorId, false);
+    }
+
+    private void storePage(OrganizerProfileModel profile, OrganizerDocumentType type, MultipartFile file, OrganizerDocumentModel old) {
+        PrivateOrganizerDocumentStorage.requireSupportedFormat(type, file);
+        var stored = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK
+                ? storage.store(file, profile.getId(), type) : storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() {
                 if (old != null) {
@@ -178,12 +216,31 @@ public class OrganizerApplicationLifecycleService {
                 }
             }
         });
-        if (old != null) { old.setCurrent(false); old.setStatus(OrganizerDocumentStatus.REPLACED); documents.save(old); }
         var replacement = new OrganizerDocumentModel(); replacement.setOrganizerProfile(profile);
         replacement.setDocumentType(type); replacement.setFileUrl(stored.key()); replacement.setFileName(stored.originalName());
         documents.saveAndFlush(replacement);
-        audit.write(profile.getOrganizer(), profile.getId(), "Organizer.CorrectDocument", before,
-                snapshot(profile, currentDocuments(profile)), old == null ? "Added missing document type" : "Explicitly replaced current document; previous version retained");
+    }
+
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public OrganizerLifecycleContext deleteDraftDocument(Long actorId, Long expectedRevision, Long documentId) {
+        var profile = lockOwnerDocumentEditing(actorId);
+        if (profile.getStatus() != OrganizerProfileStatus.DRAFT) throw new ConflictException("Only draft files can be deleted");
+        revision(profile, expectedRevision);
+        var current = currentDocuments(profile);
+        var document = current.stream().filter(d -> d.getId().equals(documentId)).findFirst()
+                .orElseThrow(() -> new NotFoundException("Current verification document not found"));
+        var before = snapshot(profile, current);
+        documents.delete(document);
+        documents.flush();
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override public void afterCommit() {
+                try { storage.delete(new PrivateOrganizerDocumentStorage.StoredDocument(document.getFileUrl(), document.getFileName())); }
+                catch (RuntimeException ex) { log.error("Draft file cleanup pending for document {}", documentId); }
+            }
+        });
+        audit.write(profile.getOrganizer(), profile.getId(), "Organizer.DeleteDraftDocument", before,
+                snapshot(profile, currentDocuments(profile)), null);
         return context(profile, actorId, false);
     }
 
@@ -224,6 +281,21 @@ public class OrganizerApplicationLifecycleService {
         return profile;
     }
 
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public void checkIdentityPhoto(Long actorId, Long applicationId, OrganizerDocumentType type, MultipartFile file) {
+        var user = users.findById(actorId).orElseThrow(() -> new UnauthorizedException("Account not found"));
+        requireApplicant(user);
+        var profile = profiles.findByOrganizerId(actorId).orElseThrow(() -> new NotFoundException("Organizer profile not found"));
+        owner(actorId, profile);
+        if (!profile.getId().equals(applicationId))
+            throw new ConflictException("The current application changed. Reload before adding files");
+        if (profile.getStatus() != OrganizerProfileStatus.DRAFT &&
+                !(correctable(profile) && currentDocuments(profile).stream().anyMatch(document ->
+                        document.getDocumentType() == type && document.getStatus() == OrganizerDocumentStatus.REJECTED)))
+            throw new ConflictException("This application does not allow the requested edit");
+        storage.checkIdentityPhoto(file, type);
+    }
+
     private OrganizerProfileModel lockOwnerCorrection(Long actorId) {
         return lockOwnerEditable(actorId, false);
     }
@@ -256,7 +328,9 @@ public class OrganizerApplicationLifecycleService {
         }
         return new OrganizerLifecycleContext(profile.getId(), profile.getStatus(), audit.revision(profile.getId()),
                 false, null,
-                approve, pending, suspend, !administrator && eligible && correctable(profile),
+                approve, pending || (administrator && !actorId.equals(user.getId()) && eligible
+                        && hasUncorrectableTaxIdConflict(profile)), suspend,
+                !administrator && eligible && correctable(profile),
                 current.stream().map(OrganizerDocumentModel::getId).toList());
     }
     private List<OrganizerDocumentModel> currentDocuments(OrganizerProfileModel profile) {
@@ -268,14 +342,22 @@ public class OrganizerApplicationLifecycleService {
     private void validateDocuments(List<OrganizerDocumentModel> current) {
         if (current.stream().noneMatch(d -> d.getDocumentType() == OrganizerDocumentType.BUSINESS_LICENSE)
                 || current.stream().anyMatch(d -> d.getFileUrl() == null || d.getFileUrl().isBlank() || d.getStatus() == OrganizerDocumentStatus.REJECTED)
-                || current.stream().map(OrganizerDocumentModel::getDocumentType).distinct().count() != current.size()) {
-            throw new OrganizerApplicationValidationException(Map.of("documents", "Provide one valid current document per type, including a non-rejected business license"));
+                || OrganizerDocumentRequirements.hasDuplicateSingleFileTypes(current)) {
+            throw new OrganizerApplicationValidationException(Map.of("documents", "Provide valid current files, including a non-rejected business license"));
         }
     }
     private void availableTaxId(OrganizerProfileModel p) {
-        if (profiles.existsByTaxIdAndStatusInAndIdNot(p.getTaxId(),
-                List.of(OrganizerProfileStatus.APPROVED, OrganizerProfileStatus.CONTRACT_PENDING), p.getId()))
+        if (hasReservedTaxId(p))
             throw new ConflictException("This tax ID belongs to an approved or contract-pending Organizer");
+    }
+
+    private boolean hasUncorrectableTaxIdConflict(OrganizerProfileModel profile) {
+        return profile.getStatus() == OrganizerProfileStatus.REVISION_REQUESTED && hasReservedTaxId(profile);
+    }
+
+    private boolean hasReservedTaxId(OrganizerProfileModel profile) {
+        return profiles.existsByTaxIdAndStatusInAndIdNot(profile.getTaxId(),
+                OrganizerApplicationService.TAX_ID_RESERVING_STATUSES, profile.getId());
     }
     private UserModel admin(Long actorId) {
         var user = users.findById(actorId).orElseThrow(() -> new UnauthorizedException("Account not found"));

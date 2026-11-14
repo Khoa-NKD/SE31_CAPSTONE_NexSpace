@@ -31,7 +31,8 @@ import java.util.List;
 public class OrganizerVerificationDocumentService {
     private static final List<OrganizerDocumentType> SUPPORTED_TYPES = List.of(
             OrganizerDocumentType.BUSINESS_LICENSE, OrganizerDocumentType.ID_CARD_FRONT,
-            OrganizerDocumentType.ID_CARD_BACK, OrganizerDocumentType.TAX_CERTIFICATE, OrganizerDocumentType.OTHER);
+            OrganizerDocumentType.ID_CARD_BACK, OrganizerDocumentType.TAX_CERTIFICATE,
+            OrganizerDocumentType.WORKSPACE_OVERVIEW, OrganizerDocumentType.OTHER);
     private final IUserRepository users;
     private final IOrganizerProfileRepository profiles;
     private final IOrganizerDocumentRepository documents;
@@ -65,7 +66,9 @@ public class OrganizerVerificationDocumentService {
         if (documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(profile.getId(), type).isPresent()) {
             throw new ConflictException("A current document of this type already exists. Replacement is not available here");
         }
-        var stored = storage.store(file, profile.getId());
+        PrivateOrganizerDocumentStorage.requireSupportedFormat(type, file);
+        var stored = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK
+                ? storage.store(file, profile.getId(), type) : storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {

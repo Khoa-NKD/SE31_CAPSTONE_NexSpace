@@ -2,6 +2,7 @@ package base.api.feature.organizer.service;
 
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
+import base.api.shared.enums.OrganizerDocumentType;
 import base.api.feature.workspace.service.impl.CloudinaryStorageServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -25,6 +26,10 @@ public class PrivateOrganizerDocumentStorage {
     private final String directory;
     private final CloudinaryStorageServiceImpl cloudinaryStorage;
     private final boolean cloudinaryEnabled;
+    @Value("${app.organizer.identity-ocr-command:${OCR_TESSERACT_COMMAND:tesseract}}")
+    private String identityOcrCommand;
+    @Value("${app.organizer.identity-ocr-data-directory:${OCR_TESSDATA_DIR:}}")
+    private String identityOcrDataDirectory;
 
     /** Local-only construction supports isolated filesystem tests and preserves legacy stored keys. */
     public PrivateOrganizerDocumentStorage(String directory) {
@@ -82,7 +87,29 @@ public class PrivateOrganizerDocumentStorage {
         return store(file, null);
     }
 
+    static void requireSupportedFormat(base.api.shared.enums.OrganizerDocumentType type, MultipartFile file) {
+        if (type == base.api.shared.enums.OrganizerDocumentType.WORKSPACE_OVERVIEW
+                && !"application/pdf".equals(file.getContentType())) {
+            throw new BadRequestException("The workspace overview must be a PDF file");
+        }
+    }
+
     public StoredDocument store(MultipartFile file, Long organizerProfileId) {
+        return store(file, organizerProfileId, null);
+    }
+
+    public StoredDocument store(MultipartFile file, Long organizerProfileId, OrganizerDocumentType documentType) {
+        return processUpload(file, organizerProfileId, documentType, false);
+    }
+
+    public void checkIdentityPhoto(MultipartFile file, OrganizerDocumentType type) {
+        if (type != OrganizerDocumentType.ID_CARD_FRONT && type != OrganizerDocumentType.ID_CARD_BACK)
+            throw new BadRequestException("Choose an identity card side");
+        processUpload(file, null, type, true);
+    }
+
+    private StoredDocument processUpload(MultipartFile file, Long organizerProfileId,
+            OrganizerDocumentType documentType, boolean checkOnly) {
         String name = file.getOriginalFilename();
         if (name == null || name.isBlank() || name.length() > 255
                 || name.matches(".*[/\\\\:<>\"|?*].*") || name.codePoints().anyMatch(Character::isISOControl)) {
@@ -101,6 +128,12 @@ public class PrivateOrganizerDocumentStorage {
             if (bytes.length == 0 || bytes.length > MAX_BYTES || !matchesType(extension, file.getContentType(), bytes)) {
                 throw new BadRequestException("Only valid JPG, PNG or PDF documents up to 5 MB are accepted");
             }
+            if (documentType == OrganizerDocumentType.ID_CARD_FRONT || documentType == OrganizerDocumentType.ID_CARD_BACK) {
+                if ("pdf".equals(extension)) throw new BadRequestException("Upload a JPG or PNG identity card photo");
+                if (identityOcrCommand == null) throw new OrganizerIdentityCheckUnavailableException();
+                OrganizerIdentityImageCheck.verify(documentType, bytes, identityOcrCommand, identityOcrDataDirectory);
+            }
+            if (checkOnly) return null;
             String key = UUID.randomUUID() + "." + extension;
             if (cloudinaryEnabled) {
                 if (cloudinaryStorage == null || !cloudinaryStorage.isCloudinaryConfigured())

@@ -54,11 +54,12 @@ public class PublicFloorMapService {
                 workspaces
                         .findByIdAndStatus(workspaceId, WorkspaceStatus.ACTIVE)
                         .orElseThrow(() -> new NotFoundException("Workspace map not found"));
-        if (!workspace.getOrganizer().isActive()
-                || !workspace.getOrganizer().isVerified()
-                || profiles.findByOrganizerId(workspace.getOrganizer().getId())
-                        .filter(p -> p.getStatus() == OrganizerProfileStatus.APPROVED)
-                        .isEmpty()) throw new NotFoundException("Workspace map not found");
+        if (!workspace.getOrganizer().isActive() || !workspace.getOrganizer().isVerified()) {
+            throw new NotFoundException("Workspace map not found");
+        }
+        var profile = profiles.findByOrganizerId(workspace.getOrganizer().getId())
+                .filter(p -> p.getStatus() == OrganizerProfileStatus.APPROVED)
+                .orElseThrow(() -> new NotFoundException("Workspace map not found"));
         return floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId).stream()
                 .filter(
                         f ->
@@ -100,7 +101,7 @@ public class PublicFloorMapService {
                                                     r -> {
                                                         boolean isRoom = r.getResourceType() != null
                                                                 && r.getResourceType().getCategory() == ResourceCategory.ROOM;
-                                                        boolean selectable = r.getStatus() == BookableResourceStatus.ACTIVE
+                                                        boolean selectable = !profile.isSuspended() && r.getStatus() == BookableResourceStatus.ACTIVE
                                                                 && r.getResourceType() != null
                                                                 && r.getResourceType().isActive()
                                                                 && (isRoom || !activeParents.contains(r.getId()))

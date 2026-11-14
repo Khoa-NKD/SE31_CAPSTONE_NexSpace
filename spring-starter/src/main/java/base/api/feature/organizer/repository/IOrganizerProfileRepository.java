@@ -17,9 +17,31 @@ import java.util.Optional;
 @Repository
 public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProfileModel, Long> {
 
-    Optional<OrganizerProfileModel> findByOrganizerId(Long organizerId);
+    @Query("SELECT p FROM OrganizerProfileModel p WHERE p.organizer.id = :organizerId AND p.id = (SELECT MAX(q.id) FROM OrganizerProfileModel q WHERE q.organizer.id = :organizerId)")
+    Optional<OrganizerProfileModel> findByOrganizerId(@Param("organizerId") Long organizerId);
+
+    java.util.List<OrganizerProfileModel> findByOrganizerIdAndStatusOrderByIdDesc(Long organizerId, OrganizerProfileStatus status);
 
     boolean existsByOrganizerIdAndSuspendedTrue(Long organizerId);
+
+    @Lock(LockModeType.PESSIMISTIC_READ)
+    @Query("SELECT p FROM OrganizerProfileModel p WHERE p.organizer.id = :organizerId AND p.id = (SELECT MAX(q.id) FROM OrganizerProfileModel q WHERE q.organizer.id = :organizerId)")
+    Optional<OrganizerProfileModel> findByOrganizerIdForBooking(@Param("organizerId") Long organizerId);
+
+    @Query(value = "SELECT p FROM OrganizerProfileModel p JOIN FETCH p.organizer u " + PARTNER_FILTER
+            + " ORDER BY p.legalName, p.id",
+            countQuery = "SELECT COUNT(p) FROM OrganizerProfileModel p JOIN p.organizer u " + PARTNER_FILTER)
+    Page<OrganizerProfileModel> findPartners(
+            @Param("suspended") Boolean suspended, @Param("search") String search, Pageable pageable);
+
+    String PARTNER_FILTER = """
+            WHERE p.status = base.api.shared.enums.OrganizerProfileStatus.APPROVED
+              AND u.roleEntity.name = 'ORGANIZER'
+              AND p.id = (SELECT MAX(q.id) FROM OrganizerProfileModel q WHERE q.organizer.id = u.id)
+              AND (:suspended IS NULL OR p.suspended = :suspended)
+              AND (:search IS NULL OR LOCATE(:search, LOWER(p.legalName)) > 0
+                   OR LOCATE(:search, LOWER(u.userName)) > 0 OR LOCATE(:search, LOWER(u.email)) > 0)
+            """;
     boolean existsByTaxIdAndStatusAndIdNot(String taxId, OrganizerProfileStatus status, Long id);
     boolean existsByTaxIdAndStatusInAndIdNot(String taxId, java.util.Collection<OrganizerProfileStatus> statuses, Long id);
 
@@ -32,10 +54,10 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
 
     /** Lock the owned profile so approval-state checks and updates share one transaction boundary. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
-    @Query("SELECT p FROM OrganizerProfileModel p WHERE p.organizer.id = :organizerId")
+    @Query("SELECT p FROM OrganizerProfileModel p WHERE p.organizer.id = :organizerId AND p.id = (SELECT MAX(q.id) FROM OrganizerProfileModel q WHERE q.organizer.id = :organizerId)")
     Optional<OrganizerProfileModel> findByOrganizerIdForUpdate(@Param("organizerId") Long organizerId);
 
-    Optional<OrganizerProfileModel> findByTaxIdAndStatus(String taxId, OrganizerProfileStatus status);
+    boolean existsByTaxIdAndStatusIn(String taxId, java.util.Collection<OrganizerProfileStatus> statuses);
 
     Page<OrganizerProfileModel> findByStatus(OrganizerProfileStatus status, Pageable pageable);
 

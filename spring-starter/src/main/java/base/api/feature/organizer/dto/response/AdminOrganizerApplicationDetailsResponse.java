@@ -11,14 +11,20 @@ public record AdminOrganizerApplicationDetailsResponse(
         String representativeName, String address, String contactEmail, String contactPhone,
         Applicant applicant, OrganizerProfileStatus status, LocalDateTime submittedAt,
         LocalDateTime reviewedAt, String reviewFeedback, List<AdminOrganizerDocumentResponse> documents,
-        String registrationReason) {
+        String registrationReason, List<ReviewDecision> reviewHistory) {
     public AdminOrganizerApplicationDetailsResponse(Long id, String legalName, BusinessType businessType, String taxId,
             String representativeName, String address, String contactEmail, String contactPhone,
             Applicant applicant, OrganizerProfileStatus status, LocalDateTime submittedAt,
             LocalDateTime reviewedAt, String reviewFeedback, List<AdminOrganizerDocumentResponse> documents) {
         this(id, legalName, businessType, taxId, representativeName, address, contactEmail, contactPhone,
-                applicant, status, submittedAt, reviewedAt, reviewFeedback, documents, null);
+                applicant, status, submittedAt, reviewedAt, reviewFeedback, documents, null, List.of());
     }
     public record Applicant(Long id, String userName, String email, String fullName) {
+    }
+    public record ReviewDecision(Long id, Decision decision, LocalDateTime reviewedAt, String reviewerName,
+            String feedback, List<DocumentFeedback> documentFeedback) {
+        public enum Decision { APPROVED, REJECTED, CHANGES_REQUESTED }
+    }
+    public record DocumentFeedback(Long documentId, String feedback) {
     }
 }

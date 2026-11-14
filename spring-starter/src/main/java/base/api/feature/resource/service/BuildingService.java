@@ -5,6 +5,7 @@ import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.resource.dto.*;
 import base.api.feature.resource.repository.*;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
+import base.api.shared.entity.UserModel;
 import base.api.shared.entity.resource.*;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.*;
@@ -12,9 +13,11 @@ import base.api.shared.exception.*;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.LockModeType;
 import java.math.BigDecimal;
+import java.text.Normalizer;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 /** Physical identity is shared; a floor plan remains the workspace-owned allocation and canvas. */
@@ -46,14 +49,12 @@ public class BuildingService {
                                 l.getUsageWidth(), l.getUsageHeight())).toList())).toList(), b.getLatitude(), b.getLongitude(), b.getCity(), b.getWard())).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Long createBuilding(Long actorId, BuildingRequests.Building input) {
-        eligible(actorId);
-        // Serialize organizer-scoped unique names, including concurrent creation requests.
-        var owner = users.findById(actorId).orElseThrow(() -> new NotFoundException("Organizer not found"));
-        em.refresh(owner, LockModeType.PESSIMISTIC_WRITE);
+        var owner = lockBuildingCatalog(actorId);
         if (buildings.existsByOrganizerIdAndNameIgnoreCase(actorId, input.name()))
             throw new ConflictException("A building with this name already exists");
+        requireAvailableAddress(actorId, normalizeAddress(input.address()));
         var b = new BuildingModel(); b.setOrganizer(owner); b.setName(input.name()); b.setAddress(input.address());
         b.setLatitude(input.latitude()); b.setLongitude(input.longitude());
         b.setCity(input.city()); b.setWard(input.ward());
@@ -71,9 +72,9 @@ public class BuildingService {
         return b.getId();
     }
 
-    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void updateBuilding(Long actorId, Long id, BuildingRequests.Building input) {
-        eligible(actorId);
+        lockBuildingCatalog(actorId);
         if (input.floorCount() != null && input.floorCount() != 0)
             throw new BadRequestException("Floor count is only supported when creating a building");
         building(actorId, id, false);
@@ -94,6 +95,9 @@ public class BuildingService {
         revision(b, input.expectedRevision());
         if (!b.getName().equalsIgnoreCase(input.name()) && buildings.existsByOrganizerIdAndNameIgnoreCase(actorId, input.name()))
             throw new ConflictException("A building with this name already exists");
+        var address = normalizeAddress(input.address());
+        if (!address.equals(normalizeAddress(b.getAddress())))
+            requireAvailableAddress(actorId, address);
         // Legacy address-only edits must not leave a pin pointing at an old address.
         if (input.latitude() != null || !Objects.equals(b.getAddress(), input.address())) {
             b.setLatitude(input.latitude()); b.setLongitude(input.longitude());
@@ -105,6 +109,28 @@ public class BuildingService {
             requireLocation(b);
             linkedIds.forEach(workspaceId -> copyLocation(b, lockedWorkspaces.get(workspaceId)));
         }
+    }
+
+    private UserModel lockBuildingCatalog(Long actorId) {
+        var owner = eligible(actorId);
+        // Serialize name and address checks across building creates and updates by this organizer.
+        em.refresh(owner, LockModeType.PESSIMISTIC_WRITE);
+        return owner;
+    }
+
+    private void requireAvailableAddress(Long actorId, String address) {
+        if (buildings.findAddressesByOrganizerId(actorId).stream()
+                .map(BuildingService::normalizeAddress)
+                .anyMatch(address::equals))
+            throw new ConflictException("A building with this address already exists");
+    }
+
+    private static String normalizeAddress(String address) {
+        return Normalizer.normalize(address, Normalizer.Form.NFC)
+                .replaceAll("(?U)\\s+", " ")
+                .strip()
+                .replaceAll(" *, *", ",")
+                .toLowerCase(Locale.ROOT);
     }
 
     @Transactional
@@ -292,10 +318,11 @@ public class BuildingService {
     private void revision(base.api.shared.entity.BaseModel entity, String expected) {
         if (!Objects.equals(expected, ResourceResponses.revision(entity))) throw new ConflictException("This record changed. Reload before continuing");
     }
-    private void eligible(Long id) {
+    private UserModel eligible(Long id) {
         var user = users.findById(id).orElseThrow(() -> new NotFoundException("Organizer not found"));
         if (!user.isActive() || !user.isVerified() || user.getRole() != UserRole.ORGANIZER
             || profiles.findByOrganizerId(id).filter(p -> p.getStatus() == OrganizerProfileStatus.APPROVED).isEmpty())
             throw new ForbiddenException("An active, verified and approved Organizer is required");
+        return user;
     }
 }

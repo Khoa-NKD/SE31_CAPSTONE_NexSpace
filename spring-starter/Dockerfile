@@ -11,7 +11,10 @@ RUN mvn -B clean package -DskipTests
 
 FROM eclipse-temurin:17-jre-alpine AS runtime
 
-RUN addgroup -S app && adduser -S app -G app
+RUN apk add --no-cache tesseract-ocr tesseract-ocr-data-vie tesseract-ocr-data-eng \
+    && tesseract --list-langs | grep -x vie \
+    && tesseract --list-langs | grep -x eng \
+    && addgroup -S app && adduser -S app -G app
 
 WORKDIR /app
 COPY --from=build --chown=app:app /workspace/target/*.jar app.jar

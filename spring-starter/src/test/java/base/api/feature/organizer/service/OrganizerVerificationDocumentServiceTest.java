@@ -86,7 +86,8 @@ class OrganizerVerificationDocumentServiceTest {
     private MockMultipartFile file() { return OrganizerApplicationServiceTest.license(); }
 
     @ParameterizedTest
-    @EnumSource(value = OrganizerDocumentType.class, names = "BANK_CERTIFICATE", mode = EnumSource.Mode.EXCLUDE)
+    @EnumSource(value = OrganizerDocumentType.class,
+            names = {"BANK_CERTIFICATE", "ID_CARD_FRONT", "ID_CARD_BACK"}, mode = EnumSource.Mode.EXCLUDE)
     void uploadsSupportedTypesAsNewPendingMetadataAndPrivateFiles(OrganizerDocumentType type) throws Exception {
         var result = service.upload(7L, type, file());
         var captured = org.mockito.ArgumentCaptor.forClass(OrganizerDocumentModel.class);
@@ -105,6 +106,16 @@ class OrganizerVerificationDocumentServiceTest {
         assertThat(user.getRole().name()).isEqualTo("USER");
         verify(profiles).findByOrganizerIdForUpdate(7L);
         verify(profiles, never()).save(any());
+    }
+
+    @ParameterizedTest
+    @EnumSource(value = OrganizerDocumentType.class, names = {"ID_CARD_FRONT", "ID_CARD_BACK"})
+    void identityCardUploadRejectsPdfBeforeSaving(OrganizerDocumentType type) throws Exception {
+        assertThatThrownBy(() -> service.upload(7L, type, file()))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessage("Upload a JPG or PNG identity card photo");
+        verify(documents, never()).saveAndFlush(any());
+        assertDirectoryEmpty();
     }
 
     @Test
@@ -212,7 +223,8 @@ class OrganizerVerificationDocumentServiceTest {
         var result = service.listCurrentDocuments(7L);
         assertThat(result.uploadAllowed()).isTrue();
         assertThat(result.profileId()).isEqualTo(42L);
-        assertThat(result.supportedDocumentTypes()).doesNotContain(OrganizerDocumentType.BANK_CERTIFICATE).hasSize(5);
+        assertThat(result.supportedDocumentTypes()).doesNotContain(OrganizerDocumentType.BANK_CERTIFICATE)
+                .contains(OrganizerDocumentType.WORKSPACE_OVERVIEW).hasSize(6);
         assertThat(result.documents()).singleElement().satisfies(item -> assertThat(item.fileName()).isEqualTo("license.pdf"));
         assertThat(result.documents().get(0).adminFeedback()).isEqualTo("Upload a clearer scan");
         verify(documents).findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(42L);

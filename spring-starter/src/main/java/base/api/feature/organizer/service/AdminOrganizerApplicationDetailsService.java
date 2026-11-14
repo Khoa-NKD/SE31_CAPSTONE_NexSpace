@@ -21,6 +21,7 @@ public class AdminOrganizerApplicationDetailsService {
     private final IUserRepository users;
     private final IOrganizerProfileRepository profiles;
     private final IOrganizerDocumentRepository documents;
+    private final OrganizerLifecycleAudit audit;
 
     @PreAuthorize("hasRole('ADMIN')")
     @Transactional(readOnly = true)
@@ -43,6 +44,7 @@ public class AdminOrganizerApplicationDetailsService {
                 new AdminOrganizerApplicationDetailsResponse.Applicant(
                         applicant.getId(), applicant.getUserName(), applicant.getEmail(), applicant.getFullName()),
                 profile.getStatus(), profile.getSubmittedAt(), profile.getReviewedAt(), profile.getReviewFeedback(),
-                List.copyOf(documents.findAdminMetadataByProfileId(profile.getId())), profile.getRegistrationReason());
+                List.copyOf(documents.findAdminMetadataByProfileId(profile.getId())), profile.getRegistrationReason(),
+                audit.reviewHistory(profile.getId()));
     }
 }

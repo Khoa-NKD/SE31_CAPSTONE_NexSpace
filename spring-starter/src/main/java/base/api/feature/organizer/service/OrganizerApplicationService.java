@@ -10,6 +10,7 @@ import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.shared.entity.organizer.OrganizerDocumentModel;
 import base.api.shared.entity.organizer.OrganizerProfileModel;
 import base.api.shared.enums.OrganizerDocumentType;
+import base.api.shared.enums.BusinessType;
 import base.api.shared.enums.OrganizerDocumentStatus;
 import base.api.shared.enums.OrganizerProfileStatus;
 import base.api.shared.enums.UserRole;
@@ -36,6 +37,9 @@ import java.util.LinkedHashMap;
 @Service
 @RequiredArgsConstructor
 public class OrganizerApplicationService {
+    private static final String RESERVED_TAX_ID = "This tax ID belongs to an approved or contract-pending Organizer";
+    static final java.util.List<OrganizerProfileStatus> TAX_ID_RESERVING_STATUSES = java.util.List.of(
+            OrganizerProfileStatus.APPROVED, OrganizerProfileStatus.CONTRACT_PENDING);
     private final IUserRepository users;
     private final IOrganizerProfileRepository profiles;
     private final IOrganizerDocumentRepository documents;
@@ -57,13 +61,24 @@ public class OrganizerApplicationService {
         var existing = profiles.findByOrganizerIdForUpdate(actorId);
         if (existing.isPresent()) {
             requireOwner(actorId, existing.get());
-            requireDraft(existing.get());
-            return OrganizerApplicationDetailsResponse.from(existing.get());
+            if (existing.get().getStatus() != OrganizerProfileStatus.REJECTED) {
+                requireDraft(existing.get());
+                return OrganizerApplicationDetailsResponse.from(existing.get());
+            }
+            if (user.getRole() != UserRole.USER) throw new ForbiddenException("Only an applicant can reapply");
         }
         var profile = new OrganizerProfileModel();
         profile.setOrganizer(user);
         profiles.saveAndFlush(profile);
         return OrganizerApplicationDetailsResponse.from(profile);
+    }
+
+    @Transactional(readOnly = true)
+    public java.util.List<OrganizerApplicationDetailsResponse> history(Long actorId) {
+        requireEligible(users.findById(actorId)
+                .orElseThrow(() -> new UnauthorizedException("Account not found")));
+        return profiles.findByOrganizerIdAndStatusOrderByIdDesc(actorId, OrganizerProfileStatus.REJECTED)
+                .stream().map(OrganizerApplicationDetailsResponse::from).toList();
     }
 
     @Transactional
@@ -72,6 +87,12 @@ public class OrganizerApplicationService {
         var profile = owned(actorId, true);
         requireDraft(profile);
         validate(request);
+        if (request.businessType() == BusinessType.OTHER && profile.getBusinessType() != BusinessType.OTHER) {
+            throw new OrganizerApplicationValidationException(java.util.Map.of("businessType", "Choose a supported business type"));
+        }
+        if (hasReservedTaxId(request.taxId())) {
+            throw new OrganizerApplicationValidationException(java.util.Map.of("taxId", RESERVED_TAX_ID));
+        }
         apply(profile, new SubmitOrganizerApplicationRequest(request.legalName(), request.businessType(),
                 request.taxId(), request.representativeName(), request.address(), request.contactPhone(), request.contactEmail(), request.registrationReason()));
         profiles.saveAndFlush(profile);
@@ -87,6 +108,7 @@ public class OrganizerApplicationService {
         var request = new SubmitOrganizerApplicationRequest(profile.getLegalName(), profile.getBusinessType(),
                 profile.getTaxId(), profile.getRepresentativeName(), profile.getAddress(), profile.getContactPhone(), profile.getContactEmail(), profile.getRegistrationReason());
         var errors = validationErrors(request, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
+        validateSubmissionType(request, errors);
         errors.putAll(OrganizerDocumentRequirements.errors(profile.getBusinessType(),
                 documents.findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profile.getId()), false));
         if (!errors.isEmpty()) throw new OrganizerApplicationValidationException(errors);
@@ -100,6 +122,7 @@ public class OrganizerApplicationService {
     public OrganizerApplicationResponse submit(Long actorId, SubmitOrganizerApplicationRequest request, MultipartFile file) {
         var user = lockEligibleUser(actorId);
         var errors = validationErrors(request, Default.class, SubmitOrganizerApplicationRequest.Submission.class);
+        validateSubmissionType(request, errors);
         if (!errors.isEmpty()) throw new OrganizerApplicationValidationException(errors);
         var existing = profiles.findByOrganizerIdForUpdate(actorId);
         var profile = existing.orElseGet(OrganizerProfileModel::new);
@@ -206,8 +229,27 @@ public class OrganizerApplicationService {
     }
 
     private void requireAvailableTaxId(String taxId) {
-        if (profiles.findByTaxIdAndStatus(taxId, OrganizerProfileStatus.APPROVED).isPresent()) {
-            throw new ConflictException("This tax ID belongs to an approved organizer");
+        if (hasReservedTaxId(taxId)) {
+            throw new ConflictException(RESERVED_TAX_ID);
+        }
+    }
+
+    private boolean hasReservedTaxId(String taxId) {
+        return taxId != null && !taxId.isBlank()
+                && profiles.existsByTaxIdAndStatusIn(taxId, TAX_ID_RESERVING_STATUSES);
+    }
+
+    private void validateSubmissionType(SubmitOrganizerApplicationRequest request, java.util.Map<String, String> errors) {
+        var type = request.businessType();
+        if (type == BusinessType.OTHER) {
+            errors.put("businessType", "Choose a supported business type");
+        } else if (type != null && request.taxId() != null && !request.taxId().isBlank()) {
+            boolean household = type == BusinessType.HOUSEHOLD_BUSINESS;
+            if (!request.taxId().matches(household ? "[0-9]{12}" : "[0-9]{10}")) {
+                errors.put("taxId", household
+                        ? "Enter the representative's 12-digit personal identification number"
+                        : "Enter the 10-digit business tax ID");
+            }
         }
     }
 

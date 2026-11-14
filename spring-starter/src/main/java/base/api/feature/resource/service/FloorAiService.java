@@ -30,12 +30,14 @@ public class FloorAiService {
         final Snapshot before;
         final FloorDesign.Propose request;
         final FloorDesign.Proposal proposal;
+        final boolean estimatedScale;
         ResourceResponses.FloorLayout applied;
         Boolean savedTemplates;
         boolean confirmedTypes;
         FloorDesign.Design appliedDesign;
-        Draft(Long actor, Long workspace, Long floor, Snapshot before, FloorDesign.Propose request, FloorDesign.Proposal proposal) {
+        Draft(Long actor, Long workspace, Long floor, Snapshot before, FloorDesign.Propose request, FloorDesign.Proposal proposal, boolean estimatedScale) {
             this.actor=actor; this.workspace=workspace; this.floor=floor; this.before=before; this.request=request; this.proposal=proposal;
+            this.estimatedScale = estimatedScale;
         }
     }
     public FloorDesign.Status status(Long actor, Long workspace, Long floor) {
@@ -49,9 +51,12 @@ public class FloorAiService {
     }
     public FloorDesign.Proposal propose(Long actor, Long workspace, Long floor, FloorDesign.Propose request) {
         var before = transaction.execute(s -> { design.owned(actor, workspace, floor, true); return snapshot(actor, workspace, floor); });
-        if (!before.layout().editableLayout() || before.layout().width() == null || before.layout().height() == null
-                || before.metrics().widthM() == null || before.metrics().lengthM() == null)
+        if (!before.layout().editableLayout() || before.layout().width() == null || before.layout().height() == null)
+            throw new ConflictException("This floor layout cannot be edited by the assistant");
+        boolean estimatedScale = before.metrics().widthM() == null || before.metrics().lengthM() == null;
+        if (estimatedScale && request.image() == null && request.previousProposalId() == null)
             throw new ConflictException("Confirm the physical floor dimensions in meters before using AI");
+        var proposalMetrics = estimatedScale ? previewMetrics(before) : before.metrics();
         if (!before.layout().floor().revision().equals(request.expectedRevision())) throw new ConflictException("The floor changed. Refresh first");
         if (!gemini.status().configured()) throw new ConflictException("Gemini is not configured. Add the API key to Backend Local first");
         FloorDesign.Design previous = null;
@@ -65,7 +70,7 @@ public class FloorAiService {
         }
         if (request.draft() != null) {
             if (request.previousProposalId() == null) throw new BadRequestException("A manual draft must reference a previous proposal");
-            FloorAiValidation.validatePreview(request.draft(), before.layout(), before.resources(), before.options(), request, before.metrics());
+            FloorAiValidation.validatePreview(request.draft(), before.layout(), before.resources(), before.options(), request, proposalMetrics);
             previous = request.draft();
         }
         begin(actor);
@@ -75,7 +80,8 @@ public class FloorAiService {
             context.put("prompt", request.prompt()); context.put("language", request.language() == null ? "vi" : request.language());
             context.put("scope", request.scope()); context.put("selectedKey", request.selectedKey());
             context.put("canvas", Map.of("width", before.layout().width(), "height", before.layout().height()));
-            context.put("metrics", before.metrics()); context.put("resources", before.resources());
+            context.put("metrics", proposalMetrics); context.put("resources", before.resources());
+            context.put("estimatedScale", estimatedScale);
             context.put("decorations", before.layout().decorations());
             var activeTypes = before.options().types().stream().filter(ResourceResponses.TypeOption::active).toList();
             var reusableTypes = activeTypes.stream()
@@ -85,9 +91,9 @@ public class FloorAiService {
             var footprints = new LinkedHashMap<Long, Map<String, java.math.BigDecimal>>();
             for (var type : reusableTypes) {
                 var width = type.standardWidthM().multiply(before.layout().width())
-                        .divide(before.metrics().widthM(), 2, java.math.RoundingMode.HALF_UP);
+                        .divide(proposalMetrics.widthM(), 2, java.math.RoundingMode.HALF_UP);
                 var height = type.standardLengthM().multiply(before.layout().height())
-                        .divide(before.metrics().lengthM(), 2, java.math.RoundingMode.HALF_UP);
+                        .divide(proposalMetrics.lengthM(), 2, java.math.RoundingMode.HALF_UP);
                 footprints.put(type.id(), Map.of("width", width, "height", height));
             }
             context.put("resourceTypeFootprintsPx", footprints);
@@ -99,10 +105,11 @@ public class FloorAiService {
             if (!previousIssues.isEmpty()) context.put("previousDraftIssues", previousIssues);
             var result = request.model() != null ? gemini.design(context, image, request.model())
                     : image == null ? gemini.design(context) : gemini.design(context, image);
+            result = FloorAiValidation.normalizeProposal(result, before.options(), proposalMetrics, before.layout());
             var issues = new ArrayList<String>();
             boolean question = result.question() != null && !result.question().isBlank();
             if (!question) {
-                try { FloorAiValidation.validatePreview(result, before.layout(), before.resources(), before.options(), request, before.metrics()); }
+                try { FloorAiValidation.validatePreview(result, before.layout(), before.resources(), before.options(), request, proposalMetrics); }
                 catch (BadRequestException | ConflictException e) { issues.add(e.getMessage()); }
             }
             boolean changed = !result.resources().isEmpty() || !result.removeResourceIds().isEmpty()
@@ -110,9 +117,20 @@ public class FloorAiService {
             var id = UUID.randomUUID().toString();
             var proposal = new FloorDesign.Proposal(id, Instant.now().plusSeconds(1800).toString(), request.expectedRevision(),
                     request.scope(), result, List.copyOf(issues), !question && changed && issues.isEmpty());
-            synchronized (drafts) { prune(); drafts.put(id, new Draft(actor,workspace,floor,before,request.withoutImage(),proposal)); }
+            synchronized (drafts) { prune(); drafts.put(id, new Draft(actor,workspace,floor,before,request.withoutImage(),proposal,estimatedScale)); }
             return proposal;
         } finally { synchronized (drafts) { generating.remove(actor); } }
+    }
+
+    private static FloorDesign.Metrics previewMetrics(Snapshot snapshot) {
+        var actual = snapshot.metrics();
+        // An unmeasured canvas uses one provisional scale on both axes, for preview only.
+        var pixelsPerMetre = java.math.BigDecimal.valueOf(60);
+        var width = snapshot.layout().width().divide(pixelsPerMetre, 6, java.math.RoundingMode.HALF_UP);
+        var length = snapshot.layout().height().divide(pixelsPerMetre, 6, java.math.RoundingMode.HALF_UP);
+        return new FloorDesign.Metrics(actual.revision(), actual.physicalWidthM(), actual.physicalLengthM(), width,
+                length, null, actual.maxOccupancy(), actual.occupancyLimit(), actual.designOccupancy(),
+                actual.workspaceDeclaredAreaSqm(), actual.workspaceMappedAreaSqm(), actual.allAreasMeasured());
     }
 
     public ResourceResponses.FloorLayout apply(Long actor, Long workspace, Long floorId, FloorDesign.Apply input) {
@@ -126,6 +144,8 @@ public class FloorAiService {
                 return draft.applied;
             }
             if (!draft.proposal.applicable() && input.design() == null) throw new ConflictException("Resolve the proposal issues before applying it");
+            if (draft.estimatedScale && (!submitted.newTypes().isEmpty() || submitted.resources().stream().anyMatch(r -> r.id() == null)))
+                throw new ConflictException("Set the real floor dimensions and generate a new proposal before saving new seats or rooms");
             var result = transaction.execute(status -> {
                 design.owned(actor, workspace, floorId, true);
                 var current = snapshot(actor, workspace, floorId);
