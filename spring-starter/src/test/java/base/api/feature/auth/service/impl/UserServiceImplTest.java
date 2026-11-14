@@ -7,6 +7,7 @@ import base.api.feature.auth.dto.response.UserDto;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.repository.IUserSessionRepository;
+import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
 import base.api.feature.workspace.service.IMediaStorageService;
@@ -50,6 +51,7 @@ class UserServiceImplTest {
     private IAuditService auditService;
     private IMediaStorageService mediaStorageService;
     private IRoleRepository roleRepository;
+    private ITokenRevocationService tokenRevocationService;
     private UserServiceImpl service;
     private UserModel user;
     private UserModel admin;
@@ -61,7 +63,8 @@ class UserServiceImplTest {
         auditService = mock(IAuditService.class);
         mediaStorageService = mock(IMediaStorageService.class);
         roleRepository = mock(IRoleRepository.class);
-        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService, roleRepository);
+        tokenRevocationService = mock(ITokenRevocationService.class);
+        service = new UserServiceImpl(userRepository, userSessionRepository, passwordEncoder, auditService, mediaStorageService, roleRepository, tokenRevocationService);
 
         user = new UserModel();
         user.setId(1L);
@@ -567,6 +570,7 @@ class UserServiceImplTest {
         assertThat(user.getRoleEntity().getName()).isEqualTo(UserRole.ORGANIZER.name());
         assertThat(activeSession.getRevokedAt()).isNotNull();
         verify(userSessionRepository).saveAll(any());
+        verify(tokenRevocationService).revokeAllUserTokens(1L);
         verify(auditService).log(
                 eq(admin),
                 eq(AuditActorType.USER),
@@ -643,6 +647,7 @@ class UserServiceImplTest {
 
         assertThat(result.getRole()).isEqualTo(UserRole.USER);
         assertThat(targetAdmin.getRoleEntity().getName()).isEqualTo(UserRole.USER.name());
+        verify(tokenRevocationService).revokeAllUserTokens(3L);
     }
 
     @Test

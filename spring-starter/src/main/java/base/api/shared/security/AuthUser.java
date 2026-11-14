@@ -19,6 +19,7 @@ public class AuthUser implements UserDetails {
     private final String username;
     private final String password;
     private final boolean enabled;
+    private final String role;
     private final List<GrantedAuthority> authorities;
 
     public AuthUser(UserModel user) {
@@ -26,6 +27,7 @@ public class AuthUser implements UserDetails {
         this.username = user.getUserName();
         this.password = user.getPassword();
         this.enabled = user.isActive();
+        this.role = user.getRole() == null ? null : user.getRole().name();
         this.authorities = user.getRole() == null
                 ? List.of()
                 : List.of(new SimpleGrantedAuthority("ROLE_" + user.getRole().name()));
