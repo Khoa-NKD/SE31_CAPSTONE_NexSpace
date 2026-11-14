@@ -3,11 +3,11 @@ import { useRouter } from '@tanstack/react-router';
 import {
   CheckCircle2,
   AlertTriangle,
+  AlertCircle,
   Edit,
   Building2,
   Clock,
   Image as ImageIcon,
-  Layers,
   MapPin,
   Star,
   ArrowRight,
@@ -33,6 +33,99 @@ import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
 import { isOperatingTimeRangeValid } from '../schemas/wizard-schemas';
+import type { DaySchedule } from '../types/wizard';
+
+const CATEGORY_LABELS: Record<string, string> = {
+  coworking_hub: 'Dedicated Coworking Hub',
+  business_lounge: 'Executive Business Lounge',
+  creative_studio: 'Creative Studio Space'
+};
+
+const DAY_SHORT_LABELS: Record<string, string> = {
+  monday: 'Mon',
+  tuesday: 'Tue',
+  wednesday: 'Wed',
+  thursday: 'Thu',
+  friday: 'Fri',
+  saturday: 'Sat',
+  sunday: 'Sun'
+};
+
+interface ScheduleGroup {
+  daysLabel: string;
+  timeRange: string;
+  isOpen: boolean;
+  durationHours?: number;
+}
+
+function parseTimeToMinutes(timeStr: string): number {
+  if (!timeStr) return 0;
+  const parts = timeStr.trim().split(' ');
+  if (parts.length < 2) {
+    const [h, m] = timeStr.split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+  }
+  const [time, modifier] = parts;
+  let [hours, minutes] = time.split(':').map(Number);
+  if (modifier?.toUpperCase() === 'PM' && hours < 12) hours += 12;
+  if (modifier?.toUpperCase() === 'AM' && hours === 12) hours = 0;
+  return hours * 60 + (minutes || 0);
+}
+
+function calculateDayDurationHours(openTime: string, closeTime: string): number {
+  const start = parseTimeToMinutes(openTime);
+  const end = parseTimeToMinutes(closeTime);
+  if (end <= start) return 0;
+  return Math.round(((end - start) / 60) * 10) / 10;
+}
+
+function groupConsecutiveSchedule(schedule: DaySchedule[]): ScheduleGroup[] {
+  if (!schedule || schedule.length === 0) return [];
+
+  const groups: ScheduleGroup[] = [];
+  let currentGroupDays: DaySchedule[] = [];
+  let currentKey = '';
+
+  for (const day of schedule) {
+    const key = day.isOpen ? `${day.openTime} - ${day.closeTime}` : 'CLOSED';
+    if (currentGroupDays.length === 0) {
+      currentGroupDays.push(day);
+      currentKey = key;
+    } else if (key === currentKey) {
+      currentGroupDays.push(day);
+    } else {
+      const first = DAY_SHORT_LABELS[currentGroupDays[0].day] || currentGroupDays[0].label;
+      const last = DAY_SHORT_LABELS[currentGroupDays[currentGroupDays.length - 1].day] || currentGroupDays[currentGroupDays.length - 1].label;
+      const daysLabel = currentGroupDays.length === 1 ? first : `${first} – ${last}`;
+      const isOpen = currentGroupDays[0].isOpen;
+      const duration = isOpen ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime) : undefined;
+      groups.push({
+        daysLabel,
+        timeRange: isOpen ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}` : 'Closed',
+        isOpen,
+        durationHours: duration
+      });
+      currentGroupDays = [day];
+      currentKey = key;
+    }
+  }
+
+  if (currentGroupDays.length > 0) {
+    const first = DAY_SHORT_LABELS[currentGroupDays[0].day] || currentGroupDays[0].label;
+    const last = DAY_SHORT_LABELS[currentGroupDays[currentGroupDays.length - 1].day] || currentGroupDays[currentGroupDays.length - 1].label;
+    const daysLabel = currentGroupDays.length === 1 ? first : `${first} – ${last}`;
+    const isOpen = currentGroupDays[0].isOpen;
+    const duration = isOpen ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime) : undefined;
+    groups.push({
+      daysLabel,
+      timeRange: isOpen ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}` : 'Closed',
+      isOpen,
+      durationHours: duration
+    });
+  }
+
+  return groups;
+}
 
 function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolean {
   if (!item.url) return false;
@@ -48,7 +141,6 @@ export function StepReviewChecklistView() {
     operatingHours,
     amenities,
     media,
-    floorPlan,
     canonicalWorkspaceId,
     saveDraft,
     setSubmissionStatus
@@ -62,21 +154,15 @@ export function StepReviewChecklistView() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
-  // Validation audits for Steps 1–5
-  const isBasicInfoValid =
-    Boolean(basicInfo.name && basicInfo.category && basicInfo.totalArea > 0 && basicInfo.contactEmail);
-  const isLocationValid =
-    Boolean(
-      location.streetAddress &&
-      location.district &&
-      location.city &&
-      typeof location.latitude === 'number' &&
-      !Number.isNaN(location.latitude) &&
-      location.latitude !== 0 &&
-      typeof location.longitude === 'number' &&
-      !Number.isNaN(location.longitude) &&
-      location.longitude !== 0
-    );
+  // Validation audits for Steps 1–4
+  const isBasicInfoValid = Boolean(
+    basicInfo.name &&
+    basicInfo.category &&
+    basicInfo.totalArea > 0 &&
+    basicInfo.contactPhone &&
+    basicInfo.contactEmail
+  );
+
   const isOperatingHoursValid =
     operatingHours.is247 ||
     (operatingHours.schedule.some((s) => s.isOpen) &&
@@ -95,9 +181,9 @@ export function StepReviewChecklistView() {
   const hasOnlyLocalPreviews = media.items.length > 0 && durableMediaCount === 0;
   const isMediaValid = durableMediaCount >= 1 && (hasDurableCover || durableMediaCount > 0);
 
-  // Calculate audit score across the 3 core onboarding sections (Steps 1–5)
+  // Calculate audit score across the 3 core onboarding sections (Steps 1–4)
   const auditSections = [
-    { id: 'basic_loc', name: 'Basic Information', valid: isBasicInfoValid },
+    { id: 'basic_info', name: 'Basic Information', valid: isBasicInfoValid },
     { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid },
     { id: 'media_amenities', name: 'Amenities & Media Assets', valid: isAmenitiesValid && isMediaValid }
   ];
@@ -106,7 +192,6 @@ export function StepReviewChecklistView() {
   const auditScorePercent = Math.round((completedSectionsCount / auditSections.length) * 100);
   const isReadyForSubmission = completedSectionsCount === auditSections.length;
 
-  const totalCapacity = floorPlan.zones.reduce((acc, z) => acc + z.capacity, 0);
   const coverPhoto = media.items.find((item) => item.id === media.coverPhotoId) || media.items[0];
 
   const handleSaveAsDraftAndExit = async () => {
@@ -166,11 +251,9 @@ export function StepReviewChecklistView() {
           <nav aria-label='Breadcrumb' className='flex items-center gap-1.5 text-muted-foreground truncate'>
             <span className='hover:text-foreground transition-colors'>Workspaces</span>
             <span>&gt;</span>
-            <span className='truncate'>{location.district || 'Location from linked building'}</span>
+            <span className='font-medium text-foreground truncate'>{basicInfo.name || 'New Workspace'}</span>
             <span>&gt;</span>
-            <span className='font-medium text-foreground truncate'>{basicInfo.name}</span>
-            <span>&gt;</span>
-            <span className='font-bold text-indigo-600 dark:text-indigo-400'>Pre-submission Checklist (O15)</span>
+            <span className='font-bold text-indigo-600 dark:text-indigo-400'>Overview &amp; Review</span>
           </nav>
 
           <div className='flex items-center gap-2'>
@@ -204,13 +287,13 @@ export function StepReviewChecklistView() {
         <div>
           <div className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-1'>
             <CheckCircle2 className='size-4' />
-            <span>Step 4 of 4 • Workspace Overview</span>
+            <span>Workspace Overview &amp; Review</span>
           </div>
           <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
             Workspace Overview &amp; Review
           </h1>
           <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-            Review your workspace information, location, operating hours, amenities, and gallery photos. You can save as a draft now or proceed directly to configure your floor plans and zones.
+            Review your workspace information, operating hours, amenities, and gallery photos before saving or proceeding to floor plan and zones setup.
           </p>
 
           {/* Readiness Alert Banner */}
@@ -218,8 +301,8 @@ export function StepReviewChecklistView() {
             <div className='mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm flex items-start gap-3'>
               <ShieldCheck className='size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5' />
               <div>
-                <span className='font-bold text-foreground'>Workspace onboarding details complete! </span>
-                Choose <strong>Save Draft</strong> to return to your workspace list in DRAFT status, or <strong>Go to Setup Floor &amp; Zone</strong> to configure floors, zones, and bookable resources.
+                <span className='font-bold text-foreground'>Workspace overview details complete! </span>
+                Choose <strong>Save Draft</strong> to return to your workspace list in DRAFT status, or <strong>Go to Setup Floor &amp; Zone</strong> to proceed to floor and zone configuration.
               </div>
             </div>
           ) : (
@@ -227,13 +310,13 @@ export function StepReviewChecklistView() {
               <AlertTriangle className='size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
               <div>
                 <span className='font-bold text-foreground'>Some sections are still incomplete. </span>
-                You can still save your workspace as a draft or proceed to setup floors and zones.
+                Please review and complete all required sections before continuing.
               </div>
             </div>
           )}
         </div>
 
-        {/* ==================== AUDIT CARD 1: BASIC INFO & LOCATION ==================== */}
+        {/* ==================== AUDIT CARD 1: BASIC INFORMATION ==================== */}
         <section className='bg-card rounded-xl border border-border p-5 sm:p-6 shadow-2xs space-y-4'>
           <div className='flex items-center justify-between pb-3 border-b border-border'>
             <div className='flex items-center gap-3'>
@@ -242,7 +325,7 @@ export function StepReviewChecklistView() {
               </div>
               <div>
                 <h2 className='text-sm sm:text-base font-bold text-foreground'>Basic Information</h2>
-                <p className='text-xs text-muted-foreground'>Workspace identity, category, street coordinates &amp; contact hotline</p>
+                <p className='text-xs text-muted-foreground'>Workspace identity, space category, usable area, description &amp; contact hotline</p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
@@ -263,49 +346,58 @@ export function StepReviewChecklistView() {
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 1-2</span>
+                <span className='hidden sm:inline'>Edit Step 1</span>
               </Button>
             </div>
           </div>
 
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs sm:text-sm'>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Property Name</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Workspace Public Name</span>
               <span className='font-semibold text-foreground mt-0.5 block'>{basicInfo.name || 'Not provided'}</span>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Category</span>
-              <span className='font-medium text-foreground mt-0.5 block capitalize'>
-                {basicInfo.category.replace('_', ' ')} • {basicInfo.totalArea} m² Usable Area
-              </span>
-            </div>
-            <div className='sm:col-span-2'>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Street Address</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Space Category</span>
               <span className='font-medium text-foreground mt-0.5 block'>
-                {isLocationValid ? location.streetAddress : 'Inherited from the building when you link a physical floor in Floor Plan & Zones.'}
+                {CATEGORY_LABELS[basicInfo.category] || basicInfo.category.replace('_', ' ')}
               </span>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Geolocation</span>
-              <span className='font-medium text-foreground mt-0.5 flex items-center gap-1'>
-                <MapPin className='size-3.5 text-emerald-600' />
-                <span>
-                  {typeof location.latitude === 'number' && typeof location.longitude === 'number'
-                    ? `${location.latitude.toFixed(4)}° N, ${location.longitude.toFixed(4)}° E (Verified Pin)`
-                    : 'Set automatically from the linked building'}
-                </span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Total Usable Area</span>
+              <span className='font-semibold text-foreground mt-0.5 block'>
+                {basicInfo.totalArea ? `${basicInfo.totalArea} m² (sqm)` : '0 m²'}
+              </span>
+            </div>
+            <div className='sm:col-span-2 lg:col-span-3'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Short Description</span>
+              <p className='font-normal text-foreground/90 mt-0.5 bg-muted/30 p-2.5 rounded-lg border border-border/60 text-xs sm:text-sm leading-relaxed'>
+                {basicInfo.description ? basicInfo.description : <span className='italic text-muted-foreground'>No description provided</span>}
+              </p>
+            </div>
+            <div>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Booking Inquiry Hotline</span>
+              <span className='font-medium text-foreground mt-0.5 block font-mono'>
+                {basicInfo.contactPhone || 'Not provided'}
               </span>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Venue Support Hotline</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Venue Support Email</span>
               <span className='font-medium text-foreground mt-0.5 block'>
-                {basicInfo.contactPhone} • {basicInfo.contactEmail}
+                {basicInfo.contactEmail || 'Not provided'}
               </span>
             </div>
+            {location.entryNotes && (
+              <div className='sm:col-span-2 lg:col-span-3'>
+                <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Entry Instructions</span>
+                <p className='font-normal text-foreground/80 mt-0.5 text-xs italic'>
+                  {location.entryNotes}
+                </p>
+              </div>
+            )}
           </div>
         </section>
 
-        {/* ==================== AUDIT CARD 2: OPERATING HOURS ==================== */}
+        {/* ==================== AUDIT CARD 2: OPERATING HOURS & ACCESS POLICY ==================== */}
         <section className='bg-card rounded-xl border border-border p-5 sm:p-6 shadow-2xs space-y-4'>
           <div className='flex items-center justify-between pb-3 border-b border-border'>
             <div className='flex items-center gap-3'>
@@ -314,7 +406,7 @@ export function StepReviewChecklistView() {
               </div>
               <div>
                 <h2 className='text-sm sm:text-base font-bold text-foreground'>Operating Hours &amp; Access Policy</h2>
-                <p className='text-xs text-muted-foreground'>Weekly schedules, turnkey door access protocols &amp; cancellation terms</p>
+                <p className='text-xs text-muted-foreground'>Weekly operating schedules, statutory holiday exceptions &amp; door access protocols</p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
@@ -335,39 +427,156 @@ export function StepReviewChecklistView() {
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 3</span>
+                <span className='hidden sm:inline'>Edit Step 2</span>
               </Button>
             </div>
           </div>
 
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs sm:text-sm'>
-            <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Weekly Schedule</span>
-              <span className='font-semibold text-foreground mt-0.5 block'>
-                {operatingHours.is247
-                  ? '24/7 Unlimited Access (All days)'
-                  : 'Mon – Sat: 08:00 – 22:00 (Configured custom hours)'}
+          {/* Weekly Schedule Display */}
+          <div className='space-y-3 pt-1'>
+            <div className='flex items-center justify-between'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Weekly Operating Schedule
+              </span>
+              {operatingHours.is247 && (
+                <Badge className='bg-indigo-600 text-white text-[10px] font-bold'>
+                  Open 24/7 Active
+                </Badge>
+              )}
+            </div>
+
+            {operatingHours.is247 ? (
+              <div className='p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-2.5'>
+                <Sparkles className='size-4 text-indigo-600 shrink-0' />
+                <span className='text-xs font-semibold text-indigo-950 dark:text-indigo-200'>
+                  24/7 Unlimited Access • Workspace remains open continuously all 7 days with no closed intervals.
+                </span>
+              </div>
+            ) : (
+              <div className='space-y-2.5'>
+                {/* Consecutive Group Summary */}
+                <div className='flex flex-wrap gap-2'>
+                  {groupConsecutiveSchedule(operatingHours.schedule).map((group, idx) => (
+                    <div
+                      key={idx}
+                      className={`px-3 py-2 rounded-lg border text-xs flex items-center gap-2 ${
+                        group.isOpen
+                          ? 'bg-muted/40 border-border'
+                          : 'bg-muted/20 border-border/60 opacity-75'
+                      }`}
+                    >
+                      <span className='font-bold text-foreground'>{group.daysLabel}:</span>
+                      {group.isOpen ? (
+                        <div className='flex items-center gap-1.5'>
+                          <span className='font-medium text-foreground'>{group.timeRange}</span>
+                          {typeof group.durationHours === 'number' && group.durationHours > 0 && (
+                            <Badge variant='secondary' className='text-[10px] h-4 px-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-semibold'>
+                              {group.durationHours} hrs
+                            </Badge>
+                          )}
+                        </div>
+                      ) : (
+                        <Badge variant='outline' className='text-[10px] h-4 px-1.5 bg-muted text-muted-foreground'>
+                          Closed
+                        </Badge>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {/* 7-Day Visual Strip */}
+                <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-1'>
+                  {operatingHours.schedule.map((day) => {
+                    const shortName = DAY_SHORT_LABELS[day.day] || day.label;
+                    return (
+                      <div
+                        key={day.day}
+                        className={`p-2.5 rounded-lg border text-center transition-colors ${
+                          day.isOpen
+                            ? 'bg-background border-border/80 shadow-2xs'
+                            : 'bg-muted/30 border-dashed border-border/60 opacity-60'
+                        }`}
+                      >
+                        <span className='text-[11px] font-bold text-foreground block'>{shortName}</span>
+                        {day.isOpen ? (
+                          <div className='mt-1'>
+                            <span className='text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 block truncate'>
+                              {day.openTime}
+                            </span>
+                            <span className='text-[9px] text-muted-foreground block leading-tight'>to</span>
+                            <span className='text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 block truncate'>
+                              {day.closeTime}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className='text-[10px] font-medium text-muted-foreground mt-1.5 block'>
+                            Closed
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Operating Policies Grid */}
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-border/60 text-xs'>
+            <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Public Holidays Policy
+              </span>
+              <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
+                {operatingHours.blockHolidays ? (
+                  <>
+                    <ShieldCheck className='size-3.5 text-emerald-600 shrink-0' />
+                    <span>Auto-block on 5 statutory holidays (11 official days + compensatory)</span>
+                  </>
+                ) : (
+                  <>
+                    <AlertCircle className='size-3.5 text-muted-foreground shrink-0' />
+                    <span>Standard hours apply on public holidays (No auto-block)</span>
+                  </>
+                )}
               </span>
             </div>
-            <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Sunday Policy</span>
-              <span className='font-medium text-foreground mt-0.5 block'>
-                {operatingHours.schedule.find((s) => s.day === 'sunday')?.isOpen
-                  ? 'Open on Sunday'
-                  : 'Closed (Weekly sanitization & maintenance window)'}
+
+            <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Check-in Grace Period
+              </span>
+              <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
+                {operatingHours.allowGracePeriod ? (
+                  <>
+                    <CheckCircle2 className='size-3.5 text-emerald-600 shrink-0' />
+                    <span>15-minute early check-in allowed before official opening</span>
+                  </>
+                ) : (
+                  <>
+                    <Clock className='size-3.5 text-muted-foreground shrink-0' />
+                    <span>Standard check-in at scheduled booking start</span>
+                  </>
+                )}
               </span>
             </div>
-            <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Check-in Access Type</span>
-              <span className='font-medium text-foreground mt-0.5 flex items-center gap-1.5'>
-                <QrCode className='size-3.5 text-indigo-600' />
+
+            <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Check-in Access Type
+              </span>
+              <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
+                <QrCode className='size-3.5 text-indigo-600 shrink-0' />
                 <span>Automated QR Gate &amp; Smart Turnstile Access</span>
               </span>
             </div>
-            <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Cancellation Policy</span>
-              <span className='font-medium text-foreground mt-0.5 flex items-center gap-1.5'>
-                <CheckCircle2 className='size-3.5 text-emerald-600' />
+
+            <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Cancellation Policy
+              </span>
+              <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
+                <CheckCircle2 className='size-3.5 text-emerald-600 shrink-0' />
                 <span>Flexible (Full refund up to 2 hours before booking)</span>
               </span>
             </div>
@@ -404,7 +613,7 @@ export function StepReviewChecklistView() {
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 4-5</span>
+                <span className='hidden sm:inline'>Edit Step 3-4</span>
               </Button>
             </div>
           </div>
@@ -483,52 +692,6 @@ export function StepReviewChecklistView() {
                     {photo.caption || photo.name}
                   </span>
                 </div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ==================== AUDIT CARD 4: FLOOR PLAN & ZONES ==================== */}
-        <section className='bg-card rounded-xl border border-border p-5 sm:p-6 shadow-2xs space-y-4'>
-          <div className='flex items-center justify-between pb-3 border-b border-border'>
-            <div className='flex items-center gap-3'>
-              <div className='size-9 rounded-lg bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 flex items-center justify-center shrink-0'>
-                <Layers className='size-5' />
-              </div>
-              <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Floor Plan &amp; Zones Setup</h2>
-                <p className='text-xs text-muted-foreground'>Configure building floors, functional zones, desks, rooms &amp; hourly rates</p>
-              </div>
-            </div>
-            <div className='flex items-center gap-2'>
-              <Button
-                variant='outline'
-                size='sm'
-                disabled={isSaving || isSubmitting}
-                onClick={handleGoToSetupFloorAndZone}
-                className='h-8 text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 gap-1.5'
-              >
-                <Layers className='size-3.5' />
-                <span>Setup Floor &amp; Zone</span>
-              </Button>
-            </div>
-          </div>
-
-          {/* Inventory Summary Bar */}
-          <div className='bg-muted/40 rounded-lg p-3 border border-border flex flex-wrap items-center justify-between text-xs gap-2'>
-            <div className='flex items-center gap-2 font-medium text-foreground'>
-              <Layers className='size-4 text-muted-foreground' />
-              <span>{floorPlan.floors.length} Floors Configured</span>
-              <span className='text-muted-foreground'>•</span>
-              <span>{totalCapacity} Total Capacity</span>
-              <span className='text-muted-foreground'>•</span>
-              <span>{floorPlan.zones.length} Zones Defined</span>
-            </div>
-            <div className='flex items-center gap-1.5'>
-              {floorPlan.zones.map((zone) => (
-                <Badge key={zone.id} variant='outline' className='text-[10px] font-medium'>
-                  {zone.name.split('—')[0]}: {zone.capacity} seats (${zone.baseHourlyRate}/h)
-                </Badge>
               ))}
             </div>
           </div>
