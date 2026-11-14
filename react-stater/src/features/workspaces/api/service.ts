@@ -28,6 +28,9 @@ import type {
   PaginatedAssetResponse,
   WorkspaceOperatingHour,
   WorkspaceAmenityDto,
+  WorkspaceSuggestionsResponse,
+  SavedSearchFilterItem,
+  CreateSavedSearchFilterPayload,
   AssignWorkspaceAmenitiesPayload
 } from './types';
 import type {
@@ -126,10 +129,28 @@ export const workspaceService = {
         queryParams.sortOrder = params.sortOrder;
         queryParams.sortDir = params.sortOrder;
       }
+      if (params.minPrice !== undefined) queryParams.minPrice = params.minPrice;
+      if (params.maxPrice !== undefined) queryParams.maxPrice = params.maxPrice;
+      if (params.minRating !== undefined) queryParams.minRating = params.minRating;
+      if (params.amenityIds && params.amenityIds.length > 0) {
+        queryParams.amenityIds = params.amenityIds.join(',');
+      }
+      if (params.resourceCategories && params.resourceCategories.length > 0) {
+        queryParams.resourceCategories = params.resourceCategories.join(',');
+      }
     }
 
     return apiClient.get<PublicWorkspaceListResponse>('/public/workspaces', {
       params: queryParams
+    });
+  },
+
+  /**
+   * Fast autocomplete suggestions: returns top workspaces, locations, and categories matching query.
+   */
+  async getWorkspaceSuggestions(query: string): Promise<WorkspaceSuggestionsResponse> {
+    return apiClient.get<WorkspaceSuggestionsResponse>('/public/workspaces/suggestions', {
+      params: { query }
     });
   },
 
@@ -783,5 +804,26 @@ export const workspaceService = {
     return apiClient.get<ResourceAvailabilityItem[]>(`/public/workspaces/${workspaceId}/availability`, {
       params
     });
+  },
+
+  /**
+   * Retrieves customer saved search filters.
+   */
+  async getSavedSearches(): Promise<SavedSearchFilterItem[]> {
+    return apiClient.get<SavedSearchFilterItem[]>('/customer/saved-searches');
+  },
+
+  /**
+   * Saves a customer search filter configuration.
+   */
+  async createSavedSearch(payload: CreateSavedSearchFilterPayload): Promise<SavedSearchFilterItem> {
+    return apiClient.post<SavedSearchFilterItem>('/customer/saved-searches', payload);
+  },
+
+  /**
+   * Deletes a customer saved search filter by ID.
+   */
+  async deleteSavedSearch(id: string | number): Promise<void> {
+    return apiClient.delete<void>(`/customer/saved-searches/${id}`);
   }
 };

@@ -1,16 +1,28 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import { WorkspaceHeader } from './workspace-header';
 import { WorkspaceFilterBar } from './workspace-filter-bar';
 import { WorkspaceList } from './workspace-list';
 import { WorkspaceMap } from './workspace-map';
 import { useCurrentLocation } from '../hooks/use-current-location';
 import type { PublicWorkspaceSummary } from '../api/types';
+import type { AdvancedFilterValues } from './workspace-advanced-filter-modal';
+
+const INITIAL_ADVANCED_FILTERS: AdvancedFilterValues = {
+  city: undefined,
+  district: undefined,
+  minPrice: undefined,
+  maxPrice: undefined,
+  amenityIds: [],
+  seatTypes: [],
+  minRating: undefined
+};
 
 export function WorkspacesPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState('');
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
   const [workspaces, setWorkspaces] = useState<PublicWorkspaceSummary[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>(INITIAL_ADVANCED_FILTERS);
 
   const handleWorkspacesLoaded = useCallback((loaded: PublicWorkspaceSummary[]) => {
     setWorkspaces((prev) => {
@@ -22,6 +34,23 @@ export function WorkspacesPage() {
       }
       return loaded;
     });
+  }, []);
+
+  // Map seat types ('hot_desk', 'dedicated_desk', 'meeting_room', 'private_office') to backend categories ('DESK', 'ROOM')
+  const resourceCategories = useMemo(() => {
+    if (!advancedFilters.seatTypes || advancedFilters.seatTypes.length === 0) {
+      return undefined;
+    }
+    const cats = new Set<string>();
+    advancedFilters.seatTypes.forEach((t) => {
+      if (t === 'hot_desk' || t === 'dedicated_desk') cats.add('DESK');
+      if (t === 'meeting_room' || t === 'private_office') cats.add('ROOM');
+    });
+    return Array.from(cats);
+  }, [advancedFilters.seatTypes]);
+
+  const handleResetAdvancedFilters = useCallback(() => {
+    setAdvancedFilters(INITIAL_ADVANCED_FILTERS);
   }, []);
 
   // Geolocation & Proximity State
@@ -65,6 +94,9 @@ export function WorkspacesPage() {
         radiusKm={radiusKm}
         onRadiusKmChange={setRadiusKm}
         isLocating={isLocating}
+        advancedFilters={advancedFilters}
+        onAdvancedFiltersChange={setAdvancedFilters}
+        onResetAdvancedFilters={handleResetAdvancedFilters}
       />
 
       {/* Main Body: 50/50 Split View */}
@@ -72,6 +104,13 @@ export function WorkspacesPage() {
         <WorkspaceList
           search={search}
           category={category}
+          city={advancedFilters.city}
+          district={advancedFilters.district}
+          minPrice={advancedFilters.minPrice}
+          maxPrice={advancedFilters.maxPrice}
+          amenityIds={advancedFilters.amenityIds}
+          resourceCategories={resourceCategories}
+          minRating={advancedFilters.minRating}
           onTotalCountChange={setTotalCount}
           onWorkspacesLoaded={handleWorkspacesLoaded}
           isNearMeActive={isNearMeActive}
