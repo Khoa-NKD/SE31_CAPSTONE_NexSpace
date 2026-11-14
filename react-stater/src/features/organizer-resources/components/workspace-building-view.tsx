@@ -167,7 +167,7 @@ export function WorkspaceBuildingView({
           </Badge>
           <Button className='rounded-xl' size='sm' disabled={!writable} onClick={onAddFloor}>
             <Plus className='size-4' />
-            {c('Add floor', 'Thêm tầng')}
+            {c('Link floor', 'Liên kết tầng')}
           </Button>
         </div>
       </header>
@@ -375,7 +375,7 @@ export function WorkspaceBuildingView({
                 </p>
                 <Button disabled={!writable} onClick={onAddFloor}>
                   <Plus className='size-4' />
-                  {c('Add the first floor', 'Thêm tầng đầu tiên')}
+                  {c('Link the first floor', 'Liên kết tầng đầu tiên')}
                 </Button>
               </div>
             )}
@@ -622,34 +622,40 @@ export function WorkspaceBuildingView({
             </div>
             <div className='max-h-[350px] space-y-1 overflow-y-auto p-2'>
               {descendingFloors.map((floor) => (
-                <button
-                  type='button'
-                  key={floor.id}
-                  onMouseEnter={() => setHovered(floor.id)}
-                  onMouseLeave={() => setHovered(null)}
-                  onFocus={() => setHovered(floor.id)}
-                  aria-pressed={selected?.id === floor.id}
-                  onClick={() => selectFloor(floor.id)}
-                  className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
-                >
-                  <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold tabular-nums text-primary'>
-                    {floor.floorNumber.toString().padStart(2, '0')}
-                  </span>
-                  <span className='min-w-0 flex-1'>
-                    <span
-                      className='block truncate text-xs font-medium'
-                      title={floor.displayName ?? floor.name}
-                    >
-                      {floor.displayName ?? floor.name}
+                <div key={floor.id} className='flex items-center gap-1'>
+                  <button
+                    type='button'
+                    onMouseEnter={() => setHovered(floor.id)}
+                    onMouseLeave={() => setHovered(null)}
+                    onFocus={() => setHovered(floor.id)}
+                    aria-pressed={selected?.id === floor.id}
+                    onClick={() => selectFloor(floor.id)}
+                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
+                  >
+                    <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold tabular-nums text-primary'>
+                      {floor.floorNumber.toString().padStart(2, '0')}
                     </span>
-                    <span className='mt-1 block text-[10px] text-muted-foreground'>
-                      {floor.status === 'PUBLISHED'
-                        ? c('Published', 'Đã xuất bản')
-                        : c('Draft', 'Bản nháp')}
+                    <span className='min-w-0 flex-1'>
+                      <span
+                        className='block truncate text-xs font-medium'
+                        title={floor.displayName ?? floor.name}
+                      >
+                        {floor.displayName ?? floor.name}
+                      </span>
+                      <span className='mt-1 block text-[10px] text-muted-foreground'>
+                        {floor.status === 'PUBLISHED'
+                          ? c('Published', 'Đã xuất bản')
+                          : c('Draft', 'Bản nháp')}
+                      </span>
                     </span>
-                  </span>
-                  <ArrowRight className='size-3.5 text-muted-foreground' />
-                </button>
+                    <ArrowRight className='size-3.5 text-muted-foreground' />
+                  </button>
+                  {floor.id > 0 && (
+                    <Button variant='ghost' size='sm' onClick={() => openFloor(floor.id)}>
+                      {c('Open layout', 'Mở sơ đồ')}
+                    </Button>
+                  )}
+                </div>
               ))}
             </div>
           </section>

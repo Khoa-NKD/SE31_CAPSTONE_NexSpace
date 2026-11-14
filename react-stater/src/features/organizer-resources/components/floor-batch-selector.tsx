@@ -260,10 +260,10 @@ export function FloorBatchSelector({
                   </label>
                   {areaInputs(
                     {
-                      x: custom.x ?? '0',
-                      y: custom.y ?? '0',
-                      width: custom.width ?? String(floor.width),
-                      height: custom.height ?? String(floor.height)
+                      x: custom.x ?? String(allocation.x),
+                      y: custom.y ?? String(allocation.y),
+                      width: custom.width ?? String(allocation.width),
+                      height: custom.height ?? String(allocation.height)
                     },
                     (key, input) => patch({ [key]: input })
                   )}

@@ -1,4 +1,4 @@
-import { furnishingIconCatalog } from '../utils/furnishing-icon-catalog';
+import { furnishingIconCatalog, matchFurnishingIcon } from '../utils/furnishing-icon-catalog';
 import {
   readFloorChat,
   writeFloorChat,
@@ -36,12 +36,18 @@ import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { DecorationIcon, furnishingIcon } from './decoration-visual';
 import { aiTypeIssues, type AiTypeIssue } from '../utils/ai-type-validation';
+import {
+  promptWithAiTypePreferences,
+  readAiTypePreferences,
+  validAiTypePreferences,
+  writeAiTypePreferences
+} from '../utils/ai-type-preferences';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { decorationPresets } from '../utils/decoration-presets';
 import { prepareAiReferenceImage, type AiReferenceImage } from '../utils/ai-reference-image';
 import { furnishingPresetKey } from '../utils/furnishing-preset-key';
 import type { DecorationKind } from '../api/resources';
-import type { FloorDecoration, FloorLayout } from '../api/resources';
+import type { FloorDecoration, FloorLayout, TypeOption } from '../api/resources';
 import {
   aiStatusOptions,
   designMetricsOptions,
@@ -63,6 +69,7 @@ const presetKey = (kind: DecorationKind, name: string, icon?: FloorDecoration['i
 export function FloorAiAssistant({
   actorId,
   workspaceId,
+  resourceTypes,
   previewIssues = [],
   layout,
   selectedKey,
@@ -79,6 +86,7 @@ export function FloorAiAssistant({
 }: {
   actorId: number;
   workspaceId: number;
+  resourceTypes: TypeOption[];
   previewIssues?: string[];
   layout: FloorLayout;
   selectedKey: string | null;
@@ -106,6 +114,10 @@ export function FloorAiAssistant({
   const [scope, setScope] = useState<DesignScope>('WORKSPACE');
   const historyKey = 'nexspace:floor-ai-chat:v1:' + actorId + ':' + workspaceId + ':' + floorId;
   const [messages, setMessages] = useState<FloorChatMessage[]>(() => readFloorChat(historyKey));
+  const preferenceKey = 'nexspace:floor-ai-types:v1:' + actorId + ':' + workspaceId;
+  const [preferredTypes, setPreferredTypes] = useState(() => readAiTypePreferences(preferenceKey));
+  const [rememberTypes, setRememberTypes] = useState(false);
+  const usablePreferences = validAiTypePreferences(preferredTypes, resourceTypes);
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
     writeFloorChat(historyKey, messages);
@@ -119,6 +131,7 @@ export function FloorAiAssistant({
     return () => window.removeEventListener('keydown', onKey);
   }, [expanded]);
   const [image, setImage] = useState<AiReferenceImage | null>(null);
+  const [confirmedImage, setConfirmedImage] = useState<AiReferenceImage | null>(null);
   const [preparingImage, setPreparingImage] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [composerExpanded, setComposerExpanded] = useState(false);
@@ -155,6 +168,15 @@ export function FloorAiAssistant({
   const [error, setError] = useState('');
   const [saveTemplates, setSaveTemplates] = useState(true);
   const [confirmedTypeDesign, setConfirmedTypeDesign] = useState<AiProposal['design'] | null>(null);
+  const [confirmedRemoval, setConfirmedRemoval] = useState<AiProposal['design'] | null>(null);
+  const removedFurnishings = proposal?.applicable
+    ? (layout.decorations ?? []).filter(
+        (item) => !proposal.design.decorations.some((proposed) => proposed.id === item.id)
+      )
+    : [];
+  const removesObjects =
+    !!proposal && (proposal.design.removeResourceIds.length > 0 || removedFurnishings.length > 0);
+  const removalsConfirmed = !removesObjects || confirmedRemoval === proposal?.design;
   const newTypes = proposal?.design.newTypes ?? [];
   const typesConfirmed = newTypes.length === 0 || confirmedTypeDesign === proposal?.design;
   const incompleteTypes = newTypes
@@ -296,6 +318,9 @@ export function FloorAiAssistant({
                 'Tích xác nhận kiểu chỗ, kích thước và giá mới ở phía trên.'
               )
             ]
+          : []),
+        ...(!removalsConfirmed
+          ? [c('Confirm the listed removals.', 'Xác nhận các mục sẽ bị xóa.')]
           : [])
       ]
     : [];
@@ -349,6 +374,8 @@ export function FloorAiAssistant({
       return;
     }
     const serial = ++imageRequest.current;
+    setImage(null);
+    setConfirmedImage(null);
     setPreparingImage(true);
     setError('');
     setTab('AI');
@@ -373,7 +400,8 @@ export function FloorAiAssistant({
     if (
       !canWrite ||
       !canGenerate ||
-      !d?.widthM ||
+      (!image && !proposal && (!d?.widthM || !d.lengthM)) ||
+      (image && confirmedImage !== image) ||
       controller.current ||
       (!prompt.trim() && !image) ||
       !scopeValid
@@ -384,23 +412,24 @@ export function FloorAiAssistant({
     const text =
       prompt.trim() ||
       c(
-        'Create an editable draft directly from the attached image. Infer visible objects, neutral room names and proportional positions using configured dimensions; explain uncertainties without requiring a written description. Preserve existing objects unless a replacement is explicitly requested.',
-        'Dựng bản nháp trực tiếp từ ảnh: nhận diện vật dụng, đặt tên phòng trung tính và bố trí theo tỷ lệ với kích thước đã cấu hình. Ghi rõ điểm chưa chắc chắn, không yêu cầu tôi mô tả lại ảnh. Giữ đồ vật hiện có trừ khi tôi yêu cầu thay thế rõ ràng.'
+        'Recreate the visible floor plan as closely as possible. Preserve relative size, positions, and counts, and estimate the scale if none is marked.',
+        'Dựng lại mặt bằng sát ảnh nhất có thể. Giữ kích thước tương đối, vị trí và số lượng; ước lượng tỷ lệ nếu ảnh không ghi số đo.'
       );
     const referenceImage = image;
     setBusy(true);
     setGenerating(referenceImage ? 'image' : 'text');
     setPrompt('');
     setImage(null);
+    setConfirmedImage(null);
     setComposerExpanded(false);
     setScopeOpen(false);
     setError('');
     setMessages((items) => [
-      ...items.slice(-199).map(({ role, text, kind }) => ({ role, text, kind })),
+      ...items.slice(-199),
       {
         role: 'user',
         text: prompt.trim() || c('Design from this image', 'Bố trí theo ảnh này'),
-        ...(referenceImage ? { image: referenceImage.preview } : {})
+        ...(referenceImage ? { image: referenceImage.thumbnail } : {})
       }
     ]);
     try {
@@ -408,7 +437,10 @@ export function FloorAiAssistant({
         workspaceId,
         floorId,
         {
-          prompt: promptWithFloorHistory(text, messages),
+          prompt: promptWithAiTypePreferences(
+            promptWithFloorHistory(text, messages),
+            usablePreferences
+          ),
           scope,
           selectedKey: scope === 'WORKSPACE' ? null : selectedKey,
           language: language === 'vi' ? 'vi' : 'en',
@@ -428,10 +460,14 @@ export function FloorAiAssistant({
       if (abort.signal.aborted) return;
       const reusableTemplates = new Map<string, LayoutTemplateInput>();
       for (const item of result.design.templates) {
-        const key = presetKey(item.kind, item.name, item.icon);
+        const icon =
+          (item.kind === 'OTHER' ? matchFurnishingIcon(item.name) : item.kind) ??
+          furnishingIcon(item.kind, item.name, item.icon);
+        const key = presetKey(item.kind, item.name, icon);
         if (!savedTypes.has(key) && !reusableTemplates.has(key))
           reusableTemplates.set(key, {
             ...item,
+            icon,
             name: key.endsWith(':TV') ? c('TV', 'Tivi') : item.name
           });
       }
@@ -442,16 +478,19 @@ export function FloorAiAssistant({
           decorations: result.design.decorations.map((object) =>
             layout.decorations?.some((previous) => previous.id === object.id)
               ? object
-              : { ...object, icon: furnishingIcon(object.kind, object.label, object.icon) }
+              : {
+                  ...object,
+                  icon:
+                    (object.kind === 'OTHER' ? matchFurnishingIcon(object.label) : object.kind) ??
+                    furnishingIcon(object.kind, object.label, object.icon)
+                }
           ),
-          templates: [...reusableTemplates.values()].map((template) => ({
-            ...template,
-            icon: furnishingIcon(template.kind, template.name, template.icon)
-          }))
+          templates: [...reusableTemplates.values()]
         },
         selectedKey: scope === 'WORKSPACE' ? null : selectedKey
       });
       setSaveTemplates(true);
+      setRememberTypes(false);
       const reply = [result.design.message, result.design.question].filter(Boolean).join('\n\n');
       appendChat(
         ...(reply ? [{ role: 'assistant', text: reply } as const] : []),
@@ -477,7 +516,9 @@ export function FloorAiAssistant({
       missingIcons.length > 0 ||
       previewIssues.length > 0 ||
       !proposal?.applicable ||
+      needsConfirmedScale ||
       !typesConfirmed ||
+      !removalsConfirmed ||
       !typesReady ||
       !canWrite ||
       saving.current ||
@@ -488,7 +529,7 @@ export function FloorAiAssistant({
     setBusy(true);
     setError('');
     try {
-      await applyFloorDesign(
+      const savedLayout = await applyFloorDesign(
         workspaceId,
         floorId,
         proposal.proposalId,
@@ -496,6 +537,28 @@ export function FloorAiAssistant({
         proposal.design,
         newTypes.length > 0 && typesConfirmed
       );
+      if (rememberTypes && proposal.design.resources.length > 0) {
+        const previousIds = new Set(layout.resources.map((item) => item.id));
+        const changedIds = new Set(proposal.design.resources.map((item) => item.id));
+        const created = changedIds.has(null);
+        const ids = savedLayout.resources.flatMap((item) =>
+          item.resourceTypeId && (changedIds.has(item.id) || (created && !previousIds.has(item.id)))
+            ? [item.resourceTypeId]
+            : []
+        );
+        if (ids.length) {
+          if (writeAiTypePreferences(preferenceKey, ids)) {
+            setPreferredTypes(readAiTypePreferences(preferenceKey));
+          } else {
+            toast.error(
+              c(
+                'Could not remember types on this browser.',
+                'Không lưu được loại chỗ trên trình duyệt này.'
+              )
+            );
+          }
+        }
+      }
       changeProposal(null);
       appendChat({
         role: 'assistant',
@@ -596,6 +659,11 @@ export function FloorAiAssistant({
     });
   }
   const d = metrics.data;
+  const needsConfirmedScale =
+    !!proposal &&
+    (!d?.widthM || !d.lengthM) &&
+    (Boolean(proposal.design.newTypes?.length) ||
+      proposal.design.resources.some((resource) => resource.id == null));
   function placeDefault(kind: DecorationKind) {
     if (!canWrite || proposal || !layout.width || !layout.height) return;
     const preset = decorationPresets[kind];
@@ -730,10 +798,30 @@ export function FloorAiAssistant({
         </div>
         <p className='mt-2 text-[10px] text-muted-foreground'>
           {c(
-            'Recent text history is saved on this browser per floor. Images are not stored.',
-            'Lưu lịch sử văn bản theo sơ đồ trên trình duyệt này. Không lưu ảnh lâu dài.'
+            'Chat history and up to 8 recent reference thumbnails per floor are saved in this browser.',
+            'Lưu lịch sử chat và tối đa 8 ảnh tham chiếu thu nhỏ gần nhất cho mỗi sơ đồ trên trình duyệt này.'
           )}
         </p>
+        {preferredTypes.length > 0 && (
+          <div className='mt-1 flex items-center justify-between gap-2 text-xs text-muted-foreground'>
+            <span>
+              {usablePreferences.length}{' '}
+              {c('saved types available', 'loại chỗ đã ghi nhớ còn dùng được')}
+            </span>
+            <Button
+              variant='ghost'
+              size='sm'
+              className='h-6 px-2'
+              onClick={() => {
+                if (writeAiTypePreferences(preferenceKey, [])) setPreferredTypes([]);
+                else
+                  toast.error(c('Could not clear preferences.', 'Không xóa được lựa chọn đã nhớ.'));
+              }}
+            >
+              {c('Forget', 'Quên lựa chọn')}
+            </Button>
+          </div>
+        )}
         <div className='mt-3 grid grid-cols-3 gap-1 rounded-xl bg-background/70 p-1'>
           {(
             [
@@ -788,6 +876,23 @@ export function FloorAiAssistant({
                       'Mô tả bố trí hoặc gửi ảnh tham chiếu.'
                     )}
                   </p>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='mt-3 h-auto whitespace-normal py-2'
+                    disabled={!canWrite}
+                    onClick={() =>
+                      setPrompt(
+                        c(
+                          'Create a meeting room for 6 people and 8 open-area desks. Reuse matching resource types.',
+                          'Tạo một phòng họp 6 người và 8 ghế khu mở. Dùng lại loại chỗ phù hợp đang có.'
+                        )
+                      )
+                    }
+                  >
+                    {c('Try a sample request', 'Dùng câu lệnh mẫu')}
+                  </Button>
                 </div>
               )}
               {messages.map((message, index) =>
@@ -886,13 +991,13 @@ export function FloorAiAssistant({
                 )}
               </p>
             )}
-            {d && !d.widthM && (
+            {d && (!d.widthM || !d.lengthM) && (
               <button
                 type='button'
                 onClick={() => setTab('METRICS')}
                 className='w-full rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-left text-xs'
               >
-                {c('Set real dimensions to use AI →', 'Thiết lập kích thước thực để dùng AI →')}
+                {c('An image can use estimated scale. Add real dimensions for a more accurate layout →', 'Có thể dựng theo ảnh bằng tỷ lệ ước lượng. Thêm kích thước thực để bố trí chính xác hơn →')}
               </button>
             )}
             <div ref={chatEnd} />
@@ -951,6 +1056,11 @@ export function FloorAiAssistant({
                 {proposal.design.removeResourceIds.map((id) => (
                   <p key={id} className='text-xs text-destructive'>
                     {c('Remove', 'Xóa')}: {layout.resources.find((r) => r.id === id)?.name ?? id}
+                  </p>
+                ))}
+                {removedFurnishings.map((item) => (
+                  <p key={item.id} className='text-xs text-destructive'>
+                    {c('Remove', 'Xóa')}: {item.label}
                   </p>
                 ))}
                 <p className='text-[11px] text-muted-foreground'>
@@ -1225,6 +1335,20 @@ export function FloorAiAssistant({
                     {proposal.design.templates.map((t) => t.name).join(', ')}
                   </label>
                 )}
+                {proposal.design.resources.length > 0 && (
+                  <label className='flex items-start gap-2 text-xs'>
+                    <input
+                      type='checkbox'
+                      checked={rememberTypes}
+                      onChange={(event) => setRememberTypes(event.target.checked)}
+                      className='mt-0.5 accent-primary'
+                    />
+                    {c(
+                      'Remember the types used here for this workspace on this browser',
+                      'Ghi nhớ loại ghế/phòng đã dùng cho workspace này trên trình duyệt này'
+                    )}
+                  </label>
+                )}
                 {applyBlockers.length > 0 && (
                   <div
                     role='status'
@@ -1258,6 +1382,26 @@ export function FloorAiAssistant({
                     )}
                   </div>
                 )}
+                {removesObjects && (
+                  <label className='flex items-start gap-2 rounded-lg border border-destructive/30 p-3 text-xs'>
+                    <input
+                      type='checkbox'
+                      checked={removalsConfirmed}
+                      onChange={(event) =>
+                        setConfirmedRemoval(event.target.checked ? proposal.design : null)
+                      }
+                    />
+                    {c(
+                      'I confirm removal of the resources and furnishings listed in this proposal.',
+                      'Tôi xác nhận xóa ghế, phòng hoặc đồ bố trí trong đề xuất này.'
+                    )}
+                  </label>
+                )}
+                {needsConfirmedScale && (
+                  <p className='rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs'>
+                    {c('This preview uses estimated scale. To save new seats or rooms, discard the preview, set real floor dimensions and generate again.', 'Bản xem trước dùng tỷ lệ ước lượng. Để lưu ghế hoặc phòng mới, bỏ đề xuất, nhập kích thước thực của tầng rồi tạo lại.')}
+                  </p>
+                )}
                 <Button
                   className='w-full rounded-xl'
                   disabled={
@@ -1265,7 +1409,9 @@ export function FloorAiAssistant({
                     previewIssues.length > 0 ||
                     !canWrite ||
                     !proposal.applicable ||
+                    needsConfirmedScale ||
                     !typesConfirmed ||
+                    !removalsConfirmed ||
                     !typesReady ||
                     proposal.expectedRevision !== layout.floor.revision
                   }
@@ -1308,23 +1454,16 @@ export function FloorAiAssistant({
             </div>
             <div className='space-y-2 rounded-xl bg-muted/30 p-3 text-xs'>
               <p>
-                {c('Workspace declared area', 'Diện tích workspace khai báo')}:{' '}
-                {d.workspaceDeclaredAreaSqm ?? '—'} m²
-              </p>
-              <p>
                 {c('Measured linked areas', 'Tổng vùng đã đo')}: {d.workspaceMappedAreaSqm} m²
               </p>
-              <p className='text-muted-foreground'>
-                {!d.allAreasMeasured
-                  ? c(
+              {!d.allAreasMeasured && (
+                <p className='text-muted-foreground'>
+                  {c(
                       'Some linked floors still need real dimensions.',
                       'Một số tầng liên kết chưa có kích thước thực.'
-                    )
-                  : c(
-                      'Compare this total with the declared workspace area.',
-                      'Đối chiếu tổng này với diện tích workspace đã khai báo.'
-                    )}
-              </p>
+                  )}
+                </p>
+              )}
             </div>
             {!dimensions ? (
               <Button
@@ -1787,11 +1926,27 @@ export function FloorAiAssistant({
                 className='size-7 shrink-0'
                 disabled={busy}
                 aria-label={c('Remove image', 'Bỏ ảnh')}
-                onClick={() => setImage(null)}
+                onClick={() => {
+                  setImage(null);
+                  setConfirmedImage(null);
+                }}
               >
                 <X className='size-3.5' />
               </Button>
             </div>
+          )}
+          {image && (
+            <label className='flex items-start gap-2 px-2 text-xs text-muted-foreground'>
+              <input
+                type='checkbox'
+                checked={confirmedImage === image}
+                onChange={(event) => setConfirmedImage(event.target.checked ? image : null)}
+              />
+              {c(
+                'This is a readable floor plan with a marked scale or reference dimension.',
+                'Ảnh mặt bằng rõ, có ghi tỷ lệ hoặc kích thước tham chiếu.'
+              )}
+            </label>
           )}
           <div className='flex flex-wrap items-end gap-1 rounded-[1.65rem] border border-border bg-background/80 p-1.5 shadow-sm transition focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/10'>
             <Button
@@ -1847,7 +2002,12 @@ export function FloorAiAssistant({
               }
               title={c('Send · Enter', 'Gửi · Enter')}
               disabled={
-                !canWrite || !scopeValid || !canGenerate || !d?.widthM || (!prompt.trim() && !image)
+                !canWrite ||
+                !scopeValid ||
+                !canGenerate ||
+                (!image && !proposal && (!d?.widthM || !d.lengthM)) ||
+                (image && confirmedImage !== image) ||
+                (!prompt.trim() && !image)
               }
             >
               {generating ? (

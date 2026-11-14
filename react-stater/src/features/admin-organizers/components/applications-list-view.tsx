@@ -64,8 +64,7 @@ export function ApplicationsListView({
   return (
     <div className='min-w-0 space-y-5 [&_select]:h-10 [&_select]:rounded-xl [&_select]:border-input [&_select]:px-3 [&_select]:text-xs [&_select]:outline-none [&_select]:focus-visible:ring-2 [&_select]:focus-visible:ring-ring/30'>
       <p className='text-xs leading-5 text-muted-foreground'>
-        Only submitted organizer applications are listed. Review outcomes show the current result; a
-        complete decision history is not available.
+        Only submitted organizer applications are listed. Open an application to see its review history.
       </p>
       <section
         className='overflow-hidden rounded-2xl border bg-card shadow-sm'

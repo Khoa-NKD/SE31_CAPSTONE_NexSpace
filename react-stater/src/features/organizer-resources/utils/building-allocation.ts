@@ -4,6 +4,35 @@ type PhysicalArea = {
   height: number;
   occupants: Array<Area & { floorPlanId: number; workspaceId: number }>;
 };
+
+/** Find a free rectangle using the vertical edges of existing allocations. */
+export function suggestAllocation(floor: PhysicalArea): Area {
+  const right = new Set([0, floor.width]);
+  for (const area of floor.occupants) {
+    right.add(Math.floor(area.x));
+    right.add(Math.ceil(area.x + area.width));
+  }
+  // oxlint-disable-next-line unicorn/no-array-sort
+  const edges = [...right].sort((a, b) => a - b);
+  const full = { x: 0, y: 0, width: floor.width, height: floor.height };
+  let best: Area | undefined;
+  for (let i = 1; i < edges.length; i++) {
+    const x = edges[i - 1];
+    const width = edges[i] - x;
+    if (width < 1) continue;
+    const blocked = floor.occupants.filter((area) => area.x < x + width && area.x + area.width > x);
+    // oxlint-disable-next-line unicorn/no-array-sort
+    blocked.sort((a, b) => a.y - b.y);
+    let y = 0;
+    for (const area of [...blocked, { y: floor.height, height: 0 }]) {
+      const height = Math.floor(area.y) - y;
+      if (height >= 1 && (!best || width * height > best.width * best.height))
+        best = { x, y, width, height };
+      y = Math.max(y, Math.ceil(area.y + area.height));
+    }
+  }
+  return best ?? full;
+}
 /** Edge contact is allowed. A workspace area cannot overlap another allocation. */
 export function allocationError(
   area: Area,

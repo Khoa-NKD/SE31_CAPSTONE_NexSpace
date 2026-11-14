@@ -1,12 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 declare module 'maplibre-gl' {
   export type StyleSpecification = any;
+  export interface MapSourceDataEvent {
+    tile?: { state: string };
+  }
   export interface Map {
     on: (event: string, callback: (...args: any[]) => void) => void;
     remove: () => void;
     setCenter: (center: [number, number]) => void;
     setZoom: (zoom: number) => void;
-    setStyle: (style: any) => void;
+    setStyle: (style: any, options?: { diff?: boolean }) => void;
     flyTo: (options: any) => void;
     [key: string]: any;
   }

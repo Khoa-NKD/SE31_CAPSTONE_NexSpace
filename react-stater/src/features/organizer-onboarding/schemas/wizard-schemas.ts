@@ -12,9 +12,6 @@ export const basicInfoSchema = z.object({
     .string()
     .max(200, 'Description cannot exceed 200 characters')
     .default(''),
-  totalArea: z
-    .number({ error: 'Please enter a valid numeric area in sqm' })
-    .positive('Total usable area must be greater than 0'),
   contactPhone: z
     .string()
     .min(8, 'Please enter a valid booking hotline number'),

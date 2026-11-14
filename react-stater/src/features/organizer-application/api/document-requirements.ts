@@ -5,6 +5,7 @@ import { BUSINESS_TYPE_CODES } from './application.ts';
 import type { VerificationDocument } from '../../organizer-verification-documents/api/documents.ts';
 import {
   DOCUMENT_LABELS,
+  allowsDocumentPages,
   type DocumentType
 } from '../../organizer-verification-documents/api/documents.ts';
 import { translateOrganizer } from '../i18n.ts';
@@ -80,6 +81,7 @@ export function missingRequiredDocuments(
     const matching = documents.filter(
       (document) => document.documentType === requirement.documentType
     );
-    return matching.length !== 1 || !['PENDING', 'VERIFIED'].includes(matching[0].status);
+    return !matching.length || (!allowsDocumentPages(requirement.documentType) && matching.length !== 1)
+      || matching.some((document) => !['PENDING', 'VERIFIED'].includes(document.status));
   });
 }

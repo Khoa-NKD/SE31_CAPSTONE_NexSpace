@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useLanguage } from '@/features/landing/context/language-context';
 import type { OrganizerWorkspace } from '../types';
 import { getWorkspaceResumeRoute } from '../utils/workspace-routing';
 
@@ -10,8 +11,12 @@ interface WorkspaceCardProps {
 }
 
 export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
+  const { language } = useLanguage();
+  const workspaceId = Number(workspace.id);
   const isDraft = workspace.status === 'DRAFT';
-  const resumeRoute = isDraft ? getWorkspaceResumeRoute(workspace) : '/dashboard/organizer/workspaces/create';
+  const resumeRoute = isDraft
+    ? getWorkspaceResumeRoute(workspace)
+    : '/dashboard/organizer/workspaces/create';
 
   return (
     <article className='flex flex-col rounded-xl bg-card border border-border shadow-2xs overflow-hidden hover:shadow-md transition-shadow duration-200'>
@@ -122,10 +127,7 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               asChild
               className='w-full border-2 border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/40 dark:border-indigo-500 dark:text-indigo-400 font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm'
             >
-              <Link
-                to={resumeRoute}
-                search={{ id: workspace.id, mode: 'edit' }}
-              >
+              <Link to={resumeRoute} search={{ id: workspace.id, mode: 'edit' }}>
                 <Edit className='size-3.5' />
                 <span>Resume Setup</span>
               </Link>
@@ -186,6 +188,23 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               </Link>
             </Button>
           </>
+        )}
+        {Number.isSafeInteger(workspaceId) && workspaceId > 0 && (
+          <Button variant={isDraft ? 'default' : 'outline'} asChild className='w-full'>
+            <Link
+              to='/dashboard/organizer/floorplan'
+              search={{ workspaceId, setup: isDraft || undefined }}
+            >
+              <Layers className='size-4' />
+              {isDraft
+                ? language === 'vi'
+                  ? 'Thiết lập không gian'
+                  : 'Set up space'
+                : language === 'vi'
+                  ? 'Mở sơ đồ'
+                  : 'Open floor plans'}
+            </Link>
+          </Button>
         )}
       </div>
     </article>

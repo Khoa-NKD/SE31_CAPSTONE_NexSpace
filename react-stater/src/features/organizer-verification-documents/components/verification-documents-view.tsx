@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   DOCUMENT_LABELS,
+  documentAccept,
   documentFileError,
   verificationDocumentKeys,
   verificationDocumentMutationOptions,
@@ -103,7 +104,7 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
 
   const upload = async () => {
     if (submitting.current || !canUpload || !documentType) return;
-    const error = documentFileError(file, data.maxFileSizeBytes);
+    const error = documentFileError(file, data.maxFileSizeBytes, documentType);
     if (error || !file) {
       setFileError(error ?? 'Choose a document.');
       return;
@@ -201,14 +202,14 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
                     ref={fileInput}
                     id='verification-file'
                     type='file'
-                    accept='.jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf'
+                    accept={documentAccept(documentType)}
                     aria-required='true'
                     aria-invalid={!!fileError}
                     aria-describedby='verification-file-help verification-file-error'
                     onChange={(event) => {
                       const chosen = event.target.files?.[0] ?? null;
                       const error = chosen
-                        ? documentFileError(chosen, data.maxFileSizeBytes)
+                        ? documentFileError(chosen, data.maxFileSizeBytes, documentType || undefined)
                         : null;
                       setFile(error ? null : chosen);
                       setFileError(error ?? '');

@@ -20,7 +20,7 @@ import { WorkspaceBuildingView } from './workspace-building-view';
 import { ResourceEditor, ResourceSetupDialog } from './resource-editor';
 
 const subscribe = () => () => {};
-export type FloorStudioLocation = { workspaceId?: number; floorId?: number };
+export type FloorStudioLocation = { workspaceId?: number; floorId?: number; setup?: boolean };
 export function FloorSetupView({
   location,
   onNavigate
@@ -56,7 +56,7 @@ export function FloorSetupView({
     resource?: ResourceDetail;
   } | null>(null);
   const saved = () => invalidateResources(client, actorId);
-  if (!mounted || workspaces.isPending || (!!selected && options.isPending))
+  if (!mounted || (allowed && (workspaces.isPending || (!!selected && options.isPending))))
     return (
       <div
         role='status'
@@ -65,6 +65,15 @@ export function FloorSetupView({
         <LoaderCircle className='size-5 animate-spin text-primary' />
         {c('Opening Floor Studio…', 'Đang mở trình thiết kế tầng…')}
       </div>
+    );
+  if (!allowed)
+    return (
+      <p className='rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground'>
+        {c(
+          'Sign in as an Organizer to open floor plans.',
+          'Đăng nhập bằng tài khoản Organizer để mở sơ đồ.'
+        )}
+      </p>
     );
   if (workspaces.isError || (selected && options.isError))
     return (
@@ -90,7 +99,11 @@ export function FloorSetupView({
         onOpen={(workspaceId) => onNavigate({ workspaceId })}
       />
     );
-  const floor = options.data?.floors.find((item) => item.id === location.floorId);
+  const floor = location.floorId
+    ? options.data?.floors.find((item) => item.id === location.floorId)
+    : location.setup
+      ? (options.data?.floors.find((item) => item.status === 'DRAFT') ?? options.data?.floors[0])
+      : undefined;
   if (!selected || !options.data || (location.floorId && !floor))
     return (
       <div className='space-y-4 rounded-2xl border border-border p-10 text-center'>
@@ -106,6 +119,8 @@ export function FloorSetupView({
         </Button>
       </div>
     );
+  const setupNeedsFloor =
+    location.setup && !floor && canConfigureWorkspaceResources(selected.status);
   if (dialog?.kind === 'resource')
     return (
       <ResourceEditor
@@ -191,13 +206,21 @@ export function FloorSetupView({
           onAddFloor={() => setDialog({ kind: 'floor', floorId: 0 })}
         />
       )}
-      {dialog && (
+      {(dialog || setupNeedsFloor) && (
         <ResourceSetupDialog
           workspaceId={selected.id}
-          kind={dialog.kind}
+          kind={dialog?.kind ?? 'floor'}
           floors={options.data.floors}
+          defaultFloorName={selected.name ?? undefined}
           onSaved={saved}
-          onClose={() => setDialog(null)}
+          onFloorLinked={(linked) => {
+            setDialog(null);
+            onNavigate({ workspaceId: selected.id, floorId: linked.id });
+          }}
+          onClose={() => {
+            setDialog(null);
+            if (setupNeedsFloor) onNavigate({ workspaceId: selected.id });
+          }}
         />
       )}
     </>

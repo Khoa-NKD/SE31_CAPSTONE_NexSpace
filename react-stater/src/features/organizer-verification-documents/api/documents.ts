@@ -6,12 +6,21 @@ export const DOCUMENT_LABELS = {
   ID_CARD_FRONT: 'Identity card — front',
   ID_CARD_BACK: 'Identity card — back',
   TAX_CERTIFICATE: 'Tax certificate',
+  WORKSPACE_OVERVIEW: 'Workspace overview (optional PDF)',
   OTHER: 'Ownership, operation or other evidence',
   BANK_CERTIFICATE: 'Bank certificate (read-only)'
 } as const;
 export type DocumentType = keyof typeof DOCUMENT_LABELS;
 export type UploadDocumentType = Exclude<DocumentType, 'BANK_CERTIFICATE'>;
 export const MAX_DOCUMENT_BYTES = 5 * 1024 * 1024;
+export const allowsDocumentPages = (type: string) =>
+  ['BUSINESS_LICENSE', 'TAX_CERTIFICATE', 'OTHER'].includes(type);
+export const isIdentityDocument = (type?: string) =>
+  type === 'ID_CARD_FRONT' || type === 'ID_CARD_BACK';
+export const documentAccept = (type?: string) =>
+  type === 'WORKSPACE_OVERVIEW' ? '.pdf,application/pdf'
+    : isIdentityDocument(type) ? '.jpg,.jpeg,.png,image/jpeg,image/png'
+    : '.jpg,.jpeg,.png,.pdf,image/jpeg,image/png,application/pdf';
 
 export interface VerificationDocument {
   id: number;
@@ -30,7 +39,7 @@ export interface VerificationDocuments {
   documents: VerificationDocument[];
 }
 
-export function documentFileError(file: File | null, maxBytes = MAX_DOCUMENT_BYTES): string | null {
+export function documentFileError(file: File | null, maxBytes = MAX_DOCUMENT_BYTES, type?: DocumentType): string | null {
   if (!file) return 'Choose a verification document.';
   const controlCharacter = Array.from(file.name).some((character) => {
     const code = character.charCodeAt(0);
@@ -48,6 +57,10 @@ export function documentFileError(file: File | null, maxBytes = MAX_DOCUMENT_BYT
           ? 'image/jpeg'
           : undefined;
   if (!expectedMime || file.type !== expectedMime) return 'Choose a JPG, PNG or PDF file.';
+  if (isIdentityDocument(type) && expectedMime === 'application/pdf')
+    return 'Upload a JPG or PNG identity card photo';
+  if (type === 'WORKSPACE_OVERVIEW' && expectedMime !== 'application/pdf')
+    return 'The workspace overview must be a PDF file';
   if (!file.size || file.size > Math.min(maxBytes, MAX_DOCUMENT_BYTES))
     return 'The document must be nonempty and no larger than 5 MB.';
   return null;
@@ -62,7 +75,7 @@ export function verificationDocumentPayload(
     documentType === ('BANK_CERTIFICATE' as DocumentType)
   )
     throw new Error('Unsupported verification document type.');
-  const error = documentFileError(file);
+  const error = documentFileError(file, MAX_DOCUMENT_BYTES, documentType);
   if (error) throw new Error(error);
   const payload = new FormData();
   payload.append('documentType', documentType);

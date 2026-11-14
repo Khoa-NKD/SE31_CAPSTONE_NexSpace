@@ -222,7 +222,6 @@ export function WorkspaceDetailsDrawer({
     DESK_HOTSPOT: 'Hot Desk Area'
   }[String(rawCategory).toUpperCase()] || String(rawCategory);
 
-  const areaSqm = detailData?.usableAreaSqm || (typeof detailObj?.areaSqm === 'number' ? detailObj.areaSqm : 0) || activeWorkspace?.usableAreaSqm || activeWorkspace?.areaSqm || 0;
   const streetAddress = detailData?.streetAddress || (typeof detailObj?.address === 'string' ? detailObj.address : '') || activeWorkspace?.streetAddress || 'Address pending';
   const city = detailData?.city || activeWorkspace?.city || 'Ho Chi Minh City';
   const district = detailData?.district || '';
@@ -434,11 +433,6 @@ export function WorkspaceDetailsDrawer({
                     <Badge variant='outline' className='text-[10px] font-semibold bg-primary/10 text-primary border-primary/20'>
                       {categoryLabel}
                     </Badge>
-                    {areaSqm > 0 && (
-                      <Badge variant='secondary' className='text-[10px] font-mono'>
-                        {areaSqm.toLocaleString()} m²
-                      </Badge>
-                    )}
                   </div>
                 </div>
 
@@ -800,10 +794,6 @@ export function WorkspaceDetailsDrawer({
               </h3>
 
               <div className='p-4 rounded-xl border border-border bg-muted/30 space-y-3 text-xs'>
-                <div className='flex justify-between py-1.5 border-b border-border'>
-                  <span className='text-muted-foreground'>Diện tích mặt bằng đăng ký</span>
-                  <strong className='text-foreground'>{areaSqm > 0 ? `${areaSqm.toLocaleString()} m²` : 'Chưa cập nhật'}</strong>
-                </div>
                 <div className='flex justify-between py-1.5 border-b border-border'>
                   <span className='text-muted-foreground'>Chỗ ngồi linh hoạt (Hot Desks)</span>
                   <strong className='text-foreground'>

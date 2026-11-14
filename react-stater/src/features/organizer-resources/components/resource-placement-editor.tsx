@@ -110,6 +110,7 @@ export function ResourcePlacementEditor({
   category,
   value,
   disabled,
+  sizeLocked = false,
   onBegin,
   onChange,
   onUndo,
@@ -132,6 +133,7 @@ export function ResourcePlacementEditor({
   category?: Category;
   value: PlacementFields;
   disabled: boolean;
+  sizeLocked?: boolean;
   onBegin: () => void;
   onChange: (value: PlacementFields, record?: boolean) => void;
   onUndo: () => void;
@@ -1023,47 +1025,53 @@ export function ResourcePlacementEditor({
                     }
                   }}
                 />
-                <rect
-                  role='button'
-                  tabIndex={0}
-                  aria-label={c(
-                    'Drag to resize; arrow keys change size',
-                    'Kéo để đổi kích thước; phím mũi tên chỉnh kích thước'
-                  )}
-                  x={item.x + item.width - handleRadius}
-                  y={item.y + item.height - handleRadius}
-                  width={handleRadius * 2}
-                  height={handleRadius * 2}
-                  rx={handleRadius / 3}
-                  className='cursor-nwse-resize fill-primary stroke-background'
-                  vectorEffect='non-scaling-stroke'
-                  strokeWidth='2'
-                  onPointerDown={(event) => begin(event, 'resize')}
-                  onKeyDown={(event) => {
-                    if (command(event)) return;
-                    if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
-                      event.preventDefault();
-                      const step = event.shiftKey ? 10 : 1;
-                      place({
-                        ...item,
-                        width: Math.max(
-                          1,
-                          item.width +
-                            (event.key === 'ArrowRight'
-                              ? step
-                              : event.key === 'ArrowLeft'
-                                ? -step
-                                : 0)
-                        ),
-                        height: Math.max(
-                          1,
-                          item.height +
-                            (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0)
-                        )
-                      });
-                    }
-                  }}
-                />
+                {!sizeLocked && (
+                  <rect
+                    role='button'
+                    tabIndex={0}
+                    aria-label={c(
+                      'Drag to resize; arrow keys change size',
+                      'Kéo để đổi kích thước; phím mũi tên chỉnh kích thước'
+                    )}
+                    x={item.x + item.width - handleRadius}
+                    y={item.y + item.height - handleRadius}
+                    width={handleRadius * 2}
+                    height={handleRadius * 2}
+                    rx={handleRadius / 3}
+                    className='cursor-nwse-resize fill-primary stroke-background'
+                    vectorEffect='non-scaling-stroke'
+                    strokeWidth='2'
+                    onPointerDown={(event) => begin(event, 'resize')}
+                    onKeyDown={(event) => {
+                      if (command(event)) return;
+                      if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+                        event.preventDefault();
+                        const step = event.shiftKey ? 10 : 1;
+                        place({
+                          ...item,
+                          width: Math.max(
+                            1,
+                            item.width +
+                              (event.key === 'ArrowRight'
+                                ? step
+                                : event.key === 'ArrowLeft'
+                                  ? -step
+                                  : 0)
+                          ),
+                          height: Math.max(
+                            1,
+                            item.height +
+                              (event.key === 'ArrowDown'
+                                ? step
+                                : event.key === 'ArrowUp'
+                                  ? -step
+                                  : 0)
+                          )
+                        });
+                      }
+                    }}
+                  />
+                )}
               </g>
             )}
           </svg>

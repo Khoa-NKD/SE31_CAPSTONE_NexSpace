@@ -30,6 +30,12 @@ export const navGroups: NavGroup[] = [
         isActive: false
       },
       {
+        title: 'Quản lý đối tác',
+        url: '/dashboard/admin/organizer-partners',
+        icon: 'building',
+        isActive: false
+      },
+      {
         title: 'Workspaces',
         url: '/dashboard/admin/workspaces',
         icon: 'workspace',

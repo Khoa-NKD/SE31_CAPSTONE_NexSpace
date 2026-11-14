@@ -80,8 +80,8 @@ export const saveBuilding = (
     {
       name: body.name,
       address: body.address,
-      latitude: body.latitude,
-      longitude: body.longitude,
+      latitude: body.latitude === undefined ? undefined : Number(body.latitude.toFixed(8)),
+      longitude: body.longitude === undefined ? undefined : Number(body.longitude.toFixed(8)),
       city: body.city,
       ward: body.ward,
       ...(current ? { expectedRevision: current.revision } : { floorCount: body.floorCount })

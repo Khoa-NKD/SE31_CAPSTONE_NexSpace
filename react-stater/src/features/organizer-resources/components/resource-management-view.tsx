@@ -59,7 +59,15 @@ const initialFilters: ResourceFilters = {
 const selectClass =
   'border-input bg-background h-10 min-w-0 rounded-lg border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
 
-export function ResourceManagementView({ initialCreate = false }: { initialCreate?: boolean }) {
+export function ResourceManagementView({
+  initialCreate = false,
+  initialWorkspaceId = 0,
+  initialFloorId
+}: {
+  initialCreate?: boolean;
+  initialWorkspaceId?: number;
+  initialFloorId?: number;
+}) {
   const mounted = useSyncExternalStore(
     subscribe,
     () => true,
@@ -73,21 +81,26 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
   const vi = language === 'vi';
   const c = (en: string, vn: string) => (vi ? vn : en);
   const client = useQueryClient();
-  const [workspaceId, setWorkspaceId] = useState(0);
-  const [filters, setFilters] = useState<ResourceFilters>(initialFilters);
+  const [workspaceId, setWorkspaceId] = useState(initialWorkspaceId);
+  const [filters, setFilters] = useState<ResourceFilters>({
+    ...initialFilters,
+    floorPlanId: initialFloorId ?? ''
+  });
   const [search, setSearch] = useState('');
   const [editor, setEditor] = useState<ResourceDetail | 'new' | null>(initialCreate ? 'new' : null);
   const [setup, setSetup] = useState<{ kind: 'floor' | 'type'; current?: TypeOption } | null>(null);
   const [typesOpen, setTypesOpen] = useState(false);
   const [floorManager, setFloorManager] = useState(false);
   const [remove, setRemove] = useState<ResourceDetail | null>(null);
+  const [bulkStatus, setBulkStatus] = useState<'ACTIVE' | 'DISABLED' | null>(null);
   const [busy, setBusy] = useState(false);
   const operation = useRef(false);
   const [notice, setNotice] = useState({ success: '', error: '' });
   useApplicationNotice(notice.success, notice.error, busy || !!editor || !!setup || floorManager);
   const workspaces = useQuery({ ...resourceWorkspacesOptions(actorId), enabled: allowed });
-  const selectedWorkspace =
-    workspaces.data?.find((w) => w.id === workspaceId) ?? workspaces.data?.[0];
+  const selectedWorkspace = workspaceId
+    ? workspaces.data?.find((w) => w.id === workspaceId)
+    : workspaces.data?.[0];
   const selectedId = selectedWorkspace?.id ?? 0;
   const options = useQuery({
     ...resourceOptions(actorId, selectedId),
@@ -117,16 +130,23 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
     await invalidateResources(client, actorId);
     setNotice({ success: c('Saved successfully.', 'Đã lưu thành công.'), error: '' });
   }
-  async function act(action: () => Promise<unknown>, success: string) {
+  async function act<T>(
+    action: () => Promise<T>,
+    resultNotice: string | ((result: T) => { success: string; error: string })
+  ) {
     if (operation.current) return;
     operation.current = true;
     setBusy(true);
     setNotice({ success: '', error: '' });
     try {
-      await action();
+      const result = await action();
       await invalidateResources(client, actorId);
       setRemove(null);
-      setNotice({ success, error: '' });
+      setNotice(
+        typeof resultNotice === 'string'
+          ? { success: resultNotice, error: '' }
+          : resultNotice(result)
+      );
     } catch (e) {
       setNotice({
         success: '',
@@ -137,6 +157,74 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
       operation.current = false;
       setBusy(false);
     }
+  }
+  async function changeAllStatuses(status: 'ACTIVE' | 'DISABLED') {
+    const rows = new Map<number, ResourceDetail>();
+    const bulkFilters = { ...initialFilters, size: 50 };
+    let totalPages = 1;
+    for (let page = 1; page <= totalPages; page++) {
+      const result = await client.fetchQuery(
+        resourcesOptions(actorId, selectedId, { ...bulkFilters, page })
+      );
+      totalPages = result.totalPages;
+      for (const resource of result.listObjects) rows.set(resource.id, resource);
+    }
+
+    const activeRooms = new Set<number>();
+    const roomsWithDesks = new Set<number>();
+    for (const resource of rows.values()) {
+      if (resource.category === 'ROOM' && resource.status === 'ACTIVE')
+        activeRooms.add(resource.id);
+      if (resource.parentRoomId != null && resource.status !== 'ARCHIVED')
+        roomsWithDesks.add(resource.parentRoomId);
+    }
+    let changed = 0;
+    let keptMode = 0;
+    const failures: string[] = [];
+    for (const resource of rows.values()) {
+      if (resource.status === 'ARCHIVED' || resource.status === status) continue;
+      if (status === 'DISABLED' && resource.status !== 'ACTIVE') continue;
+      if (
+        status === 'ACTIVE' &&
+        (roomsWithDesks.has(resource.id) ||
+          (resource.parentRoomId != null && activeRooms.has(resource.parentRoomId)))
+      ) {
+        keptMode++;
+        continue;
+      }
+      try {
+        await setResourceStatus(resource, status);
+        changed++;
+      } catch (error) {
+        failures.push(
+          resource.name +
+            ' — ' +
+            (error instanceof Error ? error.message : c('Operation failed.', 'Thao tác thất bại.'))
+        );
+      }
+    }
+    setBulkStatus(null);
+    const summary =
+      c(`Updated ${changed} seats/rooms.`, `Đã cập nhật ${changed} ghế/phòng.`) +
+      (keptMode
+        ? ' ' +
+          c(
+            `Skipped ${keptMode} to avoid offering a room and its desks at the same time.`,
+            `Bỏ qua ${keptMode} chỗ để tránh mở nhận đặt trùng giữa phòng và ghế bên trong.`
+          )
+        : '');
+    if (failures.length) {
+      return {
+        success: '',
+        error:
+          summary +
+          ' ' +
+          c(`${failures.length} failed.`, `${failures.length} chỗ không cập nhật được.`) +
+          ' ' +
+          failures.slice(0, 3).join(' · ')
+      };
+    }
+    return { success: summary, error: '' };
   }
   if (!mounted)
     return (
@@ -246,11 +334,21 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
             <div className='flex flex-wrap gap-2'>
               <Button
                 variant='outline'
+                disabled={busy || selectedWorkspace.status !== 'ACTIVE'}
+                onClick={() => setBulkStatus('ACTIVE')}
+              >
+                {c('Enable all', 'Bật tất cả')}
+              </Button>
+              <Button variant='outline' disabled={busy} onClick={() => setBulkStatus('DISABLED')}>
+                {c('Disable all', 'Tắt tất cả')}
+              </Button>
+              <Button
+                variant='outline'
                 disabled={!writable || busy}
                 onClick={() => openSetup({ kind: 'floor' })}
               >
                 <Layers3 className='size-4' />
-                {c('Add floor', 'Thêm tầng')}
+                {c('Link floor', 'Liên kết tầng')}
               </Button>
               <Button
                 variant='outline'
@@ -420,6 +518,7 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
               <ResourceInventoryTable
                 data={query.data}
                 options={options.data}
+                workspaceId={selectedId}
                 workspaceStatus={selectedWorkspace.status}
                 writable={writable}
                 busy={busy}
@@ -585,6 +684,55 @@ export function ResourceManagementView({ initialCreate = false }: { initialCreat
             <Plus className='size-4' />
             {c('Add resource type', 'Thêm loại chỗ')}
           </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!bulkStatus}
+        onOpenChange={(open) => {
+          if (!open && !busy) setBulkStatus(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {bulkStatus === 'ACTIVE'
+                ? c('Enable all?', 'Bật tất cả?')
+                : c('Disable all?', 'Tắt tất cả?')}
+            </DialogTitle>
+            <DialogDescription>
+              {selectedWorkspace?.name} ·{' '}
+              {c('Applies across all floors and pages.', 'Áp dụng trên tất cả tầng và trang.')}
+            </DialogDescription>
+          </DialogHeader>
+          <p className='text-muted-foreground text-sm'>
+            {bulkStatus === 'ACTIVE'
+              ? c(
+                  'Rooms already accepting whole-room bookings keep that mode. For other rooms with desks, enable individual desks when eligible.',
+                  'Phòng đang nhận đặt nguyên phòng giữ chế độ hiện tại. Với các phòng còn lại có ghế, hệ thống bật từng ghế đủ điều kiện.'
+                )
+              : c(
+                  'Stops new bookings for active seats and rooms. Existing bookings are kept.',
+                  'Ngừng nhận đặt mới cho các ghế/phòng đang bật. Booking hiện có vẫn được giữ.'
+                )}
+          </p>
+          <div className='flex justify-end gap-3'>
+            <Button variant='outline' disabled={busy} onClick={() => setBulkStatus(null)}>
+              {c('Cancel', 'Hủy')}
+            </Button>
+            <Button
+              disabled={busy || !bulkStatus}
+              onClick={() => {
+                if (bulkStatus)
+                  void act(
+                    () => changeAllStatuses(bulkStatus),
+                    (notice) => notice
+                  );
+              }}
+            >
+              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {c('Confirm', 'Xác nhận')}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog

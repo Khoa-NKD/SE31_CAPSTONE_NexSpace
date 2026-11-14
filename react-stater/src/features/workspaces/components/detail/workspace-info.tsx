@@ -83,10 +83,6 @@ export function WorkspaceInfo({ workspace }: WorkspaceInfoProps) {
 
   const capacityDesks = typeof workspace?.capacityDesks === 'number' ? workspace.capacityDesks : null;
   const meetingRooms = typeof workspace?.meetingRooms === 'number' ? workspace.meetingRooms : null;
-  const usableArea =
-    typeof workspace?.usableAreaSqm === 'number' && workspace.usableAreaSqm > 0
-      ? `${workspace.usableAreaSqm} m² Usable Area`
-      : 'Area not specified';
 
   const categoryLabel = workspace?.category
     ? workspace.category.replace('_', ' ').replace(/\b\w/g, (l) => l.toUpperCase())
@@ -164,7 +160,7 @@ export function WorkspaceInfo({ workspace }: WorkspaceInfoProps) {
       {/* Key Specifications Grid */}
       <div>
         <h3 className="text-base font-semibold text-foreground mb-3.5">Workspace Specifications</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
           {/* Specification 1: Capacity */}
           <div className="p-4 rounded-xl border bg-card shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2.5">
@@ -178,16 +174,7 @@ export function WorkspaceInfo({ workspace }: WorkspaceInfoProps) {
             </div>
           </div>
 
-          {/* Specification 2: Usable Area */}
-          <div className="p-4 rounded-xl border bg-card shadow-sm">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2.5">
-              <Building className="w-5 h-5" />
-            </div>
-            <div className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">Floor Area</div>
-            <div className="font-semibold text-[13px] text-card-foreground mt-0.5">{usableArea}</div>
-          </div>
-
-          {/* Specification 3: Category */}
+          {/* Category */}
           <div className="p-4 rounded-xl border bg-card shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2.5">
               <Shield className="w-5 h-5" />
@@ -196,7 +183,7 @@ export function WorkspaceInfo({ workspace }: WorkspaceInfoProps) {
             <div className="font-semibold text-[13px] text-card-foreground mt-0.5">{categoryLabel}</div>
           </div>
 
-          {/* Specification 4: Confirmation Mode */}
+          {/* Confirmation Mode */}
           <div className="p-4 rounded-xl border bg-card shadow-sm">
             <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center mb-2.5">
               <CalendarCheck className="w-5 h-5" />

@@ -8,7 +8,7 @@ import { aiDesignPreview, aiPreviewChanges, adjustAiProposal } from '../utils/ai
 import { insideRoom, layoutGeometry } from '../utils/layout-placement';
 import type { AiProposal } from '../api/floor-design';
 import { useRef, useState } from 'react';
-import { useBlocker } from '@tanstack/react-router';
+import { Link, useBlocker } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
@@ -48,6 +48,7 @@ import { useLanguage } from '@/features/landing/context/language-context';
 import {
   floorLayoutOptions,
   getResource,
+  deleteResource,
   saveResourceBatch,
   resourcePayload,
   saveFloorDecorations,
@@ -159,6 +160,11 @@ export function FloorCanvasWorkspace({
       }
     : undefined;
   const [selection, setSelection] = useState<Selection | null>(null);
+  const selectedType = options.types.find(
+    (type) => type.id === selection?.resource?.resourceTypeId
+  );
+  const selectedSizeLocked =
+    Number(selectedType?.standardWidthM) > 0 && Number(selectedType?.standardLengthM) > 0;
   const [availabilityMode, setAvailabilityMode] = useState(false);
   const [calendarFocus, setCalendarFocus] = useState({ key: null as string | null, sequence: 0 });
   const calendar = useFloorAvailability(actorId, workspaceId, floorId, availabilityMode);
@@ -177,6 +183,7 @@ export function FloorCanvasWorkspace({
   const [dimensions, setDimensions] = useState<{ width: string; height: string } | null>(null);
   const [pending, setPending] = useState<(() => void) | null>(null);
   const [remove, setRemove] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
   const [publishing, setPublishing] = useState(false);
   const [confirmed, setConfirmed] = useState(false);
   const [error, setError] = useState('');
@@ -213,7 +220,8 @@ export function FloorCanvasWorkspace({
     },
     layout
   );
-  const editable = writable && !!layout?.editableLayout && !availabilityMode && !aiOpen;
+  const editable =
+    writable && !!layout?.editableLayout && !availabilityMode && !aiOpen && !aiProposal;
   const width = dimensions?.width ?? String(layout?.width ?? 1200);
   const height = dimensions?.height ?? String(layout?.height ?? 800);
   const act = (action: () => void) => {
@@ -226,6 +234,7 @@ export function FloorCanvasWorkspace({
     request.current++;
     setLoadingSelection(false);
     setSelection(null);
+    setFocus((previous) => ({ ...previous, key: null }));
     setUndo([]);
     setRedo([]);
     setError('');
@@ -377,6 +386,7 @@ export function FloorCanvasWorkspace({
       return;
     }
     if (busy || loadingSelection || overviewDragging || key === selection?.key) return;
+    setFocus((previous) => ({ ...previous, key: null }));
     if (selection) stage(selection.key, selection.fields, selection.object);
     void choose(key);
   };
@@ -552,6 +562,24 @@ export function FloorCanvasWorkspace({
       setBusy(false);
     }
   }
+  async function removeResource() {
+    if (!selection?.resource || dirty || busy || !editable) return;
+    setBusy(true);
+    setDeleteError('');
+    try {
+      await deleteResource(selection.resource);
+      clearSelection();
+      setRemove(false);
+      await onSaved();
+      toast.success(c('Resource deleted.', 'Đã xóa ghế/phòng.'));
+    } catch (failure) {
+      setDeleteError(
+        failure instanceof Error ? failure.message : c('Could not delete.', 'Không thể xóa.')
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
   async function removeObject() {
     if (!selection?.object || !layout || busy || !editable) return;
     if (!query.data?.decorations?.some((item) => item.id === selection.object!.id)) {
@@ -615,6 +643,10 @@ export function FloorCanvasWorkspace({
   }
   const resources = layout?.resources ?? [],
     objects = layout?.decorations ?? [];
+  const roomSeats =
+    selection?.resource?.category === 'ROOM'
+      ? resources.filter((item) => item.parentRoomId === selection.resource?.id)
+      : [];
   const entries = [
     ...resources.map((item) => ({
       key: `resource:${item.id}`,
@@ -639,6 +671,20 @@ export function FloorCanvasWorkspace({
   const missing = resources.filter(
     (item) => item.posX === null || item.posY === null || !item.width || !item.height
   ).length;
+  const publishIssue =
+    !layout || aiOpen || availabilityMode
+      ? null
+      : dirty
+        ? c(
+            'Save or finish the current draft before publishing.',
+            'Lưu hoặc hoàn tất bản nháp trước khi xuất bản.'
+          )
+        : missing > 0
+          ? c(
+              'Place all seats and rooms before publishing.',
+              'Đặt vị trí cho tất cả ghế/phòng trước khi xuất bản.'
+            )
+          : null;
   const name = selection?.resource?.name ?? selection?.object?.label;
 
   const aiLayout =
@@ -816,15 +862,15 @@ export function FloorCanvasWorkspace({
               variant={aiOpen ? 'default' : 'outline'}
               className='rounded-xl'
               disabled={busy || aiWorking || availabilityMode}
-              onClick={() =>
-                act(() => {
-                  setAiProposal(null);
-                  setAiOpen((value) => !value);
-                })
-              }
+              onClick={() => {
+                if (aiOpen || aiProposal) setAiOpen(!aiOpen);
+                else act(() => setAiOpen(true));
+              }}
             >
               <Sparkles className='size-4' />
-              {c('AI assistant', 'Trợ lý AI')}
+              {aiProposal && !aiOpen
+                ? c('Review AI proposal', 'Xem lại đề xuất AI')
+                : c('AI assistant', 'Trợ lý AI')}
             </Button>
           )}
           {layout && (
@@ -900,6 +946,7 @@ export function FloorCanvasWorkspace({
           <Button
             size='sm'
             disabled={busy || !editable || dirty || !!missing || loadingSelection}
+            aria-describedby={publishIssue ? 'floor-publish-issue' : undefined}
             onClick={() => {
               setConfirmed(false);
               setPublishing(true);
@@ -910,6 +957,14 @@ export function FloorCanvasWorkspace({
           </Button>
         </div>
       </header>
+      {publishIssue && (
+        <p
+          id='floor-publish-issue'
+          className='border-b border-border px-4 py-2 text-xs text-muted-foreground'
+        >
+          {publishIssue}
+        </p>
+      )}
       {layout && <FloorLocationBanner floor={layout.floor} />}
       <div className='flex flex-wrap items-center gap-2 border-b border-border/80 bg-muted/20 px-4 py-2.5'>
         <select
@@ -957,7 +1012,7 @@ export function FloorCanvasWorkspace({
           onClick={() => act(() => onAdd('floor', floorId))}
         >
           <Plus className='size-3.5' />
-          {c('Floor', 'Tầng')}
+          {c('Link floor', 'Liên kết tầng')}
         </Button>
         <div className='ml-auto flex items-center gap-2'>
           <Badge variant='secondary' className='text-[10px]'>
@@ -1020,7 +1075,7 @@ export function FloorCanvasWorkspace({
         </Button>
       </div>
       <div
-        className={`grid min-h-0 flex-1 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] ${aiOpen ? 'xl:grid-cols-[150px_minmax(0,1fr)_440px] 2xl:grid-cols-[170px_minmax(0,1fr)_500px]' : selection || settings || availabilityMode || infoOpen ? 'xl:grid-cols-[210px_minmax(0,1fr)_260px] 2xl:grid-cols-[230px_minmax(0,1fr)_280px]' : 'xl:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)]'}`}
+        className={`grid min-h-0 flex-1 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] ${aiOpen ? 'xl:grid-cols-[150px_minmax(0,1fr)_440px] 2xl:grid-cols-[170px_minmax(0,1fr)_500px]' : !aiProposal && (selection || settings || availabilityMode || infoOpen) ? 'xl:grid-cols-[210px_minmax(0,1fr)_260px] 2xl:grid-cols-[230px_minmax(0,1fr)_280px]' : 'xl:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)]'}`}
       >
         <aside className='flex min-h-0 flex-col overflow-hidden border-b border-border bg-muted/10 lg:border-b-0 lg:border-r'>
           <div className='shrink-0 space-y-3 border-b border-border/60 bg-gradient-to-b from-primary/5 to-transparent p-3'>
@@ -1151,16 +1206,7 @@ export function FloorCanvasWorkspace({
               size='sm'
               variant='outline'
               disabled={!editable || busy || loadingSelection}
-              onClick={() =>
-                act(() =>
-                  onAdd(
-                    options.types.some((type) => type.active && type.currency)
-                      ? 'resource'
-                      : 'type',
-                    floorId
-                  )
-                )
-              }
+              onClick={() => act(() => onAdd('resource', floorId))}
             >
               <Plus className='size-3.5' />
               {c('Seat / room', 'Ghế / phòng')}
@@ -1185,7 +1231,7 @@ export function FloorCanvasWorkspace({
               <h2 className='font-semibold'>{c('Start with a floor', 'Bắt đầu với một tầng')}</h2>
               <Button disabled={!writable} onClick={() => onAdd('floor', 0)}>
                 <Plus className='size-4' />
-                {c('Add floor', 'Thêm tầng')}
+                {c('Link floor', 'Liên kết tầng')}
               </Button>
             </div>
           ) : query.isPending ? (
@@ -1368,7 +1414,7 @@ export function FloorCanvasWorkspace({
                   ) : undefined
                 }
                 onObjectDrag={
-                  aiOpen && aiProposal && !aiWorking && writable
+                  aiProposal && !availabilityMode && !aiWorking && writable
                     ? dragAiPreview
                     : editable && !busy && (!loadingSelection || overviewDragging)
                       ? (key, fields, phase) => {
@@ -1377,15 +1423,11 @@ export function FloorCanvasWorkspace({
                       : undefined
                 }
                 previewChanges={aiProposal ? aiPreviewChanges(layout, aiProposal) : undefined}
-                collisionKeys={aiGeometry?.collisionKeys}
-                layout={
-                  aiOpen && aiProposal && !aiProposal.design.question
-                    ? aiDesignPreview(layout, aiProposal, options)
-                    : layout
-                }
+                collisionKeys={aiGeometry?.collisionKeys ?? validation.result?.collisionKeys}
+                layout={aiLayout ?? layout}
                 width={layout.width ?? 1200}
                 height={layout.height ?? 800}
-                focus={{ ...focus, key: aiProposal ? focus.key : (selection?.key ?? focus.key) }}
+                focus={{ ...focus, key: focus.key ?? selection?.key ?? null }}
                 onFocus={(key) => {
                   if (key && aiProposal)
                     setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
@@ -1396,14 +1438,22 @@ export function FloorCanvasWorkspace({
             ))
           )}
         </section>
-        {(aiOpen || selection || settings || availabilityMode || infoOpen) && (
-          <aside className='flex min-h-0 flex-col border-t border-border bg-card p-4 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0'>
-            {aiOpen && layout ? (
+        {(aiOpen || selection || settings || availabilityMode || infoOpen || aiProposal) && (
+          <aside
+            hidden={!aiOpen && !!aiProposal}
+            className={
+              aiOpen || !aiProposal
+                ? 'flex min-h-0 flex-col border-t border-border bg-card p-4 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0'
+                : 'hidden'
+            }
+          >
+            {(aiOpen || aiProposal) && layout ? (
               <FloorAiAssistant
                 key={actorId + ':' + workspaceId + ':' + floorId}
                 previewIssues={aiGeometryIssues}
                 actorId={actorId}
                 workspaceId={workspaceId}
+                resourceTypes={options.types}
                 layout={layout}
                 selectedKey={selection?.key ?? focus.key}
                 writable={writable && layout.editableLayout}
@@ -1419,12 +1469,7 @@ export function FloorCanvasWorkspace({
                 onFocus={(key) =>
                   setFocus((previous) => ({ key, sequence: previous.sequence + 1 }))
                 }
-                onClose={() =>
-                  act(() => {
-                    setAiProposal(null);
-                    setAiOpen(false);
-                  })
-                }
+                onClose={() => setAiOpen(false)}
                 onSaved={async () => {
                   setSelection(null);
                   await onSaved();
@@ -1535,11 +1580,11 @@ export function FloorCanvasWorkspace({
                           </label>
                         </>
                       )}
-                      <div>
-                        <p className='mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
-                          {c('Position & dimensions', 'Vị trí & kích thước')}
-                        </p>
-                        <div className='grid grid-cols-2 gap-3'>
+                      <details className='rounded-xl border border-border p-3'>
+                        <summary className='cursor-pointer text-xs font-medium'>
+                          {c('Advanced position & dimensions', 'Vị trí & kích thước nâng cao')}
+                        </summary>
+                        <div className='mt-3 grid grid-cols-2 gap-3'>
                           {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map((key) => (
                             <label
                               key={key}
@@ -1564,6 +1609,9 @@ export function FloorCanvasWorkspace({
                                 className='h-9 text-xs tabular-nums'
                                 value={selection.fields[key]}
                                 disabled={!editable || busy || loadingSelection}
+                                readOnly={
+                                  selectedSizeLocked && (key === 'width' || key === 'height')
+                                }
                                 onChange={(event) =>
                                   change({ ...selection.fields, [key]: event.target.value })
                                 }
@@ -1571,7 +1619,15 @@ export function FloorCanvasWorkspace({
                             </label>
                           ))}
                         </div>
-                      </div>
+                        {selectedSizeLocked && (
+                          <p className='mt-2 text-xs text-muted-foreground'>
+                            {c(
+                              'Size follows the resource type. Open resource details to change the type.',
+                              'Kích thước theo loại chỗ. Mở thông tin ghế/phòng để chọn loại khác.'
+                            )}
+                          </p>
+                        )}
+                      </details>
                       {selection.resource?.category === 'ROOM' && (
                         <p className='rounded-lg bg-muted p-2.5 text-[11px] leading-relaxed text-muted-foreground'>
                           {c(
@@ -1593,6 +1649,21 @@ export function FloorCanvasWorkspace({
                               )}
                         </p>
                       )}
+                      {!!validation.result?.collisionKeys.size && (
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          onClick={() => {
+                            const key =
+                              [...validation.result!.collisionKeys].find(
+                                (item) => item !== selection.key
+                              ) ?? selection.key;
+                            setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
+                          }}
+                        >
+                          {c('Show collision', 'Xem vị trí chồng lấn')}
+                        </Button>
+                      )}
                       {selection.resource && (
                         <Button
                           variant='outline'
@@ -1609,6 +1680,21 @@ export function FloorCanvasWorkspace({
                         >
                           <SlidersHorizontal className='size-3.5' />
                           {c('Business properties', 'Thông tin ghế/phòng')}
+                        </Button>
+                      )}
+                      {selection.resource && editable && (
+                        <Button
+                          variant='ghost'
+                          size='sm'
+                          className='w-full text-destructive'
+                          disabled={busy || dirty}
+                          onClick={() => {
+                            setDeleteError('');
+                            setRemove(true);
+                          }}
+                        >
+                          <Trash2 className='size-3.5' />
+                          {c('Delete seat or room', 'Xóa ghế/phòng')}
                         </Button>
                       )}
                       {selection.object && (
@@ -1789,6 +1875,16 @@ export function FloorCanvasWorkspace({
         )}
       </div>
       <footer className='relative flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground'>
+        {layout?.floor.status === 'PUBLISHED' &&
+          !layout.draftChanges &&
+          resources.length > 0 &&
+          !dirty && (
+            <Button size='sm' variant='ghost' asChild>
+              <Link to='/dashboard/organizer/resources' search={{ workspaceId, floorId }}>
+                {c('Check booking readiness', 'Kiểm tra điều kiện nhận đặt')}
+              </Link>
+            </Button>
+          )}
         {dirtyManual && !selection && (
           <Button
             size='sm'
@@ -1932,21 +2028,61 @@ export function FloorCanvasWorkspace({
       >
         <DialogContent className='sm:max-w-md'>
           <DialogHeader>
-            <DialogTitle>{c('Remove layout object?', 'Xóa đồ bố trí?')}</DialogTitle>
+            <DialogTitle>
+              {selection?.resource
+                ? c('Delete seat or room?', 'Xóa ghế/phòng?')
+                : c('Remove layout object?', 'Xóa đồ bố trí?')}
+            </DialogTitle>
             <DialogDescription>
-              {c(
-                'This removes furniture from the draft only. Seats and bookings are preserved. Publish to update the customer map.',
-                'Xóa đồ vật khỏi bản nháp, không xóa ghế hay booking. Xuất bản để cập nhật bản đồ khách hàng.'
-              )}
+              {selection?.resource
+                ? selection.resource.name
+                : c(
+                    'This removes furniture from the draft only. Seats and bookings are preserved. Publish to update the customer map.',
+                    'Xóa đồ vật khỏi bản nháp, không xóa ghế hay booking. Xuất bản để cập nhật bản đồ khách hàng.'
+                  )}
             </DialogDescription>
           </DialogHeader>
+          {selection?.resource && deleteError && (
+            <p role='alert' className='text-sm text-destructive'>
+              {deleteError}
+            </p>
+          )}
+          {roomSeats.length > 0 && (
+            <div className='space-y-2'>
+              <p className='text-sm text-muted-foreground'>
+                {c(
+                  'Move or remove the seats in this room before deleting it.',
+                  'Chuyển ghế ra khỏi phòng hoặc xóa ghế trước khi xóa phòng.'
+                )}
+              </p>
+              <div className='flex max-h-36 flex-wrap gap-2 overflow-auto'>
+                {roomSeats.map((seat) => (
+                  <Button
+                    key={seat.id}
+                    variant='outline'
+                    size='sm'
+                    onClick={() => {
+                      setRemove(false);
+                      select(`resource:${seat.id}`);
+                    }}
+                  >
+                    {seat.name} · {seat.code}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className='flex justify-end gap-2'>
             <Button variant='outline' disabled={busy} onClick={() => setRemove(false)}>
               {c('Cancel', 'Hủy')}
             </Button>
-            <Button variant='destructive' disabled={busy} onClick={() => void removeObject()}>
+            <Button
+              variant='destructive'
+              disabled={busy || roomSeats.length > 0}
+              onClick={() => void (selection?.resource ? removeResource() : removeObject())}
+            >
               {busy && <LoaderCircle className='size-4 animate-spin' />}
-              {c('Remove', 'Xóa đồ vật')}
+              {c('Delete', 'Xóa')}
             </Button>
           </div>
         </DialogContent>

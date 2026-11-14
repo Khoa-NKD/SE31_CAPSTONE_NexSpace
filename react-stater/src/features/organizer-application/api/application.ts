@@ -95,6 +95,10 @@ export function startApplicationDraft(): Promise<ApplicationDetails> {
   return backendRequest<ApplicationDetails>('/organizer/applications/draft', 'POST');
 }
 
+export function applicationHistory(): Promise<ApplicationDetails[]> {
+  return backendRequest<ApplicationDetails[]>('/organizer/applications/history', 'GET');
+}
+
 export function saveApplicationDraft(input: ApplicationInput): Promise<ApplicationDetails> {
   return backendRequest<ApplicationDetails>('/organizer/applications/draft', 'PUT', input);
 }

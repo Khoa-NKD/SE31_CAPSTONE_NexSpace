@@ -31,7 +31,8 @@ import {
 } from '@/features/organizer-application-status/api/status';
 import {
   adminApplicationDetailsQueryOptions,
-  validApplicationId
+  validApplicationId,
+  type AdminOrganizerReviewDecision
 } from '../api/application-details';
 import type { AdminApplicationFilters } from '../api/applications';
 import { DocumentActions } from './document-actions';
@@ -41,6 +42,12 @@ import { ContractPanel } from '@/features/organizer-contract/components/contract
 import { useAdminReviewFocusRefresh } from '../hooks/use-admin-review-focus-refresh';
 
 const emptySubscribe = () => () => {};
+
+const reviewDecisions = {
+  APPROVED: 'Documents approved',
+  REJECTED: 'Application rejected',
+  CHANGES_REQUESTED: 'Document changes requested'
+} satisfies Record<AdminOrganizerReviewDecision['decision'], string>;
 
 function Field({ label, children }: { label: string; children?: ReactNode }) {
   return (
@@ -122,10 +129,19 @@ export function ApplicationDetailsView({
     );
   }
   const application = query.data;
+  const reviewHistory = application.reviewHistory ?? [];
+  const documentsById = new Map(application.documents.map((document) => [document.id, document]));
   return (
     <div className='grid min-w-0 gap-5 lg:grid-cols-2 [&>section]:rounded-2xl [&>section]:p-5 [&>section]:shadow-sm sm:[&>section]:p-6'>
       <div className='flex flex-wrap items-center justify-between gap-3 lg:col-span-2'>
         {back}
+        {application.status === 'APPROVED' && (
+          <Button asChild variant='outline' className='ml-auto'>
+            <Link to='/dashboard/admin/organizer-partners' search={{ organizerId: String(application.applicant.id) }}>
+              <Building2 className='size-4' /> Xem đối tác
+            </Link>
+          </Button>
+        )}
         <Button
           variant='outline'
           className='rounded-xl text-xs shadow-none'
@@ -243,12 +259,23 @@ export function ApplicationDetailsView({
                 <TableHead>File actions</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
-              {application.documents.map((document) => (
+            {Array.from(new Set(application.documents.map((document) => document.documentType))).map((groupType) => {
+              const group = application.documents.filter((document) => document.documentType === groupType);
+              const label = groupType === 'WORKSPACE_OVERVIEW' && businessTypes.language === 'vi'
+                ? 'Hồ sơ giới thiệu workspace' : DOCUMENT_LABELS[groupType] ?? groupType;
+              return <TableBody key={groupType}>
+              <TableRow className='bg-muted/20'>
+                <TableCell colSpan={8} className='font-semibold'>
+                  {label} · {group.filter((document) => document.current).length} {businessTypes.language === 'vi' ? 'tệp hiện hành' : 'current files'}
+                </TableCell>
+              </TableRow>
+              {group.map((document) => (
                 <TableRow key={document.id}>
                   <TableCell>#{document.id}</TableCell>
                   <TableCell>
-                    {DOCUMENT_LABELS[document.documentType] ?? document.documentType}
+                    {document.documentType === 'WORKSPACE_OVERVIEW'
+                      ? businessTypes.language === 'vi' ? 'Hồ sơ giới thiệu workspace' : 'Workspace overview'
+                      : (DOCUMENT_LABELS[document.documentType] ?? document.documentType)}
                   </TableCell>
                   <TableCell className='max-w-64 whitespace-normal break-words [overflow-wrap:anywhere]'>
                     {document.fileName}
@@ -280,7 +307,8 @@ export function ApplicationDetailsView({
                   </TableCell>
                 </TableRow>
               ))}
-            </TableBody>
+              </TableBody>;
+            })}
           </Table>
         )}
       </section>
@@ -299,6 +327,7 @@ export function ApplicationDetailsView({
             'No registration reason was recorded for this application.'}
         </p>
       </section>
+      {(reviewHistory.length > 0 || application.reviewedAt || application.reviewFeedback?.trim()) && (
       <section
         aria-labelledby='review-heading'
         className='min-w-0 space-y-4 rounded-lg border bg-card p-4'
@@ -307,19 +336,50 @@ export function ApplicationDetailsView({
           id='review-heading'
           className='flex items-center gap-2 border-b pb-4 text-sm font-semibold'
         >
-          <Clock3 className='size-4 text-primary' aria-hidden='true' /> Current review outcome
+          <Clock3 className='size-4 text-primary' aria-hidden='true' /> Review history
         </h2>
-        <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
-          <Field label='Reviewed at'>
-            {application.reviewedAt
-              ? applicationTimestamp(application.reviewedAt)
-              : 'No review date recorded.'}
-          </Field>
-          <Field label='Review feedback'>
-            {application.reviewFeedback?.trim() || 'No review feedback recorded.'}
-          </Field>
-        </dl>
+        {reviewHistory.length > 0 ? (
+          <ol className='space-y-3'>
+            {reviewHistory.map((review) => (
+              <li key={review.id} className='min-w-0 space-y-2 rounded-xl border bg-background/60 p-3'>
+                <div className='flex flex-wrap items-center justify-between gap-2'>
+                  <Badge variant={review.decision === 'REJECTED' ? 'destructive' : 'secondary'}>
+                    {reviewDecisions[review.decision]}
+                  </Badge>
+                  <time className='text-xs text-muted-foreground' dateTime={review.reviewedAt}>
+                    {applicationTimestamp(review.reviewedAt)}
+                  </time>
+                </div>
+                {review.reviewerName && <p className='text-xs text-muted-foreground'>Reviewed by {review.reviewerName}</p>}
+                {review.feedback?.trim() && (
+                  <p className='whitespace-pre-wrap break-words text-sm [overflow-wrap:anywhere]'>{review.feedback}</p>
+                )}
+                {review.documentFeedback.length > 0 && (
+                  <ul className='space-y-2 border-t pt-2'>
+                    {review.documentFeedback.map(({ documentId, feedback }) => {
+                      const document = documentsById.get(documentId);
+                      return (
+                        <li key={documentId} className='min-w-0 text-xs [overflow-wrap:anywhere]'>
+                          <p className='font-medium'>
+                            {document ? `${DOCUMENT_LABELS[document.documentType] ?? document.documentType} · ${document.fileName}` : `Document #${documentId}`}
+                          </p>
+                          <p className='mt-1 whitespace-pre-wrap text-muted-foreground'>{feedback}</p>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <dl className='grid min-w-0 gap-4 sm:grid-cols-2'>
+            {application.reviewedAt && <Field label='Reviewed at'>{applicationTimestamp(application.reviewedAt)}</Field>}
+            {application.reviewFeedback?.trim() && <Field label='Review feedback'>{application.reviewFeedback}</Field>}
+          </dl>
+        )}
       </section>
+      )}
     </div>
   );
 }

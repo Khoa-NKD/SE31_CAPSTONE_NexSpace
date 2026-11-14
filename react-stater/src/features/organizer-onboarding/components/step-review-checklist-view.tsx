@@ -63,7 +63,7 @@ export function StepReviewChecklistView() {
 
   // Validation audits for Steps 1–5
   const isBasicInfoValid =
-    Boolean(basicInfo.name && basicInfo.category && basicInfo.totalArea > 0 && basicInfo.contactEmail);
+    Boolean(basicInfo.name && basicInfo.category && basicInfo.contactEmail);
   const isLocationValid =
     Boolean(
       location.streetAddress &&
@@ -271,7 +271,7 @@ export function StepReviewChecklistView() {
             <div>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Category</span>
               <span className='font-medium text-foreground mt-0.5 block capitalize'>
-                {basicInfo.category.replace('_', ' ')} • {basicInfo.totalArea} m² Usable Area
+                {basicInfo.category.replace('_', ' ')}
               </span>
             </div>
             <div className='sm:col-span-2'>
