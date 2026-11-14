@@ -76,23 +76,23 @@ export function MaintenanceDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-lg'>
-        <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'>
-            <Wrench className='w-5 h-5 text-amber-600 dark:text-amber-400' />
-            <span>Báo hỏng / Lập lịch bảo trì: {asset?.name} ({asset?.assetCode})</span>
+      <DialogContent className='max-w-lg overflow-hidden'>
+        <DialogHeader className='min-w-0 overflow-hidden pr-6'>
+          <DialogTitle className='flex items-center gap-2 min-w-0'>
+            <Wrench className='w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0' />
+            <span className='truncate'>Báo hỏng / Lập lịch bảo trì: {asset?.name} ({asset?.assetCode})</span>
           </DialogTitle>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className='space-y-4 pt-2'>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <div className='space-y-1.5'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
+            <div className='space-y-1.5 min-w-0'>
               <Label htmlFor='maintenanceType' className='text-xs font-semibold'>
                 Loại công việc <span className='text-rose-500'>*</span>
               </Label>
               <Select value={maintenanceType} onValueChange={(val: MaintenanceType) => setMaintenanceType(val)}>
-                <SelectTrigger id='maintenanceType'>
-                  <SelectValue />
+                <SelectTrigger id='maintenanceType' className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
+                  <SelectValue placeholder='Chọn loại công việc' />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value='REPAIR'>Sửa chữa sự cố (Repair)</SelectItem>
@@ -103,16 +103,16 @@ export function MaintenanceDialog({
               </Select>
             </div>
 
-            <div className='space-y-1.5'>
+            <div className='space-y-1.5 min-w-0'>
               <Label htmlFor='logStatus' className='text-xs font-semibold'>
                 Trạng thái xử lý
               </Label>
               <Select value={status} onValueChange={(val: MaintenanceStatus) => setStatus(val)}>
-                <SelectTrigger id='logStatus'>
-                  <SelectValue />
+                <SelectTrigger id='logStatus' className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
+                  <SelectValue placeholder='Chọn trạng thái' />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='IN_PROGRESS'>Đang xử lý (Chuyển thiết bị sang bảo trì)</SelectItem>
+                  <SelectItem value='IN_PROGRESS'>Đang xử lý (Chuyển sang bảo trì)</SelectItem>
                   <SelectItem value='SCHEDULED'>Đã lên lịch (Chưa bắt đầu sửa)</SelectItem>
                   <SelectItem value='COMPLETED'>Đã hoàn thành ngay</SelectItem>
                 </SelectContent>
@@ -134,20 +134,21 @@ export function MaintenanceDialog({
             />
           </div>
 
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-            <div className='space-y-1.5'>
+          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
+            <div className='space-y-1.5 min-w-0'>
               <Label htmlFor='performedBy' className='text-xs font-semibold'>
                 Kỹ thuật viên / Đơn vị thực hiện
               </Label>
               <Input
                 id='performedBy'
+                className='w-full min-w-0'
                 placeholder='VD: Trung tâm kỹ thuật Sony VN...'
                 value={performedBy}
                 onChange={(e) => setPerformedBy(e.target.value)}
               />
             </div>
 
-            <div className='space-y-1.5'>
+            <div className='space-y-1.5 min-w-0'>
               <Label htmlFor='cost' className='text-xs font-semibold'>
                 Chi phí ước tính / thực tế (VNĐ)
               </Label>
@@ -155,6 +156,7 @@ export function MaintenanceDialog({
                 id='cost'
                 type='number'
                 min={0}
+                className='w-full min-w-0'
                 placeholder='VD: 850000'
                 value={cost}
                 onChange={(e) => setCost(e.target.value)}
