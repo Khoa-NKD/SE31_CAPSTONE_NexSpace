@@ -191,6 +191,22 @@ class BookingServiceTest {
     }
 
     @Test
+    void rejectsDirectBookingOfAnActiveSeatInsideARoom() {
+        mockResource.setParentRoom(new BookableResourceModel());
+        var request = CreateBookingRequestDto.builder()
+                .workspaceId(mockWorkspace.getId())
+                .resourceId(mockResource.getId())
+                .build();
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
+        when(resourceRepository.findByIdForUpdate(mockResource.getId())).thenReturn(Optional.of(mockResource));
+
+        assertThatThrownBy(() -> bookingService.createBooking(mockCustomer.getId(), request))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("đặt nguyên phòng");
+    }
+
+    @Test
     @DisplayName("Tạo đơn đặt chỗ thành công với chế độ INSTANT (Giữ chỗ 15 phút, PENDING_PAYMENT)")
     void testCreateBooking_Success_Instant() {
         CreateBookingRequestDto dto = CreateBookingRequestDto.builder()

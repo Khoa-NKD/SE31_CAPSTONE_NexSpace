@@ -99,14 +99,10 @@ public class PublicFloorMapService {
                                                                     && r.getHeight() != null)
                                             .map(
                                                     r -> {
-                                                        boolean isRoom = r.getResourceType() != null
-                                                                && r.getResourceType().getCategory() == ResourceCategory.ROOM;
                                                         boolean selectable = !profile.isSuspended() && r.getStatus() == BookableResourceStatus.ACTIVE
                                                                 && r.getResourceType() != null
                                                                 && r.getResourceType().isActive()
-                                                                && (isRoom || !activeParents.contains(r.getId()))
-                                                                && (r.getParentRoom() == null
-                                                                        || r.getParentRoom().getStatus() != BookableResourceStatus.ACTIVE);
+                                                                && r.getParentRoom() == null;
 
                                                         Integer capacity = r.getCapacityOverride() != null
                                                                 ? r.getCapacityOverride()

@@ -128,6 +128,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         // 3. Acquire Pessimistic Write Lock on Bookable Resource
         BookableResourceModel resource = resourceRepository.findByIdForUpdate(dto.getResourceId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy chỗ ngồi/phòng với ID: " + dto.getResourceId()));
+        requireIndividuallyBookable(resource);
 
         if (resource.getStatus() != BookableResourceStatus.ACTIVE) {
             throw new BadRequestException("Chỗ ngồi/phòng hiện không ở trạng thái hoạt động");
@@ -244,11 +245,18 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         BookableResourceModel resource = resourceRepository.findById(dto.getResourceId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy chỗ ngồi/phòng với ID: " + dto.getResourceId()));
+        requireIndividuallyBookable(resource);
 
         validateTimeRange(dto.getStartTime(), dto.getEndTime());
         validateOperatingHours(workspace.getId(), dto.getStartTime(), dto.getEndTime());
 
         return computePrice(workspace, resource, dto.getStartTime(), dto.getEndTime(), dto.getPriceType());
+    }
+
+    private void requireIndividuallyBookable(BookableResourceModel resource) {
+        if (resource.getParentRoom() != null) {
+            throw new BadRequestException("Ghế này thuộc phòng. Vui lòng đặt nguyên phòng.");
+        }
     }
 
     @Override
@@ -458,7 +466,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         List<ResourceAvailabilityDto> results = new ArrayList<>();
         for (BookableResourceModel res : resources) {
-            if (!workspaceId.equals(res.getFloorPlan().getWorkspace().getId())) continue;
+            if (!workspaceId.equals(res.getFloorPlan().getWorkspace().getId())
+                    || res.getParentRoom() != null) continue;
             Set<AvailabilityState> flags = occupancyMap.getOrDefault(res.getId(), Collections.emptySet());
 
             AvailabilityState state = AvailabilityState.AVAILABLE;
