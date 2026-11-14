@@ -22,6 +22,16 @@ interface LockUserDialogProps {
   onSuccess?: () => void;
 }
 
+function getMinDateTimeLocal(): string {
+  const d = new Date(Date.now() + 60000);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const hours = String(d.getHours()).padStart(2, '0');
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function LockUserDialog({
   user,
   open,
@@ -136,6 +146,14 @@ export function LockUserDialog({
                 <span>{errorMessage}</span>
               </div>
             )}
+
+            <div className='p-2.5 rounded-lg bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-200 flex items-start gap-2 text-[11px]'>
+              <AlertTriangle className='size-4 text-blue-600 shrink-0 mt-0.5' />
+              <div className='space-y-0.5'>
+                <p>• Tự động gửi email thông báo kèm lý do đến <strong>{user.email}</strong>.</p>
+                <p>• Đăng xuất ngay lập tức tài khoản trên tất cả thiết bị.</p>
+              </div>
+            </div>
 
             {/* Lý do khóa (Bắt buộc) */}
             <div className='space-y-1.5'>
@@ -263,11 +281,11 @@ export function LockUserDialog({
                         if (errorMessage) setErrorMessage(null);
                       }}
                       className='w-full text-xs font-mono px-3 py-1.5 rounded-md border border-border bg-background text-foreground shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-primary'
-                      min={new Date().toISOString().slice(0, 16)}
+                      min={getMinDateTimeLocal()}
                       required={durationMode === 'temporary'}
                     />
                     <p className='text-[10px] text-muted-foreground'>
-                      Hệ thống sẽ tự động mở khóa tài khoản sau thời điểm này (Múi giờ GMT+7).
+                      Mốc thời gian mở khóa được máy chủ (Server) kiểm soát theo chuẩn Giờ Việt Nam (GMT+7 / UTC+7). Khách hàng không thể thay đổi ngày giờ máy tính để mở khóa trước hạn.
                     </p>
                   </div>
                 </div>

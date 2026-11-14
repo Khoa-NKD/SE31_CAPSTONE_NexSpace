@@ -112,7 +112,7 @@ export function UnlockUserDialog({
               <div>
                 <p className='font-semibold'>Quy chuẩn nghiệp vụ mở khóa:</p>
                 <p className='text-[11px] text-muted-foreground dark:text-emerald-400/80 mt-0.5'>
-                  Khi mở khóa tài khoản, lý do là <strong>không bắt buộc</strong>. Toàn bộ bộ đếm đăng nhập sai và thời gian phạt trước đó sẽ được tự động làm mới.
+                  Khi mở khóa tài khoản, lý do là <strong>không bắt buộc</strong>. Toàn bộ bộ đếm đăng nhập sai và thời gian phạt trước đó sẽ được tự động làm mới. Hệ thống sẽ tự động gửi email thông báo mở khóa đến <strong>{user.email}</strong>.
                 </p>
               </div>
             </div>
