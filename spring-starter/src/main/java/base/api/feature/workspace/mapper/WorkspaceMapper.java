@@ -41,14 +41,25 @@ public final class WorkspaceMapper {
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace) {
-        return toDto(workspace, null, 0L);
+        return toDto(workspace, null, 0L, null, null, 0L, null);
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace, Double distanceKm) {
-        return toDto(workspace, distanceKm, 0L);
+        return toDto(workspace, distanceKm, 0L, null, null, 0L, null);
     }
 
     public static WorkspaceDto toDto(WorkspaceModel workspace, Double distanceKm, Long bookingCount) {
+        return toDto(workspace, distanceKm, bookingCount, null, null, 0L, null);
+    }
+
+    public static WorkspaceDto toDto(
+            WorkspaceModel workspace,
+            Double distanceKm,
+            Long bookingCount,
+            java.math.BigDecimal pricePerHour,
+            Double rating,
+            Long reviewsCount,
+            String coverImageUrl) {
         if (workspace == null) {
             return null;
         }
@@ -139,6 +150,10 @@ public final class WorkspaceMapper {
                 .organizerName(organizerName)
                 .bookingCount(safeBookingCount)
                 .totalBookings(safeBookingCount)
+                .pricePerHour(pricePerHour)
+                .rating(rating)
+                .reviewsCount(reviewsCount)
+                .coverImageUrl(coverImageUrl)
                 .createdAt(workspace.getCreatedAt())
                 .updatedAt(workspace.getUpdatedAt())
                 .build();

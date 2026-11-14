@@ -60,4 +60,33 @@ public interface IBookableResourceRepository
             @org.springframework.data.repository.query.Param("id") Long id);
 
     boolean existsByFloorPlanIdAndLabelIgnoreCaseAndIdNot(Long floorPlanId, String label, Long id);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r.floorPlan.workspace.id, MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
+            FROM BookableResourceModel r
+            WHERE r.floorPlan.workspace.id IN :workspaceIds
+              AND r.status = :status
+            GROUP BY r.floorPlan.workspace.id
+            """)
+    List<Object[]> findMinPricePerHourByWorkspaceIds(
+            @org.springframework.data.repository.query.Param("workspaceIds") List<Long> workspaceIds,
+            @org.springframework.data.repository.query.Param("status") BookableResourceStatus status);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r FROM BookableResourceModel r
+            JOIN FETCH r.resourceType rt
+            JOIN FETCH r.floorPlan fp
+            LEFT JOIN FETCH r.parentRoom pr
+            WHERE fp.workspace.id = :workspaceId
+              AND (:floorPlanId IS NULL OR fp.id = :floorPlanId)
+              AND rt.category = :category
+              AND r.status <> :excludedStatus
+            ORDER BY r.label ASC
+            """)
+    List<BookableResourceModel> findDeskResourcesForAvailability(
+            @org.springframework.data.repository.query.Param("workspaceId") Long workspaceId,
+            @org.springframework.data.repository.query.Param("floorPlanId") Long floorPlanId,
+            @org.springframework.data.repository.query.Param("category") base.api.shared.enums.ResourceCategory category,
+            @org.springframework.data.repository.query.Param("excludedStatus") BookableResourceStatus excludedStatus
+    );
 }

@@ -25,4 +25,13 @@ public interface IMediaRepository extends JpaRepository<MediaModel, Long> {
     int countByWorkspaceId(Long workspaceId);
 
     void deleteByWorkspaceId(Long workspaceId);
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT m.workspace.id, m.url
+            FROM MediaModel m
+            WHERE m.workspace.id IN :workspaceIds
+              AND m.resource IS NULL
+            ORDER BY m.cover DESC, m.displayOrder ASC
+            """)
+    List<Object[]> findCoverUrlsByWorkspaceIds(@org.springframework.data.repository.query.Param("workspaceIds") List<Long> workspaceIds);
 }

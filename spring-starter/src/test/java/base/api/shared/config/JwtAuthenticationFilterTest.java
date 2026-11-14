@@ -136,6 +136,30 @@ class JwtAuthenticationFilterTest {
         verify(filterChain, never()).doFilter(request, response);
         assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
     }
+
+    @Test
+    @DisplayName("doFilterInternal: Protected endpoint với token bị thu hồi toàn bộ (do đổi role) sẽ trả về 401 Unauthorized")
+    void doFilterInternal_ProtectedEndpoint_RoleChangedOrUserTokenRevoked_Returns401() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/admin/users");
+        request.addHeader("Authorization", "Bearer role.changed.token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        when(jwtUtil.extractUserId("role.changed.token")).thenReturn(10L);
+        when(tokenRevocationService.isRevoked("role.changed.token")).thenReturn(false);
+
+        AuthUser authUser = mock(AuthUser.class);
+        when(authUser.isEnabled()).thenReturn(true);
+        when(authUser.getRole()).thenReturn("ORGANIZER");
+        when(userDetailsService.loadUserById(10L)).thenReturn(authUser);
+
+        when(tokenRevocationService.isUserTokenRevoked(eq(10L), any(), any(), eq("ORGANIZER"))).thenReturn(true);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain, never()).doFilter(request, response);
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_UNAUTHORIZED);
+        assertThat(response.getContentAsString()).contains("Vai trò tài khoản đã thay đổi hoặc phiên làm việc đã bị thu hồi");
+    }
 }
 
 

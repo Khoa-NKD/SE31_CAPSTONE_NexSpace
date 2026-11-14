@@ -8,6 +8,7 @@ import base.api.feature.auth.mapper.UserMapper;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.auth.repository.IUserSessionRepository;
+import base.api.feature.auth.service.ITokenRevocationService;
 import base.api.feature.auth.service.IUserService;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.workspace.dto.response.MediaUploadResponseDto;
@@ -56,6 +57,7 @@ public class UserServiceImpl implements IUserService {
     private final IAuditService auditService;
     private final IMediaStorageService mediaStorageService;
     private final IRoleRepository roleRepository;
+    private final ITokenRevocationService tokenRevocationService;
 
     @Override
     @Transactional(readOnly = true)
@@ -290,6 +292,9 @@ public class UserServiceImpl implements IUserService {
         user.setPassword(passwordEncoder.encode(dto.getNewPassword()));
         user.setFailedLoginCount(0);
         user.setLockedUntil(null);
+        userRepository.saveAndFlush(user);
+        tokenRevocationService.revokeAllUserTokens(userId);
+        revokeActiveSessions(userId);
     }
 
     @Override
@@ -311,6 +316,7 @@ public class UserServiceImpl implements IUserService {
         user.setLockedUntil(null);
         UserModel saved = userRepository.saveAndFlush(user);
 
+        tokenRevocationService.revokeAllUserTokens(userId);
         revokeActiveSessions(userId);
 
         String reason = (dto.getReason() != null && !dto.getReason().isBlank())
@@ -418,14 +424,17 @@ public class UserServiceImpl implements IUserService {
             }
         } else if (status == UserStatus.LOCKED) {
             target.setLockedUntil(lockedUntil);
+            tokenRevocationService.revokeAllUserTokens(targetUserId);
             revokeActiveSessions(targetUserId);
         } else if (status == UserStatus.INACTIVE) {
             // Đánh dấu cần xác thực lại email trước khi đăng nhập
             target.setVerified(false);
             target.setLockedUntil(null);
+            tokenRevocationService.revokeAllUserTokens(targetUserId);
             revokeActiveSessions(targetUserId);
         } else if (status == UserStatus.DELETED) {
             target.setLockedUntil(null);
+            tokenRevocationService.revokeAllUserTokens(targetUserId);
             revokeActiveSessions(targetUserId);
         }
 
@@ -483,6 +492,7 @@ public class UserServiceImpl implements IUserService {
         target.setRoleEntity(roleEntity);
         UserModel saved = userRepository.saveAndFlush(target);
 
+        tokenRevocationService.revokeAllUserTokens(targetUserId);
         revokeActiveSessions(targetUserId);
 
         auditService.log(

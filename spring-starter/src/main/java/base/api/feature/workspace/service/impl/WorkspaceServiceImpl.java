@@ -2,16 +2,21 @@ package base.api.feature.workspace.service.impl;
 
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
+import base.api.feature.resource.repository.IBookableResourceRepository;
+import base.api.feature.review.repository.ICustomerReviewRepository;
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto;
+import base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
+import base.api.feature.workspace.repository.IMediaRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.feature.workspace.repository.WorkspaceDistanceProjection;
@@ -20,12 +25,17 @@ import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.entity.workspace.WorkspaceOperatingHourModel;
+import base.api.shared.enums.BookableResourceStatus;
+import base.api.shared.enums.ResourceCategory;
+import base.api.shared.enums.ReviewStatus;
 import base.api.shared.enums.UserStatus;
+import base.api.shared.enums.WorkspaceCategory;
 import base.api.shared.enums.WorkspaceStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -47,7 +57,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 @Service
-@RequiredArgsConstructor
 @Transactional
 public class WorkspaceServiceImpl implements IWorkspaceService {
 
@@ -60,6 +69,38 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IBookingRepository bookingRepository;
     private final base.api.feature.resource.service.BuildingService buildings;
+    private final ICustomerReviewRepository customerReviewRepository;
+    private final IBookableResourceRepository bookableResourceRepository;
+    private final IMediaRepository mediaRepository;
+
+    public WorkspaceServiceImpl(
+            IWorkspaceRepository workspaceRepository,
+            IUserRepository userRepository,
+            IWorkspaceOperatingHourRepository operatingHourRepository,
+            IBookingRepository bookingRepository,
+            base.api.feature.resource.service.BuildingService buildings) {
+        this(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, buildings, null, null, null);
+    }
+
+    @Autowired
+    public WorkspaceServiceImpl(
+            IWorkspaceRepository workspaceRepository,
+            IUserRepository userRepository,
+            IWorkspaceOperatingHourRepository operatingHourRepository,
+            IBookingRepository bookingRepository,
+            base.api.feature.resource.service.BuildingService buildings,
+            ICustomerReviewRepository customerReviewRepository,
+            IBookableResourceRepository bookableResourceRepository,
+            IMediaRepository mediaRepository) {
+        this.workspaceRepository = workspaceRepository;
+        this.userRepository = userRepository;
+        this.operatingHourRepository = operatingHourRepository;
+        this.bookingRepository = bookingRepository;
+        this.buildings = buildings;
+        this.customerReviewRepository = customerReviewRepository;
+        this.bookableResourceRepository = bookableResourceRepository;
+        this.mediaRepository = mediaRepository;
+    }
 
     @Override
     public WorkspaceDetailDto createWorkspace(Long organizerId, CreateWorkspaceDto dto) {
@@ -249,14 +290,116 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest) {
-        Pageable pageable = pageRequest != null
-                ? pageRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
-                : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
-        String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
+    public Page<WorkspaceDto> getPublicWorkspaces(PublicWorkspaceFilterRequestDto filterRequest) {
+        String search = filterRequest != null ? filterRequest.normalizedSearch() : null;
+        String sortBy = filterRequest != null && filterRequest.getSortBy() != null ? filterRequest.getSortBy().trim() : null;
+        String sortDir = filterRequest != null && filterRequest.getSortDir() != null ? filterRequest.getSortDir().trim() : "desc";
+        int pageNumber = filterRequest != null && filterRequest.getPage() > 0 ? filterRequest.getPage() - 1 : 0;
+        int pageSize = filterRequest != null ? filterRequest.getSize() : 20;
 
-        Page<WorkspaceModel> page = workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
-        return page.map(WorkspaceMapper::toDto);
+        String city = filterRequest != null && filterRequest.getCity() != null && !filterRequest.getCity().isBlank() ? filterRequest.getCity().trim() : null;
+        String district = filterRequest != null && filterRequest.getDistrict() != null && !filterRequest.getDistrict().isBlank() ? filterRequest.getDistrict().trim() : null;
+        WorkspaceCategory category = filterRequest != null ? filterRequest.getCategory() : null;
+        java.math.BigDecimal minPrice = filterRequest != null ? filterRequest.getMinPrice() : null;
+        java.math.BigDecimal maxPrice = filterRequest != null ? filterRequest.getMaxPrice() : null;
+        Double minRating = filterRequest != null ? filterRequest.getMinRating() : null;
+
+        List<Long> amenityIds = filterRequest != null && filterRequest.getAmenityIds() != null && !filterRequest.getAmenityIds().isEmpty()
+                ? filterRequest.getAmenityIds()
+                : List.of(-1L);
+        boolean hasAmenityFilter = filterRequest != null && filterRequest.getAmenityIds() != null && !filterRequest.getAmenityIds().isEmpty();
+        Long amenityCount = hasAmenityFilter ? (long) filterRequest.getAmenityIds().size() : 0L;
+
+        List<ResourceCategory> resourceCats = filterRequest != null && filterRequest.getResourceCategories() != null && !filterRequest.getResourceCategories().isEmpty()
+                ? filterRequest.getResourceCategories()
+                : List.of(ResourceCategory.DESK);
+        boolean hasResourceCatFilter = filterRequest != null && filterRequest.getResourceCategories() != null && !filterRequest.getResourceCategories().isEmpty();
+
+        boolean hasFilters = (city != null || district != null || category != null || minPrice != null || maxPrice != null || hasAmenityFilter || hasResourceCatFilter || minRating != null);
+
+        Page<WorkspaceModel> page;
+        if ("pricePerHour".equalsIgnoreCase(sortBy) || "price".equalsIgnoreCase(sortBy)) {
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            if ("asc".equalsIgnoreCase(sortDir)) {
+                page = hasFilters
+                        ? workspaceRepository.filterPublicOrderByPriceAsc(
+                                WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                                hasAmenityFilter, amenityIds, amenityCount,
+                                hasResourceCatFilter, resourceCats, minRating, pageable)
+                        : workspaceRepository.searchPublicOrderByPriceAsc(WorkspaceStatus.ACTIVE, search, pageable);
+            } else {
+                page = hasFilters
+                        ? workspaceRepository.filterPublicOrderByPriceDesc(
+                                WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                                hasAmenityFilter, amenityIds, amenityCount,
+                                hasResourceCatFilter, resourceCats, minRating, pageable)
+                        : workspaceRepository.searchPublicOrderByPriceDesc(WorkspaceStatus.ACTIVE, search, pageable);
+            }
+        } else if ("rating".equalsIgnoreCase(sortBy)) {
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            page = hasFilters
+                    ? workspaceRepository.filterPublicOrderByRatingDesc(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublicOrderByRatingDesc(WorkspaceStatus.ACTIVE, search, pageable);
+        } else if ("popular".equalsIgnoreCase(sortBy) || "totalBookings".equalsIgnoreCase(sortBy) || "bookingCount".equalsIgnoreCase(sortBy)) {
+            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            page = hasFilters
+                    ? workspaceRepository.filterPublicOrderByPopular(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublicOrderByPopular(WorkspaceStatus.ACTIVE, search, pageable);
+        } else {
+            Pageable pageable = filterRequest != null
+                    ? filterRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
+                    : PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+            page = hasFilters
+                    ? workspaceRepository.filterPublic(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
+        }
+
+        List<WorkspaceModel> workspaces = page.getContent();
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(workspaces);
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(workspaces);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(workspaces);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(workspaces);
+
+        return page.map(w -> {
+            Long bCount = bookingCounts.getOrDefault(w.getId(), 0L);
+            RatingSummary rSummary = ratingSummaries.get(w.getId());
+            java.math.BigDecimal price = minPrices.get(w.getId());
+            String coverUrl = coverUrls.get(w.getId());
+            return WorkspaceMapper.toDto(
+                    w,
+                    null,
+                    bCount,
+                    price,
+                    rSummary != null ? rSummary.avgRating() : null,
+                    rSummary != null ? rSummary.reviewCount() : 0L,
+                    coverUrl);
+        });
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest) {
+        if (pageRequest instanceof PublicWorkspaceFilterRequestDto dto) {
+            return getPublicWorkspaces(dto);
+        }
+        PublicWorkspaceFilterRequestDto dto = new PublicWorkspaceFilterRequestDto();
+        if (pageRequest != null) {
+            dto.setPage(pageRequest.getPage());
+            dto.setSize(pageRequest.getSize());
+            dto.setSortBy(pageRequest.getSortBy());
+            dto.setSortDir(pageRequest.getSortDir());
+            dto.setSearch(pageRequest.getSearch());
+        }
+        return getPublicWorkspaces(dto);
     }
 
     @Override
@@ -294,16 +437,138 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         Map<Long, WorkspaceModel> workspaceMap = workspaceRepository.findAllById(ids).stream()
                 .collect(Collectors.toMap(WorkspaceModel::getId, w -> w));
 
+        List<WorkspaceModel> models = workspaceMap.values().stream().filter(Objects::nonNull).toList();
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(models);
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(models);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(models);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(models);
+
         List<WorkspaceDto> dtos = projectionPage.getContent().stream()
                 .map(proj -> {
                     WorkspaceModel model = workspaceMap.get(proj.getId());
                     if (model == null) return null;
-                    return WorkspaceMapper.toDto(model, proj.getDistanceKm());
+                    Long bCount = bookingCounts.getOrDefault(model.getId(), 0L);
+                    RatingSummary rSummary = ratingSummaries.get(model.getId());
+                    java.math.BigDecimal price = minPrices.get(model.getId());
+                    String coverUrl = coverUrls.get(model.getId());
+                    return WorkspaceMapper.toDto(
+                            model,
+                            proj.getDistanceKm(),
+                            bCount,
+                            price,
+                            rSummary != null ? rSummary.avgRating() : null,
+                            rSummary != null ? rSummary.reviewCount() : 0L,
+                            coverUrl);
                 })
                 .filter(Objects::nonNull)
                 .toList();
 
         return new PageImpl<>(dtos, pageable, projectionPage.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WorkspaceSuggestionsResponseDto getSearchSuggestions(String query) {
+        if (query == null || query.trim().length() < 2) {
+            return WorkspaceSuggestionsResponseDto.builder()
+                    .workspaces(Collections.emptyList())
+                    .locations(Collections.emptyList())
+                    .categories(Collections.emptyList())
+                    .build();
+        }
+
+        String cleanQuery = query.trim();
+
+        // 1. Top 5 Matching Workspaces
+        List<WorkspaceModel> workspaces = workspaceRepository.findTopSuggestions(
+                WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, 5));
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(workspaces);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(workspaces);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(workspaces);
+
+        List<WorkspaceSuggestionsResponseDto.WorkspaceItemSuggestion> workspaceSuggestions = workspaces.stream()
+                .map(w -> {
+                    RatingSummary rSummary = ratingSummaries.get(w.getId());
+                    return WorkspaceSuggestionsResponseDto.WorkspaceItemSuggestion.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .address(w.getAddress())
+                            .district(w.getDistrict())
+                            .city(w.getCity())
+                            .category(w.getCategory())
+                            .coverImageUrl(coverUrls.get(w.getId()))
+                            .pricePerHour(minPrices.get(w.getId()))
+                            .rating(rSummary != null ? rSummary.avgRating() : null)
+                            .build();
+                })
+                .toList();
+
+        // 2. Locations (Districts and Cities, max 3)
+        List<WorkspaceSuggestionsResponseDto.LocationSuggestion> locationSuggestions = new ArrayList<>();
+        List<Object[]> districtRows = workspaceRepository.findDistinctDistrictsMatching(
+                WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, 3));
+        for (Object[] row : districtRows) {
+            String district = (String) row[0];
+            String city = row.length > 1 ? (String) row[1] : null;
+            String label = district + (city != null && !city.isBlank() ? ", " + city : "");
+            locationSuggestions.add(WorkspaceSuggestionsResponseDto.LocationSuggestion.builder()
+                    .label(label)
+                    .type("DISTRICT")
+                    .city(city)
+                    .district(district)
+                    .build());
+        }
+
+        if (locationSuggestions.size() < 3) {
+            int remaining = 3 - locationSuggestions.size();
+            List<String> cities = workspaceRepository.findDistinctCitiesMatching(
+                    WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, remaining));
+            for (String city : cities) {
+                boolean exists = locationSuggestions.stream().anyMatch(l -> city.equalsIgnoreCase(l.getCity()) && l.getDistrict() == null);
+                if (!exists) {
+                    locationSuggestions.add(WorkspaceSuggestionsResponseDto.LocationSuggestion.builder()
+                            .label(city)
+                            .type("CITY")
+                            .city(city)
+                            .district(null)
+                            .build());
+                }
+            }
+        }
+
+        // 3. Category Suggestions (Max 3)
+        List<WorkspaceSuggestionsResponseDto.CategorySuggestion> categorySuggestions = new ArrayList<>();
+        String lowerQuery = cleanQuery.toLowerCase();
+        Map<WorkspaceCategory, String[]> categoryMeta = Map.of(
+                WorkspaceCategory.COWORKING_HUB, new String[]{"Coworking Hub", "Không gian làm việc chung, bàn làm việc linh hoạt", "coworking, hub, linh hoat, bàn làm việc"},
+                WorkspaceCategory.BUSINESS_LOUNGE, new String[]{"Business Lounge", "Phòng chờ doanh nhân đẳng cấp, yên tĩnh", "lounge, doanh nhan, yên tĩnh, cafe"},
+                WorkspaceCategory.CREATIVE_STUDIO, new String[]{"Creative Studio", "Studio sáng tạo, podcast booth, chụp ảnh", "studio, sang tao, podcast, media, quay phim"},
+                WorkspaceCategory.SERVICED_OFFICE, new String[]{"Serviced Office", "Văn phòng dịch vụ trọn gói riêng tư", "office, van phong, tron goi, phong rieng"}
+        );
+
+        for (Map.Entry<WorkspaceCategory, String[]> entry : categoryMeta.entrySet()) {
+            WorkspaceCategory cat = entry.getKey();
+            String[] meta = entry.getValue();
+            String name = cat.name().toLowerCase();
+            String label = meta[0];
+            String desc = meta[1];
+            String keywords = meta[2];
+
+            if (name.contains(lowerQuery) || label.toLowerCase().contains(lowerQuery) || desc.toLowerCase().contains(lowerQuery) || keywords.contains(lowerQuery)) {
+                categorySuggestions.add(WorkspaceSuggestionsResponseDto.CategorySuggestion.builder()
+                        .category(cat)
+                        .label(label)
+                        .description(desc)
+                        .build());
+                if (categorySuggestions.size() >= 3) break;
+            }
+        }
+
+        return WorkspaceSuggestionsResponseDto.builder()
+                .workspaces(workspaceSuggestions)
+                .locations(locationSuggestions)
+                .categories(categorySuggestions)
+                .build();
     }
 
     @Override
@@ -536,9 +801,102 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     public List<WorkspaceDto> getFeaturedWorkspaces() {
         List<WorkspaceModel> featured = workspaceRepository.findFeaturedWorkspaces(WorkspaceStatus.ACTIVE);
         Map<Long, Long> bookingCounts = getBookingCountsForPage(featured);
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(featured);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(featured);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(featured);
+
         return featured.stream()
-                .map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)))
+                .map(w -> {
+                    Long bCount = bookingCounts.getOrDefault(w.getId(), 0L);
+                    RatingSummary rSummary = ratingSummaries.get(w.getId());
+                    java.math.BigDecimal price = minPrices.get(w.getId());
+                    String coverUrl = coverUrls.get(w.getId());
+                    return WorkspaceMapper.toDto(
+                            w,
+                            null,
+                            bCount,
+                            price,
+                            rSummary != null ? rSummary.avgRating() : null,
+                            rSummary != null ? rSummary.reviewCount() : 0L,
+                            coverUrl);
+                })
                 .toList();
+    }
+
+    private record RatingSummary(Double avgRating, Long reviewCount) {}
+
+    private Map<Long, RatingSummary> getRatingsForPage(Collection<WorkspaceModel> workspaces) {
+        if (customerReviewRepository == null || workspaces == null || workspaces.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = workspaces.stream()
+                .map(WorkspaceModel::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = customerReviewRepository.findRatingSummariesByWorkspaceIds(ids, ReviewStatus.PUBLISHED);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, RatingSummary> map = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 3 && row[0] instanceof Number wsId) {
+                Double avg = row[1] instanceof Number n ? n.doubleValue() : null;
+                Long cnt = row[2] instanceof Number n ? n.longValue() : 0L;
+                map.put(wsId.longValue(), new RatingSummary(avg, cnt));
+            }
+        }
+        return map;
+    }
+
+    private Map<Long, java.math.BigDecimal> getStartingPricesForPage(Collection<WorkspaceModel> workspaces) {
+        if (bookableResourceRepository == null || workspaces == null || workspaces.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = workspaces.stream()
+                .map(WorkspaceModel::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = bookableResourceRepository.findMinPricePerHourByWorkspaceIds(ids, BookableResourceStatus.ACTIVE);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, java.math.BigDecimal> map = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number wsId && row[1] instanceof java.math.BigDecimal price) {
+                map.put(wsId.longValue(), price);
+            }
+        }
+        return map;
+    }
+
+    private Map<Long, String> getCoverUrlsForPage(Collection<WorkspaceModel> workspaces) {
+        if (mediaRepository == null || workspaces == null || workspaces.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Long> ids = workspaces.stream()
+                .map(WorkspaceModel::getId)
+                .filter(Objects::nonNull)
+                .toList();
+        if (ids.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        List<Object[]> rows = mediaRepository.findCoverUrlsByWorkspaceIds(ids);
+        if (rows == null || rows.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        Map<Long, String> map = new HashMap<>();
+        for (Object[] row : rows) {
+            if (row != null && row.length >= 2 && row[0] instanceof Number wsId && row[1] instanceof String url) {
+                map.putIfAbsent(wsId.longValue(), url);
+            }
+        }
+        return map;
     }
 
     private Map<Long, Long> getBookingCountsForPage(Collection<WorkspaceModel> workspaces) {

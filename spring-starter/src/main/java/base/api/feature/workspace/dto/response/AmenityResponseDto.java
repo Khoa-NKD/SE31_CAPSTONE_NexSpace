@@ -30,6 +30,12 @@ public class AmenityResponseDto {
     @Schema(description = "Trạng thái kích hoạt", example = "true")
     boolean active;
 
+    @Schema(description = "ID đối tác sở hữu (null nếu là tiện ích hệ thống)", example = "10")
+    Long organizerId;
+
+    @Schema(description = "Đánh dấu tiện ích riêng do đối tác tạo", example = "true")
+    boolean custom;
+
     @Schema(description = "Thời gian tạo")
     LocalDateTime createdAt;
 

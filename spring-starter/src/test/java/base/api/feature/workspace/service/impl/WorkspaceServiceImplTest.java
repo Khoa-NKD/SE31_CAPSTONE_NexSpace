@@ -3,6 +3,7 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
@@ -36,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -408,5 +410,153 @@ class WorkspaceServiceImplTest {
         assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(day1, day2)))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Trùng lặp cấu hình cho thứ 3");
+    }
+
+    @Test
+    @DisplayName("Tìm kiếm công khai theo từ khóa tìm trong tên, địa chỉ và mô tả")
+    void getPublicWorkspaces_withSearch() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSearch("Sài Gòn");
+        pageRequest.setPage(1);
+        pageRequest.setSize(10);
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublic(eq(WorkspaceStatus.ACTIVE), eq("Sài Gòn"), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        assertThat(result.getContent().get(0).getId()).isEqualTo(100L);
+        verify(workspaceRepository).searchPublic(eq(WorkspaceStatus.ACTIVE), eq("Sài Gòn"), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo giá thấp nhất (pricePerHour asc)")
+    void getPublicWorkspaces_sortByPriceAsc() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("pricePerHour");
+        pageRequest.setSortDir("asc");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByPriceAsc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByPriceAsc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo đánh giá cao nhất (rating desc)")
+    void getPublicWorkspaces_sortByRating() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("rating");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByRatingDesc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByRatingDesc(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Sắp xếp công khai theo độ phổ biến (popular desc)")
+    void getPublicWorkspaces_sortByPopular() {
+        PageRequestDTO pageRequest = new PageRequestDTO();
+        pageRequest.setSortBy("popular");
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.searchPublicOrderByPopular(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(pageRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).searchPublicOrderByPopular(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Lọc công khai nâng cao theo thành phố, giá, tiện ích và rating")
+    void getPublicWorkspaces_withAdvancedFilters() {
+        PublicWorkspaceFilterRequestDto filterRequest = new PublicWorkspaceFilterRequestDto();
+        filterRequest.setCity("Đà Nẵng");
+        filterRequest.setMinPrice(BigDecimal.valueOf(25000));
+        filterRequest.setMaxPrice(BigDecimal.valueOf(80000));
+        filterRequest.setAmenityIds(List.of(1L, 2L));
+        filterRequest.setMinRating(4.0);
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.filterPublic(
+                eq(WorkspaceStatus.ACTIVE),
+                isNull(),
+                eq("Đà Nẵng"),
+                isNull(),
+                isNull(),
+                eq(BigDecimal.valueOf(25000)),
+                eq(BigDecimal.valueOf(80000)),
+                eq(true),
+                eq(List.of(1L, 2L)),
+                eq(2L),
+                eq(false),
+                any(),
+                eq(4.0),
+                any(Pageable.class))).thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(filterRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).filterPublic(
+                eq(WorkspaceStatus.ACTIVE),
+                isNull(),
+                eq("Đà Nẵng"),
+                isNull(),
+                isNull(),
+                eq(BigDecimal.valueOf(25000)),
+                eq(BigDecimal.valueOf(80000)),
+                eq(true),
+                eq(List.of(1L, 2L)),
+                eq(2L),
+                eq(false),
+                any(),
+                eq(4.0),
+                any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Gợi ý tìm kiếm nhanh phân nhóm thành công khi query >= 2 ký tự")
+    void getSearchSuggestions_success() {
+        when(workspaceRepository.findTopSuggestions(eq(WorkspaceStatus.ACTIVE), eq("Đà Nẵng"), any(Pageable.class)))
+                .thenReturn(List.of(existingWorkspace));
+        when(workspaceRepository.findDistinctDistrictsMatching(eq(WorkspaceStatus.ACTIVE), eq("Đà Nẵng"), any(Pageable.class)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"Hải Châu", "Đà Nẵng"}));
+
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto result = service.getSearchSuggestions("Đà Nẵng");
+
+        assertThat(result).isNotNull();
+        assertThat(result.getWorkspaces()).hasSize(1);
+        assertThat(result.getWorkspaces().get(0).getId()).isEqualTo(100L);
+        assertThat(result.getLocations()).hasSize(1);
+        assertThat(result.getLocations().get(0).getLabel()).isEqualTo("Hải Châu, Đà Nẵng");
+    }
+
+    @Test
+    @DisplayName("Gợi ý tìm kiếm trả về rỗng khi query < 2 ký tự")
+    void getSearchSuggestions_queryTooShort() {
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto result = service.getSearchSuggestions("a");
+
+        assertThat(result).isNotNull();
+        assertThat(result.getWorkspaces()).isEmpty();
+        assertThat(result.getLocations()).isEmpty();
+        assertThat(result.getCategories()).isEmpty();
     }
 }

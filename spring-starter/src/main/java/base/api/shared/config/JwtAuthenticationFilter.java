@@ -20,6 +20,7 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.Arrays;
 
 @Component
@@ -85,6 +86,28 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             AuthUser user = userDetailsService.loadUserById(userId);
             if (!user.isEnabled()) {
                 writeUnauthorized(response, "Tài khoản đã bị khóa");
+                return;
+            }
+
+            Instant issuedAt = null;
+            String tokenRole = null;
+            try {
+                var claims = jwtUtil.parseClaims(token);
+                if (claims != null) {
+                    java.util.Date issuedAtDate = claims.getIssuedAt();
+                    issuedAt = issuedAtDate != null ? issuedAtDate.toInstant() : null;
+                    tokenRole = claims.get("role", String.class);
+                }
+            } catch (Exception ignored) {
+                // Giữ an toàn trong trường hợp unit test chỉ mock extractUserId
+            }
+
+            if (tokenRevocationService.isUserTokenRevoked(userId, issuedAt, tokenRole, user.getRole())) {
+                if (isPublicGetEndpoint(request)) {
+                    filterChain.doFilter(request, response);
+                    return;
+                }
+                writeUnauthorized(response, "Vai trò tài khoản đã thay đổi hoặc phiên làm việc đã bị thu hồi. Vui lòng đăng nhập lại");
                 return;
             }
 

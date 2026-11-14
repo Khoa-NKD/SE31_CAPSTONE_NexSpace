@@ -1,5 +1,6 @@
 package base.api.feature.workspace.controller;
 
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.service.IWorkspaceService;
@@ -98,7 +99,7 @@ class PublicWorkspaceControllerTest {
                 .build();
         Page<WorkspaceDto> page = new PageImpl<>(List.of(dto));
 
-        when(workspaceService.getPublicWorkspaces(any(PageRequestDTO.class))).thenReturn(page);
+        when(workspaceService.getPublicWorkspaces(any(PublicWorkspaceFilterRequestDto.class))).thenReturn(page);
 
         mockMvc.perform(get("/api/v1/public/workspaces?page=1&size=10")
                         .accept(MediaType.APPLICATION_JSON))
@@ -106,7 +107,7 @@ class PublicWorkspaceControllerTest {
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].name").value("Public Central Hub"));
 
-        verify(workspaceService).getPublicWorkspaces(any(PageRequestDTO.class));
+        verify(workspaceService).getPublicWorkspaces(any(PublicWorkspaceFilterRequestDto.class));
     }
 
     @Test
@@ -144,6 +145,40 @@ class PublicWorkspaceControllerTest {
                 .andExpect(jsonPath("$.message").value("Không tìm thấy không gian làm việc"));
 
         verify(workspaceService).getPublicOperatingHours(999L);
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/public/workspaces/suggestions - Gợi ý tìm kiếm thành công")
+    void getSearchSuggestions_success() throws Exception {
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto suggestions =
+                base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto.builder()
+                        .workspaces(List.of(
+                                base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto.WorkspaceItemSuggestion.builder()
+                                        .id(1L)
+                                        .name("Toong Tràng Thi")
+                                        .build()))
+                        .locations(List.of(
+                                base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto.LocationSuggestion.builder()
+                                        .label("Hoàn Kiếm, Hà Nội")
+                                        .type("DISTRICT")
+                                        .build()))
+                        .categories(List.of(
+                                base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto.CategorySuggestion.builder()
+                                        .label("Coworking Hub")
+                                        .build()))
+                        .build();
+
+        when(workspaceService.getSearchSuggestions("Toong")).thenReturn(suggestions);
+
+        mockMvc.perform(get("/api/v1/public/workspaces/suggestions?query=Toong")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.workspaces[0].name").value("Toong Tràng Thi"))
+                .andExpect(jsonPath("$.data.locations[0].label").value("Hoàn Kiếm, Hà Nội"))
+                .andExpect(jsonPath("$.data.categories[0].label").value("Coworking Hub"));
+
+        verify(workspaceService).getSearchSuggestions("Toong");
     }
 }
 
