@@ -7,9 +7,10 @@ import { InfoSidebar } from '@/components/layout/info-sidebar';
 import { InfobarProvider } from '@/components/ui/infobar';
 import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { checkRouteAccess } from '@/features/auth/utils/role-guard';
+import { checkRouteAccess, getUserRole } from '@/features/auth/utils/role-guard';
 import { toast } from 'sonner';
 import { ShieldAlert, Loader2 } from 'lucide-react';
+import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 
 const emptySubscribe = () => () => {};
 
@@ -72,6 +73,19 @@ function DashboardLayout() {
           </p>
           <Loader2 className='size-5 animate-spin text-muted-foreground mt-2' />
         </div>
+      </div>
+    );
+  }
+
+  // Khách hàng (Customer) không có trang dashboard và không sử dụng thanh sidebar bên trái
+  const role = getUserRole(user);
+  if (role === 'USER') {
+    return (
+      <div className='min-h-screen flex flex-col bg-background'>
+        <WorkspaceHeader />
+        <main id='main-content' className='flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8'>
+          <Outlet />
+        </main>
       </div>
     );
   }

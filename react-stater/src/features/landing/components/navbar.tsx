@@ -33,6 +33,9 @@ export function Navbar() {
   const navItems = [
     { label: language === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
     { label: t('nav.workspaces'), href: '/workspaces' },
+    ...(isAuthenticated && getUserRole(user) === 'USER'
+      ? [{ label: language === 'vi' ? 'Sở thích không gian' : 'Space Preferences', href: '/dashboard/preferences' }]
+      : []),
     { label: t('nav.platform'), href: '#platform' },
     { label: t('nav.reviews'), href: '#reviews' },
     { label: t('nav.resources'), href: '#resources' }

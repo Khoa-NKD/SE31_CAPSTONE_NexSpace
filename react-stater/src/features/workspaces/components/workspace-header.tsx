@@ -43,6 +43,15 @@ export function WorkspaceHeader() {
             >
               Workspaces
             </Link>
+            {isAuthenticated && (
+              <Link
+                to="/dashboard/preferences"
+                className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
+                activeProps={{ className: "border-b-2 border-[#4b41e1] pb-1 font-semibold text-[#4b41e1]" }}
+              >
+                {language === 'vi' ? 'Sở thích không gian' : 'Space Preferences'}
+              </Link>
+            )}
             <Link
               to="/workspaces/my-bookings"
               className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
@@ -50,35 +59,35 @@ export function WorkspaceHeader() {
             >
               {language === 'vi' ? 'Đơn của tôi' : 'My Bookings'}
             </Link>
-            <Link
-              to="/"
-              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
-            >
-              Enterprise
-            </Link>
-            <Link
-              to="/"
-              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
-            >
-              Network
-            </Link>
-            <Link
-              to="/"
-              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
-            >
-              Pricing
-            </Link>
-            <Link
-              to="/"
-              className="text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0"
-            >
-              Solutions
-            </Link>
+
+            {/* Dropdown Solutions gọn gàng, chống tràn layout */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-sm font-medium text-muted-foreground transition-all duration-200 hover:text-foreground active:scale-[0.98] outline-none cursor-pointer"
+                >
+                  <span>{language === 'vi' ? 'Giải pháp' : 'Solutions'}</span>
+                  <ChevronDown className="h-3.5 w-3.5 opacity-70" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-48 p-1.5 shadow-lg">
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/" className="text-xs font-medium">Enterprise</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/" className="text-xs font-medium">Network</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="cursor-pointer">
+                  <Link to="/" className="text-xs font-medium">Pricing</Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </nav>
         </div>
 
-        {/* Trailing Action Cluster */}
-        <div className="flex items-center gap-3">
+        {/* Trailing Action Cluster - shrink-0 ngăn ngừa tuyệt đối việc bị đè */}
+        <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
           {/* Theme Toggle */}
           <ThemeModeToggle />
 
