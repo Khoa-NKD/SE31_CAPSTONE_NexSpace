@@ -7,6 +7,8 @@ export interface AmenityDto {
   icon?: string;
   description?: string;
   active: boolean;
+  organizerId?: number | null;
+  custom?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }

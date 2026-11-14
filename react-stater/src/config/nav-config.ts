@@ -236,6 +236,12 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
+        title: 'Amenities',
+        url: '/dashboard/organizer/amenities',
+        icon: 'sparkles',
+        isActive: false
+      },
+      {
         title: 'Pricing Matrix',
         url: '/dashboard/organizer/pricing',
         icon: 'pricing',

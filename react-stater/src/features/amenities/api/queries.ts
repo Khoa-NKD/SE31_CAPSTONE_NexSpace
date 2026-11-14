@@ -17,6 +17,18 @@ export const amenityQueries = {
       queryFn: () => amenityService.listAmenities(params),
       placeholderData: (prev) => prev
     }),
+  organizerList: (params?: AmenityFilterParams) =>
+    queryOptions({
+      queryKey: [...amenityQueries.lists(), 'organizer', params],
+      queryFn: () => amenityService.listOrganizerAmenities(params),
+      placeholderData: (prev) => prev
+    }),
+  organizerAvailable: () =>
+    queryOptions({
+      queryKey: [...amenityQueries.lists(), 'organizer-available'],
+      queryFn: () => amenityService.getOrganizerAvailableAmenities(),
+      staleTime: 5 * 60 * 1000 // 5 minutes cache
+    }),
   detail: (id: number) =>
     queryOptions({
       queryKey: [...amenityQueries.all, 'detail', id],

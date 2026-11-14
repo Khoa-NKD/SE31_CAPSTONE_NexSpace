@@ -29,7 +29,8 @@ import {
   ArrowRight,
   Save,
   AlertCircle,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -42,7 +43,7 @@ import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { amenitiesSchema } from '../schemas/wizard-schemas';
 import type { AmenityItem } from '../types/wizard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { amenityQueries, amenityService } from '@/features/amenities';
+import { amenityQueries, amenityService, AmenityFormDialog } from '@/features/amenities';
 
 const CATEGORY_METADATA = {
   technology: {
@@ -130,9 +131,10 @@ export function StepAmenitiesView() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [isCustomAmenityOpen, setIsCustomAmenityOpen] = useState(false);
 
-  // Load platform-wide active catalog from Backend (GET /api/amenities)
-  const { data: serverAmenities, isLoading } = useQuery(amenityQueries.available());
+  // Load platform standard + organizer custom active catalog from Backend (GET /api/organizer/amenities/available)
+  const { data: serverAmenities, isLoading } = useQuery(amenityQueries.organizerAvailable());
 
   // Convert raw server amenities to typed items for onboarding catalog
   const activeCatalog: AmenityItem[] = useMemo(() => {
@@ -151,41 +153,26 @@ export function StepAmenitiesView() {
         description: item.description || '',
         category: cat,
         icon: item.icon || 'Sparkles',
-        isCommon: true
+        isCommon: !item.custom,
+        custom: item.custom
       };
     });
   }, [serverAmenities]);
 
-  // Clean up legacy string seed IDs once real numeric catalog is loaded
+  // Clean up legacy non-numeric string IDs if any exist (do NOT auto-select)
   useEffect(() => {
     if (!activeCatalog.length) return;
     const hasLegacyIds = amenities.some((id) => isNaN(Number(id)));
     if (hasLegacyIds) {
       const validNumericIds = amenities.filter((id) => !isNaN(Number(id)));
-      if (validNumericIds.length === 0) {
-        // First load with legacy seed data: select the first 4 active items from server
-        const defaultIds = activeCatalog.slice(0, 4).map((a) => a.id);
-        setAmenities(defaultIds);
-      } else {
-        setAmenities(validNumericIds);
-      }
+      setAmenities(validNumericIds);
     }
   }, [activeCatalog, amenities, setAmenities]);
 
-  // -----------------------------------------------------------------------------------------------
-  // [NOTE CHO DEV SAU / FUTURE WORKSPACE INTEGRATION]:
-  // Hiện tại Spring Boot Backend chưa triển khai module CRUD Workspace (POST /api/workspaces).
-  // Do đó khi khởi tạo wizard tạo mới không gian, `canonicalWorkspaceId` ban đầu là undefined.
-  // ĐỂ TEST VÀ ĐỒNG BỘ TIỆN ÍCH LÊN DATABASE:
-  // - Code đang fallback mặc định về Workspace ID 1 (được seed sẵn trong DataInitializer.java thuộc về 'organizer').
-  // - KHI NÀO BACKEND TRIỂN KHAI XONG API WORKSPACE CRUD:
-  //   1. Chỉnh numericWorkspaceId: `canonicalWorkspaceId && !isNaN(Number(canonicalWorkspaceId)) ? Number(canonicalWorkspaceId) : undefined;`
-  //   2. Bỏ fallback '1' trong `syncAmenitiesToBackend`, `handleSaveDraft`, và `handleContinue`.
-  // -----------------------------------------------------------------------------------------------
   const numericWorkspaceId =
     canonicalWorkspaceId && !isNaN(Number(canonicalWorkspaceId))
       ? Number(canonicalWorkspaceId)
-      : 1;
+      : undefined;
 
   const { data: existingWorkspaceAmenities } = useQuery({
     ...amenityQueries.workspaceAmenities(numericWorkspaceId),
@@ -196,6 +183,7 @@ export function StepAmenitiesView() {
   useEffect(() => {
     if (
       !hasHydratedRef.current &&
+      numericWorkspaceId &&
       existingWorkspaceAmenities &&
       existingWorkspaceAmenities.length > 0
     ) {
@@ -208,7 +196,7 @@ export function StepAmenitiesView() {
         }
       });
     }
-  }, [existingWorkspaceAmenities, setAmenities, setAmenityAddonRate]);
+  }, [numericWorkspaceId, existingWorkspaceAmenities, setAmenities, setAmenityAddonRate]);
 
   const filteredAmenities = useMemo(() => {
     if (!searchQuery.trim()) return activeCatalog;
@@ -282,8 +270,10 @@ export function StepAmenitiesView() {
   const handleSaveDraft = async () => {
     saveDraft();
     const updated = await saveDraftToServer();
-    const targetId = updated?.id || canonicalWorkspaceId || '1';
-    await syncAmenitiesToBackend(targetId);
+    const targetId = updated?.id || canonicalWorkspaceId;
+    if (targetId) {
+      await syncAmenitiesToBackend(targetId);
+    }
   };
 
   const handleBack = () => {
@@ -298,9 +288,9 @@ export function StepAmenitiesView() {
     if (!result.success) {
       const err =
         result.error.issues[0]?.message ||
-        'Please select at least 1 amenity for your workspace.';
+        'Lựa chọn tiện ích không hợp lệ.';
       setValidationError(err);
-      toast.error('Amenities Selection Required', {
+      toast.error('Lỗi tiện ích', {
         description: err
       });
       return;
@@ -309,8 +299,10 @@ export function StepAmenitiesView() {
     setValidationError(null);
     saveDraft();
     const updated = await saveDraftToServer({ silent: true });
-    const targetId = updated?.id || canonicalWorkspaceId || '1';
-    await syncAmenitiesToBackend(targetId);
+    const targetId = updated?.id || canonicalWorkspaceId;
+    if (targetId) {
+      await syncAmenitiesToBackend(targetId);
+    }
 
     toast.success('Amenities Saved', {
       description: 'Proceeding to Media Gallery & Cover Photo.'
@@ -395,6 +387,17 @@ export function StepAmenitiesView() {
               type='button'
               variant='outline'
               size='sm'
+              onClick={() => setIsCustomAmenityOpen(true)}
+              className='text-xs h-9 gap-1.5 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40'
+            >
+              <Plus className='size-3.5' />
+              Tạo tiện ích riêng
+            </Button>
+
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
               onClick={handleSelectCommon}
               className='text-xs h-9 border-border hover:bg-muted'
             >
@@ -425,11 +428,26 @@ export function StepAmenitiesView() {
         {/* Empty state */}
         {!isLoading && filteredAmenities.length === 0 && (
           <div className='text-center py-16 border rounded-xl border-dashed bg-muted/20'>
-            <AlertCircle className='size-8 mx-auto text-muted-foreground mb-2' />
-            <p className='text-sm font-medium text-foreground'>Không có tiện ích nào</p>
-            <p className='text-xs text-muted-foreground mt-1'>
-              {searchQuery ? 'Thử tìm kiếm với từ khóa khác' : 'Chưa có tiện ích nào được tạo trong hệ thống'}
+            <div className='size-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2'>
+              <Sparkles className='size-6' />
+            </div>
+            <p className='text-sm font-semibold text-foreground'>Chưa có tiện ích nào cho không gian này</p>
+            <p className='text-xs text-muted-foreground mt-1 max-w-md mx-auto'>
+              {searchQuery
+                ? 'Thử tìm kiếm với từ khóa khác'
+                : 'Tổ chức của bạn chưa tạo tiện ích riêng nào. Hãy nhấn nút bên dưới để tạo các tiện ích độc quyền cho không gian làm việc này.'}
             </p>
+            {!searchQuery && (
+              <Button
+                type='button'
+                size='sm'
+                onClick={() => setIsCustomAmenityOpen(true)}
+                className='mt-4 gap-1.5'
+              >
+                <Plus className='size-4' />
+                Tạo tiện ích đầu tiên
+              </Button>
+            )}
           </div>
         )}
 
@@ -518,16 +536,26 @@ export function StepAmenitiesView() {
                                 </div>
                               </div>
 
-                              {/* Amenity Title */}
-                              <h3
-                                className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
-                                  isSelected
-                                    ? 'text-indigo-950 dark:text-indigo-100 font-bold'
-                                    : 'text-foreground'
-                                }`}
-                              >
-                                {item.name}
-                              </h3>
+                              {/* Amenity Title & Custom Tag */}
+                              <div className='flex items-center gap-1.5 flex-wrap'>
+                                <h3
+                                  className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
+                                    isSelected
+                                      ? 'text-indigo-950 dark:text-indigo-100 font-bold'
+                                      : 'text-foreground'
+                                  }`}
+                                >
+                                  {item.name}
+                                </h3>
+                                {item.custom && (
+                                  <Badge
+                                    variant='outline'
+                                    className='bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-semibold px-1.5 py-0'
+                                  >
+                                    Tiện ích riêng
+                                  </Badge>
+                                )}
+                              </div>
 
                               {/* Amenity Description */}
                               <p className='text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-1'>
@@ -644,6 +672,13 @@ export function StepAmenitiesView() {
           </Button>
         </div>
       </footer>
+
+      {/* Organizer Custom Amenity Form Dialog */}
+      <AmenityFormDialog
+        open={isCustomAmenityOpen}
+        onOpenChange={setIsCustomAmenityOpen}
+        isOrganizer={true}
+      />
     </div>
   );
 }
