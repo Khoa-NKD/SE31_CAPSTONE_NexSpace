@@ -44,6 +44,15 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
     return null;
   });
   const [resendingVerification, setResendingVerification] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('verified') === 'true') {
+        return 'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE). Vui lòng đăng nhập để tiếp tục.';
+      }
+    }
+    return null;
+  });
 
   const needsEmailVerification = Boolean(
     globalError &&
@@ -90,7 +99,9 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
     }
 
     if (verified === 'true') {
-      toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập.');
+      toast.success(
+        'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE). Vui lòng đăng nhập để tiếp tục.'
+      );
     } else if (verified === 'false') {
       toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
     }
@@ -147,6 +158,32 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
 
   return (
     <div className='w-full'>
+      {/* Inline Success Banner */}
+      {successMessage && (
+        <div
+          className='rounded-lg bg-emerald-500/10 border border-emerald-500/30 p-3.5 mb-6 flex items-start gap-3 shadow-sm'
+          role='status'
+        >
+          <MailCheck className='text-emerald-500 w-5 h-5 shrink-0 mt-0.5 stroke-[2]' />
+          <div className='flex-1'>
+            <p className='font-label-base text-label-base font-semibold text-emerald-600 dark:text-emerald-400'>
+              Xác thực tài khoản thành công
+            </p>
+            <p className='font-body-sm text-body-sm text-emerald-700 dark:text-emerald-300 mt-0.5'>
+              {successMessage}
+            </p>
+          </div>
+          <button
+            type='button'
+            onClick={() => setSuccessMessage(null)}
+            className='text-emerald-500/70 hover:text-emerald-600 dark:hover:text-emerald-300 transition-colors outline-none cursor-pointer'
+            aria-label='Dismiss message'
+          >
+            <X className='w-4 h-4 stroke-[2.5]' />
+          </button>
+        </div>
+      )}
+
       {/* Inline Error Banner */}
       {(globalError || hasErrors) && (
         <div

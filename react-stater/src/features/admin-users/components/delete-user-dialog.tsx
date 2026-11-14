@@ -104,9 +104,10 @@ export function DeleteUserDialog({
 
             <div className='p-3 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 text-amber-900 dark:text-amber-200 flex items-start gap-2'>
               <AlertTriangle className='size-4 text-amber-600 shrink-0 mt-0.5' />
-              <span>
-                Thao tác này chỉ xóa mềm (*Soft Delete*). Bạn vẫn có thể khôi phục tài khoản về trạng thái hoạt động nếu cần thiết sau này.
-              </span>
+              <div className='space-y-1'>
+                <p>Thao tác này chỉ xóa mềm (*Soft Delete*). Bạn vẫn có thể khôi phục tài khoản về trạng thái hoạt động nếu cần thiết sau này.</p>
+                <p className='text-[11px] text-amber-800 dark:text-amber-300'>Hệ thống sẽ tự động gửi email thông báo kèm lý do đến <strong>{user.email}</strong> và đăng xuất mọi phiên đăng nhập ngay lập tức.</p>
+              </div>
             </div>
 
             <div className='space-y-1.5'>
