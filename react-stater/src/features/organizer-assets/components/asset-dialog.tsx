@@ -139,8 +139,8 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
         </div>
       </div>
 
-      <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
-        <div className='space-y-1.5'>
+      <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
+        <div className='space-y-1.5 min-w-0'>
           <Label htmlFor='quantity' className='text-xs font-semibold'>
             Số lượng
           </Label>
@@ -148,17 +148,18 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
             id='quantity'
             type='number'
             min={1}
+            className='w-full min-w-0'
             value={quantity}
             onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value, 10) || 1))}
           />
         </div>
 
-        <div className='space-y-1.5'>
+        <div className='space-y-1.5 min-w-0'>
           <Label htmlFor='status' className='text-xs font-semibold'>
             Trạng thái hoạt động
           </Label>
           <Select value={status} onValueChange={(val: AssetStatus) => setStatus(val)}>
-            <SelectTrigger id='status' className='w-full'>
+            <SelectTrigger id='status' className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
               <SelectValue placeholder='Chọn trạng thái' />
             </SelectTrigger>
             <SelectContent>
@@ -270,9 +271,9 @@ export function AssetDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-xl max-h-[90vh] overflow-y-auto'>
-        <DialogHeader>
-          <DialogTitle>
+      <DialogContent className='max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden'>
+        <DialogHeader className='min-w-0 overflow-hidden pr-6'>
+          <DialogTitle className='truncate'>
             {isEdit ? `Chỉnh sửa tài sản #${assetToEdit?.assetCode}` : 'Thêm tài sản / thiết bị mới'}
           </DialogTitle>
         </DialogHeader>

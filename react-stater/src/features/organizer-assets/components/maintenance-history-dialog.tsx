@@ -84,12 +84,12 @@ export function MaintenanceHistoryDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto'>
-        <DialogHeader>
-          <div className='flex items-center justify-between pr-6'>
-            <DialogTitle className='flex items-center gap-2'>
-              <History className='w-5 h-5 text-indigo-600 dark:text-indigo-400' />
-              <span>Lịch sử bảo trì: {asset?.name} ({asset?.assetCode})</span>
+      <DialogContent className='max-w-2xl max-h-[90vh] overflow-y-auto overflow-x-hidden'>
+        <DialogHeader className='min-w-0 overflow-hidden pr-6'>
+          <div className='flex items-center justify-between min-w-0 gap-2'>
+            <DialogTitle className='flex items-center gap-2 min-w-0'>
+              <History className='w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0' />
+              <span className='truncate'>Lịch sử bảo trì: {asset?.name} ({asset?.assetCode})</span>
             </DialogTitle>
             {onOpenNewLog && (
               <Button
@@ -190,11 +190,11 @@ export function MaintenanceHistoryDialog({
               Cập nhật tiến độ: #{selectedLogToUpdate.id}
             </h4>
             <form onSubmit={handleSaveUpdate} className='space-y-3'>
-              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                <div className='space-y-1'>
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0'>
+                <div className='space-y-1 min-w-0'>
                   <Label className='text-xs font-semibold'>Trạng thái</Label>
                   <Select value={updateStatus} onValueChange={(val: MaintenanceStatus) => setUpdateStatus(val)}>
-                    <SelectTrigger className='h-8 text-xs'>
+                    <SelectTrigger className='w-full min-w-0 h-8 text-xs [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -205,10 +205,10 @@ export function MaintenanceHistoryDialog({
                   </Select>
                 </div>
 
-                <div className='space-y-1'>
+                <div className='space-y-1 min-w-0'>
                   <Label className='text-xs font-semibold'>Chi phí thực tế (VNĐ)</Label>
                   <Input
-                    className='h-8 text-xs'
+                    className='h-8 text-xs w-full min-w-0'
                     type='number'
                     min={0}
                     value={updateCost}
