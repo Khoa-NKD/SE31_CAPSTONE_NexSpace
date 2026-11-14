@@ -3,6 +3,7 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
@@ -481,5 +482,81 @@ class WorkspaceServiceImplTest {
         assertThat(result).isNotNull();
         assertThat(result.getContent()).hasSize(1);
         verify(workspaceRepository).searchPublicOrderByPopular(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Lọc công khai nâng cao theo thành phố, giá, tiện ích và rating")
+    void getPublicWorkspaces_withAdvancedFilters() {
+        PublicWorkspaceFilterRequestDto filterRequest = new PublicWorkspaceFilterRequestDto();
+        filterRequest.setCity("Đà Nẵng");
+        filterRequest.setMinPrice(BigDecimal.valueOf(25000));
+        filterRequest.setMaxPrice(BigDecimal.valueOf(80000));
+        filterRequest.setAmenityIds(List.of(1L, 2L));
+        filterRequest.setMinRating(4.0);
+
+        Page<WorkspaceModel> mockPage = new org.springframework.data.domain.PageImpl<>(List.of(existingWorkspace));
+        when(workspaceRepository.filterPublic(
+                eq(WorkspaceStatus.ACTIVE),
+                isNull(),
+                eq("Đà Nẵng"),
+                isNull(),
+                isNull(),
+                eq(BigDecimal.valueOf(25000)),
+                eq(BigDecimal.valueOf(80000)),
+                eq(true),
+                eq(List.of(1L, 2L)),
+                eq(2L),
+                eq(false),
+                any(),
+                eq(4.0),
+                any(Pageable.class))).thenReturn(mockPage);
+
+        Page<WorkspaceDto> result = service.getPublicWorkspaces(filterRequest);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getContent()).hasSize(1);
+        verify(workspaceRepository).filterPublic(
+                eq(WorkspaceStatus.ACTIVE),
+                isNull(),
+                eq("Đà Nẵng"),
+                isNull(),
+                isNull(),
+                eq(BigDecimal.valueOf(25000)),
+                eq(BigDecimal.valueOf(80000)),
+                eq(true),
+                eq(List.of(1L, 2L)),
+                eq(2L),
+                eq(false),
+                any(),
+                eq(4.0),
+                any(Pageable.class));
+    }
+
+    @Test
+    @DisplayName("Gợi ý tìm kiếm nhanh phân nhóm thành công khi query >= 2 ký tự")
+    void getSearchSuggestions_success() {
+        when(workspaceRepository.findTopSuggestions(eq(WorkspaceStatus.ACTIVE), eq("Đà Nẵng"), any(Pageable.class)))
+                .thenReturn(List.of(existingWorkspace));
+        when(workspaceRepository.findDistinctDistrictsMatching(eq(WorkspaceStatus.ACTIVE), eq("Đà Nẵng"), any(Pageable.class)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{"Hải Châu", "Đà Nẵng"}));
+
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto result = service.getSearchSuggestions("Đà Nẵng");
+
+        assertThat(result).isNotNull();
+        assertThat(result.getWorkspaces()).hasSize(1);
+        assertThat(result.getWorkspaces().get(0).getId()).isEqualTo(100L);
+        assertThat(result.getLocations()).hasSize(1);
+        assertThat(result.getLocations().get(0).getLabel()).isEqualTo("Hải Châu, Đà Nẵng");
+    }
+
+    @Test
+    @DisplayName("Gợi ý tìm kiếm trả về rỗng khi query < 2 ký tự")
+    void getSearchSuggestions_queryTooShort() {
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto result = service.getSearchSuggestions("a");
+
+        assertThat(result).isNotNull();
+        assertThat(result.getWorkspaces()).isEmpty();
+        assertThat(result.getLocations()).isEmpty();
+        assertThat(result.getCategories()).isEmpty();
     }
 }

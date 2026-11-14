@@ -1,5 +1,6 @@
 package base.api.feature.workspace.controller;
 
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.service.IWorkspaceService;
@@ -54,13 +55,18 @@ public class PublicWorkspaceController extends BaseAPIController {
         return success(detail);
     }
 
-    @Operation(summary = "Xem danh sách không gian công khai", description = "Khách hàng xem danh sách không gian làm việc đang hoạt động (ACTIVE) kèm tìm kiếm từ khóa và sắp xếp")
+    @Operation(summary = "Gợi ý tìm kiếm nhanh tự động", description = "Trả về top không gian, địa điểm và loại hình phù hợp khi người dùng gõ từ khóa")
+    @GetMapping("/suggestions")
+    public ResponseEntity<ApiResponse<base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto>> getSearchSuggestions(
+            @RequestParam(required = false, defaultValue = "") String query) {
+        base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto suggestions = workspaceService.getSearchSuggestions(query);
+        return success(suggestions, "Lấy gợi ý tìm kiếm thành công");
+    }
+
+    @Operation(summary = "Xem danh sách không gian công khai", description = "Khách hàng xem danh sách không gian làm việc đang hoạt động (ACTIVE)")
     @GetMapping
-    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getPublicWorkspaces(
-            @ModelAttribute PageRequestDTO pageRequest,
-            @RequestParam(required = false, defaultValue = "featuredPosition") String sortBy,
-            @RequestParam(required = false, defaultValue = "desc") String sortDir) {
-        Page<WorkspaceDto> page = workspaceService.getPublicWorkspaces(pageRequest, sortBy, sortDir);
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getPublicWorkspaces(@ModelAttribute PublicWorkspaceFilterRequestDto pageRequest) {
+        Page<WorkspaceDto> page = workspaceService.getPublicWorkspaces(pageRequest);
         return successPage(page);
     }
 
@@ -88,3 +94,4 @@ public class PublicWorkspaceController extends BaseAPIController {
         }
     }
 }
+

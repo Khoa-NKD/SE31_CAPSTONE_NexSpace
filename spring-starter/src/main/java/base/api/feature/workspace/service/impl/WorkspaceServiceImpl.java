@@ -7,12 +7,14 @@ import base.api.feature.review.repository.ICustomerReviewRepository;
 import base.api.feature.workspace.dto.request.AdminFeaturedWorkspaceDto;
 import base.api.feature.workspace.dto.request.AdminModerationWorkspaceDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.PublicWorkspaceFilterRequestDto;
 import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
 import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
 import base.api.feature.workspace.dto.response.AdminWorkspaceKpisDto;
 import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
 import base.api.feature.workspace.dto.response.WorkspaceDto;
 import base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto;
+import base.api.feature.workspace.dto.response.WorkspaceSuggestionsResponseDto;
 import base.api.feature.workspace.mapper.WorkspaceMapper;
 import base.api.feature.workspace.repository.IMediaRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
@@ -288,32 +290,77 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
     @Override
     @Transactional(readOnly = true)
-    public Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest, String sortBy, String sortDir) {
-        String search = pageRequest != null && pageRequest.getSearch() != null && !pageRequest.getSearch().isBlank()
-                ? pageRequest.getSearch().trim()
-                : null;
-        int pageNumber = pageRequest != null && pageRequest.getPage() > 0 ? pageRequest.getPage() - 1 : 0;
-        int pageSize = pageRequest != null ? pageRequest.getSize() : 20;
+    public Page<WorkspaceDto> getPublicWorkspaces(PublicWorkspaceFilterRequestDto filterRequest) {
+        String search = filterRequest != null ? filterRequest.normalizedSearch() : null;
+        String sortBy = filterRequest != null && filterRequest.getSortBy() != null ? filterRequest.getSortBy().trim() : null;
+        String sortDir = filterRequest != null && filterRequest.getSortDir() != null ? filterRequest.getSortDir().trim() : "desc";
+        int pageNumber = filterRequest != null && filterRequest.getPage() > 0 ? filterRequest.getPage() - 1 : 0;
+        int pageSize = filterRequest != null ? filterRequest.getSize() : 20;
+
+        String city = filterRequest != null && filterRequest.getCity() != null && !filterRequest.getCity().isBlank() ? filterRequest.getCity().trim() : null;
+        String district = filterRequest != null && filterRequest.getDistrict() != null && !filterRequest.getDistrict().isBlank() ? filterRequest.getDistrict().trim() : null;
+        WorkspaceCategory category = filterRequest != null ? filterRequest.getCategory() : null;
+        java.math.BigDecimal minPrice = filterRequest != null ? filterRequest.getMinPrice() : null;
+        java.math.BigDecimal maxPrice = filterRequest != null ? filterRequest.getMaxPrice() : null;
+        Double minRating = filterRequest != null ? filterRequest.getMinRating() : null;
+
+        List<Long> amenityIds = filterRequest != null && filterRequest.getAmenityIds() != null && !filterRequest.getAmenityIds().isEmpty()
+                ? filterRequest.getAmenityIds()
+                : List.of(-1L);
+        boolean hasAmenityFilter = filterRequest != null && filterRequest.getAmenityIds() != null && !filterRequest.getAmenityIds().isEmpty();
+        Long amenityCount = hasAmenityFilter ? (long) filterRequest.getAmenityIds().size() : 0L;
+
+        List<ResourceCategory> resourceCats = filterRequest != null && filterRequest.getResourceCategories() != null && !filterRequest.getResourceCategories().isEmpty()
+                ? filterRequest.getResourceCategories()
+                : List.of(ResourceCategory.DESK);
+        boolean hasResourceCatFilter = filterRequest != null && filterRequest.getResourceCategories() != null && !filterRequest.getResourceCategories().isEmpty();
+
+        boolean hasFilters = (city != null || district != null || category != null || minPrice != null || maxPrice != null || hasAmenityFilter || hasResourceCatFilter || minRating != null);
 
         Page<WorkspaceModel> page;
         if ("pricePerHour".equalsIgnoreCase(sortBy) || "price".equalsIgnoreCase(sortBy)) {
             Pageable pageable = PageRequest.of(pageNumber, pageSize);
             if ("asc".equalsIgnoreCase(sortDir)) {
-                page = workspaceRepository.searchPublicOrderByPriceAsc(WorkspaceStatus.ACTIVE, search, pageable);
+                page = hasFilters
+                        ? workspaceRepository.filterPublicOrderByPriceAsc(
+                                WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                                hasAmenityFilter, amenityIds, amenityCount,
+                                hasResourceCatFilter, resourceCats, minRating, pageable)
+                        : workspaceRepository.searchPublicOrderByPriceAsc(WorkspaceStatus.ACTIVE, search, pageable);
             } else {
-                page = workspaceRepository.searchPublicOrderByPriceDesc(WorkspaceStatus.ACTIVE, search, pageable);
+                page = hasFilters
+                        ? workspaceRepository.filterPublicOrderByPriceDesc(
+                                WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                                hasAmenityFilter, amenityIds, amenityCount,
+                                hasResourceCatFilter, resourceCats, minRating, pageable)
+                        : workspaceRepository.searchPublicOrderByPriceDesc(WorkspaceStatus.ACTIVE, search, pageable);
             }
         } else if ("rating".equalsIgnoreCase(sortBy)) {
             Pageable pageable = PageRequest.of(pageNumber, pageSize);
-            page = workspaceRepository.searchPublicOrderByRatingDesc(WorkspaceStatus.ACTIVE, search, pageable);
+            page = hasFilters
+                    ? workspaceRepository.filterPublicOrderByRatingDesc(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublicOrderByRatingDesc(WorkspaceStatus.ACTIVE, search, pageable);
         } else if ("popular".equalsIgnoreCase(sortBy) || "totalBookings".equalsIgnoreCase(sortBy) || "bookingCount".equalsIgnoreCase(sortBy)) {
             Pageable pageable = PageRequest.of(pageNumber, pageSize);
-            page = workspaceRepository.searchPublicOrderByPopular(WorkspaceStatus.ACTIVE, search, pageable);
+            page = hasFilters
+                    ? workspaceRepository.filterPublicOrderByPopular(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublicOrderByPopular(WorkspaceStatus.ACTIVE, search, pageable);
         } else {
-            Pageable pageable = pageRequest != null
-                    ? pageRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
+            Pageable pageable = filterRequest != null
+                    ? filterRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
                     : PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
-            page = workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
+            page = hasFilters
+                    ? workspaceRepository.filterPublic(
+                            WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
+                            hasAmenityFilter, amenityIds, amenityCount,
+                            hasResourceCatFilter, resourceCats, minRating, pageable)
+                    : workspaceRepository.searchPublic(WorkspaceStatus.ACTIVE, search, pageable);
         }
 
         List<WorkspaceModel> workspaces = page.getContent();
@@ -341,9 +388,18 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     @Override
     @Transactional(readOnly = true)
     public Page<WorkspaceDto> getPublicWorkspaces(PageRequestDTO pageRequest) {
-        String sortBy = pageRequest != null ? pageRequest.getSortBy() : null;
-        String sortDir = pageRequest != null ? pageRequest.getSortDir() : null;
-        return getPublicWorkspaces(pageRequest, sortBy, sortDir);
+        if (pageRequest instanceof PublicWorkspaceFilterRequestDto dto) {
+            return getPublicWorkspaces(dto);
+        }
+        PublicWorkspaceFilterRequestDto dto = new PublicWorkspaceFilterRequestDto();
+        if (pageRequest != null) {
+            dto.setPage(pageRequest.getPage());
+            dto.setSize(pageRequest.getSize());
+            dto.setSortBy(pageRequest.getSortBy());
+            dto.setSortDir(pageRequest.getSortDir());
+            dto.setSearch(pageRequest.getSearch());
+        }
+        return getPublicWorkspaces(dto);
     }
 
     @Override
@@ -408,6 +464,111 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                 .toList();
 
         return new PageImpl<>(dtos, pageable, projectionPage.getTotalElements());
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public WorkspaceSuggestionsResponseDto getSearchSuggestions(String query) {
+        if (query == null || query.trim().length() < 2) {
+            return WorkspaceSuggestionsResponseDto.builder()
+                    .workspaces(Collections.emptyList())
+                    .locations(Collections.emptyList())
+                    .categories(Collections.emptyList())
+                    .build();
+        }
+
+        String cleanQuery = query.trim();
+
+        // 1. Top 5 Matching Workspaces
+        List<WorkspaceModel> workspaces = workspaceRepository.findTopSuggestions(
+                WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, 5));
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(workspaces);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(workspaces);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(workspaces);
+
+        List<WorkspaceSuggestionsResponseDto.WorkspaceItemSuggestion> workspaceSuggestions = workspaces.stream()
+                .map(w -> {
+                    RatingSummary rSummary = ratingSummaries.get(w.getId());
+                    return WorkspaceSuggestionsResponseDto.WorkspaceItemSuggestion.builder()
+                            .id(w.getId())
+                            .name(w.getName())
+                            .address(w.getAddress())
+                            .district(w.getDistrict())
+                            .city(w.getCity())
+                            .category(w.getCategory())
+                            .coverImageUrl(coverUrls.get(w.getId()))
+                            .pricePerHour(minPrices.get(w.getId()))
+                            .rating(rSummary != null ? rSummary.avgRating() : null)
+                            .build();
+                })
+                .toList();
+
+        // 2. Locations (Districts and Cities, max 3)
+        List<WorkspaceSuggestionsResponseDto.LocationSuggestion> locationSuggestions = new ArrayList<>();
+        List<Object[]> districtRows = workspaceRepository.findDistinctDistrictsMatching(
+                WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, 3));
+        for (Object[] row : districtRows) {
+            String district = (String) row[0];
+            String city = row.length > 1 ? (String) row[1] : null;
+            String label = district + (city != null && !city.isBlank() ? ", " + city : "");
+            locationSuggestions.add(WorkspaceSuggestionsResponseDto.LocationSuggestion.builder()
+                    .label(label)
+                    .type("DISTRICT")
+                    .city(city)
+                    .district(district)
+                    .build());
+        }
+
+        if (locationSuggestions.size() < 3) {
+            int remaining = 3 - locationSuggestions.size();
+            List<String> cities = workspaceRepository.findDistinctCitiesMatching(
+                    WorkspaceStatus.ACTIVE, cleanQuery, PageRequest.of(0, remaining));
+            for (String city : cities) {
+                boolean exists = locationSuggestions.stream().anyMatch(l -> city.equalsIgnoreCase(l.getCity()) && l.getDistrict() == null);
+                if (!exists) {
+                    locationSuggestions.add(WorkspaceSuggestionsResponseDto.LocationSuggestion.builder()
+                            .label(city)
+                            .type("CITY")
+                            .city(city)
+                            .district(null)
+                            .build());
+                }
+            }
+        }
+
+        // 3. Category Suggestions (Max 3)
+        List<WorkspaceSuggestionsResponseDto.CategorySuggestion> categorySuggestions = new ArrayList<>();
+        String lowerQuery = cleanQuery.toLowerCase();
+        Map<WorkspaceCategory, String[]> categoryMeta = Map.of(
+                WorkspaceCategory.COWORKING_HUB, new String[]{"Coworking Hub", "Không gian làm việc chung, bàn làm việc linh hoạt", "coworking, hub, linh hoat, bàn làm việc"},
+                WorkspaceCategory.BUSINESS_LOUNGE, new String[]{"Business Lounge", "Phòng chờ doanh nhân đẳng cấp, yên tĩnh", "lounge, doanh nhan, yên tĩnh, cafe"},
+                WorkspaceCategory.CREATIVE_STUDIO, new String[]{"Creative Studio", "Studio sáng tạo, podcast booth, chụp ảnh", "studio, sang tao, podcast, media, quay phim"},
+                WorkspaceCategory.SERVICED_OFFICE, new String[]{"Serviced Office", "Văn phòng dịch vụ trọn gói riêng tư", "office, van phong, tron goi, phong rieng"}
+        );
+
+        for (Map.Entry<WorkspaceCategory, String[]> entry : categoryMeta.entrySet()) {
+            WorkspaceCategory cat = entry.getKey();
+            String[] meta = entry.getValue();
+            String name = cat.name().toLowerCase();
+            String label = meta[0];
+            String desc = meta[1];
+            String keywords = meta[2];
+
+            if (name.contains(lowerQuery) || label.toLowerCase().contains(lowerQuery) || desc.toLowerCase().contains(lowerQuery) || keywords.contains(lowerQuery)) {
+                categorySuggestions.add(WorkspaceSuggestionsResponseDto.CategorySuggestion.builder()
+                        .category(cat)
+                        .label(label)
+                        .description(desc)
+                        .build());
+                if (categorySuggestions.size() >= 3) break;
+            }
+        }
+
+        return WorkspaceSuggestionsResponseDto.builder()
+                .workspaces(workspaceSuggestions)
+                .locations(locationSuggestions)
+                .categories(categorySuggestions)
+                .build();
     }
 
     @Override
