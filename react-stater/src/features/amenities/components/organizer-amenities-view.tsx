@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo } from 'react';
 import {
   Wifi,
@@ -236,20 +237,10 @@ export function OrganizerAmenitiesView() {
 
   return (
     <div className='flex flex-col gap-6 p-1 md:p-2'>
-      {/* Page Header */}
-      <div className='flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4'>
-        <div>
-          <div className='flex items-center gap-2'>
-            <h1 className='text-2xl font-bold tracking-tight'>Quản lý tiện ích không gian</h1>
-            <Badge variant='outline' className='bg-primary/5 text-primary border-primary/20 text-xs font-semibold'>
-              Đối tác (Organizer)
-            </Badge>
-          </div>
-          <p className='text-sm text-muted-foreground mt-1'>
-            Tạo và quản lý các tiện ích riêng biệt của tổ chức bạn, hoặc tra cứu danh mục tiện ích chuẩn của NexSpace.
-          </p>
-        </div>
-
+      <OrganizerPageHeader
+        title="Quản lý tiện ích không gian"
+        description="Quản lý tiện ích của bạn và tra cứu danh mục NexSpace."
+      >
         <div className='flex items-center gap-2'>
           <Button
             variant='outline'
@@ -270,7 +261,7 @@ export function OrganizerAmenitiesView() {
             Tạo tiện ích riêng
           </Button>
         </div>
-      </div>
+      </OrganizerPageHeader>
 
       {/* KPI Stats */}
       <div className='grid grid-cols-1 sm:grid-cols-3 gap-4'>

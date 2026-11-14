@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo, useCallback } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
 import {
@@ -166,22 +167,13 @@ export function WorkspacesDashboardView() {
 
   return (
     <div className='w-full max-w-[1360px] mx-auto py-2 sm:py-4 flex flex-col gap-6'>
-      {/* Top Controls Header Bar */}
-      <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-        <div>
-          <div className='flex items-center gap-2'>
-            <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
-              My Workspaces
-            </h1>
-            {isFetching && !isLoading && (
-              <Loader2 className='size-4 text-indigo-500 animate-spin' aria-label='Refreshing workspaces' />
-            )}
-          </div>
-          <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-            Manage, monitor occupancy, and configure your flexible workspace venues.
-          </p>
-        </div>
-
+      <OrganizerPageHeader
+        title="My Workspaces"
+        description="Manage and configure your workspace venues."
+      >
+        {isFetching && !isLoading && (
+          <Loader2 className='size-4 animate-spin text-primary' aria-label='Refreshing workspaces' />
+        )}
         {/* Action Controls */}
         <div className='flex flex-wrap items-center gap-3'>
           {/* Search Box */}
@@ -234,7 +226,7 @@ export function WorkspacesDashboardView() {
             </Link>
           </Button>
         </div>
-      </div>
+      </OrganizerPageHeader>
 
       {/* Filter Segmented Controls */}
       <div className='flex items-center justify-between'>

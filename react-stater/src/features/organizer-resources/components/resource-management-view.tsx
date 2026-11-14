@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { ResourceInventoryTable } from './resource-inventory-table';
 import { ResourceFloorManager } from './resource-floor-manager';
@@ -261,28 +262,16 @@ export function ResourceManagementView({
     })[status] ?? status;
   return (
     <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-6'>
-      <header className='flex flex-wrap items-start justify-between gap-4'>
-        <div className='flex items-center gap-3'>
-          <span className='bg-primary/10 text-primary flex size-12 items-center justify-center rounded-2xl'>
-            <Armchair className='size-6' />
-          </span>
-          <div>
-            <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>
-              {c('Resource Management', 'Quản lý ghế & phòng')}
-            </h1>
-            <p className='text-muted-foreground mt-1 text-sm'>
-              {c(
-                'A real inventory of bookable desks and rooms across your workspaces.',
-                'Quản lý danh sách ghế, phòng và trạng thái nhận đặt tại workspace của bạn.'
-              )}
-            </p>
-          </div>
-        </div>
-        <Button disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
+      <OrganizerPageHeader
+        title={c('Seats & Rooms', 'Quản lý ghế & phòng')}
+        description={c('Manage seats, rooms and booking availability.', 'Quản lý ghế, phòng và trạng thái nhận đặt.')}
+        icon={<Armchair aria-hidden='true' />}
+      >
+        <Button size='sm' disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
           <Plus className='size-4' />
           {c('Create resource', 'Tạo ghế/phòng')}
         </Button>
-      </header>
+      </OrganizerPageHeader>
       {workspaces.isError ? (
         <div role='alert' className='border-destructive/20 text-destructive rounded-xl border p-4'>
           <p>{workspaces.error.message}</p>

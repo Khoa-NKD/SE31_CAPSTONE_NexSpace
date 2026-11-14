@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -38,25 +39,16 @@ export function PricingHeaderBar({
         <span className="font-medium text-foreground">Pricing Matrix</span>
       </nav>
 
-      {/* Main Header Flex */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border/80">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Resource Configuration & Matrix
-            </h1>
-            <Badge
-              variant="outline"
-              className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs px-2 py-0.5 rounded-full font-medium"
-            >
-              Marketplace Live
-            </Badge>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Managing 48 dedicated spaces, 6 meeting hubs, and 28 flexible hot desks.
-          </p>
-        </div>
-
+      <OrganizerPageHeader
+        title="Resource Configuration & Matrix"
+        description="Manage base prices and pricing rules."
+      >
+        <Badge
+          variant="outline"
+          className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 text-xs px-2 py-0.5 rounded-full font-medium"
+        >
+          Marketplace Live
+        </Badge>
         {/* Action CTAs */}
         <div className="flex items-center gap-2.5 shrink-0">
           <Button
@@ -88,7 +80,7 @@ export function PricingHeaderBar({
             <span>Add Rate Tier</span>
           </Button>
         </div>
-      </div>
+      </OrganizerPageHeader>
     </div>
   );
 }
