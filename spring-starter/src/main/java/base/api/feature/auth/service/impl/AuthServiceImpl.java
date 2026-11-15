@@ -301,14 +301,17 @@ public class AuthServiceImpl implements IAuthService {
         }
         UserModel user = userRepository.findByLogin(contactInfo.trim())
                 .orElseThrow(() -> new BadRequestException("Tài khoản không tồn tại"));
-        if (!user.isVerified()) {
-            throw new BadRequestException("Tài khoản chưa được xác thực email. Vui lòng xác thực trước khi đặt lại mật khẩu.");
+        if (user.getStatus() == UserStatus.DELETED) {
+            throw new BadRequestException("Tài khoản đã bị xóa");
         }
         if (user.getStatus() == UserStatus.LOCKED) {
             throw new BadRequestException("Tài khoản đã bị khóa bởi Quản trị viên");
         }
-        if (user.getStatus() == UserStatus.DELETED) {
-            throw new BadRequestException("Tài khoản đã bị xóa");
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new BadRequestException("Tài khoản đang bị tạm vô hiệu hóa bởi Quản trị viên");
+        }
+        if (!user.isVerified()) {
+            throw new BadRequestException("Tài khoản chưa được xác thực email. Vui lòng xác thực trước khi đặt lại mật khẩu.");
         }
 
         passwordResetTokenRepository.deleteByUserId(user.getId());
@@ -359,6 +362,26 @@ public class AuthServiceImpl implements IAuthService {
         }
 
         UserModel user = userRepository.findById(tokenModel.getUserId()).orElse(null);
+        if (user != null) {
+            if (user.getStatus() == UserStatus.DELETED) {
+                return TokenValidationResponseDto.builder()
+                        .valid(false)
+                        .message("Tài khoản đã bị xóa")
+                        .build();
+            }
+            if (user.getStatus() == UserStatus.LOCKED) {
+                return TokenValidationResponseDto.builder()
+                        .valid(false)
+                        .message("Tài khoản đã bị khóa bởi Quản trị viên")
+                        .build();
+            }
+            if (user.getStatus() == UserStatus.INACTIVE) {
+                return TokenValidationResponseDto.builder()
+                        .valid(false)
+                        .message("Tài khoản đang bị tạm vô hiệu hóa bởi Quản trị viên")
+                        .build();
+            }
+        }
         return TokenValidationResponseDto.builder()
                 .valid(true)
                 .message("Token hợp lệ")
@@ -383,6 +406,12 @@ public class AuthServiceImpl implements IAuthService {
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
         if (user.getStatus() == UserStatus.DELETED) {
             throw new BadRequestException("Tài khoản đã bị xóa, không thể đặt lại mật khẩu");
+        }
+        if (user.getStatus() == UserStatus.LOCKED) {
+            throw new BadRequestException("Tài khoản đã bị khóa bởi Quản trị viên, không thể đặt lại mật khẩu");
+        }
+        if (user.getStatus() == UserStatus.INACTIVE) {
+            throw new BadRequestException("Tài khoản đang bị tạm vô hiệu hóa bởi Quản trị viên, không thể đặt lại mật khẩu");
         }
         if (passwordEncoder.matches(dto.getNewPassword(), user.getPassword())) {
             throw new BadRequestException("Mật khẩu mới không được trùng với mật khẩu hiện tại");
