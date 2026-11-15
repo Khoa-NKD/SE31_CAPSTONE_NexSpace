@@ -44,6 +44,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.timeout;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -180,7 +181,7 @@ class UserServiceImplTest {
         UserDto result = service.updateProfile(1L, dto);
 
         assertThat(result.getAvatar()).isNull();
-        verify(mediaStorageService).deleteImage(eq("nexspace/avatars/old"), eq(1L));
+        verify(mediaStorageService, timeout(2000)).deleteImage(eq("nexspace/avatars/old"), eq(1L));
     }
 
     @Test
@@ -326,7 +327,7 @@ class UserServiceImplTest {
         UserDto result = service.deleteAvatar(1L);
 
         assertThat(result.getAvatar()).isNull();
-        verify(mediaStorageService).deleteImage(eq("nexspace/avatars/avatar"), eq(1L));
+        verify(mediaStorageService, timeout(2000)).deleteImage(eq("nexspace/avatars/avatar"), eq(1L));
         verify(auditService).log(
                 eq(user),
                 eq(AuditActorType.USER),

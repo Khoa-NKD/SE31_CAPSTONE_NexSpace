@@ -152,16 +152,17 @@ public class UserServiceImpl implements IUserService {
     }
 
     @Override
-    @Transactional
     public UserDto uploadAvatar(Long userId, MultipartFile file) {
         validateAvatarFile(file);
 
+        // 1. Upload ảnh lên Cloudinary TRƯỚC (ngoài Transaction DB để không block DB connection pool)
+        MediaUploadResponseDto uploadResult = mediaStorageService.uploadImage(file, AVATAR_FOLDER, userId);
+
+        // 2. Cập nhật URL avatar vào Database
         UserModel user = findUser(userId);
         String oldAvatar = user.getAvatar();
 
-        MediaUploadResponseDto uploadResult = mediaStorageService.uploadImage(file, AVATAR_FOLDER, userId);
         user.setAvatar(uploadResult.getUrl());
-
         UserModel saved = userRepository.saveAndFlush(user);
 
         try {
@@ -286,6 +287,51 @@ public class UserServiceImpl implements IUserService {
         }
 
         return UserMapper.toDto(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public org.springframework.http.ResponseEntity<byte[]> proxyAvatarImage(String url) {
+        if (!StringUtils.hasText(url) || (!url.startsWith("http://") && !url.startsWith("https://"))) {
+            throw new BadRequestException("Đường dẫn ảnh không hợp lệ");
+        }
+        try {
+            java.net.URI uri = java.net.URI.create(url.trim());
+            String host = uri.getHost();
+            if (host == null || host.equalsIgnoreCase("localhost")
+                    || host.startsWith("127.") || host.startsWith("192.168.")
+                    || host.startsWith("10.") || host.endsWith(".local")) {
+                throw new BadRequestException("Không hỗ trợ tải ảnh từ địa chỉ mạng nội bộ");
+            }
+            java.net.HttpURLConnection conn = (java.net.HttpURLConnection) uri.toURL().openConnection();
+            conn.setInstanceFollowRedirects(true);
+            conn.setConnectTimeout(5000);
+            conn.setReadTimeout(10000);
+            conn.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36");
+            int responseCode = conn.getResponseCode();
+            if (responseCode < 200 || responseCode >= 300) {
+                throw new BadRequestException("Không thể tải ảnh từ liên kết này (Mã phản hồi HTTP: " + responseCode + ")");
+            }
+            String contentType = conn.getContentType();
+            if (contentType == null || !contentType.toLowerCase().startsWith("image/")) {
+                contentType = "image/jpeg";
+            }
+            try (java.io.InputStream in = conn.getInputStream()) {
+                byte[] bytes = in.readNBytes((int) MAX_AVATAR_SIZE_BYTES + 1);
+                if (bytes.length > MAX_AVATAR_SIZE_BYTES) {
+                    throw new BadRequestException("Dung lượng ảnh từ liên kết vượt quá giới hạn 5MB");
+                }
+                return org.springframework.http.ResponseEntity.ok()
+                        .contentType(org.springframework.http.MediaType.parseMediaType(contentType))
+                        .header(org.springframework.http.HttpHeaders.CACHE_CONTROL, "public, max-age=86400")
+                        .body(bytes);
+            }
+        } catch (BadRequestException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("Lỗi proxy tải ảnh avatar từ url {}: {}", url, e.getMessage());
+            throw new BadRequestException("Không thể tải ảnh từ đường dẫn mạng này");
+        }
     }
 
     @Override

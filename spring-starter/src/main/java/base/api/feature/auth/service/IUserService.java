@@ -28,6 +28,8 @@ public interface IUserService {
 
     UserDto deleteAvatar(Long userId);
 
+    org.springframework.http.ResponseEntity<byte[]> proxyAvatarImage(String url);
+
     void changePassword(Long userId, ChangePasswordDto dto);
 
     Page<UserDto> getUserPage(PageRequestDTO pageRequest, UserRole role, UserStatus status);
