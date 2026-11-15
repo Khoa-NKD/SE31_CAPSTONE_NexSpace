@@ -194,13 +194,22 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         }
     }
 
+    private volatile Cloudinary cachedCloudinary;
+
     protected Cloudinary createCloudinaryClient() {
-        return new Cloudinary(ObjectUtils.asMap(
-                "cloud_name", cloudName.trim(),
-                "api_key", apiKey.trim(),
-                "api_secret", apiSecret.trim(),
-                "secure", true
-        ));
+        if (cachedCloudinary == null) {
+            synchronized (this) {
+                if (cachedCloudinary == null) {
+                    cachedCloudinary = new Cloudinary(ObjectUtils.asMap(
+                            "cloud_name", StringUtils.hasText(cloudName) ? cloudName.trim() : "",
+                            "api_key", StringUtils.hasText(apiKey) ? apiKey.trim() : "",
+                            "api_secret", StringUtils.hasText(apiSecret) ? apiSecret.trim() : "",
+                            "secure", true
+                    ));
+                }
+            }
+        }
+        return cachedCloudinary;
     }
 
     /**
@@ -281,11 +290,20 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
     private MediaUploadResponseDto uploadToCloudinary(MultipartFile file, String folder, Long actorId) {
         try {
             Cloudinary cloudinary = createCloudinaryClient();
-            Map<String, Object> params = ObjectUtils.asMap(
-                    "folder", folder,
-                    "resource_type", "image",
-                    "overwrite", false
-            );
+            Map<String, Object> params = new java.util.HashMap<>();
+            params.put("folder", folder);
+            params.put("resource_type", "image");
+            params.put("overwrite", false);
+            params.put("use_filename", false);
+            params.put("unique_filename", true);
+            // Tối ưu hóa tốc độ: Bỏ các phân tích nâng cao không cần thiết của Cloudinary để upload siêu tốc
+            params.put("colors", false);
+            params.put("faces", false);
+            params.put("quality_analysis", false);
+            params.put("cinemagraph_analysis", false);
+            params.put("image_metadata", false);
+            params.put("phash", false);
+            params.put("media_metadata", false);
 
             Map<?, ?> result = cloudinary.uploader().upload(file.getBytes(), params);
 
