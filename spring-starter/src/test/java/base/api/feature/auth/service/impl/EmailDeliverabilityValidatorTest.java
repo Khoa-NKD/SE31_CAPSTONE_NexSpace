@@ -51,5 +51,12 @@ class EmailDeliverabilityValidatorTest {
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("không đúng định dạng");
     }
+
+    @Test
+    @DisplayName("Email Gmail không tồn tại thực tế: ném BadRequestException")
+    void nonExistentGmail_ThrowsBadRequest() {
+        assertThatThrownBy(() -> validator.validateEmailDeliverability("khoankdde180292@gmail.com"))
+                .isInstanceOf(BadRequestException.class);
+    }
 }
 

@@ -13,6 +13,7 @@ import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
+import java.net.Inet4Address;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
@@ -30,7 +31,7 @@ import java.util.regex.Pattern;
 public class EmailDeliverabilityValidator {
 
     private static final int SMTP_PORT = 25;
-    private static final int TIMEOUT_MS = 4000;
+    private static final int TIMEOUT_MS = 3500;
 
     private static final Pattern EMAIL_SYNTAX_PATTERN =
             Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
@@ -48,7 +49,16 @@ public class EmailDeliverabilityValidator {
             "throwawaymail.com", "temp-mail.org", "nada.ltd"
     );
 
+    private static final List<String> GMAIL_FALLBACK_MX = List.of(
+            "gmail-smtp-in.l.google.com",
+            "alt1.gmail-smtp-in.l.google.com",
+            "alt2.gmail-smtp-in.l.google.com",
+            "alt3.gmail-smtp-in.l.google.com",
+            "alt4.gmail-smtp-in.l.google.com"
+    );
+
     private record MxRecord(int priority, String host) {}
+    private record SmtpResult(int code, String message) {}
 
     /**
      * Xác thực tính khả dụng và tồn tại của địa chỉ email:
@@ -83,21 +93,32 @@ public class EmailDeliverabilityValidator {
         // 3. Tra cứu bản ghi MX hợp lệ (bỏ qua Null MX - RFC 7505)
         List<String> validMxHosts = resolveValidMxHosts(domain);
         if (validMxHosts.isEmpty()) {
-            log.warn("[EMAIL_VALIDATE] Tên miền {} không có máy chủ nhận thư (không có MX hoặc là Null MX)", domain);
-            throw new BadRequestException("Tên miền email không tồn tại hoặc không thể nhận thư");
+            if (isGmail) {
+                validMxHosts = GMAIL_FALLBACK_MX;
+            } else {
+                log.warn("[EMAIL_VALIDATE] Tên miền {} không có máy chủ nhận thư (không có MX hoặc là Null MX)", domain);
+                throw new BadRequestException("Tên miền email không tồn tại hoặc không thể nhận thư");
+            }
         }
 
-        // 4. Kiểm tra phân giải IP của máy chủ MX chính
-        String primaryMx = validMxHosts.get(0);
-        try {
-            InetAddress.getByName(primaryMx);
-        } catch (Exception e) {
-            log.warn("[EMAIL_VALIDATE] Không thể phân giải IP cho máy chủ MX {}: {}", primaryMx, e.getMessage());
+        // 4. Kiểm tra phân giải IP của máy chủ MX
+        boolean hasResolvableMx = false;
+        for (String mxHost : validMxHosts) {
+            try {
+                InetAddress[] addresses = InetAddress.getAllByName(mxHost);
+                if (addresses != null && addresses.length > 0) {
+                    hasResolvableMx = true;
+                    break;
+                }
+            } catch (Exception ignored) {}
+        }
+        if (!hasResolvableMx) {
+            log.warn("[EMAIL_VALIDATE] Không thể phân giải IP cho bất kỳ máy chủ MX nào của tên miền {}", domain);
             throw new BadRequestException("Máy chủ nhận thư của tên miền không tồn tại");
         }
 
         // 5. Xác thực hộp thư thực tế qua SMTP RCPT TO
-        verifyMailboxViaSmtp(primaryMx, normalizedEmail, isGmail);
+        verifyMailboxViaSmtp(validMxHosts, normalizedEmail, isGmail);
     }
 
     private void validateGmailUsernameRules(String username) {
@@ -159,44 +180,84 @@ public class EmailDeliverabilityValidator {
         return mxRecords.stream().map(MxRecord::host).toList();
     }
 
-    private void verifyMailboxViaSmtp(String mxHost, String email, boolean isGmail) {
+    private void verifyMailboxViaSmtp(List<String> mxHosts, String email, boolean isGmail) {
+        boolean connectionEstablished = false;
+
+        for (String mxHost : mxHosts) {
+            try {
+                InetAddress[] addresses = InetAddress.getAllByName(mxHost);
+                // Ưu tiên kết nối IPv4 trước IPv6 để đảm bảo tốc độ và tránh blackhole cổng 25
+                List<InetAddress> sortedAddresses = new ArrayList<>(List.of(addresses));
+                sortedAddresses.sort((a, b) -> {
+                    if (a instanceof Inet4Address && !(b instanceof Inet4Address)) return -1;
+                    if (!(a instanceof Inet4Address) && b instanceof Inet4Address) return 1;
+                    return 0;
+                });
+
+                for (InetAddress address : sortedAddresses) {
+                    try {
+                        SmtpResult result = probeMailbox(address, email);
+                        if (result != null) {
+                            connectionEstablished = true;
+                            if (result.code() >= 500 && result.code() < 600) {
+                                log.warn("[EMAIL_VALIDATE] Máy chủ MX {} ({}) từ chối hộp thư {}: {}",
+                                        mxHost, address.getHostAddress(), email, result.message());
+                                if (isGmail) {
+                                    throw new BadRequestException(
+                                            "Địa chỉ email không tồn tại trong hệ thống Gmail: 550 5.1.1 The email account that you tried to reach does not exist. Vui lòng kiểm tra lại.");
+                                } else {
+                                    throw new BadRequestException(
+                                            "Địa chỉ email không tồn tại hoặc máy chủ từ chối nhận thư (mã phản hồi " + result.code() + "). Vui lòng kiểm tra lại.");
+                                }
+                            }
+                            if (result.code() == 250 || result.code() == 251) {
+                                log.info("[EMAIL_VALIDATE] Hộp thư {} tồn tại và hợp lệ trên máy chủ MX {} ({})",
+                                        email, mxHost, address.getHostAddress());
+                                return;
+                            }
+                        }
+                    } catch (BadRequestException e) {
+                        throw e;
+                    } catch (Exception e) {
+                        log.debug("[EMAIL_VALIDATE] Không thể kết nối tới {} ({}): {}", mxHost, address.getHostAddress(), e.getMessage());
+                    }
+                }
+            } catch (BadRequestException e) {
+                throw e;
+            } catch (Exception e) {
+                log.debug("[EMAIL_VALIDATE] Lỗi truy vấn địa chỉ máy chủ MX {}: {}", mxHost, e.getMessage());
+            }
+        }
+
+        if (!connectionEstablished) {
+            log.warn("[EMAIL_VALIDATE] Không thể kết nối SMTP trực tiếp tới các máy chủ MX cho email {}. Bỏ qua kiểm tra SMTP trực tiếp (Fail-open an toàn).", email);
+        }
+    }
+
+    private SmtpResult probeMailbox(InetAddress address, String email) throws Exception {
         try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(mxHost, SMTP_PORT), TIMEOUT_MS);
+            socket.connect(new InetSocketAddress(address, SMTP_PORT), TIMEOUT_MS);
             socket.setSoTimeout(TIMEOUT_MS);
 
             BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream(), StandardCharsets.UTF_8));
             BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.UTF_8));
 
-            String banner = readResponse(reader);
-            if (banner == null || !banner.startsWith("220")) {
-                log.warn("[EMAIL_VALIDATE] Banner từ máy chủ MX {} không hợp lệ: {}", mxHost, banner);
-                return;
+            SmtpResult banner = readSmtpResponse(reader);
+            if (banner == null || banner.code() != 220) {
+                return null;
             }
 
             sendCommand(writer, "HELO nexspace.vn");
-            readResponse(reader);
+            readSmtpResponse(reader);
 
             sendCommand(writer, "MAIL FROM:<verify@nexspace.vn>");
-            readResponse(reader);
+            readSmtpResponse(reader);
 
             sendCommand(writer, "RCPT TO:<" + email + ">");
-            String rcptRes = readResponse(reader);
+            SmtpResult rcptRes = readSmtpResponse(reader);
 
             sendCommand(writer, "QUIT");
-
-            if (rcptRes != null && (rcptRes.startsWith("550") || rcptRes.startsWith("551") || rcptRes.startsWith("552") || rcptRes.startsWith("553") || rcptRes.startsWith("554"))) {
-                log.warn("[EMAIL_VALIDATE] Máy chủ MX {} từ chối hộp thư {}: {}", mxHost, email, rcptRes);
-                if (isGmail) {
-                    throw new BadRequestException("Địa chỉ email không tồn tại trong hệ thống Gmail. Vui lòng kiểm tra lại.");
-                } else {
-                    throw new BadRequestException("Địa chỉ email không tồn tại hoặc không thể nhận thư. Vui lòng kiểm tra lại.");
-                }
-            }
-        } catch (BadRequestException e) {
-            throw e;
-        } catch (Exception e) {
-            // Fail-open: Nếu đường truyền mạng chặn port 25 đối với máy chủ thứ 3 thì không chặn người dùng
-            log.warn("[EMAIL_VALIDATE] Không thể xác thực SMTP trực tiếp tới máy chủ {} cho email {}: {}", mxHost, email, e.getMessage());
+            return rcptRes;
         }
     }
 
@@ -205,11 +266,21 @@ public class EmailDeliverabilityValidator {
         writer.flush();
     }
 
-    private String readResponse(BufferedReader reader) throws Exception {
+    private SmtpResult readSmtpResponse(BufferedReader reader) throws Exception {
         String line = reader.readLine();
+        if (line == null) return null;
+        StringBuilder sb = new StringBuilder(line);
+        int code = 0;
+        try {
+            code = Integer.parseInt(line.substring(0, 3));
+        } catch (Exception ignored) {}
+
         while (line != null && line.length() >= 4 && line.charAt(3) == '-') {
             line = reader.readLine();
+            if (line != null) {
+                sb.append(" ").append(line);
+            }
         }
-        return line;
+        return new SmtpResult(code, sb.toString());
     }
 }

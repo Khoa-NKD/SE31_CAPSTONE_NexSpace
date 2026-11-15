@@ -418,6 +418,36 @@ class AuthServiceImplTest {
     }
 
     @Test
+    @DisplayName("Kiểm tra token đặt lại mật khẩu: thất bại khi tài khoản bị khóa hoặc vô hiệu hóa")
+    void validateResetToken_LockedOrInactiveUser_ReturnsInvalid() {
+        PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
+        tokenModel.setToken("token-locked-user");
+        tokenModel.setUserId(30L);
+        tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        tokenModel.setUsed(false);
+
+        UserModel lockedUser = new UserModel();
+        lockedUser.setId(30L);
+        lockedUser.setStatus(UserStatus.LOCKED);
+
+        when(passwordResetTokenRepository.findByToken("token-locked-user")).thenReturn(Optional.of(tokenModel));
+        when(userRepository.findById(30L)).thenReturn(Optional.of(lockedUser));
+
+        TokenValidationResponseDto resp = authService.validateResetToken("token-locked-user");
+        assertThat(resp.isValid()).isFalse();
+        assertThat(resp.getMessage()).contains("Tài khoản đã bị khóa bởi Quản trị viên");
+
+        UserModel inactiveUser = new UserModel();
+        inactiveUser.setId(30L);
+        inactiveUser.setStatus(UserStatus.INACTIVE);
+        when(userRepository.findById(30L)).thenReturn(Optional.of(inactiveUser));
+
+        TokenValidationResponseDto resp2 = authService.validateResetToken("token-locked-user");
+        assertThat(resp2.isValid()).isFalse();
+        assertThat(resp2.getMessage()).contains("Tài khoản đang bị tạm vô hiệu hóa bởi Quản trị viên");
+    }
+
+    @Test
     @DisplayName("Kiểm tra tính hợp lệ của token đặt lại mật khẩu: thành công khi token còn hiệu lực")
     void validateResetToken_Valid() {
         PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
@@ -518,6 +548,41 @@ class AuthServiceImplTest {
         assertThatThrownBy(() -> authService.completeForgotPassword(dto))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Mật khẩu mới không được trùng với mật khẩu hiện tại");
+    }
+
+    @Test
+    @DisplayName("Đặt lại mật khẩu thất bại khi tài khoản bị khóa hoặc tạm vô hiệu hóa")
+    void completeForgotPassword_LockedOrInactiveUser_ThrowsBadRequest() {
+        CompleteForgotPasswordDto dto = new CompleteForgotPasswordDto();
+        dto.setResetToken("valid-token");
+        dto.setNewPassword("NewPass@123");
+        dto.setConfirmNewPassword("NewPass@123");
+
+        PasswordResetTokenModel tokenModel = new PasswordResetTokenModel();
+        tokenModel.setToken("valid-token");
+        tokenModel.setUserId(30L);
+        tokenModel.setExpiresAt(LocalDateTime.now().plusMinutes(30));
+        tokenModel.setUsed(false);
+
+        UserModel lockedUser = new UserModel();
+        lockedUser.setId(30L);
+        lockedUser.setStatus(UserStatus.LOCKED);
+
+        when(passwordResetTokenRepository.findByToken("valid-token")).thenReturn(Optional.of(tokenModel));
+        when(userRepository.findById(30L)).thenReturn(Optional.of(lockedUser));
+
+        assertThatThrownBy(() -> authService.completeForgotPassword(dto))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Tài khoản đã bị khóa bởi Quản trị viên");
+
+        UserModel inactiveUser = new UserModel();
+        inactiveUser.setId(30L);
+        inactiveUser.setStatus(UserStatus.INACTIVE);
+        when(userRepository.findById(30L)).thenReturn(Optional.of(inactiveUser));
+
+        assertThatThrownBy(() -> authService.completeForgotPassword(dto))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Tài khoản đang bị tạm vô hiệu hóa bởi Quản trị viên");
     }
 
     // ──────────────────────────────────────────────────────────────────────────
