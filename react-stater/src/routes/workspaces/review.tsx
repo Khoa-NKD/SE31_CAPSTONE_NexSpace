@@ -30,7 +30,7 @@ export const Route = createFileRoute('/workspaces/review')({
   }),
   component: BookingReviewRoute,
   head: () => ({
-    meta: [{ title: 'NexSpace — Booking Review & 15-Minute Hold' }]
+    meta: [{ title: 'NexSpace — Booking Review & Hold' }]
   })
 });
 
