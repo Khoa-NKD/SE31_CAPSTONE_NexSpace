@@ -61,6 +61,8 @@ export function ResourceInventoryTable({
             const floor = options?.floors.find((f) => f.id === resource.floorPlanId);
             const type = options?.types.find((t) => t.id === resource.resourceTypeId);
             const archived = resource.status === 'ARCHIVED';
+            const room = options?.rooms?.find((item) => item.id === resource.parentRoomId);
+            const displayStatus = archived ? resource.status : (room?.status ?? resource.status);
             const hasPrice = [
               resource.pricePerHour,
               type?.pricePerHour,
@@ -136,7 +138,7 @@ export function ResourceInventoryTable({
                 </td>
                 <td className='px-5 py-4'>
                   <div className='flex items-center gap-2'>
-                    {resource.status === 'DRAFT' ? (
+                    {resource.parentRoomId != null ? null : resource.status === 'DRAFT' ? (
                       <Button
                         size='sm'
                         variant='outline'
@@ -161,24 +163,32 @@ export function ResourceInventoryTable({
                         }
                       />
                     )}
-                    <Badge variant={resource.status === 'ACTIVE' ? 'default' : 'secondary'}>
-                      {statusLabel(resource.status)}
+                    <Badge variant={displayStatus === 'ACTIVE' ? 'default' : 'secondary'}>
+                      {statusLabel(displayStatus)}
                     </Badge>
                   </div>
-                  {resource.status !== 'ACTIVE' && !canActivate && !archived && (
-                    <p className='text-muted-foreground mt-2 max-w-52 text-[11px]'>
-                      {activationIssue}
-                      {workspaceStatus === 'ACTIVE' && floor && floor.status !== 'PUBLISHED' && (
-                        <Link
-                          className='mt-1 block text-primary hover:underline'
-                          to='/dashboard/organizer/floorplan'
-                          search={{ workspaceId, floorId: floor.id }}
-                        >
-                          {c('Open floor plan', 'Mở sơ đồ tầng')}
-                        </Link>
-                      )}
+                  {resource.parentRoomId != null && !archived && (
+                    <p className='text-muted-foreground mt-2 text-xs'>
+                      {c('Controlled by the room', 'Bật/tắt theo phòng')}
                     </p>
                   )}
+                  {resource.parentRoomId == null &&
+                    resource.status !== 'ACTIVE' &&
+                    !canActivate &&
+                    !archived && (
+                      <p className='text-muted-foreground mt-2 max-w-52 text-[11px]'>
+                        {activationIssue}
+                        {workspaceStatus === 'ACTIVE' && floor && floor.status !== 'PUBLISHED' && (
+                          <Link
+                            className='mt-1 block text-primary hover:underline'
+                            to='/dashboard/organizer/floorplan'
+                            search={{ workspaceId, floorId: floor.id }}
+                          >
+                            {c('Open floor plan', 'Mở sơ đồ tầng')}
+                          </Link>
+                        )}
+                      </p>
+                    )}
                 </td>
                 <td className='px-5 py-4'>
                   <div className='flex gap-1'>

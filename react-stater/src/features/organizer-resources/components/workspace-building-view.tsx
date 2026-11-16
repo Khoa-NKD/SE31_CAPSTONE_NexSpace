@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import type { Building } from '../api/buildings';
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { useQuery } from '@tanstack/react-query';
@@ -143,34 +144,28 @@ export function WorkspaceBuildingView({
         <ChevronRight className='size-3.5' />
         <span className='truncate font-medium text-foreground'>{workspace.name}</span>
       </nav>
-      <header className='flex flex-wrap items-center justify-between gap-4'>
-        <div className='flex items-center gap-3'>
+      <OrganizerPageHeader
+        title={workspace.name}
+        leading={
           <Button
             variant='outline'
             size='icon'
-            className='size-10 rounded-xl'
+            className='size-9 shrink-0'
             aria-label={c('Back to workspaces', 'Về danh sách không gian')}
             onClick={onBack}
           >
             <ArrowLeft className='size-4' />
           </Button>
-          <div>
-            <p className='mb-1 text-[10px] font-semibold uppercase tracking-[.17em] text-primary'>
-              NexSpace · Building Explorer
-            </p>
-            <h1 className='text-xl font-semibold tracking-tight sm:text-2xl'>{workspace.name}</h1>
-          </div>
-        </div>
-        <div className='flex items-center gap-2'>
-          <Badge variant='outline' className='rounded-full px-3 py-1.5'>
-            {workspaceState(workspace.status, vi)}
-          </Badge>
-          <Button className='rounded-xl' size='sm' disabled={!writable} onClick={onAddFloor}>
-            <Plus className='size-4' />
-            {c('Link floor', 'Liên kết tầng')}
-          </Button>
-        </div>
-      </header>
+        }
+      >
+        <Badge variant='outline' className='rounded-full px-3 py-1'>
+          {workspaceState(workspace.status, vi)}
+        </Badge>
+        <Button size='sm' disabled={!writable} onClick={onAddFloor}>
+          <Plus className='size-4' />
+          {c('Link floor', 'Liên kết tầng')}
+        </Button>
+      </OrganizerPageHeader>
       <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px]'>
         <section
           ref={scene}

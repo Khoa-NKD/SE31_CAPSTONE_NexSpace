@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -28,22 +29,14 @@ export function BlockoutHeaderBar({ metrics }: BlockoutHeaderBarProps) {
         <span className="font-semibold text-foreground">Blockout Hours</span>
       </nav>
 
-      {/* Main Header & Metrics Row */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 pb-6 border-b border-border">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-foreground">
-            Unavailability & Blockout Hours
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
-            Manage operational downtime, HVAC maintenance, and private enterprise reserve schedules
-            to prevent booking conflicts across your spaces.
-          </p>
-        </div>
-
+      <OrganizerPageHeader
+        title="Unavailability & Blockout Hours"
+        description="Schedule downtime, maintenance and private reservations."
+      >
         {/* Metric Indicator Pills (Data Density Bento Flow) */}
         <div className="flex flex-wrap items-center gap-3 shrink-0">
           {/* Active Blocks */}
-          <div className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-2xs flex items-center gap-3">
+          <div className="bg-card border border-border rounded-xl px-3 py-1.5 shadow-2xs flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-600 dark:text-rose-400">
               <CalendarX2 className="w-4 h-4" />
             </div>
@@ -61,7 +54,7 @@ export function BlockoutHeaderBar({ metrics }: BlockoutHeaderBarProps) {
           </div>
 
           {/* Next Blockout */}
-          <div className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-2xs flex items-center gap-3">
+          <div className="bg-card border border-border rounded-xl px-3 py-1.5 shadow-2xs flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400">
               <Wrench className="w-4 h-4" />
             </div>
@@ -79,7 +72,7 @@ export function BlockoutHeaderBar({ metrics }: BlockoutHeaderBarProps) {
           </div>
 
           {/* Bookable Availability */}
-          <div className="bg-card border border-border rounded-xl px-4 py-2.5 shadow-2xs flex items-center gap-3">
+          <div className="bg-card border border-border rounded-xl px-3 py-1.5 shadow-2xs flex items-center gap-3">
             <div className="w-9 h-9 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400">
               <CheckCircle2 className="w-4 h-4" />
             </div>
@@ -94,7 +87,7 @@ export function BlockoutHeaderBar({ metrics }: BlockoutHeaderBarProps) {
             </div>
           </div>
         </div>
-      </div>
+      </OrganizerPageHeader>
     </div>
   );
 }

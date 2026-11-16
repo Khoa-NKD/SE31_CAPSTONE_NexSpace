@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { lazy, Suspense, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -188,36 +189,33 @@ export function BuildingManagementView({
     const lng = creating ? coordinates?.longitude : selected!.longitude;
     return (
       <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-8'>
-        <div className='flex flex-wrap items-center gap-4'>
-          <Button
-            variant='outline'
-            size='icon'
-            disabled={busy}
-            onClick={() => {
-              if (onCancel) {
-                onCancel();
-                return;
-              }
-              setCreating(false);
-              setSelected(null);
-            }}
-            aria-label={c('Back to buildings', 'Về danh sách tòa nhà')}
-          >
-            <ArrowLeft className='size-4' />
-          </Button>
-          <div className='min-w-0 flex-1'>
-            <p className='text-primary text-xs font-semibold tracking-widest uppercase'>
-              {c('Building Management', 'Quản lý tòa nhà')}
-            </p>
-            <h1 className='mt-1 text-2xl font-bold tracking-tight'>
-              {creating
-                ? editTarget
-                  ? c('Update building', 'Cập nhật tòa nhà')
-                  : c('Create a building', 'Tạo tòa nhà')
-                : selected!.name}
-            </h1>
-          </div>
-        </div>
+        <OrganizerPageHeader
+          title={
+            creating
+              ? editTarget
+                ? c('Update building', 'Cập nhật tòa nhà')
+                : c('Create a building', 'Tạo tòa nhà')
+              : selected!.name
+          }
+          leading={
+            <Button
+              variant='outline'
+              size='icon'
+              disabled={busy}
+              onClick={() => {
+                if (onCancel) {
+                  onCancel();
+                  return;
+                }
+                setCreating(false);
+                setSelected(null);
+              }}
+              aria-label={c('Back to buildings', 'Về danh sách tòa nhà')}
+            >
+              <ArrowLeft className='size-4' />
+            </Button>
+          }
+        />
         <div className='grid items-start gap-6 xl:grid-cols-[360px_minmax(0,1fr)]'>
           <div className='space-y-5'>
             <form
@@ -338,8 +336,8 @@ export function BuildingManagementView({
                 </div>
               </div>
             </form>
-            <div className='from-primary/10 to-primary/0 rounded-2xl border bg-gradient-to-br p-5 text-sm'>
-              <Layers3 className='text-primary mb-3 size-5' />
+            <div className='from-primary/5 to-card rounded-xl border bg-gradient-to-r px-4 py-3 text-sm'>
+              <Layers3 className='text-primary mb-1.5 size-4' />
               <p className='font-medium'>
                 {c(
                   'One building, multiple workspace areas',
@@ -477,31 +475,16 @@ export function BuildingManagementView({
 
   return (
     <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-8'>
-      <header className='from-primary/10 via-primary/5 to-card flex flex-wrap items-center justify-between gap-5 rounded-2xl border bg-gradient-to-br p-6 md:p-8'>
-        <div className='flex items-start gap-4'>
-          <span className='bg-primary/15 text-primary rounded-2xl p-4'>
-            <Building2 className='size-7' />
-          </span>
-          <div>
-            <p className='text-primary text-xs font-semibold tracking-widest uppercase'>
-              NexSpace · {c('Locations', 'Địa điểm')}
-            </p>
-            <h1 className='mt-2 text-3xl font-bold tracking-tight'>
-              {c('Building Management', 'Quản lý tòa nhà')}
-            </h1>
-            <p className='text-muted-foreground mt-2 max-w-2xl text-sm leading-relaxed'>
-              {c(
-                'Manage the physical locations shared by your workspaces. Keep buildings, floors and workspace areas connected.',
-                'Quản lý địa điểm dùng chung cho các workspace. Kết nối tòa nhà, tầng và từng khu vực làm việc rõ ràng.'
-              )}
-            </p>
-          </div>
-        </div>
-        <Button onClick={beginCreate} disabled={query.isPending || query.isError}>
+      <OrganizerPageHeader
+        title={c('Building Management', 'Quản lý tòa nhà')}
+        description={c('Manage buildings and their linked workspaces.', 'Quản lý tòa nhà và các workspace đã liên kết.')}
+        icon={<Building2 aria-hidden='true' />}
+      >
+        <Button size='sm' onClick={beginCreate} disabled={query.isPending || query.isError}>
           <Plus className='size-4' />
           {c('Create building', 'Tạo tòa nhà')}
         </Button>
-      </header>
+      </OrganizerPageHeader>
       <div className='grid gap-4 sm:grid-cols-3'>
         {[
           { icon: Building2, value: all.length, label: c('Buildings', 'Tòa nhà') },
@@ -512,12 +495,12 @@ export function BuildingManagementView({
             label: c('Linked workspaces', 'Workspace đã liên kết')
           }
         ].map((stat) => (
-          <div key={stat.label} className='bg-card flex items-center gap-4 rounded-2xl border p-5'>
-            <span className='bg-primary/10 text-primary rounded-xl p-3'>
-              <stat.icon className='size-5' />
+          <div key={stat.label} className='bg-card flex items-center gap-3 rounded-xl border px-3 py-2.5'>
+            <span className='bg-primary/10 text-primary flex size-8 shrink-0 items-center justify-center rounded-lg'>
+              <stat.icon className='size-4' />
             </span>
             <div>
-              <p className='text-2xl font-bold tabular-nums'>
+              <p className='text-lg font-semibold leading-tight tabular-nums'>
                 {query.isPending || query.isError ? '—' : stat.value}
               </p>
               <p className='text-muted-foreground text-sm'>{stat.label}</p>
@@ -625,9 +608,9 @@ export function BuildingManagementView({
                 key={building.id}
                 className='bg-card hover:border-primary/40 group overflow-hidden rounded-2xl border shadow-sm transition-colors'
               >
-                <div className='from-primary/10 to-card flex items-center justify-between bg-gradient-to-br p-6'>
-                  <span className='bg-background/80 text-primary rounded-xl border p-3'>
-                    <Building2 className='size-7' />
+                <div className='from-primary/5 to-card flex items-center justify-between bg-gradient-to-r px-4 py-3'>
+                  <span className='bg-primary/10 text-primary flex size-9 items-center justify-center rounded-lg'>
+                    <Building2 className='size-5' />
                   </span>
                   <span className='bg-background/70 text-muted-foreground rounded-full border px-3 py-1 text-xs'>
                     {building.latitude != null && building.longitude != null
@@ -635,7 +618,7 @@ export function BuildingManagementView({
                       : c('Address saved', 'Đã lưu địa chỉ')}
                   </span>
                 </div>
-                <div className='space-y-4 p-6 pt-1'>
+                <div className='space-y-3 p-4'>
                   <h2 className='text-lg font-semibold break-words'>{building.name}</h2>
                   <p className='text-muted-foreground flex items-start gap-2 text-sm leading-relaxed'>
                     <MapPin className='mt-0.5 size-4 shrink-0 text-primary' />

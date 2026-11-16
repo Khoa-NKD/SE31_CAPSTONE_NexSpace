@@ -20,7 +20,7 @@ export function spaNavigate(path: string): void {
     }
   }
 
-  if (typeof window !== 'undefined') {
+  if (typeof window !== 'undefined' && window.location) {
     window.location.href = path;
   }
 }

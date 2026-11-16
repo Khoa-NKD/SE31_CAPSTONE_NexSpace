@@ -1,3 +1,4 @@
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -44,29 +45,19 @@ export function BookingsHeaderBar({
         <span className="font-semibold text-foreground">Bookings Ledger</span>
       </nav>
 
-      {/* Main Title & Action CTAs */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-border">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl font-bold tracking-tight text-foreground">
-              Bookings Ledger & Reservations
-            </h1>
-            <button
-              type="button"
-              onClick={onSync}
-              className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-medium hover:bg-emerald-500/20 transition-colors cursor-pointer"
-              title="Click to refresh live sync status"
-            >
-              <Radio className="w-3 h-3 animate-pulse" />
-              <span>Live Sync: {lastSyncTime || 'Online'}</span>
-            </button>
-          </div>
-          <p className="text-sm text-muted-foreground mt-1 max-w-3xl leading-relaxed">
-            Real-time audit log of customer reservations, payment statuses via PayOS, and check-in
-            verifications across all workspace zones.
-          </p>
-        </div>
-
+      <OrganizerPageHeader
+        title="Bookings Ledger & Reservations"
+        description="Review reservations, payments and check-ins."
+      >
+        <button
+          type="button"
+          onClick={onSync}
+          className="hidden sm:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 text-xs font-medium hover:bg-emerald-500/20 transition-colors cursor-pointer"
+          title="Click to refresh live sync status"
+        >
+          <Radio className="w-3 h-3 animate-pulse" />
+          <span>Live Sync: {lastSyncTime || 'Online'}</span>
+        </button>
         {/* Action CTAs */}
         <div className="flex items-center gap-2.5 shrink-0">
           <Button
@@ -100,7 +91,7 @@ export function BookingsHeaderBar({
             <span>Manual Reservation</span>
           </Button>
         </div>
-      </div>
+      </OrganizerPageHeader>
     </div>
   );
 }

@@ -90,68 +90,61 @@ export function ApprovedApplicationView() {
         id='application-overview'
         className='scroll-mt-24 overflow-hidden rounded-2xl border bg-card shadow-sm'
       >
-        <div className='bg-gradient-to-br from-primary/10 via-primary/5 to-transparent p-5 sm:p-7'>
-          <div className='flex flex-wrap items-start justify-between gap-5'>
-            <div className='flex min-w-0 flex-1 gap-4'>
-              <span className='flex size-12 shrink-0 items-center justify-center rounded-2xl border border-primary/15 bg-background text-primary'>
-                <ClipboardCheck className='size-6' />
-              </span>
-              <div className='min-w-0'>
-                <p className='mb-1 text-[10px] font-semibold uppercase tracking-[.18em] text-primary'>
-                  {tr('Application #')}
-                  {data.id}
-                </p>
-                <h2 className='break-words text-xl font-semibold tracking-tight sm:text-2xl'>
-                  {data.legalName || tr('Your organizer application')}
-                </h2>
-                <p className='mt-2 max-w-2xl text-sm leading-6 text-muted-foreground'>
-                  {tr(
-                    'Your approved application is read-only. You can view or download its documents here.'
-                  )}
-                </p>
-              </div>
+        <div className='flex flex-wrap items-center justify-between gap-3 bg-gradient-to-r from-primary/5 to-card px-4 py-3'>
+          <div className='flex min-w-0 flex-1 items-center gap-3'>
+            <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary'>
+              <ClipboardCheck className='size-5' />
+            </span>
+            <div className='min-w-0'>
+              <p className='text-xs text-muted-foreground'>
+                {tr('Application #')}
+                {data.id}
+              </p>
+              <h2 className='break-words text-base font-semibold tracking-tight sm:text-lg'>
+                {data.legalName || tr('Your organizer application')}
+              </h2>
             </div>
-            <div className='flex shrink-0 items-center gap-2'>
-              <Badge className='gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-700 dark:text-emerald-300'>
-                <CheckCheck className='size-3.5' />
-                {tr('Approved')}
-              </Badge>
-              <Button
-                type='button'
-                variant='outline'
-                size='icon'
-                disabled={application.isFetching || documents.isFetching}
-                aria-label={tr('Refresh application record')}
-                onClick={() => void invalidateLifecycle(client)}
-              >
-                <RefreshCw
-                  className={`size-4 ${application.isFetching || documents.isFetching ? 'animate-spin' : ''}`}
-                />
-              </Button>
-            </div>
+          </div>
+          <div className='flex shrink-0 items-center gap-2'>
+            <Badge className='gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-emerald-700 dark:text-emerald-300'>
+              <CheckCheck className='size-3.5' />
+              {tr('Approved')}
+            </Badge>
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              disabled={application.isFetching || documents.isFetching}
+              aria-label={tr('Refresh application record')}
+              onClick={() => void invalidateLifecycle(client)}
+            >
+              <RefreshCw
+                className={`size-4 ${application.isFetching || documents.isFetching ? 'animate-spin' : ''}`}
+              />
+            </Button>
           </div>
         </div>
         <dl className='grid divide-y border-t sm:grid-cols-3 sm:divide-x sm:divide-y-0'>
-          <div className='p-5'>
+          <div className='px-4 py-2.5'>
             <dt className='flex items-center gap-2 text-xs text-muted-foreground'>
               <CalendarDays className='size-4 text-primary' />
               {tr('Submitted at')}
             </dt>
-            <dd className='mt-2 break-words text-sm font-medium'>{dateLabel(data.submittedAt)}</dd>
+            <dd className='mt-1 break-words text-sm font-medium'>{dateLabel(data.submittedAt)}</dd>
           </div>
-          <div className='p-5'>
+          <div className='px-4 py-2.5'>
             <dt className='flex items-center gap-2 text-xs text-muted-foreground'>
               <ShieldCheck className='size-4 text-primary' />
               {tr('Reviewed at')}
             </dt>
-            <dd className='mt-2 break-words text-sm font-medium'>{dateLabel(data.reviewedAt)}</dd>
+            <dd className='mt-1 break-words text-sm font-medium'>{dateLabel(data.reviewedAt)}</dd>
           </div>
-          <div className='p-5'>
+          <div className='px-4 py-2.5'>
             <dt className='flex items-center gap-2 text-xs text-muted-foreground'>
               <FileText className='size-4 text-primary' />
               {tr('Uploaded documents')}
             </dt>
-            <dd className='mt-2 text-sm font-medium'>
+            <dd className='mt-1 text-sm font-medium'>
               {documents.isSuccess ? documents.data.documents.length : '—'}
             </dd>
           </div>
