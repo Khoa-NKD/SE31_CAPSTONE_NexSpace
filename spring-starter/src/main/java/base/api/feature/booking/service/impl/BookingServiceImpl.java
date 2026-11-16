@@ -72,9 +72,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private static final BigDecimal DEFAULT_VAT_PERCENT = new BigDecimal("8.00");
     private static final BigDecimal DEFAULT_COMMISSION_PERCENT = new BigDecimal("10.00");
     private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = new BigDecimal("0.00");
-    private static final int DEFAULT_HOLD_TTL_MINUTES = 15;
     private static final int DEFAULT_MAX_ADVANCE_DAYS = 90;
     private static final int DEFAULT_MIN_ADVANCE_MINUTES = 0;
+
+    private static final int DEFAULT_HOLD_MINUTES = 10;
 
     private static final List<BookingStatus> ACTIVE_BOOKING_STATUSES = List.of(
             BookingStatus.CONFIRMED,
@@ -151,7 +152,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         // 5. Validate Workspace Operating Hours
         validateOperatingHours(workspace.getId(), startTime, endTime);
 
-        // 6. Check for Conflicting Active Bookings (including 15-min unexpired holds)
+        // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
         LocalDateTime now = LocalDateTime.now();
         List<BookingModel> conflictingBookings = bookingRepository.findConflictingBookingsWithHold(
                 resource.getId(), startTime, endTime, ACTIVE_BOOKING_STATUSES, now);
@@ -176,8 +177,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 .multiply(platformCommissionPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-        int holdTtlMinutes = getIntSetting("booking.hold_ttl_minutes", DEFAULT_HOLD_TTL_MINUTES);
-        LocalDateTime holdExpiresAt = now.plusMinutes(holdTtlMinutes);
+        LocalDateTime holdExpiresAt = now.plusMinutes(getEffectiveHoldMinutes());
 
         // 9. Generate Unique Booking Code
         String bookingCode = generateUniqueBookingCode();
@@ -735,8 +735,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             booking.setHoldExpiresAt(null);
         } else {
             targetStatus = BookingStatus.PENDING_PAYMENT;
-            // 15-minute renewed hold window for customer to complete payment
-            booking.setHoldExpiresAt(LocalDateTime.now().plusMinutes(15));
+            // Renewed hold window for customer to complete payment (reads DB setting or fallback to BOOKING_HOLD_MINUTES)
+            booking.setHoldExpiresAt(LocalDateTime.now().plusMinutes(getEffectiveHoldMinutes()));
         }
 
         booking.setStatus(targetStatus);
@@ -827,7 +827,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     "EXPIRE_HOLD",
                     "Booking",
                     b.getId(),
-                    "Đơn giữ chỗ " + b.getBookingCode() + " đã hết hạn 15 phút và tự động giải phóng"
+                    "Đơn giữ chỗ " + b.getBookingCode() + " đã hết thời gian giữ chỗ và tự động giải phóng"
             );
         }
 
@@ -1083,6 +1083,20 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     }
                 })
                 .orElse(defaultValue);
+    }
+
+    private int getEffectiveHoldMinutes() {
+        return platformSettingRepository.findById("booking.hold_ttl_minutes")
+                .or(() -> platformSettingRepository.findById("booking_hold_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_HOLD_MINUTES;
+                    }
+                })
+                .orElse(DEFAULT_HOLD_MINUTES);
     }
 
     private int getIntSetting(String key, int defaultValue) {

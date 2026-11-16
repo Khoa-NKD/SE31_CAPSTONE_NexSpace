@@ -39,7 +39,7 @@ public interface IBookingService {
     /** Xem trước chính sách hủy và số tiền hoàn dự kiến trước khi xác nhận hủy */
     base.api.feature.booking.dto.response.BookingCancellationPreviewDto getCancellationPreview(Long currentUserId, Long bookingId);
 
-    /** Quét và tự động chuyển trạng thái EXPIRED cho các đơn giữ chỗ đã quá hạn 15 phút */
+    /** Quét và tự động chuyển trạng thái EXPIRED cho các đơn giữ chỗ đã quá hạn */
     int expireOutdatedHolds();
 
     /** Lấy danh sách đơn đặt chỗ dành cho Organizer theo workspace, ngày và trạng thái */

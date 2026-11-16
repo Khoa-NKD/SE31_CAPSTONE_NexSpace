@@ -8,7 +8,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 /**
- * Scheduled job to automatically expire outdated booking holds (15-minute window).
+ * Scheduled job to automatically expire outdated booking holds (10-minute window).
  * Runs every 60 seconds to release unconfirmed bookings and free up seats.
  */
 @Slf4j

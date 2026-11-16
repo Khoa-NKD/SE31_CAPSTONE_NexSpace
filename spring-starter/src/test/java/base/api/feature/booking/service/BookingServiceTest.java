@@ -207,7 +207,7 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo đơn đặt chỗ thành công với chế độ INSTANT (Giữ chỗ 15 phút, PENDING_PAYMENT)")
+    @DisplayName("Tạo đơn đặt chỗ thành công với chế độ INSTANT (Giữ chỗ 10 phút, PENDING_PAYMENT)")
     void testCreateBooking_Success_Instant() {
         CreateBookingRequestDto dto = CreateBookingRequestDto.builder()
                 .workspaceId(mockWorkspace.getId())
@@ -492,7 +492,7 @@ class BookingServiceTest {
         assertThat(savedModel.getStartTime()).isEqualTo(futureMondayStart);
         assertThat(savedModel.getEndTime()).isEqualTo(futureMondayEnd);
         assertThat(savedModel.getHoldExpiresAt()).isNotNull();
-        assertThat(savedModel.getHoldExpiresAt()).isAfter(LocalDateTime.now().plusMinutes(14));
+        assertThat(savedModel.getHoldExpiresAt()).isAfter(LocalDateTime.now().plusMinutes(9));
         assertThat(savedModel.getBookingCode()).matches("^BK-[0-9]{8}-[A-F0-9]{6}$");
         assertThat(savedModel.getQrTokenHash()).isNotNull().hasSize(64);
         assertThat(savedModel.getBaseAmount()).isEqualByComparingTo(new BigDecimal("200000.00"));
@@ -760,7 +760,7 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Tự động quét và giải phóng các đơn giữ chỗ đã hết hạn 15 phút (expireOutdatedHolds)")
+    @DisplayName("Tự động quét và giải phóng các đơn giữ chỗ đã hết hạn 10 phút (expireOutdatedHolds)")
     void testExpireOutdatedHolds_Success() {
         BookingModel expiredBooking1 = new BookingModel();
         expiredBooking1.setId(101L);

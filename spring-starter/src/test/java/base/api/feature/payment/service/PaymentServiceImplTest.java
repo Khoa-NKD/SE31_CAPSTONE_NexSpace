@@ -5,6 +5,7 @@ import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.payment.service.impl.PaymentServiceImpl;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
@@ -52,6 +53,9 @@ class PaymentServiceImplTest {
     @Mock
     private PaymentRequestsService paymentRequestsService;
 
+    @Mock
+    private IPlatformSettingRepository platformSettingRepository;
+
     @InjectMocks
     private PaymentServiceImpl paymentService;
 
@@ -61,7 +65,6 @@ class PaymentServiceImplTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(paymentService, "usdToVndRate", 25450L);
-        ReflectionTestUtils.setField(paymentService, "holdMinutes", 10);
         ReflectionTestUtils.setField(paymentService, "returnUrl", "http://localhost:5173/workspaces/confirmation");
         ReflectionTestUtils.setField(paymentService, "cancelUrl", "http://localhost:5173/workspaces/review");
 

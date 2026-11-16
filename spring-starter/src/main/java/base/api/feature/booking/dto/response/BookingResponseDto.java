@@ -20,6 +20,8 @@ public class BookingResponseDto {
     BookingStatus status;
     BookingConfirmationMode confirmationMode;
     LocalDateTime holdExpiresAt;
+    Long remainingSeconds;
+    LocalDateTime serverTime;
     LocalDateTime createdAt;
 
     // Workspace info
