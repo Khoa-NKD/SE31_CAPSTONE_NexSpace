@@ -31,7 +31,7 @@ public class BookingController extends BaseAPIController {
 
     private final IBookingService bookingService;
 
-    @Operation(summary = "Tạo đơn đặt chỗ mới và giữ chỗ 15 phút")
+    @Operation(summary = "Tạo đơn đặt chỗ mới và giữ chỗ tạm thời (mặc định 10 phút)")
     @PostMapping
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<BookingResponseDto>> createBooking(
@@ -78,7 +78,7 @@ public class BookingController extends BaseAPIController {
         return success(preview, "Lấy thông tin chính sách hủy thành công");
     }
 
-    @Operation(summary = "Hủy đơn đặt chỗ hoặc hủy giữ chỗ 15 phút")
+    @Operation(summary = "Hủy đơn đặt chỗ hoặc hủy giữ chỗ tạm thời")
     @PostMapping("/{id}/cancel")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<BookingResponseDto>> cancelBooking(

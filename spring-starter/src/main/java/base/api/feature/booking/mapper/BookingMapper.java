@@ -8,6 +8,7 @@ import base.api.shared.entity.workspace.WorkspaceModel;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Duration;
+import java.time.LocalDateTime;
 
 public final class BookingMapper {
 
@@ -34,12 +35,21 @@ public final class BookingMapper {
             }
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        Long remainingSeconds = null;
+        if (model.getHoldExpiresAt() != null) {
+            long diff = Duration.between(now, model.getHoldExpiresAt()).getSeconds();
+            remainingSeconds = Math.max(0L, diff);
+        }
+
         return BookingResponseDto.builder()
                 .id(model.getId())
                 .bookingCode(model.getBookingCode())
                 .status(model.getStatus())
                 .confirmationMode(ws != null ? ws.getBookingConfirmationMode() : null)
                 .holdExpiresAt(model.getHoldExpiresAt())
+                .remainingSeconds(remainingSeconds)
+                .serverTime(now)
                 .createdAt(model.getCreatedAt())
                 // Workspace
                 .workspaceId(ws != null ? ws.getId() : null)
@@ -96,6 +106,8 @@ public final class BookingMapper {
                 .status(base.getStatus())
                 .confirmationMode(base.getConfirmationMode())
                 .holdExpiresAt(base.getHoldExpiresAt())
+                .remainingSeconds(base.getRemainingSeconds())
+                .serverTime(base.getServerTime())
                 .createdAt(base.getCreatedAt())
                 .workspaceId(base.getWorkspaceId())
                 .workspaceName(base.getWorkspaceName())

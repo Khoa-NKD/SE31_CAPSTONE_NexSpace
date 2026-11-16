@@ -100,7 +100,7 @@ class BookingControllerTest {
                 .baseAmount(new BigDecimal("200000.00"))
                 .taxAmount(new BigDecimal("16000.00"))
                 .finalPrice(new BigDecimal("216000.00"))
-                .holdExpiresAt(LocalDateTime.now().plusMinutes(15))
+                .holdExpiresAt(LocalDateTime.now().plusMinutes(10))
                 .build();
 
         when(bookingService.createBooking(eq(100L), any(CreateBookingRequestDto.class))).thenReturn(response);

@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
@@ -17,6 +18,7 @@ import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
+import base.api.shared.entity.governance.PlatformSettingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
@@ -60,13 +62,13 @@ public class PaymentServiceImpl implements IPaymentService {
     private final IWorkspaceRepository workspaceRepository;
     private final IOrganizerProfileRepository organizerProfiles;
     private final IBookableResourceRepository bookableResourceRepository;
+    private final IPlatformSettingRepository platformSettingRepository;
     private final PayOS payOS;
 
     @Value("${nexspace.payment.usd-to-vnd-rate:25450}")
     private long usdToVndRate;
 
-    @Value("${nexspace.booking.hold-minutes:10}")
-    private int holdMinutes;
+    private static final int DEFAULT_HOLD_MINUTES = 10;
 
     @Value("${nexspace.payos.return-url:http://localhost:5173/workspaces/confirmation}")
     private String returnUrl;
@@ -146,7 +148,7 @@ public class PaymentServiceImpl implements IPaymentService {
         // Reuse the booking's existing holdExpiresAt if still valid so the hold duration is not falsely extended
         LocalDateTime expiresAt = booking.getHoldExpiresAt();
         if (expiresAt == null || expiresAt.isBefore(now)) {
-            expiresAt = now.plusMinutes(holdMinutes);
+            expiresAt = now.plusMinutes(getEffectiveHoldMinutes());
             booking.setHoldExpiresAt(expiresAt);
             bookingRepository.save(booking);
         }
@@ -360,7 +362,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking.setFinalPrice(BigDecimal.valueOf(2000));
             if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now)) {
                 requireOrganizerAcceptingHolds(booking.getWorkspace());
-                booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
+                booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
             }
             booking = bookingRepository.save(booking);
         } else {
@@ -399,7 +401,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking.setAddonAmount(BigDecimal.ZERO);
             booking.setQuotaUsedAmount(BigDecimal.ZERO);
             booking.setFinalPrice(BigDecimal.valueOf(2000));
-            booking.setHoldExpiresAt(now.plusMinutes(holdMinutes));
+            booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
             booking.setPricingSnapshot("{\"currency\":\"VND\"}");
 
             booking = bookingRepository.save(booking);
@@ -409,7 +411,7 @@ public class PaymentServiceImpl implements IPaymentService {
         LocalDateTime holdExpiresAt = booking.getHoldExpiresAt();
         long remainingSeconds = holdExpiresAt != null
                 ? Math.max(0, java.time.Duration.between(now, holdExpiresAt).getSeconds())
-                : (holdMinutes * 60L);
+                : (getEffectiveHoldMinutes() * 60L);
 
         String seatCode = (booking.getResource() != null && booking.getResource().getName() != null)
                 ? booking.getResource().getName()
@@ -493,6 +495,20 @@ public class PaymentServiceImpl implements IPaymentService {
             return "Ngân hàng liên kết VietQR";
         }
         return BANK_BIN_NAMES.getOrDefault(bin, "Ngân hàng liên kết VietQR (" + bin + ")");
+    }
+
+    private int getEffectiveHoldMinutes() {
+        return platformSettingRepository.findById("booking.hold_ttl_minutes")
+                .or(() -> platformSettingRepository.findById("booking_hold_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_HOLD_MINUTES;
+                    }
+                })
+                .orElse(DEFAULT_HOLD_MINUTES);
     }
 }
 
