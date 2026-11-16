@@ -183,4 +183,44 @@ export function notifyRoomUnavailable(
   }
 }
 
+/**
+ * Xử lý lỗi xung đột đồng thời (Concurrency Conflict - HTTP 409) khi có người khác nhanh tay hơn đặt/giữ chỗ trước.
+ * Tự động kích hoạt cơ chế bỏ chọn (Auto-deselect) và hiển thị thông báo hướng dẫn khách chọn vị trí khác.
+ *
+ * @param error Lỗi trả về từ API (thường là ApiError HTTP 409)
+ * @param resourceLabel Nhãn hoặc tên tài nguyên bị xung đột (tuỳ chọn)
+ * @param onAutoDeselect Callback để giao diện tự động bỏ chọn chỗ này khỏi giỏ chọn
+ */
+export function handleBookingConflictError(
+  error: unknown,
+  resourceLabel?: string,
+  onAutoDeselect?: () => void
+): boolean {
+  const err = error as { status?: number; statusCode?: number; message?: string } | null;
+  const isConflict =
+    err?.status === 409 ||
+    err?.statusCode === 409 ||
+    (typeof err?.message === 'string' &&
+      (err.message.includes('đã có người đặt') ||
+        err.message.includes('đang giữ chỗ') ||
+        err.message.includes('xung đột')));
+
+  if (isConflict) {
+    const labelText = resourceLabel ? ` ${resourceLabel}` : '';
+    toast.error(`Rất tiếc! Chỗ ngồi/phòng${labelText} vừa có người giữ trước bạn`, {
+      description:
+        'Một khách hàng khác đã nhanh tay hơn hoàn tất giữ chỗ trước bạn ít giây. Hệ thống đã tự động bỏ chọn vị trí này để bạn có thể chọn ngay một chỗ ngồi khác!',
+      duration: 6000
+    });
+
+    if (onAutoDeselect) {
+      onAutoDeselect();
+    }
+    return true;
+  }
+
+  return false;
+}
+
+
 
