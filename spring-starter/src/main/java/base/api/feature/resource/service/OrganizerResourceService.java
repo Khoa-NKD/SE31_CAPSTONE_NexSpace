@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -193,7 +194,7 @@ public class OrganizerResourceService {
                 editable,
                 items,
                 ResourceCanvas.decorations(floor, true),
-                ResourceCanvas.ownsDraft(floor));
+                ResourceCanvas.ownsDraft(floor), floor.getBuildingFloor() == null ? 1 : floor.getBuildingFloor().getGeometryVersion());
     }
 
     @Transactional
@@ -269,9 +270,18 @@ public class OrganizerResourceService {
             validatePlacement(resource, current);
         }
         var decorations = ResourceCanvas.decorations(floor, true);
+        // Publishing a genuinely empty draft only clears the previous scene; no real-world geometry is introduced.
+        boolean emptyScene = current.isEmpty() && decorations.isEmpty()
+                && (floor.getBackgroundUrl() == null || floor.getBackgroundUrl().isBlank());
+        if (!emptyScene) {
+            ResourceCanvas.requireUniformMetricScale(floor);
+            ResourceCanvas.validateScene(floor, current, true);
+        }
         ResourceCanvas.validateDecorations(decorations, bounds);
         ResourceCanvas.validateDecorationResources(decorations, current);
         floor.setLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, decorations));
+        floor.setPublishedGeometryJson(PublishedGeometry.snapshot(current));
+        floor.setPublishedLocationJson(PublishedGeometry.locationSnapshot(floor));
         floor.setDraftLayoutJson(null);
         floor.setStatus(FloorPlanStatus.PUBLISHED);
         floor.setVersion(floor.getVersion() + 1);
@@ -485,20 +495,10 @@ public class OrganizerResourceService {
         }
         ResourceCanvas.validateDecorations(plan.decorations(),bounds);
         ResourceCanvas.validateDecorationResources(plan.decorations(),finalState);
-        // Only a published floor has a second, customer-visible layout using live resource positions.
-        if (floor.getStatus() == FloorPlanStatus.PUBLISHED) {
-            var published = ResourceCanvas.decorations(floor, false).stream().map(object -> {
-                for (var entry : previousPoses.entrySet()) {
-                    var moved = ResourceCanvas.moveDecorations(List.of(object), entry.getValue(), entry.getKey()).get(0);
-                    if (!moved.equals(object)) return moved;
-                }
-                return object;
-            }).toList();
-            ResourceCanvas.validateDecorations(published, bounds);
-            ResourceCanvas.validateDecorationResources(published, finalState);
-            floor.setLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, published, false));
-        }
+        // Customer-visible geometry remains frozen until publish.
         floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor,bounds,plan.decorations()));
+        if (floor.getBuildingFloor() != null && floor.getBuildingFloor().getGeometryVersion() >= 2)
+            ResourceCanvas.validateScene(floor, finalState, true);
         // Persist parents before children, then remove children before their former parents.
         finalState.stream().filter(r -> r.getResourceType().getCategory() == ResourceCategory.ROOM).forEach(resources::save);
         finalState.stream().filter(r -> r.getResourceType().getCategory() != ResourceCategory.ROOM).forEach(resources::save);
@@ -556,7 +556,7 @@ public class OrganizerResourceService {
         resources.flush();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public FloorOption createFloor(Long actorId, Long workspaceId, Floor request) {
         eligible(actorId);
         var workspace = owned(actorId, workspaceId, true);
@@ -606,6 +606,10 @@ public class OrganizerResourceService {
             throw new ConflictException(
                     "This floor still contains resources, including retained or archived records."
                         + " Remove eligible resources first; booking history is preserved");
+        int publishedObjects = ResourceCanvas.decorations(floor, false).size();
+        if (publishedObjects > 0 && ResourceCanvas.ownsDraft(floor) && ResourceCanvas.simpleLayout(floor.getDraftLayoutJson(), true))
+            throw new ConflictException("The draft is empty, but the published layout still contains " + publishedObjects
+                    + (publishedObjects == 1 ? " object." : " objects.") + " Publish the empty draft before removing this workspace area.");
         if ((floor.getBackgroundUrl() != null && !floor.getBackgroundUrl().isBlank())
                 || !ResourceCanvas.simpleLayout(floor.getLayoutJson(), true)
                 || !ResourceCanvas.simpleLayout(floor.getDraftLayoutJson(), true))
@@ -620,7 +624,7 @@ public class OrganizerResourceService {
         }
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public FloorOption copyFloor(
             Long actorId, Long workspaceId, Long floorId, FloorManagement.Copy input) {
         eligible(actorId);
@@ -665,6 +669,9 @@ public class OrganizerResourceService {
             target.setDraftLayoutJson(ResourceCanvas.writeDecorations(source, bounds, objects));
         }
         buildings.bind(actorId, workspaceId, target, input.allocation());
+        if (source.getBuildingFloor() != null && target.getBuildingFloor() != null
+                && source.getBuildingFloor().getGeometryVersion() != target.getBuildingFloor().getGeometryVersion())
+            throw new ConflictException("Confirm metric dimensions for both floors before copying their resources");
         if (bounds == null) target.setDraftLayoutJson(ResourceCanvas.writeDecorations(target, new ResourceCanvas.Bounds(input.allocation().width(), input.allocation().height()), List.of()));
         floors.saveAndFlush(target);
         var mapped = new HashMap<Long, BookableResourceModel>();
@@ -787,6 +794,8 @@ public class OrganizerResourceService {
     public TypeOption createType(Long actorId, Long workspaceId, Type request) {
         eligible(actorId);
         var workspace = owned(actorId, workspaceId, true);
+        if (request.usageKind() == null || request.standardWidthM() == null || request.standardLengthM() == null)
+            throw new BadRequestException("Choose the resource usage and enter both real dimensions in metres");
         if (types.existsByWorkspaceIdAndNameIgnoreCase(workspaceId, request.name()))
             throw new ConflictException("This resource type name already exists in the workspace");
         if (request.category() == ResourceCategory.DESK && request.capacity() != 1)
@@ -845,6 +854,32 @@ public class OrganizerResourceService {
         floors.saveAndFlush(floor);
         em.refresh(floor);
         return ResourceResponses.floorOption(floor);
+    }
+
+    /** A type can only be removed when no operational or historical record references it. */
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public void deleteType(Long actorId, Long workspaceId, Long typeId, String expectedRevision) {
+        eligible(actorId);
+        owned(actorId, workspaceId, true);
+        var type = types.findById(typeId).filter(item -> item.getWorkspace().getId().equals(workspaceId))
+                .orElseThrow(() -> new NotFoundException("Resource type not found in this workspace"));
+        em.refresh(type, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+        if (!Objects.equals(expectedRevision, ResourceResponses.revision(type)))
+            throw new ConflictException("The resource type changed. Refresh before deleting it");
+        // Count every status, including unpositioned drafts and archived resources retaining booking history.
+        long references = em.createQuery("select count(r) from BookableResourceModel r where r.resourceType.id=:id", Long.class)
+                .setParameter("id", typeId).getSingleResult();
+        if (references > 0)
+            throw new ConflictException("This resource type is still used by " + references
+                    + " resources, including draft, disabled or archived records");
+        long prices = em.createQuery("select count(p) from PricingRuleModel p where p.resourceType.id=:id", Long.class)
+                .setParameter("id", typeId).getSingleResult();
+        long discounts = em.createQuery("select count(d) from DiscountRuleModel d where d.resourceType.id=:id", Long.class)
+                .setParameter("id", typeId).getSingleResult();
+        if (prices > 0 || discounts > 0)
+            throw new ConflictException("This resource type is linked to pricing or discount rules");
+        types.delete(type);
+        types.flush();
     }
 
     @Transactional
@@ -967,6 +1002,17 @@ public class OrganizerResourceService {
                     .map(FloorPlanModel::getBuildingFloor).filter(Objects::nonNull).distinct()
                     .sorted(java.util.Comparator.comparing(base.api.shared.entity.resource.BuildingFloorModel::getId))
                     .forEach(p -> em.refresh(p, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE));
+            for (var floor : floors.findByWorkspaceIdOrderByFloorNumberAsc(id)) {
+                em.refresh(floor, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                if (floor.getStatus() == FloorPlanStatus.PUBLISHED && floor.getPublishedGeometryJson() == null) {
+                    // Retaining the baseline must not change the client's existing floor revision.
+                    em.createNativeQuery("update floor_plan set published_geometry_json = :snapshot, published_location_json = :location where id = :id and published_geometry_json is null")
+                            .setParameter("snapshot", PublishedGeometry.snapshot(resources.findByFloorPlanId(floor.getId())))
+                            .setParameter("location", PublishedGeometry.locationSnapshot(floor))
+                            .setParameter("id", floor.getId()).executeUpdate();
+                    em.refresh(floor);
+                }
+            }
         }
         if (write
                 && workspace.getStatus() != WorkspaceStatus.DRAFT
@@ -1123,7 +1169,7 @@ public class OrganizerResourceService {
         }
         var peers = resources.findByFloorPlanId(resource.getFloorPlan().getId());
         validatePlacement(resource, peers);
-        var bounds = ResourceCanvas.read(resource.getFloorPlan());
+        var bounds = ResourceCanvas.editorBounds(resource.getFloorPlan());
         if (geometryChanged)
             for (var child : children) {
                 if (child.getStatus() == BookableResourceStatus.ARCHIVED) continue;
@@ -1140,10 +1186,8 @@ public class OrganizerResourceService {
                             + " workflow for geometry changes");
         var floor = resource.getFloorPlan();
         em.refresh(floor, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-        // Public maps use live resource geometry. Move each existing layout independently,
-        // preserving the unpublished draft rather than publishing its new objects.
-        for (boolean editor : new boolean[] {false, true}) {
-            if (editor && !ResourceCanvas.ownsDraft(floor)) continue;
+        // Only the editor geometry follows room edits; the public snapshot is immutable.
+        for (boolean editor : new boolean[] {true}) {
             var objects = ResourceCanvas.decorations(floor, editor);
             var moved =
                     geometryChanged
@@ -1171,6 +1215,11 @@ public class OrganizerResourceService {
     }
 
     private void activation(BookableResourceModel resource) {
+        var floor = resource.getFloorPlan();
+        ResourceCanvas.requireUniformMetricScale(floor);
+        ResourceCanvas.validateScene(floor, resources.findByFloorPlanId(floor.getId()), true);
+        if (!PublishedGeometry.isCurrentPublishedPlacement(resource))
+            throw new ConflictException("Publish the latest resource placement before activating it");
         if (resource.getParentRoom() != null) {
             ResourceCanvas.fitsInsideRoom(resource, resource.getParentRoom());
             return;
@@ -1289,6 +1338,11 @@ public class OrganizerResourceService {
     private Detail save(BookableResourceModel resource) {
         touchRoom(resource.getParentRoom());
         resources.saveAndFlush(resource);
+        var floor = resource.getFloorPlan();
+        var snapshot = PublishedGeometry.read(floor);
+        if (!ResourceCanvas.ownsDraft(floor) && ResourceCanvas.read(floor) != null
+                && (snapshot == null || !PublishedGeometry.matches(snapshot.get(resource.getId()), resource)))
+            floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor, ResourceCanvas.read(floor), ResourceCanvas.decorations(floor, false)));
         validateDesignCapacity(resource.getFloorPlan());
         // Return the database timestamp precision so the next revision comparison is stable.
         em.refresh(resource);

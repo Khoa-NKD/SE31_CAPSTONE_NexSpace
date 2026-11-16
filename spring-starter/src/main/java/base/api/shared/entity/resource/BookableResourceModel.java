@@ -41,6 +41,28 @@ import java.math.BigDecimal;
         name = "ck_bookable_resource_price",
         constraints = "price_per_hour IS NULL OR price_per_hour > 0")
 public class BookableResourceModel extends BaseModel {
+    @Column(name = "pos_x_m", precision = 16, scale = 6)
+    private BigDecimal posXM;
+    @Column(name = "pos_y_m", precision = 16, scale = 6)
+    private BigDecimal posYM;
+    @Column(name = "width_m", precision = 16, scale = 6)
+    private BigDecimal widthM;
+    @Column(name = "length_m", precision = 16, scale = 6)
+    private BigDecimal lengthM;
+
+    private boolean metric() {
+        return floorPlan != null && floorPlan.getBuildingFloor() != null
+                && floorPlan.getBuildingFloor().getGeometryVersion() >= 2;
+    }
+    public BigDecimal getPosX() { return metric() && posXM != null ? MetricGeometry.pixels(posXM) : posX; }
+    public BigDecimal getPosY() { return metric() && posYM != null ? MetricGeometry.pixels(posYM) : posY; }
+    public BigDecimal getWidth() { return metric() && widthM != null ? MetricGeometry.pixels(widthM) : width; }
+    public BigDecimal getHeight() { return metric() && lengthM != null ? MetricGeometry.pixels(lengthM) : height; }
+    public void setPosX(BigDecimal value) { posX = value; if (metric()) posXM = MetricGeometry.metres(value); }
+    public void setPosY(BigDecimal value) { posY = value; if (metric()) posYM = MetricGeometry.metres(value); }
+    public void setWidth(BigDecimal value) { width = value; if (metric()) widthM = MetricGeometry.metres(value); }
+    public void setHeight(BigDecimal value) { height = value; if (metric()) lengthM = MetricGeometry.metres(value); }
+
 
     /** Optional containing room; open-area desks have no parent. Never cascade room deletion. */
     @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)

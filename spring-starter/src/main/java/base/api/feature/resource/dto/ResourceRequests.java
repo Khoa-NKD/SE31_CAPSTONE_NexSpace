@@ -183,8 +183,8 @@ public final class ResourceRequests {
 
     public record PublishFloor(
             @NotBlank @Size(max = 100) String expectedRevision,
-            @NotNull @DecimalMin("1") @Digits(integer = 8, fraction = 2) BigDecimal width,
-            @NotNull @DecimalMin("1") @Digits(integer = 8, fraction = 2) BigDecimal height,
+            @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2) BigDecimal width,
+            @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2) BigDecimal height,
             @AssertTrue boolean resourcesConfirmed,
             @NotNull @Size(max = 10000)
                     java.util.List<@NotNull @jakarta.validation.Valid ResourceRevision> resources) {

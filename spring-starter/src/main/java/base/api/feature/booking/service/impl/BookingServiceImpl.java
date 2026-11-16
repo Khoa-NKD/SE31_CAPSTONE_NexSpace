@@ -19,6 +19,7 @@ import base.api.feature.resource.dto.FloorManagement.AvailabilityState;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.repository.ResourceUsageRepository;
+import base.api.feature.resource.service.PublishedGeometry;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
@@ -143,6 +144,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         if (resource.getResourceType() == null || !resource.getResourceType().isActive()) {
             throw new BadRequestException("Loại chỗ ngồi/phòng này hiện đã ngừng hoạt động");
         }
+        if (!PublishedGeometry.isCurrentPublishedPlacement(resource))
+            throw new ConflictException("Sơ đồ chỗ ngồi/phòng đang chờ publish. Vui lòng chọn chỗ khác hoặc thử lại sau.");
 
         // 4. Validate Booking Time Range
         LocalDateTime startTime = dto.getStartTime();
@@ -482,6 +485,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             } else if (suspended) {
                 state = AvailabilityState.DISABLED;
             }
+            if (state == AvailabilityState.AVAILABLE && !PublishedGeometry.isCurrentPublishedPlacement(res))
+                state = AvailabilityState.MAINTENANCE;
 
             BigDecimal price = res.getPricePerHour() != null
                     ? res.getPricePerHour()

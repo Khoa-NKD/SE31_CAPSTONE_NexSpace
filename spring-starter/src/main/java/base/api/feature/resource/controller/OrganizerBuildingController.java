@@ -70,4 +70,9 @@ public class OrganizerBuildingController extends BaseAPIController {
             @PathVariable @Positive Long floorId, @Valid @RequestBody BuildingRequests.Allocation body) {
         return success(service.attach(getCurrentUserId(), workspaceId, floorId, body), "Existing layout mapped; resources and bookings preserved");
     }
+    @PutMapping("/workspaces/{workspaceId}/resource-floors/{floorId}/allocation")
+    public ResponseEntity<ApiResponse<ResourceResponses.FloorOption>> updateAllocation(@PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long floorId, @Valid @RequestBody BuildingRequests.Allocation body) {
+        return success(service.updateAllocation(getCurrentUserId(), workspaceId, floorId, body), "Workspace area updated without resizing its resources");
+    }
 }

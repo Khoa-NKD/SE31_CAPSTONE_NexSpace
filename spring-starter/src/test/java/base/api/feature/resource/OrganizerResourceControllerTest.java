@@ -61,6 +61,24 @@ class OrganizerResourceControllerTest {
     }
 
     @Test
+    void deletingTypesRequiresOrganizerPositiveIdsAndARevision() throws Exception {
+        String path = "/api/organizer/workspaces/1/resource-types/2";
+        mvc.perform(delete(path).param("expectedRevision", "initial")).andExpect(status().isUnauthorized());
+        for (String role : new String[]{"USER", "ADMIN"})
+            mvc.perform(delete(path).param("expectedRevision", "initial").with(user(actor(role))))
+                    .andExpect(status().isForbidden());
+        mvc.perform(delete(path).with(user(actor("ORGANIZER")))).andExpect(status().isBadRequest());
+        mvc.perform(delete(path).param("expectedRevision", " ").with(user(actor("ORGANIZER"))))
+                .andExpect(status().isBadRequest());
+        mvc.perform(delete("/api/organizer/workspaces/0/resource-types/2").param("expectedRevision", "initial")
+                .with(user(actor("ORGANIZER")))).andExpect(status().isBadRequest());
+        mvc.perform(delete(path).param("expectedRevision", "initial").with(user(actor("ORGANIZER"))))
+                .andExpect(status().isOk());
+        verify(service).deleteType(7L, 1L, 2L, "initial");
+        verifyNoMoreInteractions(service);
+    }
+
+    @Test
     void aiEndpointsRequireOrganizerAndTakeActorFromAuthentication() throws Exception {
         String path = "/api/organizer/workspaces/1/resource-floors/2/ai/status";
         mvc.perform(get(path)).andExpect(status().isUnauthorized());

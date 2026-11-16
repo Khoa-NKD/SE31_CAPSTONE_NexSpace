@@ -33,6 +33,8 @@ public class BuildingService {
     private final IUserRepository users;
     private final IOrganizerProfileRepository profiles;
     private final EntityManager em;
+    private final ResourceUsageRepository usage;
+    private final java.time.Clock organizerApplicationClock;
 
     public List<BuildingResponses.Building> catalog(Long actorId) {
         eligible(actorId);
@@ -46,7 +48,7 @@ public class BuildingService {
                         allLayouts.stream().filter(l -> l.getBuildingFloor().getId().equals(f.getId())).map(l ->
                             new BuildingResponses.Occupant(l.getWorkspace().getId(), l.getWorkspace().getName(),
                                 l.getId(), l.getName(), l.getStatus().name(), l.getUsageX(), l.getUsageY(),
-                                l.getUsageWidth(), l.getUsageHeight())).toList())).toList(), b.getLatitude(), b.getLongitude(), b.getCity(), b.getWard())).toList();
+                                l.getUsageWidth(), l.getUsageHeight())).toList(), f.getRealWidthM(), f.getRealLengthM(), f.getGeometryVersion())).toList(), b.getLatitude(), b.getLongitude(), b.getCity(), b.getWard())).toList();
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -65,7 +67,10 @@ public class BuildingService {
         for (int number = 1; number <= count; number++) {
             var floor = new BuildingFloorModel();
             floor.setBuilding(b); floor.setName("Tầng " + number); floor.setFloorNumber(number);
-            floor.setCanvasWidth(new BigDecimal("1200")); floor.setCanvasHeight(new BigDecimal("800"));
+            floor.setGeometryVersion(2);
+            floor.setRealWidthM(new BigDecimal("20")); floor.setRealLengthM(new BigDecimal("15"));
+            floor.setCanvasWidth(MetricGeometry.pixels(floor.getRealWidthM()));
+            floor.setCanvasHeight(MetricGeometry.pixels(floor.getRealLengthM()));
             physicalFloors.save(floor);
         }
         physicalFloors.flush();
@@ -149,16 +154,35 @@ public class BuildingService {
             throw new ConflictException("This floor already exists in this building. Select it instead");
         var floor = new BuildingFloorModel(); floor.setBuilding(b); floor.setName(input.name());
         floor.setFloorNumber(input.floorNumber()); floor.setCanvasWidth(input.width()); floor.setCanvasHeight(input.height());
+        if (input.widthM() != null || input.lengthM() != null) {
+            requireMatchingMetricCanvas(input);
+            floor.setGeometryVersion(2); floor.setRealWidthM(input.widthM()); floor.setRealLengthM(input.lengthM());
+        }
         return physicalFloors.saveAndFlush(floor).getId();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void updatePhysicalFloor(Long actorId, Long id, BuildingRequests.PhysicalFloor input) {
         eligible(actorId);
         var f = physicalFloor(actorId, id, true); revision(f, input.expectedRevision());
-        if (layouts.existsByBuildingFloorId(id) && (f.getFloorNumber() != input.floorNumber()
-            || f.getCanvasWidth().compareTo(input.width()) != 0 || f.getCanvasHeight().compareTo(input.height()) != 0))
+        boolean attached = layouts.existsByBuildingFloorId(id);
+        boolean pixelSizeChanged = f.getCanvasWidth().compareTo(input.width()) != 0 || f.getCanvasHeight().compareTo(input.height()) != 0;
+        boolean realSizeSupplied = input.widthM() != null || input.lengthM() != null;
+        if (realSizeSupplied) {
+            requireMatchingMetricCanvas(input);
+            boolean realSizeChanged = f.getRealWidthM() == null || f.getRealLengthM() == null
+                    || f.getRealWidthM().compareTo(input.widthM()) != 0 || f.getRealLengthM().compareTo(input.lengthM()) != 0;
+            if (attached && (realSizeChanged || pixelSizeChanged || f.getGeometryVersion() < 2))
+                throw new ConflictException("Review real dimensions through the shared floor measurement dialog");
+        } else if (f.getGeometryVersion() >= 2 && pixelSizeChanged) {
+            throw new ConflictException("Supply real dimensions instead of independently resizing the pixel canvas");
+        }
+        if (attached && (f.getFloorNumber() != input.floorNumber() || pixelSizeChanged))
             throw new ConflictException("A shared floor's number and dimensions cannot change while workspace layouts are attached");
+        // Empty floors can be measured directly; shared floors use the reviewed measurement transaction.
+        if (realSizeSupplied && !attached) {
+            f.setGeometryVersion(2); f.setRealWidthM(input.widthM()); f.setRealLengthM(input.lengthM());
+        }
         if (f.getFloorNumber() != input.floorNumber() && physicalFloors.existsByBuildingIdAndFloorNumber(f.getBuilding().getId(), input.floorNumber()))
             throw new ConflictException("This floor number already exists in the building");
         f.setName(input.name()); f.setFloorNumber(input.floorNumber()); f.setCanvasWidth(input.width()); f.setCanvasHeight(input.height());
@@ -172,7 +196,14 @@ public class BuildingService {
         physicalFloors.delete(f); physicalFloors.flush();
     }
 
-    @Transactional
+    private static void requireMatchingMetricCanvas(BuildingRequests.PhysicalFloor input) {
+        if (input.widthM() == null || input.lengthM() == null
+                || MetricGeometry.pixels(input.widthM()).compareTo(input.width()) != 0
+                || MetricGeometry.pixels(input.lengthM()).compareTo(input.height()) != 0)
+            throw new BadRequestException("The pixel canvas must use the uniform metric scale of the supplied real dimensions");
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public List<ResourceResponses.FloorOption> attachBatch(Long actorId, Long workspaceId,
                                                            BuildingRequests.BatchAllocation input) {
         eligible(actorId);
@@ -191,7 +222,7 @@ public class BuildingService {
         return result.stream().sorted(Comparator.comparingInt(ResourceResponses.FloorOption::floorNumber)).toList();
     }
 
-    @Transactional
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResourceResponses.FloorOption attach(Long actorId, Long workspaceId, Long existingLayoutId,
                                                 BuildingRequests.Allocation input) {
         eligible(actorId);
@@ -213,12 +244,55 @@ public class BuildingService {
         return ResourceResponses.floorOption(layout);
     }
 
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public ResourceResponses.FloorOption updateAllocation(Long actor, Long workspaceId, Long floorId, BuildingRequests.Allocation input) {
+        eligible(actor);
+        writableWorkspace(actor, workspaceId);
+        var floor = layouts.findById(floorId).filter(f -> f.getWorkspace().getId().equals(workspaceId))
+                .orElseThrow(() -> new NotFoundException("Workspace layout not found"));
+        if (floor.getBuildingFloor() == null || !floor.getBuildingFloor().getId().equals(input.buildingFloorId()))
+            throw new ConflictException("A workspace area can only be resized or moved on its current physical floor");
+        var physical = physicalFloor(actor, input.buildingFloorId(), true);
+        em.refresh(floor, LockModeType.PESSIMISTIC_WRITE); revision(floor, input.expectedRevision());
+        if (physical.getGeometryVersion() < 2) throw new ConflictException("Confirm real floor dimensions before editing a workspace area");
+        if (input.x().signum() < 0 || input.y().signum() < 0
+                || input.width().compareTo(MetricGeometry.pixels(new BigDecimal("0.01"))) < 0
+                || input.height().compareTo(MetricGeometry.pixels(new BigDecimal("0.01"))) < 0
+                || input.x().add(input.width()).compareTo(physical.getCanvasWidth()) > 0
+                || input.y().add(input.height()).compareTo(physical.getCanvasHeight()) > 0)
+            throw new ConflictException("The workspace area must fit entirely inside the physical floor");
+        for (var other : layouts.findByBuildingFloorId(physical.getId()))
+            if (!Objects.equals(other.getId(), floorId) && overlaps(input, other))
+                throw new ConflictException("The workspace area overlaps another workspace");
+        var items = em.createQuery("select r from BookableResourceModel r where r.floorPlan.id = :id order by r.id", BookableResourceModel.class)
+                .setParameter("id", floorId).setLockMode(LockModeType.PESSIMISTIC_WRITE).getResultList();
+        boolean changed = floor.getUsageX().compareTo(input.x()) != 0 || floor.getUsageY().compareTo(input.y()) != 0
+                || floor.getUsageWidth().compareTo(input.width()) != 0 || floor.getUsageHeight().compareTo(input.height()) != 0;
+        if (changed && items.stream().anyMatch(r -> usage.hasLiveBooking(r.getId(), java.time.LocalDateTime.ofInstant(
+                organizerApplicationClock.instant(), java.time.ZoneOffset.UTC))))
+            throw new ConflictException("Workspace area geometry cannot change while its resources have live bookings");
+        var objects = ResourceCanvas.decorations(floor, true);
+        PublishedGeometry.retain(floor, items);
+        floor.setUsageX(input.x()); floor.setUsageY(input.y()); floor.setUsageWidth(input.width()); floor.setUsageHeight(input.height());
+        floor.setName(input.name());
+        floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor, new ResourceCanvas.Bounds(input.width(), input.height()), objects));
+        ResourceCanvas.validateScene(floor, items, false);
+        layouts.saveAndFlush(floor); em.refresh(floor);
+        return ResourceResponses.floorOption(floor);
+    }
+
     /** Called inside the workspace-locked resource transaction; physical floor lock serializes allocations. */
     public void bind(Long actorId, Long workspaceId, FloorPlanModel layout, BuildingRequests.Allocation input) {
         var physical = physicalFloor(actorId, input.buildingFloorId(), true);
         var source = physical.getBuilding();
         em.refresh(source, LockModeType.PESSIMISTIC_READ);
         requireLocation(source);
+        if (physical.getRealWidthM() == null || physical.getRealLengthM() == null)
+            throw new ConflictException("Set the physical floor's real dimensions before linking a workspace area");
+        var scaleX = physical.getCanvasWidth().divide(physical.getRealWidthM(), 12, java.math.RoundingMode.HALF_UP);
+        var scaleY = physical.getCanvasHeight().divide(physical.getRealLengthM(), 12, java.math.RoundingMode.HALF_UP);
+        if (scaleX.subtract(scaleY).abs().compareTo(new BigDecimal("0.000001")) > 0)
+            throw new ConflictException("Review the legacy floor's unequal axis scales before linking another workspace area");
         var currentLayouts = layouts.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId);
         for (var current : currentLayouts) {
             if (Objects.equals(current.getId(), layout.getId())) continue;
@@ -227,7 +301,8 @@ public class BuildingService {
             if (current.getBuildingFloor() != null && !current.getBuildingFloor().getBuilding().getId().equals(physical.getBuilding().getId()))
                 throw new ConflictException("A workspace is one location and cannot occupy different buildings");
         }
-        if (input.x().signum() < 0 || input.y().signum() < 0 || input.width().signum() <= 0 || input.height().signum() <= 0
+        var minimumAreaSize = physical.getGeometryVersion() >= 2 ? new BigDecimal("0.6") : new BigDecimal("0.01");
+        if (input.x().signum() < 0 || input.y().signum() < 0 || input.width().compareTo(minimumAreaSize) < 0 || input.height().compareTo(minimumAreaSize) < 0
             || input.x().add(input.width()).compareTo(physical.getCanvasWidth()) > 0
             || input.y().add(input.height()).compareTo(physical.getCanvasHeight()) > 0)
             throw new BadRequestException("The workspace area must fit inside the physical floor");

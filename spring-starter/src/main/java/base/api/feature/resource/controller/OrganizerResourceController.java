@@ -119,6 +119,15 @@ public class OrganizerResourceController extends BaseAPIController {
                 "Resource type created");
     }
 
+    @DeleteMapping("/workspaces/{workspaceId}/resource-types/{typeId}")
+    public ResponseEntity<ApiResponse<Void>> deleteType(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long typeId,
+            @RequestParam @NotBlank @Size(max = 100) String expectedRevision) {
+        service.deleteType(getCurrentUserId(), workspaceId, typeId, expectedRevision);
+        return success(null, "Unused resource type deleted");
+    }
+
     @PutMapping("/workspaces/{workspaceId}/resource-types/{typeId}")
     public ResponseEntity<ApiResponse<TypeOption>> updateType(
             @PathVariable @Positive Long workspaceId,
