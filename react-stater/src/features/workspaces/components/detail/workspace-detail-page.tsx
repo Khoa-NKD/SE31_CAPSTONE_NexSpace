@@ -233,14 +233,14 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
             />
           </div>
 
-          {/* Sticky Section Navigation Bar */}
-          <div className='sticky top-[72px] z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-y border-slate-200/80 dark:border-slate-800'>
+          {/* Sticky Section Navigation Bar - Contained within layout (not full-bleed) */}
+          <div className='sticky top-[72px] z-30 py-2 bg-slate-50/85 dark:bg-slate-950/85 backdrop-blur-md transition-all'>
             <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8'>
               <nav
                 aria-label={
                   language === 'vi' ? 'Điều hướng chi tiết không gian' : 'Workspace sections'
                 }
-                className='flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-2'
+                className='inline-flex items-center gap-1 sm:gap-1.5 p-1 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 shadow-xs max-w-full overflow-x-auto no-scrollbar'
               >
                 {navItems.map((item, idx) => {
                   const isActive = activeSection === item.id;
