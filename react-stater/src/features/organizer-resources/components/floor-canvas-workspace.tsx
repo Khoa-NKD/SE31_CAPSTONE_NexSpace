@@ -1,4 +1,5 @@
 import { aiPreviewGeometry } from '../utils/ai-preview-geometry';
+import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { FurnishingPalette } from './furnishing-palette';
 import { FloorLocationBanner } from './floor-location-banner';
 import { stageLayoutObject, changedLayoutResources } from '../utils/manual-layout-draft';
@@ -9,7 +10,7 @@ import { insideRoom, layoutGeometry } from '../utils/layout-placement';
 import type { AiProposal } from '../api/floor-design';
 import { useRef, useState } from 'react';
 import { Link, useBlocker } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
   Armchair,
@@ -131,6 +132,7 @@ export function FloorCanvasWorkspace({
     ready: Promise<void>;
   } | null>(null);
   const floorId = initialFloorId;
+  const queryClient = useQueryClient();
   const query = useQuery({
     ...floorLayoutOptions(actorId, workspaceId, floorId),
     enabled: floorId > 0
@@ -567,7 +569,17 @@ export function FloorCanvasWorkspace({
     setBusy(true);
     setDeleteError('');
     try {
+      const deletedId = selection.resource.id;
       await deleteResource(selection.resource);
+      const layoutKey = floorLayoutOptions(actorId, workspaceId, floorId).queryKey;
+      // Cancel older reads so a late response cannot restore the deleted resource on the canvas.
+      await queryClient.cancelQueries({ queryKey: layoutKey, exact: true });
+      queryClient.setQueryData<FloorLayout>(layoutKey, current => current ? {
+        ...current,
+        resources: current.resources.filter(resource => resource.id !== deletedId)
+      } : current);
+      // Deletion is blocked while dirty; this clean staged snapshot must not mask refreshed server data.
+      setSceneDraft(null);
       clearSelection();
       setRemove(false);
       await onSaved();
@@ -1058,7 +1070,9 @@ export function FloorCanvasWorkspace({
             {objects.length} {c('furnishings', 'đồ bố trí')}
           </span>
           <span className='hidden tabular-nums sm:inline'>
-            {layout?.width ?? 1200} × {layout?.height ?? 800} px
+            {layout?.geometryVersion === 2
+              ? `${geometryDisplay(String(layout.width ?? 0), true)} × ${geometryDisplay(String(layout.height ?? 0), true)} m`
+              : `${layout?.width ?? 1200} × ${layout?.height ?? 800} px`}
           </span>
         </div>
         <Button
@@ -1592,13 +1606,13 @@ export function FloorCanvasWorkspace({
                             >
                               <span>
                                 {key === 'posX'
-                                  ? 'X (px)'
+                                  ? (layout?.geometryVersion === 2 ? 'X (m)' : 'X (px)')
                                   : key === 'posY'
-                                    ? 'Y (px)'
+                                    ? (layout?.geometryVersion === 2 ? 'Y (m)' : 'Y (px)')
                                     : key === 'width'
-                                      ? c('Width (px)', 'Rộng (px)')
+                                      ? (layout?.geometryVersion === 2 ? c('Width (m)', 'Dài — ngang (m)') : c('Width (px)', 'Dài — ngang (px)'))
                                       : key === 'height'
-                                        ? c('Height (px)', 'Cao (px)')
+                                        ? (layout?.geometryVersion === 2 ? c('Length (m)', 'Rộng — dọc (m)') : c('Height (px)', 'Rộng — dọc (px)'))
                                         : c('Rotation (°)', 'Góc xoay (°)')}
                               </span>
                               <Input
@@ -1607,13 +1621,13 @@ export function FloorCanvasWorkspace({
                                 min='0'
                                 max={key === 'rotation' ? 359.99 : undefined}
                                 className='h-9 text-xs tabular-nums'
-                                value={selection.fields[key]}
+                                value={geometryDisplay(selection.fields[key], layout?.geometryVersion === 2, key === 'rotation')}
                                 disabled={!editable || busy || loadingSelection}
                                 readOnly={
                                   selectedSizeLocked && (key === 'width' || key === 'height')
                                 }
                                 onChange={(event) =>
-                                  change({ ...selection.fields, [key]: event.target.value })
+                                  change({ ...selection.fields, [key]: geometryInput(event.target.value, layout?.geometryVersion === 2, key === 'rotation') })
                                 }
                               />
                             </label>
@@ -1742,8 +1756,8 @@ export function FloorCanvasWorkspace({
                       {(['width', 'height'] as const).map((key) => (
                         <label key={key} className='block space-y-2 text-xs'>
                           {key === 'width'
-                            ? c('Width (px)', 'Rộng (px)')
-                            : c('Height (px)', 'Cao (px)')}
+                            ? c('Width (px)', 'Dài — ngang (px)')
+                            : c('Height (px)', 'Rộng — dọc (px)')}
                           <Input
                             inputMode='decimal'
                             value={key === 'width' ? width : height}

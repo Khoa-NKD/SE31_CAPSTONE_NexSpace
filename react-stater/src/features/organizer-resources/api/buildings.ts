@@ -23,6 +23,9 @@ export interface FloorOccupant {
   height: number;
 }
 export interface PhysicalFloor {
+  realWidthM?: number | null;
+  realLengthM?: number | null;
+  geometryVersion?: number;
   id: number;
   name: string;
   floorNumber: number;
@@ -89,7 +92,7 @@ export const saveBuilding = (
   );
 export const savePhysicalFloor = (
   buildingId: number,
-  body: { name: string; floorNumber: number; width: number; height: number },
+  body: { name: string; floorNumber: number; width: number; height: number; widthM?: number; lengthM?: number },
   current?: PhysicalFloor
 ) =>
   backendRequest<number | void>(
@@ -111,7 +114,7 @@ export const attachWorkspaceFloor = (
 ) =>
   backendRequest<FloorOption>(
     current
-      ? `/organizer/workspaces/${workspaceId}/resource-floors/${current.id}/location`
+      ? `/organizer/workspaces/${workspaceId}/resource-floors/${current.id}/${current.location ? 'allocation' : 'location'}`
       : `/organizer/workspaces/${workspaceId}/floor-allocations`,
     current ? 'PUT' : 'POST',
     { ...value, ...(current ? { expectedRevision: current.revision } : {}) }

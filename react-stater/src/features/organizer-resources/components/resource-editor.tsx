@@ -16,7 +16,10 @@ import { moveWithRoom } from '../utils/placement';
 import { layoutGeometry, insideRoom, previewLayout } from '../utils/layout-placement';
 import { useBlocker } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
-import { designMetricsOptions, saveDesignMetrics, type DesignMetrics } from '../api/floor-design';
+import { designMetricsOptions, previewDesignMetrics, saveDesignMetrics, type DesignMetrics, type GeometryReview, type MeasurementMode } from '../api/floor-design';
+import { GeometryReviewNotice } from './geometry-review';
+import { MeasurementModeField } from './measurement-mode-field';
+import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import type { ResourceUsageKind } from '../api/resources';
 import { FloorAllocationDialog } from './floor-allocation-dialog';
 import {
@@ -806,7 +809,9 @@ export function ResourceEditor({
             <div className='border-b border-border bg-muted/20 p-4'>
               <h2 className='mb-3 flex items-center gap-2 text-sm font-semibold'>
                 <MapPin className='size-4 text-primary' />
-                {c('Floor coordinates & dimensions (px)', 'Vị trí và kích thước trên sơ đồ (px)')}
+                {metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED'
+                  ? c('Real position & dimensions (m)', 'Vị trí và kích thước thực (m)')
+                  : c('Floor coordinates & dimensions (px)', 'Vị trí và kích thước trên sơ đồ (px)')}
               </h2>
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
                 {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map((key) => (
@@ -816,19 +821,19 @@ export function ResourceEditor({
                       {
                         posX: 'X',
                         posY: 'Y',
-                        width: c('Width', 'Rộng'),
-                        height: c('Height', 'Cao'),
+                        width: c('Length (horizontal)', 'Dài (ngang)'),
+                        height: c('Width (vertical)', 'Rộng (dọc)'),
                         rotation: c('Rotation', 'Góc xoay')
                       }[key]
                     }
                     error={errors[key]}
                   >
                     <Input
-                      value={form[key]}
+                      value={geometryDisplay(form[key], metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED', key === 'rotation')}
                       disabled={busy}
                       readOnly={sizeLocked && (key === 'width' || key === 'height')}
                       inputMode='decimal'
-                      onChange={(e) => set(key, e.target.value)}
+                      onChange={(e) => set(key, geometryInput(e.target.value, metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED', key === 'rotation'))}
                     />
                   </Field>
                 ))}
@@ -880,7 +885,13 @@ export function ResourceEditor({
               )}
               {floorQuery.data?.floor.location && metrics.data && (
                 <Button type='button' size='sm' variant='outline' className='mt-3' disabled={busy}
-                  onClick={() => setEditingDimensions(true)}>
+                  onClick={() => {
+                    if (dirty) {
+                      toast.error(c('Save or discard the current changes before reviewing shared floor measurements.', 'Lưu hoặc bỏ thay đổi đang chỉnh trước khi cập nhật số đo tầng dùng chung.'));
+                      return;
+                    }
+                    setEditingDimensions(true);
+                  }}>
                   <Ruler className='size-4' />
                   {metrics.data.physicalWidthM && metrics.data.physicalLengthM
                     ? c('Edit floor dimensions', 'Sửa kích thước tầng')
@@ -1076,6 +1087,7 @@ export function ResourceEditor({
           workspaceId={workspaceId}
           floorId={floorId}
           metrics={metrics.data}
+          onConverted={async () => { await onSaved(); onClose(); }}
           onClose={() => setEditingDimensions(false)}
         />
       )}
@@ -1143,11 +1155,12 @@ export function ResourceEditor({
   );
 }
 
-function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose }: {
+function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose, onConverted }: {
   actorId: number;
   workspaceId: number;
   floorId: number;
   metrics: DesignMetrics;
+  onConverted: () => Promise<void>;
   onClose: () => void;
 }) {
   const c = useCopy();
@@ -1155,6 +1168,8 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
   const [width, setWidth] = useState(String(metrics.physicalWidthM ?? ''));
   const [length, setLength] = useState(String(metrics.physicalLengthM ?? ''));
   const [initialMetrics] = useState(metrics);
+  const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('RESIZE');
+  const [review, setReview] = useState<GeometryReview | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [conflict, setConflict] = useState(false);
@@ -1169,13 +1184,21 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
     setBusy(true);
     setError('');
     try {
-      const saved = await saveDesignMetrics(workspaceId, floorId, {
+      const input = {
         expectedRevision: initialMetrics.revision,
+        measurementMode,
         widthM: Number(width),
         lengthM: Number(length),
         maxOccupancy: initialMetrics.maxOccupancy,
-        occupancyLimit: initialMetrics.occupancyLimit
-      });
+        occupancyLimit: initialMetrics.occupancyLimit,
+        confirmGeometryConversion: true
+      };
+      if (!review) {
+        setReview(await previewDesignMetrics(workspaceId, floorId, input));
+        return;
+      }
+      if (!review.applicable) return;
+      const saved = await saveDesignMetrics(workspaceId, floorId, input);
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData(queryKey, saved);
       void queryClient.invalidateQueries({
@@ -1183,8 +1206,10 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
           key[1] === actorId && key[3] === 'design-metrics' &&
           (key[2] !== workspaceId || key[4] !== floorId)
       });
+      void queryClient.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
       toast.success(c('Floor dimensions saved.', 'Đã lưu kích thước tầng.'));
       onClose();
+      if (review.conversionRequired) await onConverted();
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setConflict(true);
@@ -1199,7 +1224,7 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
 
   return (
     <Dialog open onOpenChange={(open) => { if (!open && !saving.current) onClose(); }}>
-      <DialogContent className='sm:max-w-md'>
+      <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-xl'>
         <DialogHeader>
           <DialogTitle className='flex items-center gap-2'><Ruler className='size-5 text-primary' />{c('Physical floor dimensions', 'Kích thước thực của tầng')}</DialogTitle>
           <DialogDescription>
@@ -1207,14 +1232,16 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
           </DialogDescription>
         </DialogHeader>
         <form className='space-y-4' onSubmit={submit}>
+          <MeasurementModeField value={measurementMode} disabled={busy} onChange={value => { setMeasurementMode(value); setReview(null); }} />
           <div className='grid grid-cols-2 gap-3'>
-            <Field label={c('Floor width (m)', 'Rộng toàn tầng (m)')}>
-              <Input type='number' min='0.01' max='10000' step='0.01' required value={width} disabled={busy} onChange={(event) => setWidth(event.target.value)} />
+            <Field label={c('Floor width (m)', 'Dài toàn tầng — ngang (m)')}>
+              <Input type='number' min='0.01' max='10000' step='0.01' required value={width} disabled={busy} onChange={(event) => { setWidth(event.target.value); setReview(null); }} />
             </Field>
-            <Field label={c('Floor length (m)', 'Dài toàn tầng (m)')}>
-              <Input type='number' min='0.01' max='10000' step='0.01' required value={length} disabled={busy} onChange={(event) => setLength(event.target.value)} />
+            <Field label={c('Floor length (m)', 'Rộng toàn tầng — dọc (m)')}>
+              <Input type='number' min='0.01' max='10000' step='0.01' required value={length} disabled={busy} onChange={(event) => { setLength(event.target.value); setReview(null); }} />
             </Field>
           </div>
+          <GeometryReviewNotice review={review} />
           {(outdated || error) && <p role='alert' className='text-sm text-destructive'>
             {outdated
               ? c('Close and reopen this dialog to review the latest floor settings.', 'Đóng rồi mở lại hộp thoại để kiểm tra cấu hình tầng mới nhất.')
@@ -1222,9 +1249,9 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
           </p>}
           <div className='flex justify-end gap-2'>
             <Button type='button' variant='outline' disabled={busy} onClick={onClose}>{c('Cancel', 'Hủy')}</Button>
-            <Button type='submit' disabled={busy || outdated}>
+            <Button type='submit' disabled={busy || outdated || (!!review && !review.applicable)}>
               {busy ? <LoaderCircle className='size-4 animate-spin' /> : <Save className='size-4' />}
-              {c('Save dimensions', 'Lưu kích thước')}
+              {review ? c('Confirm and save', 'Xác nhận và lưu') : c('Review dimensions', 'Kiểm tra kích thước')}
             </Button>
           </div>
         </form>
@@ -1449,7 +1476,7 @@ function ResourceTypeSetupDialog({
                       ))}
                   </select>
                 </Field>
-                <Field label={c('Width (m)', 'Rộng (m)')}>
+                <Field label={c('Width (m)', 'Dài — ngang (m)')}>
                   <Input
                     type='number'
                     min='.01'
@@ -1459,7 +1486,7 @@ function ResourceTypeSetupDialog({
                     onChange={(e) => setStandardWidth(e.target.value)}
                   />
                 </Field>
-                <Field label={c('Length (m)', 'Dài (m)')}>
+                <Field label={c('Length (m)', 'Rộng — dọc (m)')}>
                   <Input
                     type='number'
                     min='.01'

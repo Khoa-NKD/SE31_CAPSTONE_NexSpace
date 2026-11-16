@@ -9,6 +9,7 @@ import type {
 } from './resources';
 
 export interface DesignMetrics {
+  geometryVersion?: number;
   revision: string;
   physicalWidthM: number | null;
   physicalLengthM: number | null;
@@ -98,16 +99,64 @@ export const designMetricsOptions = (actor: number, workspace: number, floor: nu
     retry: false,
     refetchOnWindowFocus: false
   });
+export interface MetricsInput {
+  measurementMode?: MeasurementMode;
+  expectedRevision: string;
+  widthM: number;
+  lengthM: number;
+  maxOccupancy: number | null;
+  occupancyLimit: number | null;
+  confirmGeometryConversion?: boolean;
+}
+export interface GeometryReview {
+  measurementMode?: MeasurementMode;
+  physicalWidthM?: number;
+  physicalLengthM?: number;
+  conversionRequired: boolean;
+  applicable: boolean;
+  workspaceAreas: number;
+  resources: number;
+  issues: string[];
+  unit: 'm';
+  pixelsPerMetre: number;
+  previews?: Array<{
+    floorId: number;
+    name: string;
+    beforeFloorWidth: number;
+    beforeFloorHeight: number;
+    afterFloorWidth: number;
+    afterFloorHeight: number;
+    beforeX: number;
+    beforeY: number;
+    afterX: number;
+    afterY: number;
+    beforeWidth: number;
+    beforeHeight: number;
+    afterWidth: number;
+    afterHeight: number;
+    before: GeometryPreviewShape[];
+    after: GeometryPreviewShape[];
+    beforeWidthM?: number | null;
+    beforeLengthM?: number | null;
+    afterWidthM: number;
+    afterLengthM: number;
+  }>;
+}
+export type MeasurementMode = 'CALIBRATE' | 'RESIZE';
+export interface GeometryPreviewShape {
+  label: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  rotation: number;
+}
+export const previewDesignMetrics = (workspace: number, floor: number, input: MetricsInput) =>
+  backendRequest<GeometryReview>(`${path(workspace, floor)}/design-metrics/preview`, 'POST', input);
 export const saveDesignMetrics = (
   workspace: number,
   floor: number,
-  input: {
-    expectedRevision: string;
-    widthM: number;
-    lengthM: number;
-    maxOccupancy: number | null;
-    occupancyLimit: number | null;
-  }
+  input: MetricsInput
 ) => backendRequest<DesignMetrics>(`${path(workspace, floor)}/design-metrics`, 'PUT', input);
 export const templateOptions = (actor: number) =>
   queryOptions({
@@ -194,4 +243,25 @@ export const applyFloorDesign = (
     saveTemplates,
     design,
     confirmNewTypes
+  });
+export interface SavedAiDraft {
+  version: number;
+  design: AiProposal['design'];
+  estimatedScale: boolean;
+  widthM: number;
+  lengthM: number;
+  savedAt: string;
+}
+export const savedAiDraftOptions = (actor: number, workspace: number, floor: number) => queryOptions({
+  queryKey: ['organizer-resources', actor, workspace, 'ai-draft', floor],
+  queryFn: async ({ signal }) => {
+    const draft = await backendRequest<SavedAiDraft | null>(`${path(workspace, floor)}/ai/draft`, 'GET', undefined, true, signal);
+    // The API omits the envelope's data key when no draft exists.
+    return draft?.version === 1 && draft.design ? draft : null;
+  },
+  retry: false
+});
+export const saveAiDraft = (workspace: number, floor: number, proposal: AiProposal) =>
+  backendRequest<SavedAiDraft>(`${path(workspace, floor)}/ai/draft`, 'PUT', {
+    proposalId: proposal.proposalId, saveTemplates: false, design: proposal.design, confirmNewTypes: false
   });

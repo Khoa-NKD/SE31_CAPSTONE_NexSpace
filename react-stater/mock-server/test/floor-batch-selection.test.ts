@@ -11,6 +11,8 @@ const floors = [1, 2, 3, 4].map((n) => ({
   width: 2400,
   height: 1600,
   revision: 'initial',
+  realWidthM: 48,
+  realLengthM: 32,
   occupants: []
 }));
 test('range selection preserves the layout name and numeric floor order', () => {
@@ -97,4 +99,13 @@ test('suggests a free area beside another workspace and rejects a completely occ
   });
   const occupied = { ...halfOccupied, occupants: [{ ...occupant, width: 2400 }] };
   assert.equal(floorBatchSelection(state, [occupied], [], 8, 'FPT').rows[0].problem, 'overlap');
+});
+
+test('unmeasured floors cannot be linked until their real dimensions are saved', () => {
+  const state = { ...initialFloorSelection(1), single: 1 };
+  const unmeasured = { ...floors[0], realWidthM: null, realLengthM: null };
+  const blocked = floorBatchSelection(state, [unmeasured], [], 8, 'Area');
+  assert.equal(blocked.valid, false);
+  assert.equal(blocked.rows[0].problem, 'measurements');
+  assert.equal(floorBatchSelection(state, [floors[0]], [], 8, 'Area').valid, true);
 });

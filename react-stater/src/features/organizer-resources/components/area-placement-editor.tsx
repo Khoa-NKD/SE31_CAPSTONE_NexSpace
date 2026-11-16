@@ -37,6 +37,10 @@ export function AreaPlacementEditor({
     [value.x, value.y, value.width, value.height].every(Number.isFinite) &&
     value.width > 0 &&
     value.height > 0;
+  const widthM = floor.realWidthM && floor.width > 0 ? value.width / floor.width * floor.realWidthM : null;
+  const lengthM = floor.realLengthM && floor.height > 0 ? value.height / floor.height * floor.realLengthM : null;
+  const percentage = valid && floor.width > 0 && floor.height > 0
+    ? 100 * value.width * value.height / (floor.width * floor.height) : null;
   const scale = Math.max(floor.width, floor.height);
   const padding = scale * 0.045,
     handleSize = scale * 0.04;
@@ -66,6 +70,13 @@ export function AreaPlacementEditor({
   };
   return (
     <div className='space-y-2'>
+      {valid && <div className='flex flex-wrap gap-x-4 gap-y-1 rounded-xl border bg-primary/5 px-3 py-2 text-xs' aria-live='polite'>
+        {widthM != null && lengthM != null
+          ? <><span>{c('Length (horizontal)', 'Dài (ngang)')}: <strong>{widthM.toFixed(2)} m</strong> · {c('Width (vertical)', 'Rộng (dọc)')}: <strong>{lengthM.toFixed(2)} m</strong></span>
+              <span>{c('Area', 'Diện tích')}: <strong>{(widthM * lengthM).toFixed(2)} m²</strong></span></>
+          : <span>{c('Set the floor’s real dimensions to calculate metres.', 'Cần thiết lập số đo thực của tầng để quy đổi ra mét.')}</span>}
+        {percentage != null && <span>{c('Share of floor area', 'Chiếm diện tích tầng')}: <strong>{percentage.toFixed(2)}%</strong></span>}
+      </div>}
       <div className='flex flex-wrap items-center justify-between gap-2 text-[11px]'>
         <label className='flex items-center gap-1.5 text-muted-foreground'>
           <input
@@ -74,7 +85,7 @@ export function AreaPlacementEditor({
             disabled={disabled}
             onChange={(e) => setSnap(e.target.checked)}
           />
-          {c('Snap 10 px', 'Bám lưới 10 px')}
+          {floor.geometryVersion === 2 ? c('Snap 0.1 m', 'Bám lưới 0,1 m') : c('Snap 10 px', 'Bám lưới 10 px')}
         </label>
         {!fixedSize && (
           <Button
@@ -117,7 +128,8 @@ export function AreaPlacementEditor({
                 p.x - current.x,
                 p.y - current.y,
                 floor,
-                snap ? 10 : 0.01
+                snap ? floor.geometryVersion === 2 ? 6 : 10 : 0.01,
+                floor.geometryVersion === 2 ? 0.6 : 1
               )
             );
         }}
@@ -178,7 +190,7 @@ export function AreaPlacementEditor({
               role='button'
               aria-label={c(
                 'Move selected area. Arrow keys move it; Shift moves ten pixels.',
-                'Di chuyển khu vực. Phím mũi tên dịch chuyển; Shift dịch 10 pixel.'
+                'Di chuyển khu vực. Phím mũi tên dịch chuyển; Shift dịch chuyển nhanh hơn.'
               )}
               onKeyDown={(e) => {
                 if (
@@ -187,7 +199,7 @@ export function AreaPlacementEditor({
                 )
                   return;
                 e.preventDefault();
-                const step = e.shiftKey ? 10 : 1;
+                const step = floor.geometryVersion === 2 ? e.shiftKey ? 6 : 0.6 : e.shiftKey ? 10 : 1;
                 onChange(
                   placeArea(
                     value,

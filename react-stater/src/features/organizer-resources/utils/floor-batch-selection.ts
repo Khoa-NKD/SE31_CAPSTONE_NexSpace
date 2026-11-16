@@ -79,7 +79,7 @@ export function floorBatchSelection(
     return {
       floor,
       allocation,
-      problem: !allocation.name.trim() || allocation.name.length > 100 ? ('name' as const) : problem
+      problem: floor.realWidthM == null || floor.realLengthM == null ? ('measurements' as const) : !allocation.name.trim() || allocation.name.length > 100 ? ('name' as const) : problem
     };
   });
   return { rows, error, valid: rows.length > 0 && !error && rows.every((row) => !row.problem) };
