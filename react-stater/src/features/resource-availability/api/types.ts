@@ -38,3 +38,40 @@ export interface DeskAvailabilityParams {
   endTime: string;   // ISO 8601 (VD: '2026-11-13T12:00:00')
 }
 
+/**
+ * Thông tin khả dụng của phòng làm việc/họp (Room) phục vụ giao diện người dùng.
+ */
+export interface RoomAvailabilityResponseDto {
+  roomId: number;
+  label: string;
+  name: string | null;
+  zoneName: string | null;
+  capacity: number;
+  pricePerHour: number | null;
+  status: ResourceOccupancyStatus;
+  holdExpiresAt: string | null;
+  isOccupiedByMe: boolean;
+  hasConflictingDesks: boolean;
+  occupiedChildDeskCount: number;
+  isCleaningInProgress?: boolean;
+  nextAvailableAt?: string | null;
+  cleaningBufferMinutes?: number | null;
+  posX: number | null;
+  posY: number | null;
+  width: number | null;
+  height: number | null;
+  rotation: number | null;
+}
+
+/**
+ * Tham số tra cứu phòng trống theo thời gian thực.
+ */
+export interface RoomAvailabilityParams {
+  workspaceId: number;
+  floorPlanId?: number;
+  startTime: string; // ISO 8601 (VD: '2026-11-13T14:00:00')
+  endTime: string;   // ISO 8601 (VD: '2026-11-13T16:00:00')
+  minCapacity?: number;
+}
+
+
