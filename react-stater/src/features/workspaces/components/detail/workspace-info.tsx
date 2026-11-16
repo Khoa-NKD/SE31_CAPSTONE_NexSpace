@@ -420,14 +420,14 @@ export function WorkspaceInfo({
   }, [amenitiesList, workspace]);
 
   // Today's operating hours summary
+  const [todayJsDay] = useState(() => new Date().getDay());
   const todayOperatingSummary = useMemo(() => {
     const hours = workspace?.operatingHours || [];
     if (hours.length === 0) return null;
-    const todayJsDay = new Date().getDay();
     const match =
       hours.find((h) => normalizeToJsDay(h.dayOfWeek) === todayJsDay) || hours[0];
     return match;
-  }, [workspace?.operatingHours]);
+  }, [workspace?.operatingHours, todayJsDay]);
 
   const descriptionText = workspace?.description?.trim() || '';
   const shouldClampDescription =
@@ -687,7 +687,7 @@ export function WorkspaceInfo({
                 <div className='mt-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2'>
                   {workspace.operatingHours.map((hour, idx) => {
                     const isToday =
-                      normalizeToJsDay(hour.dayOfWeek) === new Date().getDay();
+                      normalizeToJsDay(hour.dayOfWeek) === todayJsDay;
                     return (
                       <div
                         key={`${String(hour.dayOfWeek)}-${idx}`}

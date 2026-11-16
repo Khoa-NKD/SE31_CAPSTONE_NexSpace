@@ -150,11 +150,11 @@ export function DateTimePickerModal({
   }, [propOperatingHours, queriedHours]);
 
   // Today reference normalized to midnight
-  const today = useMemo(() => {
+  const [today] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     return d;
-  }, []);
+  });
 
   // Max selectable date: today + 90 days
   const maxDate = useMemo(() => {
@@ -281,11 +281,11 @@ export function DateTimePickerModal({
   const isSelectedDateToday = selectedDate.getTime() === today.getTime();
 
   // Current time + 15 min buffer if today
-  const nowMinutesWithBuffer = useMemo(() => {
-    if (!isSelectedDateToday) return 0;
+  const [currentMinutesBuffer] = useState(() => {
     const now = new Date();
     return now.getHours() * 60 + now.getMinutes() + 15;
-  }, [isSelectedDateToday]);
+  });
+  const nowMinutesWithBuffer = isSelectedDateToday ? currentMinutesBuffer : 0;
 
   // Generate available start time options (30-min increments)
   const startTimeOptions = useMemo(() => {
