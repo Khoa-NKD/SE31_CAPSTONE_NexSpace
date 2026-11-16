@@ -72,6 +72,7 @@ export interface PublicFloorMapProps {
   onContinueWithResource?: (resource: MapResource, floorId: number) => void;
   hasScheduleSelected?: boolean;
   embedded?: boolean;
+  showResourceInspector?: boolean;
 }
 
 interface ViewBoxRect {
@@ -183,7 +184,8 @@ export function PublicFloorMap({
   onFloorListLoaded,
   onContinueWithResource,
   hasScheduleSelected = false,
-  embedded = false
+  embedded = false,
+  showResourceInspector = true
 }: PublicFloorMapProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -926,7 +928,7 @@ export function PublicFloorMap({
           </div>
 
           {/* Quick Selection Summary Footer inside Map */}
-          {selected && (
+          {showResourceInspector && selected && (
             <div className='mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 animate-in fade-in duration-200'>
               <div className='flex items-start sm:items-center gap-3'>
                 <div className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs'>

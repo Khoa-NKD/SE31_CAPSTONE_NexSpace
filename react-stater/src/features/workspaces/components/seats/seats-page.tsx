@@ -313,6 +313,7 @@ export function SeatsPage({
               activeFloorId={activeFloorId}
               onFloorChange={(floorId) => setActiveFloorId(floorId)}
               filterCategory={activeCategoryFilter}
+              showResourceInspector={false}
               onFloorListLoaded={(floors) => {
                 setLoadedFloors(floors);
                 if (initialResourceId && !selectedResource) {
