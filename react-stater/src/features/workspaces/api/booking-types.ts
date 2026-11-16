@@ -46,6 +46,8 @@ export interface BookingDto {
     | 'NO_SHOW';
   confirmationMode?: 'INSTANT' | 'MANUAL_APPROVAL';
   holdExpiresAt?: string | null;
+  remainingSeconds?: number;
+  serverTime?: string;
   createdAt: string;
 
   // Workspace

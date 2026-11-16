@@ -25,6 +25,9 @@ export function useCancelPayment() {
     mutationFn: ({ orderCode, reason }) => paymentService.cancelPayment(orderCode, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
     }
   });
 }
@@ -36,6 +39,9 @@ export function useReconcileTransaction() {
     mutationFn: (orderCode: number) => paymentService.reconcileTransaction(orderCode),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
     }
   });
 }
@@ -47,6 +53,9 @@ export function useBatchReconcile() {
     mutationFn: () => paymentService.batchReconcile(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
     }
   });
 }

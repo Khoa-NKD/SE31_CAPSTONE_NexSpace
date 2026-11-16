@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Building2,
@@ -11,13 +11,16 @@ import {
   Armchair,
   Building,
   Sparkles,
-  MousePointerClick
+  MousePointerClick,
+  Loader2
 } from 'lucide-react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { toast } from 'sonner';
 import {
   PublicFloorMap,
   type MapResource,
@@ -27,7 +30,7 @@ import {
 } from '../detail/public-floor-map';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
-import { useWorkspaceAvailabilityQuery } from '../../api/booking-queries';
+import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 
 export interface SeatsPageProps {
@@ -67,7 +70,7 @@ export function SeatsPage({
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
-  const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
+  const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
 
   const defaults = useMemo(() => getDefaultSchedule(), []);
 
@@ -144,6 +147,27 @@ export function SeatsPage({
     };
   }, [currentFloor, availabilityMap]);
 
+  const createBookingMutation = useCreateBookingMutation();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  const lastUnavailableIdRef = useRef<number | null>(null);
+
+  // Real-time defense: If another user locks or books the currently selected resource, notify user
+  useEffect(() => {
+    if (selectedResource && availabilityMap.has(selectedResource.id)) {
+      const avail = availabilityMap.get(selectedResource.id);
+      if ((avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') && lastUnavailableIdRef.current !== selectedResource.id) {
+        lastUnavailableIdRef.current = selectedResource.id;
+        toast.warning(
+          c(
+            'The seat you selected was just held or booked by someone else.',
+            'Vị trí bạn vừa chọn đã được người khác giữ chỗ hoặc đặt chỗ.'
+          )
+        );
+      }
+    }
+  }, [availabilityMap, selectedResource, c]);
+
   const handleScheduleChange = (schedule: ScheduleSelection) => {
     if (schedule.isoStartTime && schedule.isoEndTime) {
       setCurrentStartTime(schedule.isoStartTime);
@@ -154,19 +178,71 @@ export function SeatsPage({
     }
   };
 
-  const handleProceedToReview = () => {
+  const handleProceedToReview = async () => {
     if (!workspaceId || !selectedResource) return;
-    navigate({
-      to: '/workspaces/review',
-      search: {
+
+    const currentAvail = availabilityMap.get(selectedResource.id);
+    if (currentAvail?.state === 'BOOKED' || currentAvail?.state === 'LOCKED' || currentAvail?.state === 'MAINTENANCE') {
+      toast.error(
+        c(
+          'This seat is currently held or booked by someone else. Please select another seat.',
+          'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
+        )
+      );
+      return;
+    }
+
+    if (!isAuthenticated) {
+      toast.info(c('Please sign in to hold this seat and proceed', 'Vui lòng đăng nhập để giữ chỗ và tiếp tục'));
+      navigate({
+        to: '/auth/sign-in',
+        search: { redirect: window.location.pathname + window.location.search }
+      });
+      return;
+    }
+
+    try {
+      // Hold seat/room right here with a 10-minute hold window
+      const booking = await createBookingMutation.mutateAsync({
         workspaceId,
         resourceId: selectedResource.id,
         startTime: currentStartTime,
         endTime: currentEndTime,
-        date: currentDateLabel,
-        priceType: 'HOURLY'
-      }
-    });
+        priceType: 'HOURLY',
+        partySize: selectedResource.capacity || 1
+      });
+
+      toast.success(
+        c(
+          `Held ${selectedResource.name || selectedResource.code} for 10 minutes!`,
+          `Đã giữ chỗ ${selectedResource.name || selectedResource.code} trong 10 phút!`
+        )
+      );
+
+      navigate({
+        to: '/workspaces/review',
+        search: {
+          workspaceId,
+          resourceId: selectedResource.id,
+          bookingId: booking.id,
+          bookingCode: booking.bookingCode,
+          startTime: currentStartTime,
+          endTime: currentEndTime,
+          date: currentDateLabel,
+          priceType: 'HOURLY'
+        }
+      });
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
+      const msg =
+        errorObj?.response?.data?.message ||
+        errorObj?.message ||
+        c(
+          'This seat is currently held or booked by someone else. Please select another seat.',
+          'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
+        );
+      toast.error(c('Cannot hold seat', 'Không thể giữ chỗ'), { description: msg });
+    }
   };
 
   // Specific unit rate of selected resource (with fallback to workspace base rate)
@@ -420,10 +496,20 @@ export function SeatsPage({
 
                     <Button
                       onClick={handleProceedToReview}
+                      disabled={createBookingMutation.isPending}
                       className='h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer'
                     >
-                      <span>{c('Review & Hold Seat', 'Xem lại & Giữ chỗ')}</span>
-                      <ArrowRight className='size-4' />
+                      {createBookingMutation.isPending ? (
+                        <>
+                          <Loader2 className='size-4 animate-spin' />
+                          <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>{c('Review & Hold Seat', 'Xem lại & Giữ chỗ')}</span>
+                          <ArrowRight className='size-4' />
+                        </>
+                      )}
                     </Button>
                   </div>
                 </div>

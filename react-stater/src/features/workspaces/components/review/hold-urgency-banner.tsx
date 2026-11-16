@@ -16,7 +16,6 @@ export function HoldUrgencyBanner({
 }: HoldUrgencyBannerProps) {
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
-  const totalSeconds = initialSeconds;
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -38,7 +37,8 @@ export function HoldUrgencyBanner({
       ? `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       : '00:00 (Hold Expired)';
 
-  const progressPercentage = Math.max(0, (secondsRemaining / totalSeconds) * 100);
+  const baseTotalSeconds = Math.max(initialSeconds || 600, secondsRemaining, 600);
+  const progressPercentage = Math.min(100, Math.max(0, (secondsRemaining / baseTotalSeconds) * 100));
 
   return (
     <div className='relative mb-8 overflow-hidden rounded-xl border border-amber-300 bg-amber-50/70 p-4 shadow-xs dark:border-amber-500/30 dark:bg-amber-500/10'>
@@ -52,7 +52,7 @@ export function HoldUrgencyBanner({
             <div className='flex items-center gap-2'>
               <span className='font-sans text-base font-bold text-amber-950 dark:text-amber-200'>
                 {secondsRemaining > 0
-                  ? `${Math.max(1, Math.ceil(totalSeconds / 60))}-Minute Hold Active`
+                  ? `${Math.max(1, Math.ceil(secondsRemaining / 60))}-Minute Hold Active`
                   : 'Hold Expired'}
               </span>
               <span className='inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:bg-amber-500/30 dark:text-amber-300'>

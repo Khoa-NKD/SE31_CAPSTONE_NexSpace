@@ -113,8 +113,12 @@ export function BookingConfirmationPage({
               email={email}
               paymentMethod={
                 booking.status === 'CONFIRMED'
-                  ? 'Paid via PayOS (VietQR)'
-                  : `Status: ${booking.status} (15m Hold)`
+                  ? 'Đã thanh toán qua PayOS (VietQR)'
+                  : booking.status === 'COMPLETED'
+                  ? 'Đơn đặt chỗ đã hoàn tất'
+                  : booking.status === 'PENDING_PAYMENT'
+                  ? 'Đang giữ chỗ (Chờ thanh toán)'
+                  : `Trạng thái: ${booking.status}`
               }
               dateStr={dateStr}
               status={booking.status}
