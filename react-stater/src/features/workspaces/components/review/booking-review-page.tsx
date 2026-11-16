@@ -10,6 +10,7 @@ import { BookerInfoCard } from './booker-info-card';
 import { CancellationPolicyCard } from './cancellation-policy-card';
 import { PriceBreakdownCard } from './price-breakdown-card';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
+import { useBookingByIdQuery, useBookingByCodeQuery } from '../../api/booking-queries';
 import type { CustomerFloor } from '../detail/public-floor-map';
 import type { BookingDto } from '../../api/booking-types';
 import { useCurrentPendingBooking } from '@/features/payments/api';
@@ -20,6 +21,8 @@ import { Link } from '@tanstack/react-router';
 export interface BookingReviewPageProps {
   workspaceId?: number;
   resourceId?: number;
+  bookingId?: number;
+  bookingCode?: string;
   startTime?: string;
   endTime?: string;
   date?: string;
@@ -29,6 +32,8 @@ export interface BookingReviewPageProps {
 export function BookingReviewPage({
   workspaceId,
   resourceId,
+  bookingId,
+  bookingCode,
   startTime,
   endTime,
   date,
@@ -37,6 +42,13 @@ export function BookingReviewPage({
   const [customerNotes, setCustomerNotes] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingDto | null>(null);
   const { data: holdData } = useCurrentPendingBooking();
+
+  // Load existing held booking if bookingId or bookingCode is provided from seats page
+  const { data: heldBookingById } = useBookingByIdQuery(bookingId);
+  const { data: heldBookingByCode } = useBookingByCodeQuery(bookingCode);
+  const initialBooking = heldBookingById || heldBookingByCode || null;
+
+  const effectiveBooking = activeBooking || initialBooking || null;
 
   // Fetch workspace details
   const { data: workspace, isLoading: isLoadingWorkspace } = usePublicWorkspaceDetailQuery(
@@ -60,7 +72,25 @@ export function BookingReviewPage({
   const selectedFloor = floors?.find((f) => f.resources.some((r) => r.id === resourceId));
   const selectedResource = floors?.flatMap((f) => f.resources).find((r) => r.id === resourceId);
 
-  const seatCode = selectedResource?.code || (resourceId ? `Seat #${resourceId}` : holdData?.seatCode || 'Desk A-01');
+  // Validate if holdData belongs to this workspace and resource
+  const isMatchingHold =
+    holdData &&
+    (!workspaceId || !holdData.workspaceId || holdData.workspaceId === workspaceId) &&
+    (!resourceId || !holdData.resourceId || holdData.resourceId === resourceId) &&
+    (holdData.remainingSeconds ? Number(holdData.remainingSeconds) > 0 : true);
+
+  const effectiveHoldData = isMatchingHold ? holdData : null;
+  const seatCode =
+    selectedResource?.code ||
+    effectiveBooking?.resourceName ||
+    (resourceId ? `Seat #${resourceId}` : effectiveHoldData?.seatCode || 'Desk A-01');
+
+  const effectiveExpiresAt = effectiveBooking?.holdExpiresAt || effectiveHoldData?.holdExpiresAt;
+  const effectiveInitialSeconds = effectiveBooking?.remainingSeconds
+    ? Number(effectiveBooking.remainingSeconds)
+    : effectiveHoldData?.remainingSeconds
+      ? Number(effectiveHoldData.remainingSeconds)
+      : 600;
 
   if (!workspaceId || !resourceId) {
     return (
@@ -98,9 +128,9 @@ export function BookingReviewPage({
 
         {/* Hold Urgency Top Banner */}
         <HoldUrgencyBanner
-          seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
-          holdExpiresAt={activeBooking?.holdExpiresAt || holdData?.holdExpiresAt}
-          initialSeconds={holdData?.remainingSeconds ? Number(holdData.remainingSeconds) : 600}
+          seatCode={seatCode || 'Desk A-12'}
+          holdExpiresAt={effectiveExpiresAt}
+          initialSeconds={effectiveInitialSeconds}
         />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}
@@ -135,7 +165,7 @@ export function BookingReviewPage({
               customerNotes={customerNotes}
               seatCode={seatCode}
               workspaceName={workspace?.name}
-              activeBooking={activeBooking}
+              activeBooking={effectiveBooking}
               onBookingCreated={setActiveBooking}
             />
           </div>

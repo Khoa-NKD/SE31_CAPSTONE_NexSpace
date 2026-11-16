@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import {
   Info,
-  ArrowRight,
   Wallet,
   Lock,
   FileText,
@@ -65,6 +64,8 @@ export function PriceBreakdownCard({
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState<PaymentCheckoutResponse | null>(null);
 
+  const effectiveBooking = createdBooking || activeBooking || null;
+
   const { data: exchangeRateData } = useExchangeRate();
   const exchangeRate = exchangeRateData?.exchangeRate || 25450;
 
@@ -107,11 +108,25 @@ export function PriceBreakdownCard({
     }
   };
 
-  const handleCreateAndHoldBooking = async () => {
+  const handleConfirmBooking = async () => {
     setBookingError(null);
 
+    if (effectiveBooking) {
+      // Booking is already held from the seats page, open payment modal
+      createPaymentMutation.mutate(effectiveBooking.id, {
+        onSuccess: (data: PaymentCheckoutResponse) => {
+          setCheckoutData(data);
+          setCheckoutOpen(true);
+        },
+        onError: () => {
+          setCheckoutOpen(true);
+        }
+      });
+      return;
+    }
+
     if (!isAuthenticated) {
-      setBookingError('Vui lòng đăng nhập hoặc đăng ký tài khoản trước khi xác nhận giữ chỗ.');
+      setBookingError('Vui lòng đăng nhập hoặc đăng ký tài khoản trước khi xác nhận đặt chỗ.');
       return;
     }
 
@@ -135,14 +150,12 @@ export function PriceBreakdownCard({
       setCreatedBooking(booking);
       onBookingCreated?.(booking);
 
-      // Attempt to initiate PayOS checkout for this booking
       createPaymentMutation.mutate(booking.id, {
         onSuccess: (data: PaymentCheckoutResponse) => {
           setCheckoutData(data);
           setCheckoutOpen(true);
         },
         onError: () => {
-          // If PayOS payment endpoint fails, open dialog anyway with booking code
           setCheckoutOpen(true);
         }
       });
@@ -153,12 +166,12 @@ export function PriceBreakdownCard({
         errorObj?.message ||
         'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.';
       setBookingError(msg);
-      toast.error('Không thể giữ chỗ', { description: msg });
+      toast.error('Không thể đặt chỗ', { description: msg });
     }
   };
 
   const handleCancelHold = async () => {
-    const target = createdBooking || activeBooking;
+    const target = effectiveBooking;
     if (!target) return;
     try {
       await cancelBookingMutation.mutateAsync({
@@ -169,6 +182,14 @@ export function PriceBreakdownCard({
       setCheckoutData(null);
       onBookingCreated?.(null);
       toast.success('Đã hủy giữ chỗ thành công');
+      if (workspaceId) {
+        navigate({
+          to: '/workspaces/$workspaceId',
+          params: { workspaceId: String(workspaceId) }
+        });
+      } else {
+        navigate({ to: '/workspaces' });
+      }
     } catch (err: unknown) {
       const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
       setBookingError(errorObj?.response?.data?.message || errorObj?.message || 'Failed to cancel hold.');
@@ -299,28 +320,50 @@ export function PriceBreakdownCard({
         </div>
 
         {/* Primary Action Button */}
-        {createdBooking ? (
-          <div className='space-y-2'>
-            <Button
-              onClick={() => setCheckoutOpen(true)}
-              className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
-            >
-              <Wallet className='size-4' />
-              <span>Thanh toán VietQR PayOS ({createdBooking.bookingCode})</span>
-            </Button>
+        <div className='space-y-2'>
+          <Button
+            onClick={handleConfirmBooking}
+            disabled={
+              createBookingMutation.isPending ||
+              createPaymentMutation.isPending ||
+              isCalculating
+            }
+            className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
+          >
+            {createBookingMutation.isPending || createPaymentMutation.isPending ? (
+              <>
+                <Loader2 className='size-4 animate-spin' />
+                <span>Đang xử lý xác nhận...</span>
+              </>
+            ) : (
+              <>
+                <CheckCircle2 className='size-4' />
+                <span>
+                  {effectiveBooking
+                    ? `Xác nhận (${effectiveBooking.bookingCode})`
+                    : 'Xác nhận'}
+                </span>
+              </>
+            )}
+          </Button>
+
+          {effectiveBooking && (
             <Button
               onClick={() =>
                 navigate({
                   to: '/workspaces/confirmation',
-                  search: { bookingCode: createdBooking.bookingCode, bookingId: createdBooking.id }
+                  search: { bookingCode: effectiveBooking.bookingCode, bookingId: effectiveBooking.id }
                 })
               }
               variant='secondary'
               className='h-10 w-full text-xs font-semibold'
             >
               <CheckCircle2 className='size-3.5 mr-1.5' />
-              <span>Xem vé điện tử ({createdBooking.bookingCode})</span>
+              <span>Xem vé điện tử ({effectiveBooking.bookingCode})</span>
             </Button>
+          )}
+
+          {effectiveBooking && (
             <Button
               variant='outline'
               onClick={handleCancelHold}
@@ -333,29 +376,11 @@ export function PriceBreakdownCard({
                   <span>Đang hủy giữ chỗ...</span>
                 </>
               ) : (
-                <span>Hủy giữ chỗ &amp; giải phóng vị trí</span>
+                <span>Hủy giữ chỗ &amp; chọn vị trí khác</span>
               )}
             </Button>
-          </div>
-        ) : (
-          <Button
-            onClick={handleCreateAndHoldBooking}
-            disabled={createBookingMutation.isPending || isCalculating || createPaymentMutation.isPending}
-            className='group h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
-          >
-            {createBookingMutation.isPending || createPaymentMutation.isPending ? (
-              <>
-                <Loader2 className='size-4 animate-spin' />
-                <span>Đang khóa chỗ &amp; tạo cổng PayOS...</span>
-              </>
-            ) : (
-              <>
-                <span>Xác nhận &amp; Giữ chỗ 10 Phút</span>
-                <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
-              </>
-            )}
-          </Button>
-        )}
+          )}
+        </div>
 
         {/* Payment Security & Trust Badges */}
         <div className='border-border/60 space-y-2.5 border-t pt-4 text-xs text-muted-foreground'>
@@ -387,9 +412,22 @@ export function PriceBreakdownCard({
         totalAmountUsd={totalAmount}
         seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
         checkoutData={checkoutData}
-        orderRef={createdBooking?.bookingCode ? `#${createdBooking.bookingCode}` : holdData?.bookingCode}
+        orderRef={effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : holdData?.bookingCode}
         isLoading={createPaymentMutation.isPending}
-        onRetry={handleCreateAndHoldBooking}
+        onRetry={handleConfirmBooking}
+        onCancelCheckoutSuccess={() => {
+          setCreatedBooking(null);
+          setCheckoutData(null);
+          onBookingCreated?.(null);
+          if (workspaceId) {
+            navigate({
+              to: '/workspaces/$workspaceId',
+              params: { workspaceId: String(workspaceId) }
+            });
+          } else {
+            navigate({ to: '/workspaces' });
+          }
+        }}
       />
     </>
   );

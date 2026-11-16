@@ -58,7 +58,9 @@ export function useWorkspaceAvailabilityQuery(
       Boolean(startTime) &&
       Boolean(endTime) &&
       (options?.enabled ?? true),
-    staleTime: 10_000,
+    staleTime: 0,
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
     refetchOnWindowFocus: true
   });
 }
@@ -172,6 +174,9 @@ export function useCreateBookingMutation() {
     mutationFn: (payload) => workspaceService.createBooking(payload),
     onSuccess: (booking) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -185,6 +190,9 @@ export function useCancelBookingMutation() {
     mutationFn: ({ id, reason }) => workspaceService.cancelBooking(id, reason),
     onSuccess: (booking) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -198,6 +206,9 @@ export function useApproveBookingMutation() {
     mutationFn: ({ id }) => workspaceService.approveBooking(id),
     onSuccess: (booking) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -211,6 +222,9 @@ export function useRejectBookingMutation() {
     mutationFn: ({ id, reason }) => workspaceService.rejectBooking(id, reason),
     onSuccess: (booking) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }

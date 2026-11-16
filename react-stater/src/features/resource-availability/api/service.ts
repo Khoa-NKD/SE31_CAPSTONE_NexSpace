@@ -1,5 +1,10 @@
 import { apiClient } from '@/lib/api-client';
-import type { DeskAvailabilityParams, DeskAvailabilityResponseDto } from './types';
+import type {
+  DeskAvailabilityParams,
+  DeskAvailabilityResponseDto,
+  RoomAvailabilityParams,
+  RoomAvailabilityResponseDto
+} from './types';
 
 export const resourceAvailabilityService = {
   /**
@@ -14,6 +19,22 @@ export const resourceAvailabilityService = {
         endTime: params.endTime
       }
     });
+  },
+
+  /**
+   * Tra cứu danh sách phòng làm việc/họp và trạng thái khả dụng theo thời gian thực (kèm xung đột hai chiều với ghế con)
+   */
+  async getRoomAvailability(params: RoomAvailabilityParams): Promise<RoomAvailabilityResponseDto[]> {
+    return apiClient.get<RoomAvailabilityResponseDto[]>('/public/availability/rooms', {
+      params: {
+        workspaceId: params.workspaceId,
+        floorPlanId: params.floorPlanId,
+        startTime: params.startTime,
+        endTime: params.endTime,
+        minCapacity: params.minCapacity
+      }
+    });
   }
 };
+
 

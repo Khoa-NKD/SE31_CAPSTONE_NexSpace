@@ -4,6 +4,8 @@ import { BookingReviewPage } from '@/features/workspaces/components/review/booki
 export interface BookingReviewSearch {
   workspaceId?: number;
   resourceId?: number;
+  bookingId?: number;
+  bookingCode?: string;
   startTime?: string;
   endTime?: string;
   date?: string;
@@ -20,6 +22,11 @@ export const Route = createFileRoute('/workspaces/review')({
       Number.isSafeInteger(Number(search.resourceId)) && Number(search.resourceId) > 0
         ? Number(search.resourceId)
         : undefined,
+    bookingId:
+      Number.isSafeInteger(Number(search.bookingId)) && Number(search.bookingId) > 0
+        ? Number(search.bookingId)
+        : undefined,
+    bookingCode: typeof search.bookingCode === 'string' ? search.bookingCode : undefined,
     startTime: typeof search.startTime === 'string' ? search.startTime : undefined,
     endTime: typeof search.endTime === 'string' ? search.endTime : undefined,
     date: typeof search.date === 'string' ? search.date : undefined,

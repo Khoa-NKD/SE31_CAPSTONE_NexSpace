@@ -13,6 +13,8 @@ export type BookingStatus =
 export interface BookingHoldResponse {
   bookingId: number;
   bookingCode: string;
+  workspaceId?: number;
+  resourceId?: number;
   seatCode: string;
   resourceName: string;
   workspaceName: string;

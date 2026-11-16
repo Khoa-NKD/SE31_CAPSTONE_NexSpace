@@ -43,6 +43,7 @@ interface PayOSCheckoutDialogProps {
   checkoutData?: PaymentCheckoutResponse | null;
   isLoading?: boolean;
   onRetry?: () => void;
+  onCancelCheckoutSuccess?: () => void;
 }
 
 export function PayOSCheckoutDialog({
@@ -53,7 +54,8 @@ export function PayOSCheckoutDialog({
   orderRef = '#NX-8821',
   checkoutData,
   isLoading = false,
-  onRetry
+  onRetry,
+  onCancelCheckoutSuccess
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
   const { formatPrice } = useCurrency();
@@ -139,11 +141,13 @@ export function PayOSCheckoutDialog({
         {
           onSuccess: () => {
             toast.info('Đã hủy phiên thanh toán và giải phóng slot giữ chỗ');
+            onCancelCheckoutSuccess?.();
             handleOpenChange(false);
           }
         }
       );
     } else {
+      onCancelCheckoutSuccess?.();
       handleOpenChange(false);
     }
   };
