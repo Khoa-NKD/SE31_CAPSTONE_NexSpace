@@ -1,121 +1,170 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Accessibility, CreditCard, Globe, Shield, ShieldCheck } from 'lucide-react';
+import { CreditCard, Globe } from 'lucide-react';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import {
-  COMPLIANCE_BADGES,
-  FOOTER_COLUMNS,
-  SUPPORTED_CURRENCIES,
-  SUPPORTED_LANGUAGES
-} from '../constants/navigation';
-import { useLanguage } from '../context/language-context';
-
-const BADGE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
-  ShieldCheck,
-  Shield,
-  Accessibility
-};
+import { useLanguage, type Language } from '../context/language-context';
+import { useCurrency, type Currency } from '../context/currency-context';
 
 export function Footer() {
-  const { t } = useLanguage();
-  const [selectedCurrency, setSelectedCurrency] = useState('USD');
-  const [selectedLang, setSelectedLang] = useState('en');
+  const { language, setLanguage, t } = useLanguage();
+  const { currency, setCurrency } = useCurrency();
+  const [currentYear] = useState(() => new Date().getFullYear());
 
   return (
-    <footer className='relative border-t border-slate-800/80 bg-[#0a0f1d] text-slate-200 overflow-hidden'>
-      {/* Top Horizon Gradient Guide */}
-      <div className='pointer-events-none absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-indigo-500/30 to-transparent' />
-      <div className='mx-auto grid max-w-[1440px] grid-cols-2 gap-8 px-6 py-16 md:grid-cols-5 lg:px-12'>
-        {/* Col 1: Brand & Overview */}
-        <div className='col-span-2 space-y-4 md:col-span-1'>
-          <a href='/' className='inline-block'>
-            <NexSpaceLogo inverted className='h-9 w-auto' />
-          </a>
-          <p className='text-xs leading-relaxed text-slate-400'>{t('footer.tagline')}</p>
-          <p className='pt-2 text-[11px] leading-relaxed text-slate-400'>
-            &copy; {new Date().getFullYear()} {t('footer.rights')}
-          </p>
-        </div>
+    <footer className='border-t border-slate-200/80 bg-white text-slate-600 dark:border-slate-800/80 dark:bg-slate-950 dark:text-slate-400'>
+      <div className='mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8'>
+        <div className='grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-5'>
+          {/* Group 1: NexSpace Brand Identity & Description */}
+          <div className='sm:col-span-2 space-y-3'>
+            <Link to='/' className='inline-block'>
+              <NexSpaceLogo className='h-8 w-auto' />
+            </Link>
+            <p className='max-w-sm text-xs sm:text-sm leading-relaxed text-slate-500 dark:text-slate-400'>
+              {t('footer.tagline')}
+            </p>
+          </div>
 
-        {/* Dynamic Nav Columns */}
-        {FOOTER_COLUMNS.map((column) => (
-          <div key={column.title} className='space-y-3'>
-            <h4 className='text-sm font-semibold tracking-tight text-white'>{column.title}</h4>
-            <ul className='space-y-2 text-xs'>
-              {column.links.map((link) => {
-                const isInternal = link.href.startsWith('/');
-                return (
-                  <li key={link.label}>
-                    {isInternal ? (
-                      <Link
-                        to={link.href}
-                        className='inline-block text-slate-400 transition-colors duration-150 hover:translate-x-0.5 hover:text-white'
-                      >
-                        {link.label}
-                      </Link>
-                    ) : (
-                      <a
-                        href={link.href}
-                        className='inline-block text-slate-400 transition-colors duration-150 hover:translate-x-0.5 hover:text-white'
-                      >
-                        {link.label}
-                      </a>
-                    )}
-                  </li>
-                );
-              })}
+          {/* Group 2: Explore */}
+          <div className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white'>
+              {t('footer.explore')}
+            </h3>
+            <ul className='space-y-2 text-xs sm:text-sm'>
+              <li>
+                <Link
+                  to='/workspaces'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.allWorkspaces')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/workspaces'
+                  search={{ category: 'COWORKING_HUB' } as never}
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.coworkingHubs')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/workspaces'
+                  search={{ category: 'MEETING_SUITE' } as never}
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.meetingRooms')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/workspaces'
+                  search={{ category: 'PRIVATE_OFFICE' } as never}
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.privateOffices')}
+                </Link>
+              </li>
             </ul>
           </div>
-        ))}
-      </div>
 
-      {/* Bottom Compliance & Pickers Sub-Bar */}
-      <div className='border-t border-slate-800/80 bg-slate-950/40 py-6'>
-        <div className='mx-auto flex max-w-[1440px] flex-col items-center justify-between gap-4 px-6 text-xs text-slate-400 sm:flex-row lg:px-12'>
-          {/* Compliance Badges */}
-          <div className='flex flex-wrap items-center gap-4'>
-            {COMPLIANCE_BADGES.map((badge) => {
-              const Icon = BADGE_ICONS[badge.icon] || ShieldCheck;
-              return (
-                <span key={badge.label} className='flex items-center gap-1.5 text-slate-300'>
-                  <Icon className='h-4 w-4 text-indigo-400' />
-                  <span>{badge.label}</span>
-                </span>
-              );
-            })}
+          {/* Group 3: Partners */}
+          <div className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white'>
+              {t('footer.partners')}
+            </h3>
+            <ul className='space-y-2 text-xs sm:text-sm'>
+              <li>
+                <Link
+                  to='/organizer/apply'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.listYourSpace')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/organizer/status'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.partnerStatus')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/organizer/documents'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.partnerGuidelines')}
+                </Link>
+              </li>
+            </ul>
           </div>
 
-          {/* Currency & Locale Selectors */}
+          {/* Group 4: Support & Legal */}
+          <div className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-slate-900 dark:text-white'>
+              {t('footer.supportLegal')}
+            </h3>
+            <ul className='space-y-2 text-xs sm:text-sm'>
+              <li>
+                <Link
+                  to='/about'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.about')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/privacy-policy'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.privacy')}
+                </Link>
+              </li>
+              <li>
+                <Link
+                  to='/terms-of-service'
+                  className='transition-colors hover:text-[#4b41e1] dark:hover:text-indigo-400'
+                >
+                  {t('footer.terms')}
+                </Link>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Bottom Sub-bar: Copyright + Language & Currency */}
+        <div className='mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200/70 pt-6 text-xs sm:flex-row dark:border-slate-800/70'>
+          <p className='text-slate-500 dark:text-slate-400'>
+            &copy; {currentYear} {t('footer.rights')}
+          </p>
+
           <div className='flex items-center gap-3'>
-            <div className='flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/80 px-2.5 py-1'>
+            <div className='flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-900'>
               <CreditCard className='h-3.5 w-3.5 text-slate-400' />
               <select
                 aria-label='Select Currency'
-                value={selectedCurrency}
-                onChange={(e) => setSelectedCurrency(e.target.value)}
-                className='cursor-pointer bg-transparent text-xs text-slate-200 outline-none'
+                value={currency}
+                onChange={(e) => setCurrency(e.target.value as Currency)}
+                className='cursor-pointer bg-transparent text-xs font-medium text-slate-700 outline-none dark:text-slate-200'
               >
-                {SUPPORTED_CURRENCIES.map((curr) => (
-                  <option key={curr.code} value={curr.code} className='bg-slate-900 text-white'>
-                    {curr.label}
-                  </option>
-                ))}
+                <option value='USD'>USD ($)</option>
+                <option value='VND'>VND (₫)</option>
               </select>
             </div>
 
-            <div className='flex items-center gap-1.5 rounded-md border border-slate-700 bg-slate-900/80 px-2.5 py-1'>
+            <div className='flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-900'>
               <Globe className='h-3.5 w-3.5 text-slate-400' />
               <select
                 aria-label='Select Language'
-                value={selectedLang}
-                onChange={(e) => setSelectedLang(e.target.value)}
-                className='cursor-pointer bg-transparent text-xs text-slate-200 outline-none'
+                value={language}
+                onChange={(e) => setLanguage(e.target.value as Language)}
+                className='cursor-pointer bg-transparent text-xs font-medium text-slate-700 outline-none dark:text-slate-200'
               >
-                {SUPPORTED_LANGUAGES.map((lang) => (
-                  <option key={lang.code} value={lang.code} className='bg-slate-900 text-white'>
-                    {lang.label}
-                  </option>
-                ))}
+                <option value='vi'>Tiếng Việt</option>
+                <option value='en'>English</option>
               </select>
             </div>
           </div>

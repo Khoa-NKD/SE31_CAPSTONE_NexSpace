@@ -22,9 +22,9 @@ export const Route = createFileRoute('/')({
   },
   head: () => ({
     meta: seo({
-      title: 'NexSpace — Beyond Flexible Office Space | Workplace Cloud & Marketplace',
+      title: 'NexSpace — Find & Book Flexible Workspaces',
       description:
-        'Access on-demand workspace, manage hybrid teams, and continuously optimize your workplace strategy—all on one unified platform.',
+        'Discover and book flexible desks, meeting rooms, and private offices—all in one place.',
       path: '/'
     })
   }),

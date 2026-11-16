@@ -1,51 +1,80 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Navbar } from './navbar';
 import { HeroSection } from './hero-section';
-import { StatsBar } from './stats-bar';
-import { PlatformLayers } from './platform-layers';
+import { StickyTopSearchBar } from './sticky-top-search-bar';
 import { MarketplaceShowcase } from './marketplace-showcase';
-import { TestimonialsSection } from './testimonials-section';
-import { ResourcesSection } from './resources-section';
-import { EnterpriseCta } from './enterprise-cta';
+import { HowItWorksSection } from './how-it-works-section';
+import { PartnerCtaSection } from './partner-cta-section';
 import { Footer } from './footer';
-import { LandingBackground } from './landing-background';
+import type { SearchCriteria } from './search-card';
 
 export default function LandingPage() {
+  const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>({
+    mode: 'all',
+    location: '',
+    dateTime: 'today-flexible',
+    capacity: '1 - 4 People'
+  });
+  const [filterCriteria, setFilterCriteria] = useState<SearchCriteria | null>(null);
+
+  const handleSearch = (criteria: SearchCriteria) => {
+    setFilterCriteria(criteria);
+  };
+
+  const handleFilterChange = (criteria: SearchCriteria) => {
+    setFilterCriteria(criteria);
+  };
+
+  const handleResetFilters = () => {
+    setFilterCriteria(null);
+    setSearchCriteria({
+      mode: 'all',
+      location: '',
+      dateTime: 'today-flexible',
+      capacity: '1 - 4 People'
+    });
+  };
+
   return (
     <div
       data-landing-root='true'
-      className='landing-scope relative min-h-screen text-foreground antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
+      className='landing-scope relative min-h-screen flex flex-col bg-[#f8fafc] text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:bg-slate-950 dark:text-slate-100 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
       style={{ fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif' }}
     >
-      {/* Brand Unified Spatial Background System */}
-      <LandingBackground />
-      {/* 1. Header Navigation */}
-      <Navbar />
+      {/* Dynamic Sticky Search Bar - Appears at top when scrolling past hero search */}
+      <StickyTopSearchBar
+        criteria={searchCriteria}
+        onChangeCriteria={setSearchCriteria}
+        onSearch={handleSearch}
+        onFilterChange={handleFilterChange}
+      />
 
-      <main>
-        {/* 2. Hero & Elevated Search Engine with Infinite Marquee */}
-        <HeroSection />
+      {/* 01. Header / Navigation (Normal document flow - scrolls with page) */}
+      <Navbar sticky={false} />
 
-        {/* 3. Key Enterprise Impact Stats Banner */}
-        <StatsBar />
+      <main className='flex-1'>
+        {/* 02. Hero + Workspace Search */}
+        <HeroSection
+          criteria={searchCriteria}
+          onChangeCriteria={setSearchCriteria}
+          onSearch={handleSearch}
+          onFilterChange={handleFilterChange}
+        />
 
-        {/* 4. The Smart Office Platform (3-Layer Interactive Architectural Switcher) */}
-        <PlatformLayers />
+        {/* 03. Featured Workspaces */}
+        <MarketplaceShowcase
+          filterCriteria={filterCriteria}
+          onResetFilters={handleResetFilters}
+        />
 
-        {/* 5. Live Marketplace Showcase & Landlord Callout */}
-        <MarketplaceShowcase />
+        {/* 04. How It Works */}
+        <HowItWorksSection />
 
-        {/* 6. Real Results from Real Teams (Categorized Enterprise Reviews) */}
-        <TestimonialsSection />
-
-        {/* 7. Workplace Insights & Resources */}
-        <ResourcesSection />
-
-        {/* 8. Enterprise Consultation & Interactive Lease ROI Modeler */}
-        <EnterpriseCta />
+        {/* 05. Become a Partner CTA */}
+        <PartnerCtaSection />
       </main>
 
-      {/* 9. Comprehensive Platform Footer */}
+      {/* 06. Footer */}
       <Footer />
     </div>
   );

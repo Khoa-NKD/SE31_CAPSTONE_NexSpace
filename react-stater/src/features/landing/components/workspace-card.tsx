@@ -1,97 +1,207 @@
-import React from 'react';
-import { MapPin, Star } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import type { WorkspaceItem } from '../api/types';
+import React, { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { ArrowRight, Building2, MapPin, Star, Zap } from 'lucide-react';
+import { useLanguage } from '../context/language-context';
+import { useCurrency } from '../context/currency-context';
+import type { CanonicalWorkspace, PublicWorkspaceSummary } from '@/features/workspaces/api/types';
+
+export type LandingWorkspaceCardData = CanonicalWorkspace | PublicWorkspaceSummary;
 
 interface WorkspaceCardProps {
-  workspace: WorkspaceItem;
-  onReserve: (workspace: WorkspaceItem) => void;
+  workspace: LandingWorkspaceCardData;
 }
 
-export function WorkspaceCard({ workspace, onReserve }: WorkspaceCardProps) {
-  const isWarningBadge = workspace.badgeVariant === 'warning';
+function formatCategoryLabel(category: string | undefined, language: 'en' | 'vi'): string {
+  const normalized = (category || '').toUpperCase();
+  if (normalized.includes('COWORKING')) {
+    return language === 'vi' ? 'Không gian Coworking' : 'Coworking Hub';
+  }
+  if (normalized.includes('MEETING')) {
+    return language === 'vi' ? 'Phòng họp' : 'Meeting Suite';
+  }
+  if (normalized.includes('PRIVATE')) {
+    return language === 'vi' ? 'Văn phòng riêng' : 'Private Office';
+  }
+  if (normalized.includes('SERVICED')) {
+    return language === 'vi' ? 'Văn phòng dịch vụ' : 'Serviced Office';
+  }
+  if (normalized.includes('ENTERPRISE')) {
+    return language === 'vi' ? 'Sàn doanh nghiệp' : 'Enterprise Floor';
+  }
+  return language === 'vi' ? 'Không gian linh hoạt' : 'Flexible Workspace';
+}
+
+export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
+  const { language, t } = useLanguage();
+  const { formatPrice } = useCurrency();
+  const [imgError, setImgError] = useState(false);
+
+  const workspaceId = String(workspace.id);
+  const name = workspace.name;
+  const categoryLabel = formatCategoryLabel(workspace.category, language);
+
+  const fallbackAddress =
+    'address' in workspace && typeof workspace.address === 'string'
+      ? workspace.address
+      : '';
+
+  const shortLocation =
+    workspace.district && workspace.city
+      ? `${workspace.district}, ${workspace.city}`
+      : workspace.city || workspace.district || workspace.streetAddress || fallbackAddress || '';
+
+  const coverUrl =
+    ('coverImageUrl' in workspace && workspace.coverImageUrl) ||
+    ('imageUrl' in workspace && typeof workspace.imageUrl === 'string' ? workspace.imageUrl : null);
+
+  const isInstantBook =
+    'bookingConfirmationMode' in workspace &&
+    String(workspace.bookingConfirmationMode || '').toUpperCase() === 'INSTANT';
+
+  const rawRating = typeof workspace.rating === 'number' ? workspace.rating : null;
+  const reviewsCount =
+    'reviewsCount' in workspace && typeof workspace.reviewsCount === 'number'
+      ? workspace.reviewsCount
+      : 0;
+  const hasVerifiedRating = rawRating !== null && rawRating > 0 && reviewsCount > 0;
+
+  const pricePerHour =
+    typeof workspace.pricePerHour === 'number' && workspace.pricePerHour > 0
+      ? workspace.pricePerHour
+      : null;
+
+  const amenityLabels: string[] = React.useMemo(() => {
+    if ('amenities' in workspace && Array.isArray(workspace.amenities)) {
+      return (workspace.amenities as unknown[])
+        .slice(0, 3)
+        .map((a) =>
+          typeof a === 'string'
+            ? a
+            : typeof a === 'object' && a !== null && 'label' in a
+              ? String((a as { label?: string }).label || '')
+              : ''
+        )
+        .filter(Boolean);
+    }
+    return [];
+  }, [workspace]);
 
   return (
-    <article className='custom-level-1 hover:custom-level-2 bg-card border-border/80 group flex flex-col overflow-hidden rounded-xl border transition-all duration-200'>
-      {/* Thumbnail with overlay badges */}
-      <div className='bg-muted relative aspect-[16/10] overflow-hidden'>
-        <img
-          src={workspace.imageUrl}
-          alt={workspace.imageAlt}
-          className='h-full w-full object-cover transition-transform duration-300 group-hover:scale-105'
-          loading='lazy'
-        />
+    <Link
+      to='/workspaces/$workspaceId'
+      params={{ workspaceId }}
+      className='group flex h-full flex-col overflow-hidden rounded-2xl border border-slate-200/90 bg-white shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:border-indigo-300 hover:shadow-md focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:border-slate-800 dark:bg-slate-900 dark:hover:border-indigo-800'
+    >
+      {/* Image Container (16:10 consistent aspect ratio) */}
+      <div className='relative aspect-[16/10] w-full overflow-hidden bg-slate-100 dark:bg-slate-800'>
+        {coverUrl && !imgError ? (
+          <img
+            src={coverUrl}
+            alt={name}
+            loading='lazy'
+            onError={() => setImgError(true)}
+            className='h-full w-full object-cover transition-transform duration-300 group-hover:scale-105'
+          />
+        ) : (
+          <div className='flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-100 via-indigo-50/40 to-slate-100 text-slate-400 dark:from-slate-800 dark:via-indigo-950/30 dark:to-slate-800 dark:text-slate-500'>
+            <Building2 className='h-9 w-9 stroke-[1.5] text-indigo-400/70' />
+            <span className='text-xs font-medium'>{categoryLabel}</span>
+          </div>
+        )}
 
-        {/* Status Badge */}
-        <div className='absolute top-3 left-3 flex items-center gap-2'>
-          <span
-            className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold ${
-              isWarningBadge
-                ? 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
-                : 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
-            }`}
-          >
-            <span
-              className={`h-1.5 w-1.5 rounded-full ${
-                isWarningBadge ? 'bg-amber-500' : 'bg-emerald-500'
-              }`}
-            />
-            {workspace.badgeText}
+        {/* Top Left: Category Pill & Optional Instant Book Badge */}
+        <div className='absolute top-3 left-3 flex flex-wrap items-center gap-1.5'>
+          <span className='rounded-lg bg-slate-900/75 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-md'>
+            {categoryLabel}
           </span>
+          {isInstantBook && (
+            <span className='inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-md'>
+              <Zap className='h-3 w-3 fill-current' />
+              <span>{t('market.instantBook')}</span>
+            </span>
+          )}
         </div>
 
-        {/* Rating Badge */}
-        <div className='bg-card/90 border-border/80 text-foreground absolute top-3 right-3 flex items-center gap-1 rounded-md border px-2.5 py-1 text-xs font-bold backdrop-blur-sm'>
-          <Star className='h-3.5 w-3.5 fill-amber-400 text-amber-400' />
-          <span>
-            {workspace.rating} ({workspace.reviewCount})
-          </span>
+        {/* Top Right: Honest Rating or New State */}
+        <div className='absolute top-3 right-3'>
+          {hasVerifiedRating ? (
+            <span className='inline-flex items-center gap-1 rounded-lg border border-slate-200/80 bg-white/95 px-2.5 py-1 text-xs font-bold text-slate-900 shadow-2xs backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/95 dark:text-white'>
+              <Star className='h-3.5 w-3.5 fill-amber-400 text-amber-400' />
+              <span>{rawRating.toFixed(1)}</span>
+              <span className='font-normal text-slate-500 dark:text-slate-400'>
+                ({reviewsCount})
+              </span>
+            </span>
+          ) : (
+            <span className='inline-flex items-center rounded-lg border border-slate-200/80 bg-white/90 px-2 py-0.5 text-[11px] font-semibold text-slate-700 backdrop-blur-md dark:border-slate-700 dark:bg-slate-900/90 dark:text-slate-300'>
+              {t('market.newWorkspace')}
+            </span>
+          )}
         </div>
       </div>
 
-      {/* Card Content */}
-      <div className='flex flex-1 flex-col justify-between p-5'>
+      {/* Card Body */}
+      <div className='flex flex-1 flex-col justify-between p-4 sm:p-5'>
         <div>
-          <div className='text-muted-foreground flex items-center gap-1.5 text-xs'>
-            <MapPin className='h-3.5 w-3.5 shrink-0' />
-            <span className='truncate'>{workspace.location}</span>
-          </div>
+          {shortLocation && (
+            <div className='flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400'>
+              <MapPin className='h-3.5 w-3.5 shrink-0 text-slate-400' />
+              <span className='truncate'>{shortLocation}</span>
+            </div>
+          )}
 
-          <h3 className='text-foreground group-hover:text-[#4b41e1] font-display mt-1.5 text-base font-semibold tracking-tight transition-colors duration-150'>
-            {workspace.title}
+          <h3 className='font-display mt-1.5 line-clamp-1 text-base font-bold tracking-tight text-slate-900 transition-colors group-hover:text-[#4b41e1] dark:text-white dark:group-hover:text-indigo-400'>
+            {name}
           </h3>
 
-          {/* Amenities Pills */}
-          <div className='mt-4 flex flex-wrap gap-2'>
-            {workspace.amenities.map((amenity) => (
-              <span
-                key={amenity}
-                className='bg-muted text-muted-foreground rounded px-2 py-0.5 text-xs font-medium'
-              >
-                {amenity}
-              </span>
-            ))}
-          </div>
+          {workspace.description && (
+            <p className='mt-1.5 line-clamp-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400'>
+              {workspace.description}
+            </p>
+          )}
+
+          {amenityLabels.length > 0 && (
+            <div className='mt-3 flex flex-wrap gap-1.5'>
+              {amenityLabels.map((amenity) => (
+                <span
+                  key={amenity}
+                  className='rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300'
+                >
+                  {amenity}
+                </span>
+              ))}
+            </div>
+          )}
         </div>
 
-        {/* Bottom Pricing & Reserve CTA */}
-        <div className='border-border/60 mt-5 flex items-center justify-between border-t pt-4'>
+        {/* Footer: Pricing & Clear CTA */}
+        <div className='mt-4 flex items-center justify-between border-t border-slate-100 pt-3.5 dark:border-slate-800/80'>
           <div>
-            <span className='text-foreground text-lg font-bold'>${workspace.hourlyPrice}</span>
-            <span className='text-muted-foreground text-xs'>
-              {workspace.dailyPrice ? ` / hour · $${workspace.dailyPrice} / day` : ' / hour'}
-            </span>
+            {pricePerHour !== null ? (
+              <div className='flex items-baseline gap-1'>
+                <span className='text-xs text-slate-500 dark:text-slate-400'>
+                  {t('market.startingFrom')}
+                </span>
+                <span className='text-base font-extrabold text-slate-900 dark:text-white'>
+                  {formatPrice(pricePerHour)}
+                </span>
+                <span className='text-xs text-slate-500 dark:text-slate-400'>
+                  {t('market.perHour')}
+                </span>
+              </div>
+            ) : (
+              <span className='text-xs font-medium text-slate-500 dark:text-slate-400'>
+                {language === 'vi' ? 'Xem bảng giá chi tiết' : 'View pricing details'}
+              </span>
+            )}
           </div>
 
-          <Button
-            size='sm'
-            onClick={() => onReserve(workspace)}
-            className='bg-muted hover:bg-[#4b41e1] text-foreground hover:text-white cursor-pointer transition-colors duration-150'
-          >
-            {workspace.type === 'meeting-room' ? 'Reserve Room' : 'Reserve Seat'}
-          </Button>
+          <span className='inline-flex items-center gap-1 text-xs font-semibold text-[#4b41e1] transition-transform group-hover:translate-x-0.5 dark:text-indigo-400'>
+            <span>{t('market.viewDetails')}</span>
+            <ArrowRight className='h-3.5 w-3.5' />
+          </span>
         </div>
       </div>
-    </article>
+    </Link>
   );
 }

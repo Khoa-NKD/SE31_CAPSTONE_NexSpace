@@ -1,133 +1,269 @@
-import React, { useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { ArrowRight, Building, Sparkles } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { ArrowRight, Building2, Compass } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { WORKSPACE_ITEMS } from '../api/data';
-import type { WorkspaceCity, WorkspaceItem } from '../api/types';
-import { WorkspaceCard } from './workspace-card';
-import { ReserveModal } from './reserve-modal';
+import {
+  useFeaturedWorkspacesQuery,
+  usePublicWorkspacesQuery
+} from '@/features/workspaces/api';
+import { WorkspaceCard, type LandingWorkspaceCardData } from './workspace-card';
 import { useLanguage } from '../context/language-context';
+import type { SearchCriteria } from './search-card';
 
 interface MarketplaceShowcaseProps {
-  initialCity?: WorkspaceCity | 'all';
+  filterCriteria?: SearchCriteria | null;
+  onResetFilters?: () => void;
 }
 
-export function MarketplaceShowcase({ initialCity = 'all' }: MarketplaceShowcaseProps) {
-  const { t } = useLanguage();
-  const [activeCity, setActiveCity] = useState<WorkspaceCity | 'all'>(initialCity);
-  const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceItem | null>(null);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+export function MarketplaceShowcase({
+  filterCriteria,
+  onResetFilters
+}: MarketplaceShowcaseProps) {
+  const { t, language } = useLanguage();
+  const [selectedCity, setSelectedCity] = useState<string>('all');
 
-  const cityTabs: { id: WorkspaceCity | 'all'; label: string }[] = [
-    { id: 'all', label: t('market.all') },
-    { id: 'hcm', label: 'TP. Hồ Chí Minh' },
-    { id: 'hanoi', label: 'Hà Nội' },
-    { id: 'danang', label: 'Đà Nẵng' }
-  ];
+  const { data: featuredData, isLoading: isFeaturedLoading } = useFeaturedWorkspacesQuery();
+  const {
+    data: publicListData,
+    isLoading: isPublicLoading,
+    isError
+  } = usePublicWorkspacesQuery({ limit: 6 });
 
-  const filteredWorkspaces =
-    activeCity === 'all'
-      ? WORKSPACE_ITEMS
-      : WORKSPACE_ITEMS.filter((item) => item.city === activeCity);
+  const isLoading = isFeaturedLoading && isPublicLoading;
 
-  const handleOpenReserve = (workspace: WorkspaceItem) => {
-    setSelectedWorkspace(workspace);
-    setIsModalOpen(true);
-  };
+  // Combine featured workspaces first, then fill up to 6 from public active workspaces
+  const allWorkspaces = useMemo<LandingWorkspaceCardData[]>(() => {
+    const map = new Map<string, LandingWorkspaceCardData>();
+
+    if (Array.isArray(featuredData)) {
+      for (const item of featuredData) {
+        if (item?.id !== undefined) {
+          map.set(String(item.id), item);
+        }
+      }
+    }
+
+    const publicItems =
+      publicListData?.content ||
+      (publicListData as unknown as { listObjects?: LandingWorkspaceCardData[] })?.listObjects ||
+      [];
+
+    if (Array.isArray(publicItems)) {
+      for (const item of publicItems) {
+        if (item?.id !== undefined && !map.has(String(item.id))) {
+          map.set(String(item.id), item);
+        }
+      }
+    }
+
+    return Array.from(map.values());
+  }, [featuredData, publicListData]);
+
+  // Derive available cities dynamically from real data
+  const availableCities = useMemo<string[]>(() => {
+    const cities = new Set<string>();
+    for (const ws of allWorkspaces) {
+      if (ws.city && ws.city.trim()) {
+        cities.add(ws.city.trim());
+      }
+    }
+    return Array.from(cities);
+  }, [allWorkspaces]);
+
+  // Apply live search/filter criteria if selected on Hero or city tabs
+  const displayedWorkspaces = useMemo<LandingWorkspaceCardData[]>(() => {
+    return allWorkspaces
+      .filter((ws) => {
+        if (selectedCity !== 'all' && ws.city !== selectedCity) {
+          return false;
+        }
+
+        if (filterCriteria?.location) {
+          const q = filterCriteria.location.toLowerCase().trim();
+          const haystack = [
+            ws.name,
+            ws.city,
+            ws.district,
+            ws.streetAddress,
+            'address' in ws && typeof ws.address === 'string' ? ws.address : '',
+            ws.description
+          ]
+            .filter(Boolean)
+            .join(' ')
+            .toLowerCase();
+          if (!haystack.includes(q)) {
+            return false;
+          }
+        }
+
+        if (filterCriteria?.mode && filterCriteria.mode !== 'all') {
+          const cat = (ws.category || '').toUpperCase();
+          if (
+            (filterCriteria.mode === 'hot-desk' || filterCriteria.mode === 'dedicated-desk') &&
+            !cat.includes('COWORKING') &&
+            !cat.includes('HUB')
+          ) {
+            return false;
+          }
+          if (filterCriteria.mode === 'meeting-room' && !cat.includes('MEETING') && !cat.includes('COWORKING')) {
+            return false;
+          }
+          if (
+            filterCriteria.mode === 'private-office' &&
+            !cat.includes('PRIVATE') &&
+            !cat.includes('SERVICED') &&
+            !cat.includes('COWORKING')
+          ) {
+            return false;
+          }
+        }
+
+        return true;
+      })
+      .slice(0, 6);
+  }, [allWorkspaces, selectedCity, filterCriteria]);
 
   return (
-    <section id='workspaces' className='border-border/60 scroll-mt-20 border-b py-24'>
-      <div className='mx-auto max-w-[1440px] px-6 lg:px-12'>
-        {/* Top Section Header & City Filter Tabs */}
-        <div className='flex flex-col justify-between gap-6 md:flex-row md:items-end'>
+    <section
+      id='workspaces'
+      className='scroll-mt-20 border-b border-slate-200/70 py-14 sm:py-16 dark:border-slate-800/70'
+    >
+      <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
+        {/* Section Header */}
+        <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-end'>
           <div>
-            <div className='inline-flex items-center gap-1.5 text-xs font-semibold tracking-wider text-[#4b41e1] uppercase'>
-              <Sparkles className='h-3.5 w-3.5' />
-              <span>{t('market.badge')}</span>
-            </div>
-            <h2 className='text-foreground font-display mt-1 text-3xl font-extrabold tracking-tight sm:text-4xl'>
+            <h2 className='font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white'>
               {t('market.title')}
             </h2>
-            <p className='text-muted-foreground mt-2 max-w-2xl text-base leading-relaxed'>
+            <p className='mt-1.5 max-w-2xl text-sm sm:text-base text-slate-600 dark:text-slate-400'>
               {t('market.subtitle')}
             </p>
           </div>
 
-          {/* City Filter Tabs */}
-          <div className='bg-muted/80 border-border/80 inline-flex self-start rounded-xl border p-1 md:self-auto'>
-            {cityTabs.map((city) => {
-              const isActive = activeCity === city.id;
-              return (
+          <div className='flex flex-wrap items-center gap-2'>
+            {/* Dynamic City Filter Pills (when multiple real cities exist) */}
+            {availableCities.length > 1 && (
+              <div className='inline-flex items-center rounded-xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-slate-800 dark:bg-slate-900'>
                 <button
-                  key={city.id}
                   type='button'
-                  onClick={() => setActiveCity(city.id)}
-                  className={`cursor-pointer rounded-lg px-4 py-2 text-xs font-medium transition-all duration-150 sm:text-sm active:scale-[0.98] ${
-                    isActive
-                      ? 'bg-card text-[#4b41e1] custom-level-1 font-semibold shadow-xs'
-                      : 'text-muted-foreground hover:text-foreground'
+                  onClick={() => setSelectedCity('all')}
+                  className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    selectedCity === 'all'
+                      ? 'bg-white text-[#4b41e1] shadow-2xs dark:bg-slate-800 dark:text-indigo-400'
+                      : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
                   }`}
                 >
-                  {city.label}
+                  {t('market.all')}
                 </button>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Workspaces Grid */}
-        <div className='mt-10 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3'>
-          <AnimatePresence>
-            {filteredWorkspaces.map((workspace) => (
-              <motion.div
-                key={workspace.id}
-                layout
-                initial={{ opacity: 0, scale: 0.98 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.25 }}
-              >
-                <WorkspaceCard workspace={workspace} onReserve={handleOpenReserve} />
-              </motion.div>
-            ))}
-          </AnimatePresence>
-        </div>
-
-        {/* LiquidSpace-Style "Got Extra Space? List With Us" Callout Card */}
-        <div id='list-space' className='mt-16 scroll-mt-20'>
-          <div className='border-indigo-200/80 bg-linear-to-r from-indigo-50/70 via-card to-sky-50/70 dark:border-indigo-900/60 dark:from-indigo-950/30 dark:via-card dark:to-sky-950/30 flex flex-col items-center justify-between gap-6 rounded-2xl border p-8 shadow-xs md:flex-row md:p-10'>
-            <div className='space-y-2 text-left'>
-              <div className='inline-flex items-center gap-2 text-xs font-bold tracking-wider text-[#4b41e1] uppercase'>
-                <Building className='h-4 w-4' />
-                <span>{t('market.landlordTitle')}</span>
+                {availableCities.map((city) => (
+                  <button
+                    key={city}
+                    type='button'
+                    onClick={() => setSelectedCity(city)}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      selectedCity === city
+                        ? 'bg-white text-[#4b41e1] shadow-2xs dark:bg-slate-800 dark:text-indigo-400'
+                        : 'text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white'
+                    }`}
+                  >
+                    {city}
+                  </button>
+                ))}
               </div>
-              <h3 className='text-foreground font-display text-2xl font-bold tracking-tight'>
-                {t('market.landlordTitle')}
-              </h3>
-              <p className='text-muted-foreground max-w-2xl text-sm leading-relaxed'>
-                {t('market.landlordSubtitle')}
-              </p>
-            </div>
+            )}
 
-            <Button
-              asChild
-              className='bg-[#4b41e1] hover:bg-[#4338CA] shrink-0 text-white shadow-md active:scale-[0.98]'
+            <Link
+              to='/workspaces'
+              className='hidden sm:inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2 text-xs sm:text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:border-indigo-300 hover:text-[#4b41e1] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200 dark:hover:border-indigo-800 dark:hover:text-indigo-400'
             >
-              <a href='#enterprise' className='flex items-center gap-2'>
-                <span>{t('market.landlordBtn')}</span>
-                <ArrowRight className='h-4 w-4' />
-              </a>
-            </Button>
+              <span>{t('market.viewAll')}</span>
+              <ArrowRight className='h-4 w-4' />
+            </Link>
           </div>
+        </div>
+
+        {/* Workspace Cards Grid / States */}
+        {isLoading ? (
+          <div
+            aria-busy='true'
+            aria-label={language === 'vi' ? 'Đang tải danh sách không gian' : 'Loading workspaces'}
+            className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'
+          >
+            {[1, 2, 3, 4, 5, 6].map((item) => (
+              <div
+                key={item}
+                className='flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 animate-pulse'
+              >
+                <div className='aspect-[16/10] w-full bg-slate-200 dark:bg-slate-800' />
+                <div className='space-y-3 p-5'>
+                  <div className='h-3 w-1/3 rounded bg-slate-200 dark:bg-slate-800' />
+                  <div className='h-5 w-3/4 rounded bg-slate-200 dark:bg-slate-800' />
+                  <div className='h-3 w-full rounded bg-slate-200 dark:bg-slate-800' />
+                  <div className='mt-4 flex justify-between pt-3 border-t border-slate-100 dark:border-slate-800'>
+                    <div className='h-4 w-24 rounded bg-slate-200 dark:bg-slate-800' />
+                    <div className='h-4 w-16 rounded bg-slate-200 dark:bg-slate-800' />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : isError || displayedWorkspaces.length === 0 ? (
+          <div className='mt-8 flex flex-col items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white/60 px-6 py-12 text-center dark:border-slate-800 dark:bg-slate-900/50'>
+            <div className='flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-50 text-[#4b41e1] dark:bg-indigo-950/60 dark:text-indigo-400'>
+              <Building2 className='h-6 w-6' />
+            </div>
+            <h3 className='mt-3 text-base font-bold text-slate-900 dark:text-white'>
+              {t('market.emptyTitle')}
+            </h3>
+            <p className='mt-1 max-w-md text-xs sm:text-sm text-slate-500 dark:text-slate-400'>
+              {t('market.emptyDesc')}
+            </p>
+            <div className='mt-5 flex flex-wrap items-center justify-center gap-3'>
+              {(selectedCity !== 'all' || filterCriteria?.location || (filterCriteria?.mode && filterCriteria.mode !== 'all')) && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={() => {
+                    setSelectedCity('all');
+                    onResetFilters?.();
+                  }}
+                  className='cursor-pointer rounded-xl'
+                >
+                  {language === 'vi' ? 'Xóa bộ lọc' : 'Clear Filters'}
+                </Button>
+              )}
+              <Button
+                asChild
+                size='sm'
+                className='rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] text-white'
+              >
+                <Link to='/workspaces' className='inline-flex items-center gap-1.5'>
+                  <Compass className='h-4 w-4' />
+                  <span>{t('market.viewAll')}</span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+            {displayedWorkspaces.map((workspace) => (
+              <WorkspaceCard key={String(workspace.id)} workspace={workspace} />
+            ))}
+          </div>
+        )}
+
+        {/* Mobile View All Button */}
+        <div className='mt-6 sm:hidden'>
+          <Link
+            to='/workspaces'
+            className='flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-700 shadow-2xs transition-colors hover:text-[#4b41e1] dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200'
+          >
+            <span>{t('market.viewAll')}</span>
+            <ArrowRight className='h-4 w-4' />
+          </Link>
         </div>
       </div>
-
-      {/* Reservation Dialog */}
-      <ReserveModal
-        workspace={selectedWorkspace}
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-      />
     </section>
   );
 }

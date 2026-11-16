@@ -11,15 +11,21 @@ export interface LanguageContextType {
 const TRANSLATIONS: Record<Language, Record<string, string>> = {
   en: {
     // Navbar
+    'nav.exploreWorkspaces': 'Explore Workspaces',
+    'nav.howItWorks': 'How It Works',
+    'nav.myBookings': 'My Bookings',
+    'nav.preferences': 'Preferences',
     'nav.solutions': 'Solutions',
-    'nav.workspaces': 'Workspaces',
-    'nav.platform': 'Platform',
+    'nav.workspaces': 'Explore Workspaces',
+    'nav.platform': 'How It Works',
     'nav.reviews': 'Impact & Reviews',
     'nav.resources': 'Resources',
     'nav.signIn': 'Sign In',
     'nav.listSpace': 'List Your Space',
     'nav.getStarted': 'Get Started',
     'nav.hostBadge': 'Host',
+    'nav.adminPortal': 'Admin Portal',
+    'nav.organizerPortal': 'Partner Portal',
 
     // Solutions Menu
     'solutions.enterprise.title': 'Enterprise Workplace',
@@ -30,26 +36,32 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'solutions.landlords.desc': 'Monetize vacant commercial real estate assets',
 
     // Hero Section
-    'hero.badge': 'NEXT-GEN WORKPLACE CLOUD & SPATIAL PLATFORM',
-    'hero.title': 'Beyond flexible office space.',
+    'hero.badge': 'FLEXIBLE WORKSPACE MARKETPLACE',
+    'hero.title': 'Find the right workspace for you.',
     'hero.subtitle':
-      'Global workspace access on demand. Simplify corporate governance. Continuously model and optimize your workplace strategy—all on one unified platform.',
-    'hero.liveStatus': 'Instant Access Active — 48 spaces open nearby',
-    'hero.trustedBy': 'POWERING HYBRID WORKPLACES FOR LEADING ENTERPRISES',
+      'Discover and book flexible desks, meeting rooms, and private offices—all in one place.',
+    'hero.liveStatus': 'Instant Access Active — Verified spaces open nearby',
+    'hero.trustedBy': 'POWERING HYBRID WORKPLACES FOR LEADING TEAMS',
 
     // Search Card
+    'search.allTypes': 'All Space Types',
     'search.hotDesk': 'Hot Desk',
     'search.dedicatedDesk': 'Dedicated Desk',
     'search.privateOffice': 'Private Office',
     'search.meetingRoom': 'Meeting Room',
-    'search.locationLabel': 'City or Neighborhood',
-    'search.locationDefault': 'District 1, Ho Chi Minh City',
-    'search.dateLabel': 'Date & Hours',
+    'search.locationLabel': 'Location',
+    'search.locationPlaceholder': 'City, district, or workspace...',
+    'search.locationDefault': 'Đà Nẵng',
+    'search.dateLabel': 'Date & Time',
+    'search.datePlaceholder': 'Select date & time',
     'search.dateDefault': 'Today, Flexible hours',
-    'search.capacityLabel': 'Capacity',
+    'search.typeLabel': 'Workspace Type',
+    'search.capacityLabel': 'Guests',
     'search.capacityDefault': '1 - 4 People',
+    'search.moreFilters': 'Guests & Options',
     'search.btn': 'Find Workspaces',
     'search.toastSearching': 'Searching available workspaces in',
+    'search.quickPopular': 'Popular:',
 
     // Platform Layers
     'platform.badge': 'THE SMART OFFICE PLATFORM',
@@ -74,17 +86,40 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
       'A unified ecosystem designed for agility, financial governance, and portfolio intelligence.',
     'platform.close': 'Close Tour',
 
-    // Marketplace Showcase
-    'market.badge': 'LIVE NETWORK INVENTORY',
-    'market.title': 'Better spaces in prime locations',
+    // Marketplace Showcase (Featured Workspaces)
+    'market.badge': 'FEATURED WORKSPACES',
+    'market.title': 'Explore Featured Workspaces',
     'market.subtitle':
-      'Real-time availability with verified acoustic isolation, ergonomic task seating, and enterprise connectivity.',
+      'Discover workspaces that match your needs and preferred locations.',
     'market.all': 'All Locations',
-    'market.reserveBtn': 'Reserve Space',
-    'market.landlordTitle': 'Are you a Commercial Landlord or Coworking Operator?',
+    'market.viewAll': 'View All Workspaces',
+    'market.viewDetails': 'View Details',
+    'market.instantBook': 'Instant Book',
+    'market.newWorkspace': 'New',
+    'market.startingFrom': 'From',
+    'market.perHour': '/hr',
+    'market.emptyTitle': 'No matching workspaces found',
+    'market.emptyDesc': 'Try clearing your location or category filter, or browse the full directory.',
+    'market.reserveBtn': 'View Details',
+    'market.landlordTitle': 'Have a workspace to share?',
     'market.landlordSubtitle':
-      'List your inventory on the NexSpace Cloud Marketplace to access 5,000+ enterprise teams and eliminate vacancy.',
-    'market.landlordBtn': 'List Your Space Today',
+      'List your workspace on NexSpace and manage booking requests in one place.',
+    'market.landlordBtn': 'Become a Partner',
+
+    // How It Works
+    'how.title': 'Book Your Workspace in 3 Simple Steps',
+    'how.subtitle': 'From discovering a space to checking in, everything is clear and straightforward.',
+    'how.step1.title': 'Find a Workspace',
+    'how.step1.desc': 'Choose your preferred location and workspace type.',
+    'how.step2.title': 'Choose Your Space',
+    'how.step2.desc': 'Explore workspace details and select a suitable desk or room.',
+    'how.step3.title': 'Complete Your Booking',
+    'how.step3.desc': 'Confirm your selection through the NexSpace booking process.',
+
+    // Partner CTA
+    'partner.title': 'Have a workspace to share?',
+    'partner.subtitle': 'List your workspace on NexSpace and manage booking requests in one place.',
+    'partner.cta': 'Become a Partner',
 
     // Testimonials
     'testimonials.badge': 'REAL RESULTS FROM REAL TEAMS',
@@ -120,9 +155,21 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'cta.scheduleSession': 'Schedule Custom Strategy Session',
 
     // Footer
-    'footer.tagline': 'The Cloud Workspace & Hybrid Office Operating System.',
-    'footer.rights':
-      'NexSpace Technologies Inc. All rights reserved. Commercial Real Estate Cloud & Marketplace.',
+    'footer.tagline': 'Discover, compare, and book flexible desks, meeting rooms, and private offices in one place.',
+    'footer.rights': 'NexSpace. All rights reserved.',
+    'footer.explore': 'Explore',
+    'footer.allWorkspaces': 'All Workspaces',
+    'footer.coworkingHubs': 'Coworking Desks',
+    'footer.meetingRooms': 'Meeting Rooms',
+    'footer.privateOffices': 'Private Offices',
+    'footer.partners': 'Partners',
+    'footer.listYourSpace': 'List Your Space',
+    'footer.partnerStatus': 'Application Status',
+    'footer.partnerGuidelines': 'Partner Guidelines',
+    'footer.supportLegal': 'Support & Legal',
+    'footer.about': 'About & Contact',
+    'footer.privacy': 'Privacy Policy',
+    'footer.terms': 'Terms of Service',
 
     // Auth
     'auth.backToHome': 'Back to home',
@@ -220,15 +267,21 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
   },
   vi: {
     // Navbar
+    'nav.exploreWorkspaces': 'Khám phá không gian',
+    'nav.howItWorks': 'Cách hoạt động',
+    'nav.myBookings': 'Đặt chỗ của tôi',
+    'nav.preferences': 'Sở thích',
     'nav.solutions': 'Giải pháp',
-    'nav.workspaces': 'Không gian',
-    'nav.platform': 'Nền tảng',
+    'nav.workspaces': 'Khám phá không gian',
+    'nav.platform': 'Cách hoạt động',
     'nav.reviews': 'Đánh giá & Hiệu quả',
     'nav.resources': 'Tài nguyên',
     'nav.signIn': 'Đăng nhập',
     'nav.listSpace': 'Cho thuê không gian',
     'nav.getStarted': 'Bắt đầu ngay',
     'nav.hostBadge': 'Đối tác',
+    'nav.adminPortal': 'Trang Quản trị',
+    'nav.organizerPortal': 'Kênh Đối tác',
 
     // Solutions Menu
     'solutions.enterprise.title': 'Văn phòng Doanh nghiệp',
@@ -239,26 +292,32 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'solutions.landlords.desc': 'Khai thác và lấp đầy mặt bằng bất động sản thương mại',
 
     // Hero Section
-    'hero.badge': 'HỆ ĐIỀU HÀNH KHÔNG GIAN LÀM VIỆC ĐIỆN TOÁN ĐÁM MÂY THẾ HỆ MỚI',
-    'hero.title': 'Vượt xa khái niệm văn phòng linh hoạt thông thường.',
+    'hero.badge': 'NỀN TẢNG ĐẶT KHÔNG GIAN LÀM VIỆC LINH HOẠT',
+    'hero.title': 'Tìm không gian làm việc phù hợp với bạn.',
     'hero.subtitle':
-      'Tiếp cận mạng lưới không gian làm việc toàn cầu theo yêu cầu. Đơn giản hóa quản trị ngân sách và tối ưu hóa chiến lược danh mục bất động sản—tất cả trên một nền tảng hợp nhất.',
-    'hero.liveStatus': 'Mạng lưới sẵn sàng — 48 địa điểm đang mở gần bạn',
-    'hero.trustedBy': 'ĐỒNG HÀNH CÙNG CÁC TẬP ĐOÀN HÀNG ĐẦU',
+      'Đặt bàn làm việc, phòng họp và văn phòng linh hoạt theo nhu cầu, tại một nơi duy nhất.',
+    'hero.liveStatus': 'Mạng lưới sẵn sàng — Không gian xác thực đang mở gần bạn',
+    'hero.trustedBy': 'ĐỒNG HÀNH CÙNG CÁC ĐỘI NGŨ HIỆN ĐẠI',
 
     // Search Card
-    'search.hotDesk': 'Bàn làm việc linh hoạt',
-    'search.dedicatedDesk': 'Bàn làm việc cố định',
+    'search.allTypes': 'Tất cả loại hình',
+    'search.hotDesk': 'Bàn linh hoạt',
+    'search.dedicatedDesk': 'Bàn cố định',
     'search.privateOffice': 'Văn phòng riêng',
-    'search.meetingRoom': 'Phòng họp cao cấp',
-    'search.locationLabel': 'Khu vực / Thành phố',
-    'search.locationDefault': 'Quận 1, TP. Hồ Chí Minh',
-    'search.dateLabel': 'Thời gian đặt chỗ',
+    'search.meetingRoom': 'Phòng họp',
+    'search.locationLabel': 'Địa điểm',
+    'search.locationPlaceholder': 'Thành phố, quận hoặc tên không gian...',
+    'search.locationDefault': 'Đà Nẵng',
+    'search.dateLabel': 'Ngày & Giờ',
+    'search.datePlaceholder': 'Chọn ngày & giờ',
     'search.dateDefault': 'Hôm nay, Giờ linh hoạt',
-    'search.capacityLabel': 'Quy mô số người',
+    'search.typeLabel': 'Loại không gian',
+    'search.capacityLabel': 'Số người',
     'search.capacityDefault': '1 - 4 Người',
-    'search.btn': 'Tìm kiếm không gian',
-    'search.toastSearching': 'Đang tìm kiếm không gian làm việc khả dụng tại',
+    'search.moreFilters': 'Số người & Tùy chọn',
+    'search.btn': 'Tìm không gian',
+    'search.toastSearching': 'Đang tìm không gian làm việc tại',
+    'search.quickPopular': 'Phổ biến:',
 
     // Platform Layers
     'platform.badge': 'NỀN TẢNG VĂN PHÒNG THÔNG MINH',
@@ -283,17 +342,40 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
       'Hệ sinh thái đồng nhất được thiết kế cho tính linh hoạt, kỷ luật tài chính và dữ liệu thời gian thực.',
     'platform.close': 'Đóng xem',
 
-    // Marketplace Showcase
-    'market.badge': 'MẠNG LƯỚI KHÔNG GIAN THỰC TẾ',
-    'market.title': 'Không gian đẳng cấp tại các vị trí đắc địa',
+    // Marketplace Showcase (Featured Workspaces)
+    'market.badge': 'KHÔNG GIAN NỔI BẬT',
+    'market.title': 'Khám phá không gian nổi bật',
     'market.subtitle':
-      'Khả năng đặt chỗ thời gian thực với tiêu chuẩn cách âm chuẩn hóa, bàn làm việc công thái học và kết nối internet tốc độ cao.',
+      'Tìm không gian làm việc phù hợp với nhu cầu và địa điểm của bạn.',
     'market.all': 'Tất cả địa điểm',
-    'market.reserveBtn': 'Đặt chỗ ngay',
-    'market.landlordTitle': 'Bạn là Chủ tòa nhà hoặc Không gian Co-working?',
+    'market.viewAll': 'Xem tất cả không gian',
+    'market.viewDetails': 'Xem chi tiết',
+    'market.instantBook': 'Xác nhận ngay',
+    'market.newWorkspace': 'Mới',
+    'market.startingFrom': 'Từ',
+    'market.perHour': '/giờ',
+    'market.emptyTitle': 'Không tìm thấy không gian phù hợp',
+    'market.emptyDesc': 'Hãy thử xóa bộ lọc khu vực hoặc xem toàn bộ danh sách không gian trên hệ thống.',
+    'market.reserveBtn': 'Xem chi tiết',
+    'market.landlordTitle': 'Bạn có không gian làm việc muốn cho thuê?',
     'market.landlordSubtitle':
-      'Đưa không gian của bạn lên NexSpace Marketplace để tiếp cận hơn 5,000+ doanh nghiệp đa quốc gia và tối ưu hóa dòng tiền cho thuê.',
-    'market.landlordBtn': 'Đăng ký đối tác cho thuê',
+      'Đưa không gian của bạn lên NexSpace và quản lý yêu cầu đặt chỗ trên một nền tảng.',
+    'market.landlordBtn': 'Trở thành đối tác',
+
+    // How It Works
+    'how.title': 'Đặt chỗ đơn giản trong 3 bước',
+    'how.subtitle': 'Từ lúc tìm kiếm đến khi nhận chỗ, mọi thao tác đều rõ ràng và nhanh chóng.',
+    'how.step1.title': 'Tìm không gian',
+    'how.step1.desc': 'Chọn khu vực và loại không gian phù hợp.',
+    'how.step2.title': 'Chọn vị trí',
+    'how.step2.desc': 'Xem thông tin không gian và lựa chọn bàn hoặc phòng phù hợp.',
+    'how.step3.title': 'Hoàn tất đặt chỗ',
+    'how.step3.desc': 'Xác nhận lựa chọn theo quy trình đặt chỗ của NexSpace.',
+
+    // Partner CTA
+    'partner.title': 'Bạn có không gian làm việc muốn cho thuê?',
+    'partner.subtitle': 'Đưa không gian của bạn lên NexSpace và quản lý yêu cầu đặt chỗ trên một nền tảng.',
+    'partner.cta': 'Trở thành đối tác',
 
     // Testimonials
     'testimonials.badge': 'HIỆU QUẢ ĐÃ ĐƯỢC CHỨNG MINH',
@@ -330,9 +412,22 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
 
     // Footer
     'footer.tagline':
-      'Hệ điều hành không gian làm việc đám mây & Sàn giao dịch bất động sản thương mại.',
+      'Khám phá, so sánh và đặt bàn làm việc, phòng họp và văn phòng linh hoạt tại một nơi duy nhất.',
     'footer.rights':
-      'NexSpace Technologies Inc. Bảo lưu mọi quyền. Đám mây & Sàn giao dịch Bất động sản Thương mại.',
+      'NexSpace. Bảo lưu mọi quyền.',
+    'footer.explore': 'Khám phá',
+    'footer.allWorkspaces': 'Tất cả không gian',
+    'footer.coworkingHubs': 'Bàn làm việc chung',
+    'footer.meetingRooms': 'Phòng họp',
+    'footer.privateOffices': 'Văn phòng riêng',
+    'footer.partners': 'Đối tác',
+    'footer.listYourSpace': 'Cho thuê không gian',
+    'footer.partnerStatus': 'Tra cứu hồ sơ đối tác',
+    'footer.partnerGuidelines': 'Hướng dẫn đối tác',
+    'footer.supportLegal': 'Hỗ trợ & Pháp lý',
+    'footer.about': 'Giới thiệu & Liên hệ',
+    'footer.privacy': 'Chính sách bảo mật',
+    'footer.terms': 'Điều khoản dịch vụ',
 
     // Auth
     'auth.backToHome': 'Về trang chủ',
