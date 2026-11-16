@@ -94,7 +94,16 @@ public final class ResourceResponses {
             boolean editableLayout,
             List<LayoutItem> resources,
             List<FloorDecorations.Item> decorations,
-            boolean draftChanges) {}
+            boolean draftChanges, int geometryVersion) {
+        public FloorLayout(FloorOption floor, BigDecimal width, BigDecimal height, boolean editableLayout,
+                List<LayoutItem> resources, List<FloorDecorations.Item> decorations, boolean draftChanges) {
+            this(floor, width, height, editableLayout, resources, decorations, draftChanges, 1);
+        }
+        @com.fasterxml.jackson.annotation.JsonProperty("coordinateUnit")
+        public String coordinateUnit() { return "px"; }
+        @com.fasterxml.jackson.annotation.JsonProperty("pixelsPerMetre")
+        public BigDecimal pixelsPerMetre() { return geometryVersion >= 2 ? MetricGeometry.PIXELS_PER_METRE : null; }
+    }
 
     public record Detail(
             Long id,

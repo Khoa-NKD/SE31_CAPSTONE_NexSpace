@@ -17,15 +17,30 @@ public final class ResourceCanvas {
 
     public static final String SCHEMA = "nexspace.resource-canvas.v1";
 
+    /** Measured legacy layouts with a uniform scale remain compatible until explicit conversion. */
+    public static void requireUniformMetricScale(FloorPlanModel floor) {
+        var p = floor.getBuildingFloor();
+        if (p == null || p.getRealWidthM() == null || p.getRealLengthM() == null)
+            throw new ConflictException("Review and confirm the physical floor dimensions before publishing or activation");
+        var x = p.getCanvasWidth().divide(p.getRealWidthM(), 8, RoundingMode.HALF_UP);
+        var y = p.getCanvasHeight().divide(p.getRealLengthM(), 8, RoundingMode.HALF_UP);
+        if (x.subtract(y).abs().compareTo(new BigDecimal("0.000001")) > 0)
+            throw new ConflictException("The floor uses unequal axis scales; review and convert its metric geometry first");
+    }
+
     static boolean matchesStandardDimension(BigDecimal pixels, BigDecimal metres, BigDecimal canvas,
             BigDecimal standard) {
-        return pixels != null && pixels.multiply(metres).divide(canvas, 2, RoundingMode.HALF_UP)
-                .subtract(standard).abs().compareTo(new BigDecimal("0.01")) <= 0;
+        if (pixels == null || metres == null || canvas == null || standard == null || canvas.signum() <= 0) return false;
+        var actual = pixels.multiply(metres).divide(canvas, 8, RoundingMode.HALF_UP);
+        var tolerance = new BigDecimal("0.005").multiply(metres).divide(canvas, 8, RoundingMode.HALF_UP)
+                .add(new BigDecimal("0.000001"));
+        return actual.subtract(standard).abs().compareTo(tolerance) <= 0;
     }
 
     static void requireStandardFootprint(FloorPlanModel floor, ResourceTypeModel type,
             BigDecimal width, BigDecimal height) {
-        if (type.getStandardWidthM() == null || type.getStandardLengthM() == null) return;
+        if (type.getStandardWidthM() == null || type.getStandardLengthM() == null)
+            throw new ConflictException("Complete the resource type's real dimensions before placing it");
         var bounds = editorBounds(floor);
         var measuredWidth = FloorDesignService.measuredWidth(floor);
         var measuredLength = FloorDesignService.measuredLength(floor);
@@ -44,7 +59,7 @@ public final class ResourceCanvas {
         if (root == null) return false;
         var names = root.fieldNames();
         while (names.hasNext())
-            if (!java.util.Set.of("schema", "canvas", "decorations").contains(names.next()))
+            if (!java.util.Set.of("schema", "canvas", "decorations", "metricDecorations", "geometryVersion").contains(names.next()))
                 return false;
         if (!root.has("decorations")) return true;
         return root.path("decorations").isArray()
@@ -81,6 +96,12 @@ public final class ResourceCanvas {
                                 : floor.getLayoutJson());
         if (root == null || !root.has("decorations")) return java.util.List.of();
         try {
+            if (floor.getBuildingFloor() != null && floor.getBuildingFloor().getGeometryVersion() >= 2
+                    && root.has("metricDecorations")) {
+                var metric = new ObjectMapper().treeToValue(root.get("metricDecorations"),
+                        base.api.feature.resource.dto.FloorDecorations.Item[].class);
+                return java.util.Arrays.stream(metric).map(item -> convertDecoration(item, true)).toList();
+            }
             var items =
                     new ObjectMapper()
                             .treeToValue(
@@ -135,7 +156,56 @@ public final class ResourceCanvas {
                                 "rotationOrigin",
                                 "center")));
         root.set("decorations", mapper.valueToTree(decorations));
+        if (floor.getBuildingFloor() != null && floor.getBuildingFloor().getGeometryVersion() >= 2) {
+            root.put("geometryVersion", 2);
+            root.set("metricDecorations", mapper.valueToTree(decorations.stream().map(item -> convertDecoration(item, false)).toList()));
+        }
         return root.toString();
+    }
+
+    private static base.api.feature.resource.dto.FloorDecorations.Item convertDecoration(
+            base.api.feature.resource.dto.FloorDecorations.Item item, boolean toPixels) {
+        java.util.function.Function<BigDecimal, BigDecimal> convert = toPixels
+                ? base.api.shared.entity.resource.MetricGeometry::pixels : base.api.shared.entity.resource.MetricGeometry::metres;
+        return new base.api.feature.resource.dto.FloorDecorations.Item(item.id(), item.kind(), item.label(),
+                convert.apply(item.posX()), convert.apply(item.posY()), convert.apply(item.width()), convert.apply(item.height()),
+                item.rotation(), item.color(), item.icon());
+    }
+
+    /** Every final scene is checked using stable model pixels (one scale on both axes). */
+    public static void validateScene(FloorPlanModel floor, java.util.List<BookableResourceModel> resources, boolean requireStandards) {
+        var bounds = editorBounds(floor);
+        if (bounds == null) throw new ConflictException("Complete the workspace canvas before validating geometry");
+        var current = resources.stream().filter(r -> r.getStatus() != base.api.shared.enums.BookableResourceStatus.ARCHIVED).toList();
+        for (var item : current) {
+            fits(item, bounds, requireStandards);
+            if (requireStandards) requireStandardFootprint(floor, item.getResourceType(), item.getWidth(), item.getHeight());
+            if (item.getParentRoom() != null) {
+                var parent = item.getParentRoom();
+                if (item.getResourceType().getCategory() != base.api.shared.enums.ResourceCategory.DESK
+                        || parent.getResourceType().getCategory() != base.api.shared.enums.ResourceCategory.ROOM
+                        || current.stream().noneMatch(r -> sameResource(r, parent)))
+                    throw new ConflictException("The containing room must belong to the same workspace area");
+                fitsInsideRoom(item, parent);
+            }
+            long children = current.stream().filter(r -> r.getParentRoom() != null
+                    && sameResource(r.getParentRoom(), item)).count();
+            int capacity = item.getCapacityOverride() == null ? item.getResourceType().getCapacity() : item.getCapacityOverride();
+            if (children > capacity) throw new ConflictException("Room capacity is smaller than its desk count: " + item.getLabel());
+        }
+        for (int i = 0; i < current.size(); i++) for (int j = i + 1; j < current.size(); j++) {
+            var a = current.get(i); var b = current.get(j);
+            boolean aInsideB = sameResource(a.getParentRoom(), b);
+            boolean bInsideA = sameResource(b.getParentRoom(), a);
+            if (!aInsideB && !bInsideA && overlaps(a, b))
+                throw new ConflictException("Resources overlap: " + a.getLabel() + " / " + b.getLabel());
+        }
+        var objects = decorations(floor, true);
+        validateDecorations(objects, bounds); validateDecorationResources(objects, current);
+    }
+
+    private static boolean sameResource(BookableResourceModel a, BookableResourceModel b) {
+        return a != null && b != null && (a == b || a.getId() != null && a.getId().equals(b.getId()));
     }
 
     public static void validateDecorations(

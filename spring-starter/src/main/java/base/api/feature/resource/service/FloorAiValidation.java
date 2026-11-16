@@ -169,7 +169,7 @@ public final class FloorAiValidation {
             fail("Configure floor dimensions before matching resource types");
         var width = change.width().multiply(metrics.widthM()).divide(layout.width(), 2, java.math.RoundingMode.HALF_UP);
         var length = change.height().multiply(metrics.lengthM()).divide(layout.height(), 2, java.math.RoundingMode.HALF_UP);
-        // One centimetre absorbs pixel/metre round-trip rounding, not a different-sized configuration.
+        // Tolerance follows pixel serialization precision instead of allowing a fixed centimetre drift.
         if (!ResourceCanvas.matchesStandardDimension(change.width(), metrics.widthM(), layout.width(), type.standardWidthM())
                 || !ResourceCanvas.matchesStandardDimension(change.height(), metrics.lengthM(), layout.height(), type.standardLengthM()))
             fail("Resource footprint mismatch: " + change.name() + " (" + width.toPlainString() + " × "
@@ -269,6 +269,20 @@ public final class FloorAiValidation {
                 && heightPx.compareTo(change.height()) == 0) return change;
         return new FloorDesign.ResourceChange(change.key(), null, typeId, change.name(), change.parentKey(), capacity,
                 change.posX(), change.posY(), widthPx, heightPx, change.rotation(), usage);
+    }
+
+    /** Deletions do not need a metric baseline; every retained object must remain unchanged. */
+    static boolean onlyRemoves(FloorDesign.Design design, ResourceResponses.FloorLayout layout) {
+        if (!design.resources().isEmpty() || !design.newTypes().isEmpty() || !design.templates().isEmpty()) return false;
+        for (var item : design.decorations()) {
+            var old = layout.decorations().stream().filter(candidate -> candidate.id().equals(item.id())).findFirst().orElse(null);
+            if (old == null || old.kind() != item.kind() || !Objects.equals(old.label(), item.label())
+                    || !Objects.equals(old.color(), item.color()) || old.icon() != item.icon()
+                    || !same(old.posX(), item.posX()) || !same(old.posY(), item.posY())
+                    || !same(old.width(), item.width()) || !same(old.height(), item.height())
+                    || !same(old.rotation(), item.rotation())) return false;
+        }
+        return true;
     }
 
     private static BookableResourceModel shape(ResourceResponses.Detail item) {

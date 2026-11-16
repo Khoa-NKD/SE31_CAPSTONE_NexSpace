@@ -54,8 +54,8 @@ public class FloorAiService {
         if (!before.layout().editableLayout() || before.layout().width() == null || before.layout().height() == null)
             throw new ConflictException("This floor layout cannot be edited by the assistant");
         boolean estimatedScale = before.metrics().widthM() == null || before.metrics().lengthM() == null;
-        if (estimatedScale && request.image() == null && request.previousProposalId() == null)
-            throw new ConflictException("Confirm the physical floor dimensions in meters before using AI");
+        boolean deletionOnlyWithoutMeasurements = estimatedScale && request.image() == null
+                && request.previousProposalId() == null && savedDraft(actor, workspace, floor) == null;
         var proposalMetrics = estimatedScale ? previewMetrics(before) : before.metrics();
         if (!before.layout().floor().revision().equals(request.expectedRevision())) throw new ConflictException("The floor changed. Refresh first");
         if (!gemini.status().configured()) throw new ConflictException("Gemini is not configured. Add the API key to Backend Local first");
@@ -102,10 +102,16 @@ public class FloorAiService {
             context.put("iconCatalog", java.util.List.of(java.util.Map.of("icon", "LOCKER", "meaning", "Locker / cabinet"), java.util.Map.of("icon", "SOFA", "meaning", "Sofa"), java.util.Map.of("icon", "SHELF", "meaning", "Shelf"), java.util.Map.of("icon", "PRINTER", "meaning", "Printer"), java.util.Map.of("icon", "SCREEN", "meaning", "TV / screen"), java.util.Map.of("icon", "COFFEE", "meaning", "Coffee machine"), java.util.Map.of("icon", "WHITEBOARD", "meaning", "Whiteboard"), java.util.Map.of("icon", "LAMP", "meaning", "Lamp"), java.util.Map.of("icon", "FAN", "meaning", "Fan"), java.util.Map.of("icon", "AIR_CONDITIONER", "meaning", "Air conditioner"), java.util.Map.of("icon", "TRASH", "meaning", "Trash bin"), java.util.Map.of("icon", "SPEAKER", "meaning", "Speaker"), java.util.Map.of("icon", "CLOCK", "meaning", "Clock"), java.util.Map.of("icon", "REFRIGERATOR", "meaning", "Refrigerator"), java.util.Map.of("icon", "WATER_DISPENSER", "meaning", "Water dispenser"), java.util.Map.of("icon", "ROUTER", "meaning", "Router"), java.util.Map.of("icon", "TOILET", "meaning", "Toilet"), java.util.Map.of("icon", "SINK", "meaning", "Washbasin"), java.util.Map.of("icon", "PROJECTOR", "meaning", "Projector"), java.util.Map.of("icon", "VIDEO_CONFERENCE", "meaning", "Conference equipment"), java.util.Map.of("icon", "STAIRS", "meaning", "Stairs"), java.util.Map.of("icon", "ELEVATOR", "meaning", "Elevator"), java.util.Map.of("icon", "FIRE_EXTINGUISHER", "meaning", "Fire extinguisher"), java.util.Map.of("icon", "DOOR", "meaning", "Door"), java.util.Map.of("icon", "ACCESSIBILITY", "meaning", "Wheelchair access"), java.util.Map.of("icon", "MICROWAVE", "meaning", "Microwave"), java.util.Map.of("icon", "SHOWER", "meaning", "Shower"), java.util.Map.of("icon", "BED", "meaning", "Bed"), java.util.Map.of("icon", "CAMERA", "meaning", "Camera"), java.util.Map.of("icon", "PHONE", "meaning", "Telephone")));
             context.put("library", before.library().stream().filter(FloorDesign.Template::active).toList());
             context.put("previousDraft", previous);
+            if (previous == null && before.layout().floor() != null) {
+                var saved = savedDraft(actor, workspace, floor);
+                if (saved != null) context.put("savedMetricDraft", saved);
+            }
             if (!previousIssues.isEmpty()) context.put("previousDraftIssues", previousIssues);
             var result = request.model() != null ? gemini.design(context, image, request.model())
                     : image == null ? gemini.design(context) : gemini.design(context, image);
             result = FloorAiValidation.normalizeProposal(result, before.options(), proposalMetrics, before.layout());
+            if (deletionOnlyWithoutMeasurements && !FloorAiValidation.onlyRemoves(result, before.layout()))
+                throw new ConflictException("Confirm the physical floor dimensions in meters before using AI to change geometry");
             var issues = new ArrayList<String>();
             boolean question = result.question() != null && !result.question().isBlank();
             if (!question) {
@@ -149,6 +155,8 @@ public class FloorAiService {
             var result = transaction.execute(status -> {
                 design.owned(actor, workspace, floorId, true);
                 var current = snapshot(actor, workspace, floorId);
+                if (current.metrics().geometryVersion() < 2 && !FloorAiValidation.onlyRemoves(submitted, current.layout()))
+                    throw new ConflictException("Review the physical floor dimensions before applying AI geometry; the proposal can be saved as a draft");
                 if (!fingerprint(current).equals(fingerprint(draft.before))) throw new ConflictException("The floor, dimensions or resource types changed. Generate a fresh proposal");
                 var plan = submitted;
                 FloorAiValidation.validate(plan, current.layout(), current.resources(), current.options(), draft.request, current.metrics());
@@ -179,6 +187,34 @@ public class FloorAiService {
             if (value == null || !value.actor.equals(actor) || !value.workspace.equals(workspace) || !value.floor.equals(floor))
                 throw new NotFoundException("Proposal expired or unavailable. Generate a new proposal");
             return value;
+        }
+    }
+
+    public FloorDesign.SavedDraft savedDraft(Long actor, Long workspace, Long floorId) {
+        return transaction.execute(status -> {
+            var floor = design.owned(actor, workspace, floorId, false);
+            if (floor.getAiDraftJson() == null) return null;
+            try { return mapper.readValue(floor.getAiDraftJson(), FloorDesign.SavedDraft.class); }
+            catch (Exception e) { throw new ConflictException("The retained AI draft needs review before it can be restored"); }
+        });
+    }
+
+    public FloorDesign.SavedDraft saveDraft(Long actor, Long workspace, Long floorId, FloorDesign.Apply input) {
+        var draft = lookup(actor, workspace, floorId, input.proposalId());
+        synchronized (draft) {
+            var submitted = input.design() == null ? draft.proposal.design() : input.design();
+            return transaction.execute(status -> {
+                var floor = design.owned(actor, workspace, floorId, true);
+                var current = snapshot(actor, workspace, floorId);
+                if (!fingerprint(current).equals(fingerprint(draft.before)))
+                    throw new ConflictException("The floor changed. Generate a fresh proposal before saving this draft");
+                var metrics = draft.estimatedScale ? previewMetrics(current) : current.metrics();
+                FloorAiValidation.validatePreview(submitted, current.layout(), current.resources(), current.options(), draft.request, metrics);
+                var saved = new FloorDesign.SavedDraft(1, submitted, draft.estimatedScale, metrics.widthM(), metrics.lengthM(), Instant.now().toString());
+                try { floor.setAiDraftJson(mapper.writeValueAsString(saved)); }
+                catch (Exception e) { throw new IllegalStateException("Could not save AI draft", e); }
+                return saved;
+            });
         }
     }
     private void begin(Long actor) {

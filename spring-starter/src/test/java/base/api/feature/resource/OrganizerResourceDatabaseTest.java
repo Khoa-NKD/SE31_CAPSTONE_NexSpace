@@ -119,6 +119,68 @@ class OrganizerResourceDatabaseTest {
     }
 
     @Test
+    void unusedResourceTypeCanBeDeletedAndDisappearsFromOptions() {
+        service.deleteType(owner.getId(), workspace.getId(), type.getId(), base.api.feature.resource.dto.ResourceResponses.revision(type));
+        assertThat(em.find(ResourceTypeModel.class, type.getId())).isNull();
+        assertThat(service.options(owner.getId(), workspace.getId()).types()).isEmpty();
+    }
+
+    @Test
+    void typeDeletionRejectsOtherOwnersAndTypesOutsideTheWorkspace() {
+        String revision = base.api.feature.resource.dto.ResourceResponses.revision(type);
+        assertThatThrownBy(() -> service.deleteType(other.getId(), workspace.getId(), type.getId(), revision))
+                .isInstanceOf(NotFoundException.class);
+        var another = new WorkspaceModel(); another.setOrganizer(other); another.setName("Other workspace");
+        another.setStatus(WorkspaceStatus.DRAFT); em.persist(another); em.flush();
+        assertThatThrownBy(() -> service.deleteType(other.getId(), another.getId(), type.getId(), revision))
+                .isInstanceOf(NotFoundException.class);
+        assertThat(em.find(ResourceTypeModel.class, type.getId())).isNotNull();
+    }
+
+    @Test
+    void typeDeletionRejectsStaleRevisions() {
+        assertThatThrownBy(() -> service.deleteType(owner.getId(), workspace.getId(), type.getId(), "stale"))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("changed");
+        assertThat(em.find(ResourceTypeModel.class, type.getId())).isNotNull();
+    }
+
+    @ParameterizedTest
+    @EnumSource(BookableResourceStatus.class)
+    void everyResourceStatusBlocksDeletingItsType(BookableResourceStatus status) {
+        var seat = service.create(owner.getId(), workspace.getId(), input("TYPE-IN-USE", null));
+        em.find(BookableResourceModel.class, seat.id()).setStatus(status); em.flush();
+        assertThatThrownBy(() -> service.deleteType(owner.getId(), workspace.getId(), type.getId(),
+                base.api.feature.resource.dto.ResourceResponses.revision(type)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("still used by");
+        assertThat(em.find(ResourceTypeModel.class, type.getId())).isNotNull();
+        assertThat(em.find(BookableResourceModel.class, seat.id())).isNotNull();
+    }
+
+    @Test
+    void inactivePricingRulesStillBlockTypeDeletion() {
+        var rule = new base.api.shared.entity.pricing.PricingRuleModel();
+        rule.setWorkspace(workspace); rule.setResourceType(type); rule.setName("Retained price rule");
+        rule.setModifierType(PricingModifierType.CUSTOM); rule.setActive(false); em.persist(rule); em.flush();
+        assertThatThrownBy(() -> service.deleteType(owner.getId(), workspace.getId(), type.getId(),
+                base.api.feature.resource.dto.ResourceResponses.revision(type)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("pricing or discount rules");
+        assertThat(em.find(base.api.shared.entity.pricing.PricingRuleModel.class, rule.getId())).isNotNull();
+    }
+
+    @Test
+    void draftDiscountRulesStillBlockTypeDeletion() {
+        var rule = new base.api.shared.entity.pricing.DiscountRuleModel();
+        rule.setWorkspace(workspace); rule.setResourceType(type); rule.setCreatedBy(owner); rule.setName("Draft discount");
+        rule.setDiscountType(DiscountType.PERCENT); rule.setDiscountValue(BigDecimal.ONE);
+        rule.setStartAt(LocalDateTime.of(2026, 11, 11, 0, 0)); rule.setEndAt(rule.getStartAt().plusDays(1));
+        em.persist(rule); em.flush();
+        assertThatThrownBy(() -> service.deleteType(owner.getId(), workspace.getId(), type.getId(),
+                base.api.feature.resource.dto.ResourceResponses.revision(type)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("pricing or discount rules");
+        assertThat(em.find(base.api.shared.entity.pricing.DiscountRuleModel.class, rule.getId())).isNotNull();
+    }
+
+    @Test
     void activationRequiresABuildingAllocation() {
         assertThatThrownBy(() -> buildings.syncWorkspaceLocation(workspace, true)).isInstanceOf(BadRequestException.class);
     }
@@ -144,8 +206,43 @@ class OrganizerResourceDatabaseTest {
         assertThat(saved.floors()).allSatisfy(floor -> {
             assertThat(floor.occupants()).isEmpty();
             assertThat(floor.width()).isEqualByComparingTo("1200");
-            assertThat(floor.height()).isEqualByComparingTo("800");
+            assertThat(floor.height()).isEqualByComparingTo("900");
+            assertThat(floor.realWidthM()).isEqualByComparingTo("20");
+            assertThat(floor.realLengthM()).isEqualByComparingTo("15");
+            assertThat(floor.geometryVersion()).isEqualTo(2);
         });
+    }
+
+    @Test
+    void anEmptyLegacyFloorCanBeMeasuredBeforeLinkingAndStaleUpdatesAreRejected() {
+        var buildingId = buildings.createBuilding(owner.getId(), new base.api.feature.resource.dto.BuildingRequests.Building(
+                "Measure first", "Measure first address", null, new BigDecimal("16.05"), new BigDecimal("108.24"), null, "Da Nang", "Ward"));
+        var physicalId = buildings.createPhysicalFloor(owner.getId(), buildingId,
+                new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor 2", 2, new BigDecimal("1200"), new BigDecimal("800"), null));
+        var before = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(buildingId)).findFirst().orElseThrow().floors().get(0);
+        var update = new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor 2", 2,
+                new BigDecimal("1800"), new BigDecimal("900"), before.revision(), new BigDecimal("30"), new BigDecimal("15"));
+        buildings.updatePhysicalFloor(owner.getId(), physicalId, update);
+        em.flush(); em.clear();
+        var saved = buildings.catalog(owner.getId()).stream().filter(b -> b.id().equals(buildingId)).findFirst().orElseThrow().floors().get(0);
+        assertThat(saved.geometryVersion()).isEqualTo(2);
+        assertThat(saved.realWidthM()).isEqualByComparingTo("30");
+        assertThat(saved.realLengthM()).isEqualByComparingTo("15");
+        assertThat(saved.width()).isEqualByComparingTo("1800");
+        assertThat(saved.height()).isEqualByComparingTo("900");
+        assertThatThrownBy(() -> buildings.updatePhysicalFloor(owner.getId(), physicalId, update)).isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    void linkingAnUnmeasuredFloorRequiresRealDimensionsInsteadOfGuessingFromPixels() {
+        var buildingId = buildings.createBuilding(owner.getId(), new base.api.feature.resource.dto.BuildingRequests.Building(
+                "Unmeasured floor", "Unmeasured address", null, new BigDecimal("16.05"), new BigDecimal("108.24"), null, "Da Nang", "Ward"));
+        var physicalId = buildings.createPhysicalFloor(owner.getId(), buildingId,
+                new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor 2", 2, new BigDecimal("1200"), new BigDecimal("800"), null));
+        assertThatThrownBy(() -> buildings.attach(owner.getId(), workspace.getId(), null,
+                new base.api.feature.resource.dto.BuildingRequests.Allocation(physicalId, BigDecimal.ZERO, BigDecimal.ZERO,
+                        new BigDecimal("600"), new BigDecimal("800"), "Workspace area", null)))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("real dimensions");
     }
 
     @Test
@@ -214,10 +311,51 @@ class OrganizerResourceDatabaseTest {
                 .isInstanceOf(ConflictException.class);
     }
 
+    /** Retained fixtures use a measured uniform 50 px/m scale; new production floors use 60 px/m. */
+    private void ensureMeasuredFixture(FloorPlanModel candidate) {
+        if (candidate.getBuildingFloor() == null) {
+            var allocation = allocation(candidate.getFloorNumber());
+            candidate.setBuildingFloor(em.find(BuildingFloorModel.class, allocation.buildingFloorId()));
+            candidate.setUsageX(allocation.x()); candidate.setUsageY(allocation.y());
+            candidate.setUsageWidth(allocation.width()); candidate.setUsageHeight(allocation.height());
+        }
+        var physical = candidate.getBuildingFloor();
+        if (physical.getRealWidthM() == null) {
+            physical.setRealWidthM(physical.getCanvasWidth().divide(new BigDecimal("50")));
+            physical.setRealLengthM(physical.getCanvasHeight().divide(new BigDecimal("50")));
+        }
+        em.flush();
+    }
+
+    private base.api.feature.resource.dto.ResourceResponses.FloorLayout publishFloorFixture(
+            Long actor, Long workspaceId, Long floorId, PublishFloor request) {
+        if (!actor.equals(owner.getId())) return service.publishFloor(actor, workspaceId, floorId, request);
+        var candidate = em.find(FloorPlanModel.class, floorId);
+        boolean fresh = java.util.Objects.equals(request.expectedRevision(), base.api.feature.resource.dto.ResourceResponses.revision(candidate));
+        ensureMeasuredFixture(candidate);
+        var checked = new PublishFloor(fresh ? base.api.feature.resource.dto.ResourceResponses.revision(candidate) : request.expectedRevision(),
+                request.width(), request.height(), request.resourcesConfirmed(), request.resources());
+        return service.publishFloor(actor, workspaceId, floorId, checked);
+    }
+
+    /** Activation scenarios now publish valid resource placements explicitly before changing status. */
+    private base.api.feature.resource.dto.ResourceResponses.Detail statusAfterPublishingFixture(Long actor, Long id, Status request) {
+        var resource = em.find(BookableResourceModel.class, id);
+        if (actor.equals(owner.getId()) && request.status() == BookableResourceStatus.ACTIVE
+                && resource.getFloorPlan().getStatus() == FloorPlanStatus.PUBLISHED
+                && java.util.Objects.equals(request.expectedRevision(), base.api.feature.resource.dto.ResourceResponses.revision(resource))) {
+            var scene = service.floorLayout(actor, resource.getFloorPlan().getWorkspace().getId(), resource.getFloorPlan().getId());
+            publishFloorFixture(actor, workspace.getId(), scene.floor().id(), new PublishFloor(scene.floor().revision(),
+                    scene.width(), scene.height(), true, scene.resources().stream().map(r -> new ResourceRevision(r.id(), r.revision())).toList()));
+        }
+        return service.status(actor, id, request);
+    }
+
     @ParameterizedTest
     @EnumSource(value = FloorPlanStatus.class, names = {"DRAFT", "PUBLISHED"})
     void canvasBatchChecksFinalFurniturePositionsWhenOptionalDeskFieldsAreBlank(FloorPlanStatus status) {
         floor.setStatus(status);
+        ensureMeasuredFixture(floor);
         var desk = service.create(owner.getId(), workspace.getId(), new Input(
                 floor.getId(), type.getId(), "CANVAS-DESK", "Canvas desk", null, null, null, null,
                 null, new BigDecimal("20"), new BigDecimal("100"), new BigDecimal("40"),
@@ -247,6 +385,7 @@ class OrganizerResourceDatabaseTest {
 
     @Test
     void resourceBatchRejectsMissingLinksAndOtherOwnersBeforeWriting() {
+        ensureMeasuredFixture(floor);
         String revision = service.floorLayout(owner.getId(), workspace.getId(), floor.getId()).floor().revision();
         var request = new Batch(revision, java.util.List.of(new BatchItem("desk", null, "missing", input("NEW", null))), null);
         assertThatThrownBy(() -> service.saveBatch(owner.getId(), workspace.getId(), floor.getId(), request))
@@ -307,6 +446,9 @@ class OrganizerResourceDatabaseTest {
     void sharedPhysicalFloorKeepsWorkspaceResourcesAndBookingHistorySeparate() {
         var chair = service.create(owner.getId(), workspace.getId(), input("SHARED-SEAT", null));
         liveBookingFor(chair.id());
+        // Recreate the historical unlinked-layout state before testing explicit mapping.
+        floor.setBuildingFloor(null); floor.setUsageX(null); floor.setUsageY(null);
+        floor.setUsageWidth(null); floor.setUsageHeight(null); em.flush();
         var area = allocation(1);
         var mapped = buildings.attach(owner.getId(), workspace.getId(), floor.getId(),
             new base.api.feature.resource.dto.BuildingRequests.Allocation(area.buildingFloorId(), area.x(), area.y(), area.width(), area.height(),
@@ -747,6 +889,9 @@ class OrganizerResourceDatabaseTest {
         type.setWorkspace(workspace);
         type.setName("Desk VND");
         type.setCategory(ResourceCategory.DESK);
+        type.setUsageKind(base.api.shared.enums.ResourceUsageKind.WORK_SEAT);
+        type.setStandardWidthM(new BigDecimal("0.8"));
+        type.setStandardLengthM(new BigDecimal("0.8"));
         type.setCurrency(ResourceCurrency.VND);
         type.setPricePerHour(new BigDecimal("50000.00"));
         em.persist(type);
@@ -763,6 +908,10 @@ class OrganizerResourceDatabaseTest {
         Long physicalId = existing.isPresent() ? existing.get().id() : buildings.createPhysicalFloor(owner.getId(), buildingId,
             new base.api.feature.resource.dto.BuildingRequests.PhysicalFloor("Floor " + number, number,
                 new BigDecimal("2400"), new BigDecimal("800"), null));
+        var measured = em.find(base.api.shared.entity.resource.BuildingFloorModel.class, physicalId);
+        measured.setRealWidthM(measured.getCanvasWidth().divide(new BigDecimal("50")));
+        measured.setRealLengthM(measured.getCanvasHeight().divide(new BigDecimal("50")));
+        em.flush();
         return new base.api.feature.resource.dto.BuildingRequests.Allocation(physicalId, BigDecimal.ZERO, BigDecimal.ZERO,
             new BigDecimal("1200"), new BigDecimal("800"), "Workspace area", null);
     }
@@ -779,6 +928,7 @@ class OrganizerResourceDatabaseTest {
     }
 
     Input input(String code, String revision) {
+        ensureMeasuredFixture(floor);
         return new Input(
                 floor.getId(),
                 type.getId(),
@@ -808,7 +958,7 @@ class OrganizerResourceDatabaseTest {
                 service.createFloor(owner.getId(), workspace.getId(), new Floor("Test floor", 2, allocation(2)));
         var layout = service.floorLayout(owner.getId(), workspace.getId(), newFloor.id());
         var published =
-                service.publishFloor(
+                publishFloorFixture(
                         owner.getId(),
                         workspace.getId(),
                         newFloor.id(),
@@ -823,7 +973,7 @@ class OrganizerResourceDatabaseTest {
         assertThat(created.status()).isEqualTo(BookableResourceStatus.DRAFT);
         if (status == WorkspaceStatus.ACTIVE) {
             assertThat(
-                            service.status(
+                            statusAfterPublishingFixture(
                                             owner.getId(),
                                             created.id(),
                                             new Status(
@@ -834,7 +984,7 @@ class OrganizerResourceDatabaseTest {
         } else {
             assertThatThrownBy(
                             () ->
-                                    service.status(
+                                    statusAfterPublishingFixture(
                                             owner.getId(),
                                             created.id(),
                                             new Status(
@@ -887,7 +1037,7 @@ class OrganizerResourceDatabaseTest {
                 .isInstanceOf(ConflictException.class);
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         created.id(),
                                         new Status(
@@ -924,7 +1074,7 @@ class OrganizerResourceDatabaseTest {
                 .isInstanceOf(ConflictException.class);
         assertThatThrownBy(
                         () ->
-                                service.publishFloor(
+                                publishFloorFixture(
                                         owner.getId(),
                                         workspace.getId(),
                                         newFloor.id(),
@@ -952,14 +1102,14 @@ class OrganizerResourceDatabaseTest {
         assertThat(resource.effectivePricePerHour()).isEqualByComparingTo("50000");
         assertThat(resource.currency()).isEqualTo(ResourceCurrency.VND);
         var active =
-                service.status(
+                statusAfterPublishingFixture(
                         owner.getId(),
                         resource.id(),
                         new Status(BookableResourceStatus.ACTIVE, resource.revision()));
         assertThat(active.status()).isEqualTo(BookableResourceStatus.ACTIVE);
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         resource.id(),
                                         new Status(
@@ -967,7 +1117,7 @@ class OrganizerResourceDatabaseTest {
                                                 resource.revision())))
                 .isInstanceOf(ConflictException.class);
         assertThat(
-                        service.status(
+                        statusAfterPublishingFixture(
                                         owner.getId(),
                                         resource.id(),
                                         new Status(
@@ -988,7 +1138,7 @@ class OrganizerResourceDatabaseTest {
         em.flush();
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         resource.id(),
                                         new Status(
@@ -1035,7 +1185,7 @@ class OrganizerResourceDatabaseTest {
         assertThatThrownBy(() -> service.update(owner.getId(), resource.id(), changed))
                 .isInstanceOf(ConflictException.class);
         assertThat(
-                        service.status(
+                        statusAfterPublishingFixture(
                                         owner.getId(),
                                         resource.id(),
                                         new Status(
@@ -1090,7 +1240,7 @@ class OrganizerResourceDatabaseTest {
                                 new BigDecimal("12.50"),
                                 null,
                                 null,
-                                null));
+                                null, false, ResourceUsageKind.MEETING_ROOM, new BigDecimal("5"), new BigDecimal("4")));
         assertThat(usd.currency()).isEqualTo(ResourceCurrency.USD);
         assertThatThrownBy(
                         () ->
@@ -1142,7 +1292,7 @@ class OrganizerResourceDatabaseTest {
         var snapshot = java.util.List.of(new ResourceRevision(placed.id(), placed.revision()));
         assertThatThrownBy(
                         () ->
-                                service.publishFloor(
+                                publishFloorFixture(
                                         owner.getId(),
                                         workspace.getId(),
                                         createdFloor.id(),
@@ -1155,7 +1305,7 @@ class OrganizerResourceDatabaseTest {
                 .isInstanceOf(ConflictException.class);
         assertThatThrownBy(
                         () ->
-                                service.publishFloor(
+                                publishFloorFixture(
                                         owner.getId(),
                                         workspace.getId(),
                                         createdFloor.id(),
@@ -1167,7 +1317,7 @@ class OrganizerResourceDatabaseTest {
                                                 java.util.List.of())))
                 .isInstanceOf(ConflictException.class);
         var published =
-                service.publishFloor(
+                publishFloorFixture(
                         owner.getId(),
                         workspace.getId(),
                         createdFloor.id(),
@@ -1181,7 +1331,7 @@ class OrganizerResourceDatabaseTest {
         assertThat(service.detail(owner.getId(), placed.id()).status())
                 .isEqualTo(BookableResourceStatus.DRAFT);
         assertThat(
-                        service.status(
+                        statusAfterPublishingFixture(
                                         owner.getId(),
                                         placed.id(),
                                         new Status(
@@ -1191,10 +1341,14 @@ class OrganizerResourceDatabaseTest {
     }
 
     base.api.feature.resource.dto.ResourceResponses.Detail room() {
+        ensureMeasuredFixture(floor);
         var roomType = new ResourceTypeModel();
         roomType.setWorkspace(workspace);
         roomType.setName("Meeting room");
         roomType.setCategory(ResourceCategory.ROOM);
+        roomType.setUsageKind(base.api.shared.enums.ResourceUsageKind.MEETING_ROOM);
+        roomType.setStandardWidthM(new BigDecimal("4.8"));
+        roomType.setStandardLengthM(new BigDecimal("3.6"));
         roomType.setCapacity(4);
         roomType.setCurrency(ResourceCurrency.VND);
         roomType.setPricePerHour(new BigDecimal("150000"));
@@ -1291,13 +1445,13 @@ class OrganizerResourceDatabaseTest {
                         owner.getId(), workspace.getId(), deskIn(room.id(), "SEAT-01", null));
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         desk.id(),
                                         new Status(BookableResourceStatus.ACTIVE, desk.revision())))
                 .isInstanceOf(ConflictException.class);
         var activeRoom =
-                service.status(
+                statusAfterPublishingFixture(
                         owner.getId(),
                         room.id(),
                         new Status(
@@ -1311,14 +1465,14 @@ class OrganizerResourceDatabaseTest {
                 .containsExactly(room.id());
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         desk.id(),
                                         new Status(
                                                 BookableResourceStatus.DISABLED,
                                                 activeDesk.revision())))
                 .isInstanceOf(ConflictException.class);
-        service.status(owner.getId(), room.id(),
+        statusAfterPublishingFixture(owner.getId(), room.id(),
                 new Status(BookableResourceStatus.DISABLED, activeRoom.revision()));
         assertThat(service.detail(owner.getId(), desk.id()).status())
                 .isEqualTo(BookableResourceStatus.DISABLED);
@@ -1333,7 +1487,7 @@ class OrganizerResourceDatabaseTest {
         liveBookingFor(desk.id());
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         room.id(),
                                         new Status(
@@ -1358,7 +1512,7 @@ class OrganizerResourceDatabaseTest {
                         owner.getId(), workspace.getId(), deskIn(room.id(), "SEAT-01", null));
         liveBookingFor(room.id());
         var disabled =
-                service.status(
+                statusAfterPublishingFixture(
                         owner.getId(),
                         room.id(),
                         new Status(
@@ -1367,7 +1521,7 @@ class OrganizerResourceDatabaseTest {
         assertThat(disabled.status()).isEqualTo(BookableResourceStatus.DISABLED);
         assertThatThrownBy(
                         () ->
-                                service.status(
+                                statusAfterPublishingFixture(
                                         owner.getId(),
                                         desk.id(),
                                         new Status(BookableResourceStatus.ACTIVE, desk.revision())))
@@ -1662,6 +1816,10 @@ class OrganizerResourceDatabaseTest {
                                 em.createQuery("delete from WorkspaceModel w where w.id=:id")
                                         .setParameter("id", workspaceId)
                                         .executeUpdate();
+                                em.createQuery("delete from BuildingFloorModel f where f.building.organizer.id in :ids")
+                                        .setParameter("ids", java.util.List.of(ownerId, otherId)).executeUpdate();
+                                em.createQuery("delete from BuildingModel b where b.organizer.id in :ids")
+                                        .setParameter("ids", java.util.List.of(ownerId, otherId)).executeUpdate();
                                 em.createQuery(
                                                 "delete from OrganizerProfileModel p where"
                                                         + " p.organizer.id in :ids")
@@ -1713,7 +1871,7 @@ class OrganizerResourceDatabaseTest {
         assertThat(draft.draftChanges()).isTrue();
         assertThat(resources.count()).isEqualTo(before);
         assertThat(publicMaps.maps(workspace.getId()).get(0).decorations()).isEmpty();
-        service.publishFloor(
+        publishFloorFixture(
                 owner.getId(),
                 workspace.getId(),
                 floor.getId(),
@@ -1873,7 +2031,7 @@ class OrganizerResourceDatabaseTest {
     }
 
     @Test
-    void roomMovementCarriesPublishedAndDraftFurnitureWithoutPublishingDraftObjects() {
+    void roomMovementOnlyMovesDraftFurnitureUntilRepublish() {
         var room = room();
         var desk =
                 service.create(
@@ -1906,7 +2064,7 @@ class OrganizerResourceDatabaseTest {
         var stored = em.find(base.api.shared.entity.resource.FloorPlanModel.class, floor.getId());
         assertThat(ResourceCanvas.decorations(stored, false)).hasSize(1);
         assertThat(ResourceCanvas.decorations(stored, false).get(0).posX())
-                .isEqualByComparingTo("500");
+                .isEqualByComparingTo("180");
         assertThat(ResourceCanvas.decorations(stored, true)).hasSize(2);
         assertThat(ResourceCanvas.decorations(stored, true).get(1).posY())
                 .isEqualByComparingTo("190");
@@ -1919,7 +2077,7 @@ class OrganizerResourceDatabaseTest {
         em.clear();
         stored = em.find(base.api.shared.entity.resource.FloorPlanModel.class, floor.getId());
         assertThat(ResourceCanvas.decorations(stored, false).get(0).rotation())
-                .isEqualByComparingTo("90");
+                .isEqualByComparingTo("0");
         assertThat(ResourceCanvas.decorations(stored, true)).hasSize(2);
     }
 }

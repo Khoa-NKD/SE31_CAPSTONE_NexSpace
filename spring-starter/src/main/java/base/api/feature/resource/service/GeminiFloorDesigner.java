@@ -241,6 +241,9 @@ public class GeminiFloorDesigner {
         positions, orientation and visible counts. Ignore the screenshot's margins and surrounding interface.
         Use explicit dimensions and the supplied metrics when available. When estimatedScale is true, metrics are
         provisional and must not be described as real measurements. Do not ask for scale before drafting.
+        If savedMetricDraft is provided, continue from that retained draft instead of discarding its arrangement.
+        After measurement confirmation, recompute positions from the retained proportions but keep every existing
+        catalog type's real footprint unchanged. Report conflicts rather than stretching catalog resources.
         Ask a focused question only if the image is unreadable or no usable top-down layout can be inferred.
         When an object is uncertain but the plan is readable, draft the identifiable portions and mention the uncertainty.
         Prefer matching workspace resource types and active library templates where they fit the drawn footprint.
