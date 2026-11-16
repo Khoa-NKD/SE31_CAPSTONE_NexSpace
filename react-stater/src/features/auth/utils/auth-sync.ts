@@ -24,10 +24,13 @@ const STORAGE_KEY = 'nexspace_auth_sync_event';
 
 let sharedBroadcastChannel: BroadcastChannel | null = null;
 function getBroadcastChannel(): BroadcastChannel | null {
-  if (typeof BroadcastChannel === 'undefined') return null;
+  if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') return null;
   if (!sharedBroadcastChannel) {
     try {
       sharedBroadcastChannel = new BroadcastChannel(CHANNEL_NAME);
+      if (typeof (sharedBroadcastChannel as unknown as { unref?: () => void }).unref === 'function') {
+        (sharedBroadcastChannel as unknown as { unref: () => void }).unref();
+      }
     } catch {
       sharedBroadcastChannel = null;
     }
@@ -75,9 +78,12 @@ export function subscribeAuthSync(handler: (event: AuthSyncEvent) => void): () =
     }
   };
 
-  if (typeof BroadcastChannel !== 'undefined') {
+  if (typeof window !== 'undefined' && typeof BroadcastChannel !== 'undefined') {
     try {
       channel = new BroadcastChannel(CHANNEL_NAME);
+      if (typeof (channel as unknown as { unref?: () => void }).unref === 'function') {
+        (channel as unknown as { unref: () => void }).unref();
+      }
       channel.addEventListener('message', messageListener);
     } catch {
       // Fallback to storage event

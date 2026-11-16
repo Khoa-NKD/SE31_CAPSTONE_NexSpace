@@ -107,16 +107,27 @@ setUnauthorizedHandler((status, message) => {
       const reason =
         message ||
         'Phiên làm việc đã hết hạn hoặc vai trò tài khoản đã thay đổi. Vui lòng đăng nhập lại.';
-      sessionStorage.setItem('auth_redirect_reason', reason);
+      try {
+        if (typeof sessionStorage !== 'undefined') {
+          sessionStorage.setItem('auth_redirect_reason', reason);
+        } else if (window.sessionStorage) {
+          window.sessionStorage.setItem('auth_redirect_reason', reason);
+        }
+      } catch {
+        // Ignore storage errors in restricted/headless test environments
+      }
       broadcastAuthSync({ type: 'SESSION_REVOKED', reason });
 
-      if (
-        !window.location.pathname.startsWith('/auth/sign-in') &&
-        !window.location.pathname.startsWith('/auth/login') &&
-        !window.location.pathname.startsWith('/auth/sign-up')
-      ) {
-        const currentPath = window.location.pathname + window.location.search;
-        spaNavigate(`/auth/sign-in?redirect=${encodeURIComponent(currentPath)}`);
+      if (window.location && typeof window.location.pathname === 'string') {
+        const pathname = window.location.pathname;
+        if (
+          !pathname.startsWith('/auth/sign-in') &&
+          !pathname.startsWith('/auth/login') &&
+          !pathname.startsWith('/auth/sign-up')
+        ) {
+          const currentPath = pathname + (window.location.search || '');
+          spaNavigate(`/auth/sign-in?redirect=${encodeURIComponent(currentPath)}`);
+        }
       }
     }
   }

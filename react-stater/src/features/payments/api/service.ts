@@ -58,6 +58,7 @@ export const paymentService = {
   getExchangeRate: (): Promise<ExchangeRateResponse> =>
     apiClient.get<ExchangeRateResponse>('/public/exchange-rate'),
 
+
   /**
    * Xem lịch sử thanh toán của khách hàng cá nhân.
    */

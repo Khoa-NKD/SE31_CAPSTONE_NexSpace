@@ -378,12 +378,14 @@ export function PublicFloorMap({
 
   function shape(resource: MapResource) {
     const avail = availabilityMap?.get(resource.id);
-    const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
+    const isBooked = avail?.state === 'BOOKED';
+    const isLocked = avail?.state === 'LOCKED';
     const isMaintenance = avail?.state === 'MAINTENANCE' || !resource.selectable;
     const isAvailable =
       (!avail || avail.state === 'AVAILABLE') &&
       resource.selectable &&
       !isBooked &&
+      !isLocked &&
       !isMaintenance;
     const isCurrentSelected = activeSelectedId === resource.id;
     const matchesCurrentFilter = matchesSpaceCategory(resource, activeFilter);
@@ -403,7 +405,9 @@ export function PublicFloorMap({
     if (isCurrentSelected) {
       fillColor = 'fill-primary/25 stroke-primary stroke-[3px]';
     } else if (isBooked) {
-      fillColor = 'fill-amber-500/15 stroke-amber-500/80 [stroke-dasharray:4_3]';
+      fillColor = 'fill-rose-500/20 stroke-rose-600 dark:stroke-rose-400';
+    } else if (isLocked) {
+      fillColor = 'fill-amber-500/15 stroke-amber-500/70 [stroke-dasharray:3_3]';
     } else if (isMaintenance) {
       fillColor = 'fill-muted/40 stroke-muted-foreground/40 [stroke-dasharray:2_2]';
     } else if (isAvailable) {
@@ -421,12 +425,14 @@ export function PublicFloorMap({
         : c('Desk', 'Bàn làm việc');
 
     const statusLabel = isBooked
-      ? c('Booked / Held', 'Đã đặt / Đang giữ')
-      : isMaintenance
-        ? c('Unavailable', 'Tạm ngưng')
-        : hasScheduleSelected
-          ? c('Available for selected time', 'Còn trống khung giờ này')
-          : c('Active space', 'Không gian hoạt động');
+      ? c('Booked / Confirmed', 'Đã có người đặt')
+      : isLocked
+        ? c('Holding / In Checkout', 'Đang giữ chỗ')
+        : isMaintenance
+          ? c('Unavailable', 'Tạm ngưng')
+          : hasScheduleSelected
+            ? c('Available for selected time', 'Còn trống khung giờ này')
+            : c('Active space', 'Không gian hoạt động');
 
     const priceLabel =
       typeof resource.pricePerHour === 'number' && resource.pricePerHour > 0

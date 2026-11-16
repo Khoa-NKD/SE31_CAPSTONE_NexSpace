@@ -163,7 +163,7 @@ export function PriceBreakdownCard({
     try {
       await cancelBookingMutation.mutateAsync({
         id: target.id,
-        reason: 'Customer cancelled during 15-minute hold'
+        reason: 'Customer cancelled during 10-minute hold'
       });
       setCreatedBooking(null);
       setCheckoutData(null);
@@ -350,7 +350,7 @@ export function PriceBreakdownCard({
               </>
             ) : (
               <>
-                <span>Xác nhận &amp; Giữ chỗ 15 Phút</span>
+                <span>Xác nhận &amp; Giữ chỗ 10 Phút</span>
                 <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
               </>
             )}
@@ -377,7 +377,7 @@ export function PriceBreakdownCard({
 
         {/* Reassurance pill */}
         <div className='bg-muted/70 text-muted-foreground rounded-lg p-2.5 text-center text-xs'>
-          Miễn phí hủy trong thời gian 15 phút giữ chỗ
+          Miễn phí hủy trong thời gian 10 phút giữ chỗ
         </div>
       </div>
 
