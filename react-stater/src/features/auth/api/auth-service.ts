@@ -3,6 +3,7 @@ import type {
   AuthResponse,
   ChangePasswordRequest,
   CompleteForgotPasswordRequest,
+  GoogleAuthResponse,
   LoginRequest,
   RegisterRequest,
   TokenValidationResponse,
@@ -38,6 +39,15 @@ export const authService = {
    */
   register: async (payload: RegisterRequest): Promise<UserDto> => {
     return authApiClient.post<UserDto>('/auth/register', payload);
+  },
+
+  /**
+   * Log in or sign up with Google Identity Services ID token.
+   * - If existing active user: returns AuthResponse with JWT.
+   * - If new user: initializes inactive account, sends verification email, requiresVerification = true.
+   */
+  loginWithGoogle: async (idToken: string): Promise<GoogleAuthResponse> => {
+    return authApiClient.post<GoogleAuthResponse>('/auth/google', { idToken });
   },
 
   /**

@@ -10,7 +10,7 @@
  */
 
 export type AuthSyncEvent =
-  | { type: 'EMAIL_VERIFIED_SUCCESS'; email?: string }
+  | { type: 'EMAIL_VERIFIED_SUCCESS'; email?: string; accessToken?: string; user?: unknown }
   | { type: 'CHECK_EXISTING_SIGNUP_TAB' }
   | { type: 'SIGNUP_TAB_ALREADY_ACTIVE' }
   | { type: 'CHECK_EXISTING_RESET_TAB' }

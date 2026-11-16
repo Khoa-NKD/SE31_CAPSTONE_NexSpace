@@ -35,8 +35,11 @@ export function EmailVerificationModal({
       localStorage.removeItem('nexspace_pending_verification_email');
     }
     onClose();
-    navigate({ to: '/auth/sign-in' });
-  }, [onClose, navigate]);
+    navigate({
+      to: '/auth/sign-in',
+      search: { verified: 'true', email }
+    });
+  }, [onClose, navigate, email]);
 
   // Subscribe to real-time sync & fallback polling
   useEffect(() => {
@@ -49,7 +52,17 @@ export function EmailVerificationModal({
       }
       if (event.type === 'EMAIL_VERIFIED_SUCCESS') {
         setIsVerified(true);
-        toast.success('Xác thực tài khoản thành công!');
+        toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập để tiếp tục.');
+        setTimeout(() => {
+          onClose();
+          navigate({
+            to: '/auth/sign-in',
+            search: {
+              verified: 'true',
+              email: event.email || email
+            }
+          });
+        }, 400);
       }
     });
 
@@ -61,7 +74,17 @@ export function EmailVerificationModal({
         const res = await authService.checkVerificationStatus(email);
         if (res.verified) {
           setIsVerified(true);
-          toast.success('Xác thực tài khoản thành công!');
+          toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập để tiếp tục.');
+          setTimeout(() => {
+            onClose();
+            navigate({
+              to: '/auth/sign-in',
+              search: {
+                verified: 'true',
+                email
+              }
+            });
+          }, 400);
         }
       } catch {
         // Silently skip
@@ -73,7 +96,7 @@ export function EmailVerificationModal({
       unsubscribe();
       clearInterval(interval);
     };
-  }, [isOpen, email, effectiveVerified]);
+  }, [isOpen, email, effectiveVerified, onClose, navigate]);
 
   // Auto-redirect to sign-in countdown when verified
   useEffect(() => {

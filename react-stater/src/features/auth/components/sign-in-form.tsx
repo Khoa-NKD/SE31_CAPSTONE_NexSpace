@@ -11,6 +11,7 @@ import { Link, useRouter } from '@tanstack/react-router';
 import { authService } from '../api/auth-service';
 import { useAuthStore } from '../store/auth-store';
 import { getRoleHomeUrl, getSignInReturnPath } from '../utils/role-guard';
+import { subscribeAuthSync } from '../utils/auth-sync';
 import { ApiError } from '@/lib/api-client';
 import { toast } from 'sonner';
 
@@ -85,10 +86,27 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
     }
   });
 
+  // Realtime cross-tab synchronization when email is verified
+  useEffect(() => {
+    const unsubscribe = subscribeAuthSync((event) => {
+      if (event.type === 'EMAIL_VERIFIED_SUCCESS') {
+        if (event.email) {
+          form.setValue('email', event.email);
+        }
+        setSuccessMessage(
+          'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE). Vui lòng đăng nhập để tiếp tục.'
+        );
+        toast.success(
+          'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE).'
+        );
+      }
+    });
+    return unsubscribe;
+  }, [form]);
+
   const verifiedHandled = useRef(false);
   useEffect(() => {
-    if (typeof window === 'undefined' || verifiedHandled.current) return;
-    verifiedHandled.current = true;
+    if (typeof window === 'undefined') return;
 
     const params = new URLSearchParams(window.location.search);
     const verified = params.get('verified');
@@ -98,11 +116,16 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       form.setValue('email', emailParam);
     }
 
-    if (verified === 'true') {
+    if (verified === 'true' && !verifiedHandled.current) {
+      verifiedHandled.current = true;
+      setSuccessMessage(
+        'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE). Vui lòng đăng nhập để tiếp tục.'
+      );
       toast.success(
         'Xác thực email thành công! Tài khoản của bạn đã được chuyển sang trạng thái Hoạt động (ACTIVE). Vui lòng đăng nhập để tiếp tục.'
       );
-    } else if (verified === 'false') {
+    } else if (verified === 'false' && !verifiedHandled.current) {
+      verifiedHandled.current = true;
       toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
     }
   }, [form]);

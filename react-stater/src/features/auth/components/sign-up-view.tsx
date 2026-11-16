@@ -15,7 +15,7 @@ import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { useLanguage } from '../../landing/context/language-context';
 import { EmailVerificationModal } from './email-verification-modal';
 import { motion } from 'motion/react';
-import { broadcastAuthSync, subscribeAuthSync } from '../utils/auth-sync';
+import { broadcastAuthSync } from '../utils/auth-sync';
 import { toast } from 'sonner';
 
 function SignUpContent() {
