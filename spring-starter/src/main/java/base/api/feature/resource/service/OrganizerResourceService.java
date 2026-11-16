@@ -468,7 +468,8 @@ public class OrganizerResourceService {
             if (change.parentKey() != null && (parent == null || parent == item || parent.getResourceType().getCategory() != ResourceCategory.ROOM))
                 throw new BadRequestException("Invalid parent room in AI design");
             if (parent != item.getParentRoom() && bookedParents.contains(parent)) throw new ConflictException("The destination room has live bookings");
-            item.setParentRoom(parent); if (parent != null) changedRooms.add(parent);
+            assignRoom(item, parent);
+            if (parent != null) changedRooms.add(parent);
         }
         for (var item : finalState) {
             if (item.getParentRoom() != null && !finalState.contains(item.getParentRoom())) throw new ConflictException("A remaining desk still references the deleted room");
@@ -522,7 +523,16 @@ public class OrganizerResourceService {
         if (request.status() != BookableResourceStatus.ACTIVE
                 && request.status() != BookableResourceStatus.DISABLED)
             throw new BadRequestException("Choose ACTIVE or DISABLED");
+        if (resource.getParentRoom() != null)
+            throw new ConflictException("Ghế trong phòng bật/tắt theo phòng. Hãy đổi trạng thái của phòng.");
         if (request.status() == BookableResourceStatus.ACTIVE) activation(resource);
+        if (resource.getResourceType().getCategory() == ResourceCategory.ROOM) {
+            for (var child : children(resource)) {
+                em.refresh(child, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+                if (child.getStatus() != BookableResourceStatus.ARCHIVED)
+                    child.setStatus(request.status());
+            }
+        }
         if (resource.getStatus() == request.status()) return ResourceResponses.detail(resource);
         resource.setStatus(request.status());
         return save(resource);
@@ -715,15 +725,6 @@ public class OrganizerResourceService {
                 resources.findByFloorPlanId(floorId).stream()
                         .filter(item -> item.getStatus() != BookableResourceStatus.ARCHIVED)
                         .toList();
-        var activeParents =
-                current.stream()
-                        .filter(
-                                item ->
-                                        item.getParentRoom() != null
-                                                && item.getStatus()
-                                                        == BookableResourceStatus.ACTIVE)
-                        .map(item -> item.getParentRoom().getId())
-                        .collect(java.util.stream.Collectors.toSet());
         var childSignals = new HashMap<Long, Set<AvailabilityState>>();
         for (var item : current)
             if (item.getParentRoom() != null)
@@ -756,11 +757,7 @@ public class OrganizerResourceService {
                                                     && item.getPosY() != null
                                                     && item.getWidth() != null
                                                     && item.getHeight() != null
-                                                    && (item.getParentRoom() == null
-                                                            || item.getParentRoom().getStatus()
-                                                                    != BookableResourceStatus
-                                                                            .ACTIVE)
-                                                    && !activeParents.contains(item.getId());
+                                                    && item.getParentRoom() == null;
                                     var state =
                                             flags.contains(AvailabilityState.BOOKED)
                                                     ? AvailabilityState.BOOKED
@@ -1102,7 +1099,7 @@ public class OrganizerResourceService {
                     "Currency cannot change for a resource with booking history; create a new"
                             + " resource instead");
         resource.setResourceType(type);
-        resource.setParentRoom(parent);
+        assignRoom(resource, parent);
         resource.setLabel(code);
         resource.setName(input.name());
         resource.setZoneName(input.zoneName());
@@ -1174,6 +1171,10 @@ public class OrganizerResourceService {
     }
 
     private void activation(BookableResourceModel resource) {
+        if (resource.getParentRoom() != null) {
+            ResourceCanvas.fitsInsideRoom(resource, resource.getParentRoom());
+            return;
+        }
         var type = resource.getResourceType();
         if (resource.getFloorPlan().getWorkspace().getStatus() != WorkspaceStatus.ACTIVE
                 || resource.getFloorPlan().getStatus() != FloorPlanStatus.PUBLISHED
@@ -1195,25 +1196,21 @@ public class OrganizerResourceService {
         ResourceCanvas.validateDecorationResources(
                 ResourceCanvas.decorations(resource.getFloorPlan(), false), List.of(resource));
         validatePlacement(resource, resources.findByFloorPlanId(resource.getFloorPlan().getId()));
-        if (resource.getParentRoom() != null) {
-            var parent = resource.getParentRoom();
-            em.refresh(parent, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
-            if (parent.getStatus() == BookableResourceStatus.ARCHIVED
-                    || parent.getStatus() == BookableResourceStatus.ACTIVE
-                    || liveBooking(parent))
-                throw new ConflictException(
-                        "The containing room is active, archived or has live bookings. Stop"
-                                + " whole-room sales before enabling its desks");
-            ResourceCanvas.fitsInsideRoom(resource, parent);
-        }
-        if (children(resource).stream()
-                .anyMatch(
-                        child ->
-                                child.getStatus() == BookableResourceStatus.ACTIVE
-                                        || liveBooking(child)))
+        if (children(resource).stream().anyMatch(this::liveBooking))
             throw new ConflictException(
-                    "This room has active desks or live desk bookings. Stop desk sales before"
-                            + " enabling whole-room sales");
+                    "Không thể mở đặt nguyên phòng khi ghế bên trong còn lượt đặt hoặc giữ chỗ hiệu lực.");
+    }
+
+    private void assignRoom(BookableResourceModel resource, BookableResourceModel parent) {
+        var previous = resource.getParentRoom();
+        resource.setParentRoom(parent);
+        if (resource.getStatus() == BookableResourceStatus.ARCHIVED) return;
+        // A contained seat follows its room. Moving it to the open area requires explicit activation.
+        if (parent != null) {
+            resource.setStatus(parent.getStatus());
+        } else if (previous != null) {
+            resource.setStatus(BookableResourceStatus.DISABLED);
+        }
     }
 
     private int capacity(BookableResourceModel resource) {

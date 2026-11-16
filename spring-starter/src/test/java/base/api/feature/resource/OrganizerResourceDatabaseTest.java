@@ -7,6 +7,7 @@ import base.api.feature.resource.dto.FloorManagement;
 import base.api.feature.resource.dto.ResourceRequests.*;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.service.OrganizerResourceService;
+import base.api.feature.resource.service.PublicFloorMapService;
 import base.api.feature.resource.service.ResourceCanvas;
 import base.api.shared.entity.*;
 import base.api.shared.entity.booking.BookingModel;
@@ -1283,50 +1284,44 @@ class OrganizerResourceDatabaseTest {
     }
 
     @Test
-    void roomSalesAndContainedDeskSalesCannotBeActiveTogether() {
+    void roomControlsSeatStatusAndOnlyWholeRoomIsSelectable() {
         var room = room();
         var desk =
                 service.create(
                         owner.getId(), workspace.getId(), deskIn(room.id(), "SEAT-01", null));
-        var activeDesk =
-                service.status(
-                        owner.getId(),
-                        desk.id(),
-                        new Status(BookableResourceStatus.ACTIVE, desk.revision()));
         assertThatThrownBy(
                         () ->
                                 service.status(
                                         owner.getId(),
-                                        room.id(),
-                                        new Status(
-                                                BookableResourceStatus.ACTIVE,
-                                                service.detail(owner.getId(), room.id())
-                                                        .revision())))
+                                        desk.id(),
+                                        new Status(BookableResourceStatus.ACTIVE, desk.revision())))
                 .isInstanceOf(ConflictException.class);
-        var disabledDesk =
+        var activeRoom =
                 service.status(
                         owner.getId(),
-                        desk.id(),
-                        new Status(BookableResourceStatus.DISABLED, activeDesk.revision()));
-        assertThat(
-                        service.status(
-                                        owner.getId(),
-                                        room.id(),
-                                        new Status(
-                                                BookableResourceStatus.ACTIVE,
-                                                service.detail(owner.getId(), room.id())
-                                                        .revision()))
-                                .status())
-                .isEqualTo(BookableResourceStatus.ACTIVE);
+                        room.id(),
+                        new Status(
+                                BookableResourceStatus.ACTIVE,
+                                service.detail(owner.getId(), room.id()).revision()));
+        var activeDesk = service.detail(owner.getId(), desk.id());
+        assertThat(activeDesk.status()).isEqualTo(BookableResourceStatus.ACTIVE);
+        assertThat(publicMaps.maps(workspace.getId()).get(0).resources())
+                .filteredOn(PublicFloorMapService.ObjectView::selectable)
+                .extracting(PublicFloorMapService.ObjectView::id)
+                .containsExactly(room.id());
         assertThatThrownBy(
                         () ->
                                 service.status(
                                         owner.getId(),
                                         desk.id(),
                                         new Status(
-                                                BookableResourceStatus.ACTIVE,
-                                                disabledDesk.revision())))
+                                                BookableResourceStatus.DISABLED,
+                                                activeDesk.revision())))
                 .isInstanceOf(ConflictException.class);
+        service.status(owner.getId(), room.id(),
+                new Status(BookableResourceStatus.DISABLED, activeRoom.revision()));
+        assertThat(service.detail(owner.getId(), desk.id()).status())
+                .isEqualTo(BookableResourceStatus.DISABLED);
     }
 
     @Test

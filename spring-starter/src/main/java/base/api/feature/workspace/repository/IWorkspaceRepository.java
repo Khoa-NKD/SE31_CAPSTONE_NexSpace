@@ -75,7 +75,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 999999999)
                 FROM BookableResourceModel r
-                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
             ) ASC, w.createdAt DESC
             """,
             countQuery = """
@@ -103,7 +103,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 0)
                 FROM BookableResourceModel r
-                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
             ) DESC, w.createdAt DESC
             """,
             countQuery = """
@@ -194,12 +194,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -230,12 +230,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -282,12 +282,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -306,7 +306,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 999999999)
                 FROM BookableResourceModel r
-                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
             ) ASC, w.createdAt DESC
             """,
             countQuery = """
@@ -323,12 +323,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -375,12 +375,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -399,7 +399,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             ORDER BY (
                 SELECT COALESCE(MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour)), 0)
                 FROM BookableResourceModel r
-                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
             ) DESC, w.createdAt DESC
             """,
             countQuery = """
@@ -416,12 +416,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -468,12 +468,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -513,12 +513,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -565,12 +565,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)
@@ -606,12 +606,12 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
               AND (:minPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) >= :minPrice)
               AND (:maxPrice IS NULL OR (
                   SELECT MIN(COALESCE(r.pricePerHour, r.resourceType.pricePerHour))
                   FROM BookableResourceModel r
-                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE
+                  WHERE r.floorPlan.workspace = w AND r.status = base.api.shared.enums.BookableResourceStatus.ACTIVE AND r.parentRoom IS NULL
               ) <= :maxPrice)
               AND (:hasAmenityFilter = false OR (
                   SELECT COUNT(DISTINCT wa.amenity.id)

@@ -66,6 +66,7 @@ public interface IBookableResourceRepository
             FROM BookableResourceModel r
             WHERE r.floorPlan.workspace.id IN :workspaceIds
               AND r.status = :status
+              AND r.parentRoom IS NULL
             GROUP BY r.floorPlan.workspace.id
             """)
     List<Object[]> findMinPricePerHourByWorkspaceIds(
@@ -80,6 +81,7 @@ public interface IBookableResourceRepository
             WHERE fp.workspace.id = :workspaceId
               AND (:floorPlanId IS NULL OR fp.id = :floorPlanId)
               AND rt.category = :category
+              AND r.parentRoom IS NULL
               AND r.status <> :excludedStatus
             ORDER BY r.label ASC
             """)
