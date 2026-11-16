@@ -81,7 +81,6 @@ public interface IBookableResourceRepository
             WHERE fp.workspace.id = :workspaceId
               AND (:floorPlanId IS NULL OR fp.id = :floorPlanId)
               AND rt.category = :category
-              AND r.parentRoom IS NULL
               AND r.status <> :excludedStatus
             ORDER BY r.label ASC
             """)
@@ -89,6 +88,36 @@ public interface IBookableResourceRepository
             @org.springframework.data.repository.query.Param("workspaceId") Long workspaceId,
             @org.springframework.data.repository.query.Param("floorPlanId") Long floorPlanId,
             @org.springframework.data.repository.query.Param("category") base.api.shared.enums.ResourceCategory category,
+            @org.springframework.data.repository.query.Param("excludedStatus") BookableResourceStatus excludedStatus
+    );
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r FROM BookableResourceModel r
+            JOIN FETCH r.resourceType rt
+            JOIN FETCH r.floorPlan fp
+            WHERE fp.workspace.id = :workspaceId
+              AND (:floorPlanId IS NULL OR fp.id = :floorPlanId)
+              AND rt.category = :category
+              AND (:minCapacity IS NULL OR COALESCE(r.capacityOverride, rt.capacity) >= :minCapacity)
+              AND r.status <> :excludedStatus
+            ORDER BY r.label ASC
+            """)
+    List<BookableResourceModel> findRoomResourcesForAvailability(
+            @org.springframework.data.repository.query.Param("workspaceId") Long workspaceId,
+            @org.springframework.data.repository.query.Param("floorPlanId") Long floorPlanId,
+            @org.springframework.data.repository.query.Param("category") base.api.shared.enums.ResourceCategory category,
+            @org.springframework.data.repository.query.Param("minCapacity") Integer minCapacity,
+            @org.springframework.data.repository.query.Param("excludedStatus") BookableResourceStatus excludedStatus
+    );
+
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r FROM BookableResourceModel r
+            JOIN FETCH r.resourceType rt
+            WHERE r.parentRoom.id IN :roomIds
+              AND r.status <> :excludedStatus
+            """)
+    List<BookableResourceModel> findChildDesksByRoomIds(
+            @org.springframework.data.repository.query.Param("roomIds") java.util.Collection<Long> roomIds,
             @org.springframework.data.repository.query.Param("excludedStatus") BookableResourceStatus excludedStatus
     );
 }
