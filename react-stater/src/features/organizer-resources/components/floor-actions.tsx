@@ -53,6 +53,7 @@ export function FloorActions({
   const [target, setTarget] = useState(floor);
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
+  const [measuring, setMeasuring] = useState(false);
   const [error, setError] = useState('');
   const open = (value: typeof action) => {
     setTarget(floor);
@@ -73,10 +74,10 @@ export function FloorActions({
   const physical = locations.data
     ?.flatMap((b) => b.floors)
     .find((f) => f.id === area?.buildingFloorId);
-  const duplicate = !!area && !!physical && !!allocationError(area, physical, workspaceId);
+  const duplicate = !!area && !!physical && (physical.realWidthM == null || physical.realLengthM == null || !!allocationError(area, physical, workspaceId));
 
   async function save() {
-    if (!action || action === 'map' || busy || disabled) return;
+    if (!action || action === 'map' || busy || measuring || disabled) return;
     if (action !== 'delete' && (!name.trim() || name.trim().length > 100)) {
       setError(c('Enter a name up to 100 characters.', 'Nhập tên tối đa 100 ký tự.'));
       return;
@@ -120,7 +121,9 @@ export function FloorActions({
     } catch (failure) {
       setError(
         failure instanceof Error
-          ? failure.message
+          ? failure.message.startsWith('The draft is empty, but the published layout still contains ')
+            ? c('The draft is empty, but the published layout still has objects. Cancel, publish the empty draft, then remove the area again.', 'Bản nháp đang trống nhưng bản đã xuất bản vẫn còn đồ bố trí. Bấm Hủy, xuất bản bản nháp trống rồi gỡ khu vực lại.')
+            : failure.message
           : c('Cannot complete this action.', 'Không thể thực hiện thao tác.')
       );
     } finally {
@@ -143,6 +146,12 @@ export function FloorActions({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
+          {floor.location && (
+            <DropdownMenuItem onSelect={() => open('map')}>
+              <Pencil className='size-4' />
+              {c('Edit workspace area', 'Chỉnh vùng workspace')}
+            </DropdownMenuItem>
+          )}
           {!floor.location && (
             <DropdownMenuItem onSelect={() => open('map')}>
               <Pencil className='size-4' />
@@ -233,6 +242,7 @@ export function FloorActions({
             {action === 'copy' && source.isSuccess && (
               <BuildingAllocationFields
                 workspaceId={workspaceId}
+                onMeasurementEditingChange={setMeasuring}
                 disabled={busy}
                 buildingId={
                   target.location?.buildingId ??
@@ -270,7 +280,7 @@ export function FloorActions({
                 type='submit'
                 variant={action === 'delete' ? 'destructive' : 'default'}
                 disabled={
-                  busy || duplicate || (action === 'copy' && (!area || !physical || !source.data))
+                  busy || measuring || duplicate || (action === 'copy' && (!area || !physical || !source.data))
                 }
               >
                 {busy && <LoaderCircle className='size-4 animate-spin' />}

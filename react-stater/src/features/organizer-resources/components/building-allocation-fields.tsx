@@ -1,4 +1,6 @@
+import { PhysicalFloorMeasurements } from './physical-floor-measurements';
 import { AreaPlacementEditor } from './area-placement-editor';
+import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Building2, Layers3, MapPin, LoaderCircle } from 'lucide-react';
@@ -16,7 +18,9 @@ export function BuildingAllocationFields({
   fixedSize,
   disabled = false,
   currentLayoutId,
-  buildingId: fixedBuilding
+  buildingId: fixedBuilding,
+  fixedFloorId,
+  onMeasurementEditingChange
 }: {
   workspaceId: number;
   value: AllocationInput | null;
@@ -25,6 +29,8 @@ export function BuildingAllocationFields({
   disabled?: boolean;
   currentLayoutId?: number;
   buildingId?: number;
+  fixedFloorId?: number;
+  onMeasurementEditingChange?: (editing: boolean) => void;
 }) {
   const actor = useAuthStore((s) => s.user?.id ?? 0);
   const { language } = useLanguage();
@@ -34,7 +40,7 @@ export function BuildingAllocationFields({
   const building = query.data?.find((b) => b.id === buildingId);
   const physical = building?.floors.find((f) => f.id === value?.buildingFloorId);
   const problem =
-    value && physical ? allocationError(value, physical, workspaceId, currentLayoutId) : null;
+    value && physical ? physical.realWidthM == null || physical.realLengthM == null ? 'measurements' : allocationError(value, physical, workspaceId, currentLayoutId) : null;
   const update = (key: 'x' | 'y' | 'width' | 'height', text: string) => {
     if (value) onChange({ ...value, [key]: text === '' ? NaN : Number(text) });
   };
@@ -119,7 +125,7 @@ export function BuildingAllocationFields({
               <select
                 className={selectClass}
                 value={value?.buildingFloorId ?? 0}
-                disabled={!building}
+                disabled={!building || !!fixedFloorId}
                 onChange={(e) => choose(Number(e.target.value))}
               >
                 <option value={0}>{c('Choose an existing floor', 'Chọn tầng đã có')}</option>
@@ -147,24 +153,30 @@ export function BuildingAllocationFields({
           )}
           {physical && value && (
             <>
+              <PhysicalFloorMeasurements key={physical.id} buildingId={buildingId} floor={physical} disabled={disabled} onEditingChange={onMeasurementEditingChange} onSaved={updated => {
+                const existing = updated.occupants.find(item => item.floorPlanId === currentLayoutId);
+                if (existing && physical.geometryVersion !== 2) onChange({ ...value, x: existing.x, y: existing.y, width: existing.width, height: existing.height });
+                else if (physical.realWidthM == null || physical.realLengthM == null)
+                  onChange({ ...value, x: 0, y: 0, width: fixedSize?.width ?? updated.width, height: fixedSize?.height ?? updated.height });
+              }} />
               <div className='grid grid-cols-2 gap-3 sm:grid-cols-4'>
                 {(['x', 'y', 'width', 'height'] as const).map((k) => (
                   <label key={k} className='space-y-1.5 text-xs text-muted-foreground'>
                     {
                       {
-                        x: 'X (px)',
-                        y: 'Y (px)',
-                        width: c('Area width (px)', 'Rộng khu vực (px)'),
-                        height: c('Area height (px)', 'Cao khu vực (px)')
+                        x: physical.geometryVersion === 2 ? 'X (m)' : 'X (px)',
+                        y: physical.geometryVersion === 2 ? 'Y (m)' : 'Y (px)',
+                        width: physical.geometryVersion === 2 ? c('Area width (m)', 'Dài vùng — ngang (m)') : c('Area width (px)', 'Dài vùng — ngang (px)'),
+                        height: physical.geometryVersion === 2 ? c('Area length (m)', 'Rộng vùng — dọc (m)') : c('Area height (px)', 'Rộng vùng — dọc (px)')
                       }[k]
                     }
                     <Input
                       type='number'
-                      min={k === 'x' || k === 'y' ? 0 : 1}
+                      min={k === 'x' || k === 'y' ? 0 : physical.geometryVersion === 2 ? 0.01 : 1}
                       step='.01'
-                      disabled={!!fixedSize && (k === 'width' || k === 'height')}
-                      value={Number.isFinite(value[k]) ? value[k] : ''}
-                      onChange={(e) => update(k, e.target.value)}
+                      disabled={disabled || physical.realWidthM == null || physical.realLengthM == null || (!!fixedSize && (k === 'width' || k === 'height'))}
+                      value={Number.isFinite(value[k]) ? geometryDisplay(String(value[k]), physical.geometryVersion === 2) : ''}
+                      onChange={(e) => update(k, geometryInput(e.target.value, physical.geometryVersion === 2))}
                     />
                   </label>
                 ))}
@@ -175,7 +187,7 @@ export function BuildingAllocationFields({
                 value={value}
                 invalid={!!problem}
                 fixedSize={!!fixedSize}
-                disabled={disabled}
+                disabled={disabled || physical.realWidthM == null || physical.realLengthM == null}
                 currentLayoutId={currentLayoutId}
                 onChange={(next) => onChange({ ...value, ...next })}
               />
@@ -190,7 +202,7 @@ export function BuildingAllocationFields({
                   role='alert'
                   className='rounded-xl bg-destructive/10 p-3 text-sm text-destructive'
                 >
-                  {problem === 'overlap'
+                  {problem === 'measurements' ? c('Set the floor’s real dimensions before linking.', 'Thiết lập kích thước thực của tầng trước khi liên kết.') : problem === 'overlap'
                     ? c(
                         'This area overlaps another workspace.',
                         'Khu vực đang chồng lên workspace khác.'

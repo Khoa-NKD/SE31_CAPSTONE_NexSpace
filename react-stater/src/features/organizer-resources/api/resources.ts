@@ -385,6 +385,11 @@ export const saveResourceType = (workspaceId: number, value: TypeInput, current?
     current ? 'PUT' : 'POST',
     { ...value, ...(current ? { expectedRevision: current.revision } : {}) }
   );
+export const deleteResourceType = (workspaceId: number, type: TypeOption) =>
+  backendRequest<void>(
+    `/organizer/workspaces/${workspaceId}/resource-types/${type.id}?${new URLSearchParams({ expectedRevision: type.revision })}`,
+    'DELETE'
+  );
 export const invalidateResources = async (client: QueryClient, actorId: number): Promise<void> => {
   await Promise.all([
     client.invalidateQueries({ queryKey: ['organizer-resources', actorId] }),
@@ -414,6 +419,9 @@ export interface LayoutItem {
   revision: string;
 }
 export interface FloorLayout {
+  geometryVersion?: number;
+  coordinateUnit?: 'px';
+  pixelsPerMetre?: number | null;
   floor: FloorOption;
   width: number | null;
   height: number | null;

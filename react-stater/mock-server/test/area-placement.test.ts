@@ -16,3 +16,10 @@ test('resizing and dragging can align two workspace areas without overlap', () =
   assert.deepEqual(next, { x: 1200, y: 0, width: 1200, height: 1600 });
   assert.equal(allocationError(next, floor, 8), null);
 });
+
+test('metric resizing supports the one-centimetre minimum without negative coordinates', () => {
+  const floor = { width: 0.6, height: 0.6 };
+  const rect = { x: 0, y: 0, width: 0.6, height: 0.6 };
+  assert.deepEqual(placeArea(rect, 'nw', 10, 10, floor, 6, 0.6), rect);
+  assert.deepEqual(placeArea(rect, 'se', -10, -10, floor, 6, 0.6), rect);
+});

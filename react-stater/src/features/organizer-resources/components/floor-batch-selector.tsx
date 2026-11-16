@@ -1,3 +1,5 @@
+import { PhysicalFloorMeasurements } from './physical-floor-measurements';
+import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { AreaPlacementEditor } from './area-placement-editor';
 import { Building2, Layers3, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -18,7 +20,8 @@ export function FloorBatchSelector({
   onChange,
   result,
   fixedBuilding,
-  disabled = false
+  disabled = false,
+  onMeasurementEditingChange
 }: {
   buildings: Building[];
   value: FloorSelection;
@@ -26,6 +29,7 @@ export function FloorBatchSelector({
   result: ReturnType<typeof floorBatchSelection>;
   fixedBuilding?: number;
   disabled?: boolean;
+  onMeasurementEditingChange?: (editing: boolean) => void;
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
@@ -33,26 +37,27 @@ export function FloorBatchSelector({
   const set = (patch: Partial<FloorSelection>) => onChange({ ...value, ...patch });
   const areaInputs = (
     area: Partial<AreaFields>,
-    change: (key: keyof AreaFields, text: string) => void
+    change: (key: keyof AreaFields, text: string) => void,
+    metric = false
   ) => (
     <div className='grid grid-cols-2 gap-2 sm:grid-cols-4'>
       {(['x', 'y', 'width', 'height'] as const).map((key) => (
         <label key={key} className='space-y-1 text-xs text-muted-foreground'>
           {
             {
-              x: 'X (px)',
-              y: 'Y (px)',
-              width: c('Width (px)', 'Rộng (px)'),
-              height: c('Height (px)', 'Cao (px)')
+              x: metric ? 'X (m)' : 'X (px)',
+              y: metric ? 'Y (m)' : 'Y (px)',
+              width: metric ? c('Width (m)', 'Dài — ngang (m)') : c('Width (px)', 'Dài — ngang (px)'),
+              height: metric ? c('Length (m)', 'Rộng — dọc (m)') : c('Height (px)', 'Rộng — dọc (px)')
             }[key]
           }
           <Input
             type='number'
             min={key === 'x' || key === 'y' ? 0 : 1}
             step='.01'
-            value={area[key] ?? ''}
+            value={geometryDisplay(area[key] ?? '', metric)}
             placeholder={key === 'width' || key === 'height' ? c('Full floor', 'Toàn tầng') : '0'}
-            onChange={(e) => change(key, e.target.value)}
+            onChange={(e) => change(key, geometryInput(e.target.value, metric))}
           />
         </label>
       ))}
@@ -246,9 +251,12 @@ export function FloorBatchSelector({
                       {floor.name}
                     </h4>
                     <span className='text-[11px] text-muted-foreground'>
-                      {floor.width} × {floor.height} px
+                      {floor.realWidthM != null && floor.realLengthM != null ? `${floor.realWidthM} × ${floor.realLengthM} m` : `${floor.width} × ${floor.height} px`}
                     </span>
                   </div>
+                  <PhysicalFloorMeasurements buildingId={value.buildingId} floor={floor} disabled={disabled} onEditingChange={onMeasurementEditingChange} onSaved={() => {
+                    if (floor.geometryVersion !== 2) set({ overrides: { ...value.overrides, [floor.id]: { name: custom.name } } });
+                  }} />
                   <label className='block space-y-1 text-xs text-muted-foreground'>
                     {c('Layout name', 'Tên sơ đồ')}
                     <Input
@@ -265,7 +273,8 @@ export function FloorBatchSelector({
                       width: custom.width ?? String(allocation.width),
                       height: custom.height ?? String(allocation.height)
                     },
-                    (key, input) => patch({ [key]: input })
+                    (key, input) => patch({ [key]: input }),
+                    floor.geometryVersion === 2
                   )}
                   <AreaPlacementEditor
                     floor={floor}
@@ -286,7 +295,7 @@ export function FloorBatchSelector({
                       role='alert'
                       className='rounded-lg bg-destructive/10 px-3 py-2 text-xs text-destructive'
                     >
-                      {problem === 'duplicate'
+                      {problem === 'measurements' ? c('Set the real floor dimensions first.', 'Thiết lập kích thước thực của tầng trước khi liên kết.') : problem === 'duplicate'
                         ? c(
                             'This workspace already has a layout here. Open or map that layout.',
                             'Workspace đã có sơ đồ tại tầng này. Hãy mở hoặc liên kết sơ đồ cũ.'

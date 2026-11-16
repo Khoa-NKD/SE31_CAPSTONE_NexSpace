@@ -1,5 +1,6 @@
 type Area = { x: number; y: number; width: number; height: number };
 type PhysicalArea = {
+  geometryVersion?: number;
   width: number;
   height: number;
   occupants: Array<Area & { floorPlanId: number; workspaceId: number }>;
@@ -7,10 +8,11 @@ type PhysicalArea = {
 
 /** Find a free rectangle using the vertical edges of existing allocations. */
 export function suggestAllocation(floor: PhysicalArea): Area {
+  const minimum = floor.geometryVersion === 2 ? 0.6 : 1;
   const right = new Set([0, floor.width]);
   for (const area of floor.occupants) {
-    right.add(Math.floor(area.x));
-    right.add(Math.ceil(area.x + area.width));
+    right.add(Math.floor(area.x * 100) / 100);
+    right.add(Math.ceil((area.x + area.width) * 100) / 100);
   }
   // oxlint-disable-next-line unicorn/no-array-sort
   const edges = [...right].sort((a, b) => a - b);
@@ -18,17 +20,17 @@ export function suggestAllocation(floor: PhysicalArea): Area {
   let best: Area | undefined;
   for (let i = 1; i < edges.length; i++) {
     const x = edges[i - 1];
-    const width = edges[i] - x;
-    if (width < 1) continue;
+    const width = Math.round((edges[i] - x) * 100) / 100;
+    if (width < minimum) continue;
     const blocked = floor.occupants.filter((area) => area.x < x + width && area.x + area.width > x);
     // oxlint-disable-next-line unicorn/no-array-sort
     blocked.sort((a, b) => a.y - b.y);
     let y = 0;
     for (const area of [...blocked, { y: floor.height, height: 0 }]) {
-      const height = Math.floor(area.y) - y;
-      if (height >= 1 && (!best || width * height > best.width * best.height))
+      const height = Math.round((Math.floor(area.y * 100) / 100 - y) * 100) / 100;
+      if (height >= minimum && (!best || width * height > best.width * best.height))
         best = { x, y, width, height };
-      y = Math.max(y, Math.ceil(area.y + area.height));
+      y = Math.max(y, Math.ceil((area.y + area.height) * 100) / 100);
     }
   }
   return best ?? full;
@@ -44,8 +46,8 @@ export function allocationError(
     ![area.x, area.y, area.width, area.height].every(Number.isFinite) ||
     area.x < 0 ||
     area.y < 0 ||
-    area.width < 1 ||
-    area.height < 1 ||
+    area.width < (floor.geometryVersion === 2 ? 0.6 : 1) ||
+    area.height < (floor.geometryVersion === 2 ? 0.6 : 1) ||
     area.x + area.width > floor.width ||
     area.y + area.height > floor.height
   )

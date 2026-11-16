@@ -36,6 +36,7 @@ import {
 import type { FloorDecoration, FloorLayout } from '../api/resources';
 import { decorationPresets } from '../utils/decoration-presets';
 import { previewLayout } from '../utils/layout-placement';
+import { pixelsToMetres } from '../utils/metric-units';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { floorLayoutOptions, type Category, type LayoutItem } from '../api/resources';
@@ -163,7 +164,8 @@ export function ResourcePlacementEditor({
   const [dragging, setDragging] = useState(false);
   const [mode, setMode] = useState<'move' | 'pan'>('move');
   const [snap, setSnap] = useState(true);
-  const [grid, setGrid] = useState(10);
+  const [gridOverride, setGrid] = useState<number | null>(null);
+  const grid = gridOverride ?? (query.data?.geometryVersion === 2 ? 6 : 10);
   const [roomView, setRoomView] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -213,7 +215,7 @@ export function ResourcePlacementEditor({
     query.isSuccess
   );
   const gridId = useId().replaceAll(':', '');
-  const visibleGrid = Math.max(10, grid);
+  const visibleGrid = Math.max(query.data?.geometryVersion === 2 ? 6 : 10, grid);
   const canvas = { width: query.data?.width ?? 1200, height: query.data?.height ?? 800 };
   const item: Placement = {
     x: numberOr(value.posX, 0),
@@ -659,9 +661,9 @@ export function ResourcePlacementEditor({
               disabled={locked}
               onChange={(event) => setGrid(Number(event.target.value))}
             >
-              {[1, 5, 10, 20].map((size) => (
+              {(query.data?.geometryVersion === 2 ? [0.6, 3, 6, 30, 60] : [1, 5, 10, 20]).map((size) => (
                 <option key={size} value={size}>
-                  {size} px
+                  {query.data?.geometryVersion === 2 ? `${pixelsToMetres(size)} m` : `${size} px`}
                 </option>
               ))}
             </select>
@@ -837,6 +839,18 @@ export function ResourcePlacementEditor({
               className={shared.bounds ? 'stroke-primary' : 'stroke-border'}
               strokeWidth='1'
             />
+            {query.data?.geometryVersion === 2 && (
+              <g pointerEvents='none' className='fill-muted-foreground stroke-muted-foreground/50' aria-hidden='true'>
+                {Array.from({ length: Math.min(20, Math.floor(canvas.width / 60) + 1) }, (_, index) => {
+                  const x = index * Math.max(60, Math.ceil(canvas.width / 60 / 19) * 60);
+                  return x <= canvas.width ? <g key={`x:${x}`}><path d={`M ${x} 0 v 6`} strokeWidth='0.5' /><text x={x + 3} y={14} stroke='none' fontSize='10'>{pixelsToMetres(x)} m</text></g> : null;
+                })}
+                {Array.from({ length: Math.min(20, Math.floor(canvas.height / 60) + 1) }, (_, index) => {
+                  const y = index * Math.max(60, Math.ceil(canvas.height / 60 / 19) * 60);
+                  return y > 0 && y <= canvas.height ? <g key={`y:${y}`}><path d={`M 0 ${y} h 6`} strokeWidth='0.5' /><text x={8} y={y - 3} stroke='none' fontSize='10'>{pixelsToMetres(y)} m</text></g> : null;
+                })}
+              </g>
+            )}
             {staticPeers.filter((entry) => entry.peer.category === 'ROOM').map(drawPeer)}
             <DecorationLayer
               onSelect={

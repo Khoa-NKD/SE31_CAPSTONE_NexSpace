@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useState, useCallback } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LoaderCircle, Link2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
@@ -53,11 +53,20 @@ export function FloorAllocationDialog({
   const client = useQueryClient();
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
-  const [area, setArea] = useState<AllocationInput | null>(null);
+  const [area, setArea] = useState<AllocationInput | null>(() => current?.location ? {
+    buildingFloorId: current.location.buildingFloorId,
+    x: current.location.x, y: current.location.y, width: current.location.width,
+    height: current.location.height, name: current.name
+  } : null);
   const [name, setName] = useState(current?.name ?? defaultName?.slice(0, 100) ?? '');
   const fixedBuilding = floors.find((f) => f.location)?.location?.buildingId;
   const [selection, setSelection] = useState(() => initialFloorSelection(fixedBuilding));
   const [busy, setBusy] = useState(false);
+  const [measurementEditors, setMeasurementEditors] = useState(0);
+  const measuring = measurementEditors > 0;
+  const setMeasuring = useCallback((editing: boolean) => {
+    setMeasurementEditors(count => Math.max(0, count + (editing ? 1 : -1)));
+  }, []);
   const [error, setError] = useState('');
   const [creatingBuilding, setCreatingBuilding] = useState(false);
   const locations = useQuery(buildingsOptions(actor));
@@ -70,7 +79,7 @@ export function FloorAllocationDialog({
     ?.flatMap((b) => b.floors)
     .find((f) => f.id === area?.buildingFloorId);
   const problem =
-    area && physical ? allocationError(area, physical, workspaceId, current?.id) : null;
+    area && physical ? physical.realWidthM == null || physical.realLengthM == null ? 'measurements' : allocationError(area, physical, workspaceId, current?.id) : null;
   const selectedBuilding = locations.data?.find((b) => b.id === selection.buildingId);
   const batch = floorBatchSelection(
     selection,
@@ -88,7 +97,9 @@ export function FloorAllocationDialog({
         name: c('Floor 1', 'Tầng 1'),
         floorNumber: 1,
         width: 1200,
-        height: 800
+        height: 900,
+        widthM: 20,
+        lengthM: 15
       });
       await locations.refetch();
       if (typeof floorId === 'number') {
@@ -105,7 +116,7 @@ export function FloorAllocationDialog({
     }
   }
   async function save() {
-    if (busy || (current ? !area || !physical || !!problem : !batch.valid)) return;
+    if (busy || measuring || (current ? !area || !physical || !!problem : !batch.valid)) return;
     if (!name.trim()) {
       setError(c('Enter the workspace layout name.', 'Nhập tên sơ đồ của workspace.'));
       return;
@@ -114,7 +125,7 @@ export function FloorAllocationDialog({
     setError('');
     try {
       const linked = current
-        ? [await attachWorkspaceFloor(workspaceId, { ...area!, name: name.trim() }, current)]
+        ? [await attachWorkspaceFloor(workspaceId, { ...area!, name: name.trim() }, previous.data?.floor ?? current)]
         : await attachWorkspaceFloors(
             workspaceId,
             batch.rows.map((row) => row.allocation)
@@ -151,11 +162,13 @@ export function FloorAllocationDialog({
           <DialogTitle className='flex gap-2'>
             <Link2 className='size-5 text-primary' />
             {current
-              ? c('Map existing layout', 'Liên kết sơ đồ hiện có')
+              ? current.location ? c('Edit workspace area', 'Chỉnh vùng workspace') : c('Map existing layout', 'Liên kết sơ đồ hiện có')
               : c('Link workspace to floors', 'Liên kết workspace với các tầng')}
           </DialogTitle>
           <DialogDescription>
-            {current
+            {current?.location
+              ? c('Move or resize the area on its current floor. Resource sizes stay unchanged; the customer map changes after publish.', 'Di chuyển hoặc đổi kích thước vùng trên tầng hiện tại. Giữ nguyên kích thước ghế/phòng; sơ đồ khách hàng đổi sau khi publish.')
+              : current
               ? c(
                   'Keep all layout, resource and booking IDs. Only add the verified physical location.',
                   'Giữ nguyên ID sơ đồ, ghế/phòng và booking. Chỉ bổ sung liên kết vị trí vật lý.'
@@ -226,6 +239,7 @@ export function FloorAllocationDialog({
                     result={batch}
                     fixedBuilding={fixedBuilding}
                     disabled={busy}
+                    onMeasurementEditingChange={setMeasuring}
                   />
                 )
               ) : previous.isPending ? (
@@ -237,13 +251,15 @@ export function FloorAllocationDialog({
               ) : (
                 <BuildingAllocationFields
                   workspaceId={workspaceId}
+                  onMeasurementEditingChange={setMeasuring}
                   disabled={busy}
                   currentLayoutId={current?.id}
                   buildingId={buildingId}
+                  fixedFloorId={current?.location?.buildingFloorId}
                   value={area}
                   onChange={setArea}
                   fixedSize={
-                    current && previous.data?.width && previous.data.height
+                    current && !current.location && previous.data?.width && previous.data.height
                       ? { width: previous.data.width, height: previous.data.height }
                       : undefined
                   }
@@ -273,7 +289,7 @@ export function FloorAllocationDialog({
               <Button
                 type='submit'
                 disabled={
-                  busy ||
+                  busy || measuring ||
                   !name.trim() ||
                   (current ? !area || !physical || !!problem || !previous.data : !batch.valid)
                 }

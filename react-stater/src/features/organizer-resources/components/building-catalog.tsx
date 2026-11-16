@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { metresToPixels } from '../utils/metric-units';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
@@ -55,8 +56,9 @@ export function BuildingCatalog({
   const [name, setName] = useState('');
   const [address, setAddress] = useState('');
   const [number, setNumber] = useState('1');
-  const [width, setWidth] = useState('1200');
-  const [height, setHeight] = useState('800');
+  const [width, setWidth] = useState('20');
+  const [height, setHeight] = useState('15');
+  const metricFloor = edit?.kind === 'floor' && (!edit.current || edit.current.geometryVersion === 2);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const open = (next: Edit) => {
@@ -71,8 +73,8 @@ export function BuildingCatalog({
             Math.max(0, ...next.building.floors.map((f) => f.floorNumber)) + 1
         )
       );
-      setWidth(String(next.current?.width ?? 1200));
-      setHeight(String(next.current?.height ?? 800));
+      setWidth(String(next.current ? next.current.geometryVersion === 2 ? next.current.realWidthM : next.current.width : 20));
+      setHeight(String(next.current ? next.current.geometryVersion === 2 ? next.current.realLengthM : next.current.height : 15));
     }
   };
   const save = async () => {
@@ -87,7 +89,7 @@ export function BuildingCatalog({
       (!/^-?\d+$/.test(number) ||
         Number(number) < -20 ||
         Number(number) > 500 ||
-        ![Number(width), Number(height)].every((v) => Number.isFinite(v) && v >= 1 && v <= 100000))
+        ![Number(width), Number(height)].every((v) => Number.isFinite(v) && v >= (metricFloor ? 0.01 : 1) && v <= (metricFloor ? 10000 : 100000)))
     ) {
       setError(c('Check the floor number and dimensions.', 'Kiểm tra số tầng và kích thước.'));
       return;
@@ -106,8 +108,9 @@ export function BuildingCatalog({
           {
             name: name.trim(),
             floorNumber: Number(number),
-            width: Number(width),
-            height: Number(height)
+            width: metricFloor ? metresToPixels(Number(width)) : Number(width),
+            height: metricFloor ? metresToPixels(Number(height)) : Number(height),
+            ...(metricFloor ? { widthM: Number(width), lengthM: Number(height) } : {})
           },
           edit.current
         );
@@ -228,7 +231,7 @@ export function BuildingCatalog({
                     </div>
                   </div>
                   <p className='text-xs text-muted-foreground'>
-                    {f.width} × {f.height} px · {f.occupants.length} workspace
+                    {f.realWidthM && f.realLengthM ? `${f.realWidthM} × ${f.realLengthM} m` : `${f.width} × ${f.height} px`} · {f.occupants.length} workspace
                   </p>
                   <div className='mt-2 flex flex-wrap gap-2'>
                     {f.occupants.map((o) => (
@@ -325,8 +328,8 @@ export function BuildingCatalog({
                     <div className='grid grid-cols-3 gap-3'>
                       {[
                         [c('Floor number', 'Số tầng'), number, setNumber],
-                        [c('Width (px)', 'Rộng (px)'), width, setWidth],
-                        [c('Height (px)', 'Cao (px)'), height, setHeight]
+                        [metricFloor ? c('Width (m)', 'Dài — ngang (m)') : c('Width (px)', 'Dài — ngang (px)'), width, setWidth],
+                        [metricFloor ? c('Length (m)', 'Rộng — dọc (m)') : c('Height (px)', 'Rộng — dọc (px)'), height, setHeight]
                       ].map(([label, v, setter]) => (
                         <label key={String(label)} className='space-y-2 text-xs'>
                           {String(label)}
@@ -343,8 +346,8 @@ export function BuildingCatalog({
                     </div>
                     <p className='text-xs text-muted-foreground'>
                       {c(
-                        'Floor numbers are unique within a building. Dimensions cannot change once a workspace is attached.',
-                        'Số tầng duy nhất trong tòa nhà. Không đổi kích thước khi đã có workspace sử dụng.'
+                        'Floor numbers are unique within a building. Edit shared floor dimensions through the reviewed measurement form when linking or designing workspace areas.',
+                        'Số tầng duy nhất trong tòa nhà. Tầng đã có workspace: sửa kích thước qua bước liên kết tầng hoặc trình thiết kế để kiểm tra các vùng đang dùng.'
                       )}
                     </p>
                   </>

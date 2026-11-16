@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { allocationError } from '../../src/features/organizer-resources/utils/building-allocation.ts';
+import { suggestAllocation, allocationError } from '../../src/features/organizer-resources/utils/building-allocation.ts';
 
 const floor = {
   width: 2400,
@@ -17,4 +17,12 @@ test('workspace cannot attach the same physical floor twice; explicitly mapping 
   assert.equal(allocationError(area, floor, 1), 'duplicate');
   assert.equal(allocationError(area, floor, 1, 10), null);
   assert.equal(allocationError({ ...area, x: NaN }, floor, 2), 'bounds');
+});
+
+test('metric gaps preserve the one-centimetre allocation minimum', () => {
+  const floor = { geometryVersion: 2, width: 1.2, height: 0.6,
+    occupants: [{ workspaceId: 1, floorPlanId: 1, x: 0, y: 0, width: 0.6, height: 0.6 }] };
+  const next = suggestAllocation(floor);
+  assert.deepEqual(next, { x: 0.6, y: 0, width: 0.6, height: 0.6 });
+  assert.equal(allocationError(next, floor, 2), null);
 });

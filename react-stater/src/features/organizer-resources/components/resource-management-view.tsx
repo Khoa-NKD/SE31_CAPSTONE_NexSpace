@@ -13,6 +13,7 @@ import {
   Search,
   RefreshCw,
   Pencil,
+  Trash2,
   Settings2,
   LoaderCircle,
   ChevronLeft,
@@ -41,10 +42,16 @@ import {
   invalidateResources,
   setResourceStatus,
   deleteResource,
+  deleteResourceType,
   resourceMoney,
   canConfigureWorkspaceResources
 } from '../api/resources';
-import type { ResourceDetail, ResourceFilters, TypeOption } from '../api/resources';
+import type {
+  ResourceDetail,
+  ResourceFilters,
+  TypeOption,
+  ResourceOptions
+} from '../api/resources';
 import { ResourceEditor, ResourceSetupDialog } from './resource-editor';
 import { WorkspaceSelector } from './workspace-selector';
 
@@ -91,6 +98,10 @@ export function ResourceManagementView({
   const [editor, setEditor] = useState<ResourceDetail | 'new' | null>(initialCreate ? 'new' : null);
   const [setup, setSetup] = useState<{ kind: 'floor' | 'type'; current?: TypeOption } | null>(null);
   const [typesOpen, setTypesOpen] = useState(false);
+  const [removeType, setRemoveType] = useState<{ workspaceId: number; type: TypeOption } | null>(
+    null
+  );
+  const [typeDeleteError, setTypeDeleteError] = useState('');
   const [floorManager, setFloorManager] = useState(false);
   const [remove, setRemove] = useState<ResourceDetail | null>(null);
   const [bulkStatus, setBulkStatus] = useState<'ACTIVE' | 'DISABLED' | null>(null);
@@ -130,6 +141,56 @@ export function ResourceManagementView({
   async function saved() {
     await invalidateResources(client, actorId);
     setNotice({ success: c('Saved successfully.', 'Đã lưu thành công.'), error: '' });
+  }
+  async function confirmTypeDeletion() {
+    if (!removeType || operation.current || !writable) return;
+    const target = removeType;
+    operation.current = true;
+    setBusy(true);
+    setTypeDeleteError('');
+    try {
+      await deleteResourceType(target.workspaceId, target.type);
+      const key = resourceOptions(actorId, target.workspaceId).queryKey;
+      await client.cancelQueries({ queryKey: key, exact: true });
+      client.setQueryData<ResourceOptions>(key, (previous) =>
+        previous
+          ? {
+              ...previous,
+              types: previous.types.filter((type) => type.id !== target.type.id)
+            }
+          : previous
+      );
+      setRemoveType(null);
+      await invalidateResources(client, actorId);
+      setNotice({ success: c('Resource type deleted.', 'Đã xóa loại chỗ.'), error: '' });
+    } catch (failure) {
+      const message =
+        failure instanceof Error
+          ? failure.message
+          : c('Could not delete the resource type.', 'Không thể xóa loại chỗ.');
+      setTypeDeleteError(
+        message.startsWith('This resource type is still used by ')
+          ? c(
+              'This type is still used by seats or rooms, including drafts, disabled and archived records. It cannot be deleted.',
+              'Không thể xóa: vẫn còn ghế/phòng sử dụng loại chỗ này, kể cả bản nháp, đã tắt hoặc lưu trữ.'
+            )
+          : message === 'This resource type is linked to pricing or discount rules'
+            ? c(
+                'Remove the linked pricing or discount rules before deleting this type.',
+                'Không thể xóa: loại chỗ còn liên kết với quy tắc giá hoặc giảm giá. Cần xử lý các quy tắc liên quan trước.'
+              )
+            : message === 'The resource type changed. Refresh before deleting it'
+              ? c(
+                  'This type changed. Close this confirmation and choose Delete again to review the latest data.',
+                  'Loại chỗ đã thay đổi. Đóng hộp thoại rồi chọn Xóa lại để kiểm tra dữ liệu mới nhất.'
+                )
+              : message
+      );
+      await invalidateResources(client, actorId);
+    } finally {
+      operation.current = false;
+      setBusy(false);
+    }
   }
   async function act<T>(
     action: () => Promise<T>,
@@ -256,10 +317,17 @@ export function ResourceManagementView({
     <div className='mx-auto w-full max-w-[1600px] space-y-6 pb-6'>
       <OrganizerPageHeader
         title={c('Seats & Rooms', 'Quản lý ghế & phòng')}
-        description={c('Manage seats, rooms and booking availability.', 'Quản lý ghế, phòng và trạng thái nhận đặt.')}
+        description={c(
+          'Manage seats, rooms and booking availability.',
+          'Quản lý ghế, phòng và trạng thái nhận đặt.'
+        )}
         icon={<Armchair aria-hidden='true' />}
       >
-        <Button size='sm' disabled={!writable || busy || !options.data} onClick={() => openEditor('new')}>
+        <Button
+          size='sm'
+          disabled={!writable || busy || !options.data}
+          onClick={() => openEditor('new')}
+        >
           <Plus className='size-4' />
           {c('Create resource', 'Tạo ghế/phòng')}
         </Button>
@@ -589,7 +657,12 @@ export function ResourceManagementView({
           onSaved={saved}
         />
       )}
-      <Dialog open={typesOpen} onOpenChange={setTypesOpen}>
+      <Dialog
+        open={typesOpen}
+        onOpenChange={(open) => {
+          if (!busy) setTypesOpen(open);
+        }}
+      >
         <DialogContent className='max-h-[85dvh] overflow-y-auto sm:max-w-2xl'>
           <DialogHeader>
             <DialogTitle>{c('Resource types & base prices', 'Loại chỗ & giá cơ bản')}</DialogTitle>
@@ -640,23 +713,39 @@ export function ResourceManagementView({
                     </p>
                   )}
                 </div>
-                <Button
-                  variant='outline'
-                  size='sm'
-                  disabled={!writable}
-                  onClick={() => {
-                    setTypesOpen(false);
-                    openSetup({ kind: 'type', current: type });
-                  }}
-                >
-                  <Pencil className='size-3.5' />
-                  {c('Edit', 'Sửa')}
-                </Button>
+                <div className='flex shrink-0 flex-wrap justify-end gap-2'>
+                  <Button
+                    variant='outline'
+                    size='sm'
+                    disabled={!writable || busy}
+                    onClick={() => {
+                      setTypesOpen(false);
+                      openSetup({ kind: 'type', current: type });
+                    }}
+                  >
+                    <Pencil className='size-3.5' />
+                    {c('Edit', 'Sửa')}
+                  </Button>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='sm'
+                    className='text-destructive hover:bg-destructive/10 hover:text-destructive'
+                    disabled={!writable || busy}
+                    onClick={() => {
+                      setTypeDeleteError('');
+                      setRemoveType({ workspaceId: selectedId, type });
+                    }}
+                  >
+                    <Trash2 className='size-3.5' />
+                    {c('Delete', 'Xóa')}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
           <Button
-            disabled={!writable}
+            disabled={!writable || busy}
             onClick={() => {
               setTypesOpen(false);
               openSetup({ kind: 'type' });
@@ -665,6 +754,58 @@ export function ResourceManagementView({
             <Plus className='size-4' />
             {c('Add resource type', 'Thêm loại chỗ')}
           </Button>
+        </DialogContent>
+      </Dialog>
+      <Dialog
+        open={!!removeType}
+        onOpenChange={(open) => {
+          if (!open && !busy) setRemoveType(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{c('Delete this resource type?', 'Xóa loại chỗ này?')}</DialogTitle>
+            <DialogDescription>
+              {c(
+                'Only unused types can be deleted. Existing seats/rooms, archived records and pricing or discount rules block deletion.',
+                'Chỉ xóa được loại chỗ chưa được sử dụng. Ghế/phòng trên sơ đồ, bản nháp, bản lưu trữ và quy tắc giá/giảm giá liên quan sẽ chặn thao tác này.'
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <p className='rounded-xl bg-muted px-3 py-2 text-sm font-medium'>
+            {removeType?.type.name}
+          </p>
+          {typeDeleteError && (
+            <p
+              role='alert'
+              className='rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive'
+            >
+              {typeDeleteError}
+            </p>
+          )}
+          <div className='flex justify-end gap-2'>
+            <Button
+              type='button'
+              variant='outline'
+              disabled={busy}
+              onClick={() => setRemoveType(null)}
+            >
+              {c('Cancel', 'Hủy')}
+            </Button>
+            <Button
+              type='button'
+              variant='destructive'
+              disabled={busy || !writable}
+              onClick={() => void confirmTypeDeletion()}
+            >
+              {busy ? (
+                <LoaderCircle className='size-4 animate-spin' />
+              ) : (
+                <Trash2 className='size-4' />
+              )}
+              {c('Delete type', 'Xóa loại chỗ')}
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
       <Dialog
