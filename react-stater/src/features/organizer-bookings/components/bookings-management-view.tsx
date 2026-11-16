@@ -396,7 +396,7 @@ export function BookingsManagementView() {
       await approveMutation.mutateAsync({ id: booking.id });
       refetch();
       toast.success(`Booking ${booking.bookingCode} approved`, {
-        description: 'Customer can now proceed to payment within 15 minutes.'
+        description: 'Customer can now proceed to payment within hold duration.'
       });
     } catch {
       toast.error('Failed to approve booking request');

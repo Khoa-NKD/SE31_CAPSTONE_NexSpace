@@ -108,9 +108,10 @@ export function PublicFloorMap({
 
   function shape(resource: MapResource) {
     const avail = availabilityMap?.get(resource.id);
-    const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
+    const isBooked = avail?.state === 'BOOKED';
+    const isLocked = avail?.state === 'LOCKED';
     const isMaintenance = avail?.state === 'MAINTENANCE';
-    const isAvailable = (!avail || avail.state === 'AVAILABLE') && resource.selectable && !isBooked && !isMaintenance;
+    const isAvailable = (!avail || avail.state === 'AVAILABLE') && resource.selectable && !isBooked && !isLocked && !isMaintenance;
     const isCurrentSelected = activeSelectedId === resource.id;
     const matchesCurrentFilter = matchesSpaceCategory(resource, filterCategory);
 
@@ -128,6 +129,8 @@ export function PublicFloorMap({
     if (isCurrentSelected) {
       fillColor = 'fill-primary/25 stroke-primary stroke-[3px] shadow-lg';
     } else if (isBooked) {
+      fillColor = 'fill-rose-500/20 stroke-rose-600 dark:stroke-rose-400';
+    } else if (isLocked) {
       fillColor = 'fill-amber-500/15 stroke-amber-500/70 [stroke-dasharray:3_3]';
     } else if (isMaintenance) {
       fillColor = 'fill-muted/30 stroke-muted-foreground/40';
@@ -142,10 +145,12 @@ export function PublicFloorMap({
       : c('Desk', 'Bàn làm việc');
 
     const titleText = isBooked
-      ? `${resource.name} · ${resource.code} (${c('Booked / Reserved', 'Đã có người đặt / Đang giữ')})`
-      : isMaintenance
-        ? `${resource.name} · ${resource.code} (${c('Maintenance', 'Bảo trì')})`
-        : `${resource.name} · ${resource.code} (${typeLabel} • ${capacityText} ${c('seats', 'chỗ')} • ${c('Available', 'Còn trống')})`;
+      ? `${resource.name} · ${resource.code} (${c('Booked / Confirmed', 'Đã có người đặt')})`
+      : isLocked
+        ? `${resource.name} · ${resource.code} (${c('Holding / In Checkout', 'Đang giữ chỗ')})`
+        : isMaintenance
+          ? `${resource.name} · ${resource.code} (${c('Maintenance', 'Bảo trì')})`
+          : `${resource.name} · ${resource.code} (${typeLabel} • ${capacityText} ${c('seats', 'chỗ')} • ${c('Available', 'Còn trống')})`;
 
     const opacityClass = matchesCurrentFilter
       ? 'opacity-100'

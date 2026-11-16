@@ -647,7 +647,7 @@ export const workspaceService = {
   },
 
   /**
-   * Tạo đơn đặt chỗ mới và giữ chỗ 15 phút.
+   * Tạo đơn đặt chỗ mới và giữ chỗ 10 phút.
    */
   async createBooking(payload: CreateBookingPayload): Promise<BookingDto> {
     return apiClient.post<BookingDto>('/bookings', payload);
@@ -675,7 +675,7 @@ export const workspaceService = {
   },
 
   /**
-   * Hủy đơn đặt chỗ hoặc hủy giữ chỗ 15 phút.
+   * Hủy đơn đặt chỗ hoặc hủy giữ chỗ 10 phút.
    */
   async cancelBooking(bookingId: number | string, reason?: string): Promise<BookingDto> {
     const url = `/bookings/${bookingId}/cancel${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`;

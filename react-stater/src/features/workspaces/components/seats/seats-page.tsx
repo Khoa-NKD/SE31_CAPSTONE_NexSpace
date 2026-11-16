@@ -284,18 +284,22 @@ export function SeatsPage({
               </div>
 
               {/* Status Legend */}
-              <div className='flex items-center gap-3 text-xs bg-muted/40 border border-border/80 rounded-xl px-3 py-1.5'>
+              <div className='flex flex-wrap items-center gap-3 text-xs bg-muted/40 border border-border/80 rounded-xl px-3 py-1.5'>
                 <div className='flex items-center gap-1.5'>
                   <span className='size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20' />
                   <span className='text-foreground font-medium'>{c('Available', 'Còn trống')}</span>
                 </div>
                 <div className='flex items-center gap-1.5'>
-                  <span className='size-2.5 rounded-full bg-amber-500' />
-                  <span>{c('Booked / Hold', 'Đã đặt / Đang giữ')}</span>
+                  <span className='size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20' />
+                  <span className='text-amber-700 dark:text-amber-400 font-medium'>{c('Holding', 'Đang giữ chỗ')}</span>
+                </div>
+                <div className='flex items-center gap-1.5'>
+                  <span className='size-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/20' />
+                  <span className='text-rose-700 dark:text-rose-400 font-medium'>{c('Booked', 'Đã có người đặt')}</span>
                 </div>
                 <div className='flex items-center gap-1.5'>
                   <span className='size-2.5 rounded-full bg-muted-foreground/40' />
-                  <span>{c('Maintenance', 'Bảo trì')}</span>
+                  <span className='text-muted-foreground'>{c('Maintenance', 'Bảo trì')}</span>
                 </div>
               </div>
             </div>
@@ -404,7 +408,7 @@ export function SeatsPage({
                       onClick={handleProceedToReview}
                       className='h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer'
                     >
-                      <span>{c('Review & Hold 15 Min', 'Xem lại & Giữ chỗ 15 phút')}</span>
+                      <span>{c('Review & Hold Seat', 'Xem lại & Giữ chỗ')}</span>
                       <ArrowRight className='size-4' />
                     </Button>
                   </div>

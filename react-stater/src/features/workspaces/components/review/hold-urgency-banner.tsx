@@ -11,7 +11,7 @@ interface HoldUrgencyBannerProps {
 export function HoldUrgencyBanner({
   seatCode = 'Selected Station',
   expiresAt,
-  initialSeconds = 900,
+  initialSeconds = 600,
   holdExpiresAt
 }: HoldUrgencyBannerProps) {
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
@@ -26,7 +26,7 @@ export function HoldUrgencyBanner({
     return () => clearInterval(timer);
   }, []);
 
-  const expiryTimestamp = expiresAt ? new Date(expiresAt).getTime() : 0;
+  const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
   const secondsRemaining = expiryTimestamp > 0
     ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
     : initialSeconds;
@@ -51,7 +51,9 @@ export function HoldUrgencyBanner({
           <div>
             <div className='flex items-center gap-2'>
               <span className='font-sans text-base font-bold text-amber-950 dark:text-amber-200'>
-                15-Minute Hold Active
+                {secondsRemaining > 0
+                  ? `${Math.max(1, Math.ceil(totalSeconds / 60))}-Minute Hold Active`
+                  : 'Hold Expired'}
               </span>
               <span className='inline-flex items-center rounded-full bg-amber-200/80 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-900 dark:bg-amber-500/30 dark:text-amber-300'>
                 Reserved

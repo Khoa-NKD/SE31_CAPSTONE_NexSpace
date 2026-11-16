@@ -78,7 +78,7 @@ export function PayOSCheckoutDialog({
   const expiryTimestamp = checkoutData?.expiresAt ? new Date(checkoutData.expiresAt).getTime() : 0;
   const secondsRemaining = expiryTimestamp > 0
     ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
-    : 900;
+    : 600;
 
   const isExpired =
     !isConfirmed &&

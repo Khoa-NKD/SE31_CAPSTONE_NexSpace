@@ -100,6 +100,7 @@ export function BookingReviewPage({
         <HoldUrgencyBanner
           seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
           holdExpiresAt={activeBooking?.holdExpiresAt || holdData?.holdExpiresAt}
+          initialSeconds={holdData?.remainingSeconds ? Number(holdData.remainingSeconds) : 600}
         />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}

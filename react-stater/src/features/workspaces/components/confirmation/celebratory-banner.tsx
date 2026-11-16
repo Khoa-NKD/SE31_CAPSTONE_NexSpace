@@ -50,7 +50,7 @@ export function CelebratoryBanner({
 
       <p className='text-muted-foreground mt-1.5 max-w-[460px] text-xs sm:text-sm leading-relaxed'>
         {isHold
-          ? 'Your 15-minute seat reservation is active. Digital access pass is ready for check-in upon payment.'
+          ? 'Your temporary seat reservation is active. Digital access pass is ready for check-in upon payment.'
           : `Your digital access pass has been generated. Confirmation receipt sent to `}
         <span className='text-foreground underline decoration-primary/40 underline-offset-2 font-medium'>
           {email}
