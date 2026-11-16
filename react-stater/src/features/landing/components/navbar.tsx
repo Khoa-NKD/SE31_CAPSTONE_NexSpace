@@ -1,6 +1,17 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from '@tanstack/react-router';
-import { Building2, Check, ChevronDown, Menu, X, DoorClosed, DoorOpen, ShieldCheck } from 'lucide-react';
+import { Link, useNavigate, useLocation } from '@tanstack/react-router';
+import {
+  Building2,
+  Check,
+  ChevronDown,
+  Menu,
+  X,
+  ShieldCheck,
+  CalendarCheck,
+  SlidersHorizontal,
+  Compass,
+  Sparkles
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -8,7 +19,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger
+} from '@/components/ui/sheet';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage } from '../context/language-context';
@@ -17,156 +35,140 @@ import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
 
-export function Navbar() {
+interface NavbarProps {
+  sticky?: boolean;
+}
+
+export function Navbar({ sticky = true }: NavbarProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
   const { currency, setCurrency } = useCurrency();
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const user = useAuthStore((state) => state.user);
+  const userRole = getUserRole(user);
 
   const handleMobileNavigate = (to: string) => {
     setMobileMenuOpen(false);
     navigate({ to });
   };
 
-  const navItems = [
-    { label: language === 'vi' ? 'Trang chủ' : 'Home', href: '/' },
-    { label: t('nav.workspaces'), href: '/workspaces' },
-    ...(isAuthenticated && getUserRole(user) === 'USER'
-      ? [{ label: language === 'vi' ? 'Sở thích không gian' : 'Space Preferences', href: '/dashboard/preferences' }]
-      : []),
-    { label: t('nav.platform'), href: '#platform' },
-    { label: t('nav.reviews'), href: '#reviews' },
-    { label: t('nav.resources'), href: '#resources' }
-  ];
-
-  const solutionItems = [
-    {
-      title: t('solutions.enterprise.title'),
-      description: t('solutions.enterprise.desc'),
-      href: '#enterprise'
-    },
-    {
-      title: t('solutions.teams.title'),
-      description: t('solutions.teams.desc'),
-      href: '#teams'
-    },
-    {
-      title: t('solutions.landlords.title'),
-      description: t('solutions.landlords.desc'),
-      href: '/organizer/apply'
+  const handleHowItWorksClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    setMobileMenuOpen(false);
+    if (location.pathname === '/') {
+      const target = document.getElementById('how-it-works');
+      if (target) {
+        e.preventDefault();
+        target.scrollIntoView({ behavior: 'smooth' });
+      }
     }
-  ];
+  };
 
   return (
-    <header className='border-border/80 sticky top-0 z-50 w-full border-b bg-white/85 backdrop-blur-md transition-all dark:bg-slate-950/85'>
-      <div className='mx-auto flex h-[72px] w-full max-w-[1440px] items-center justify-between px-6 lg:px-12'>
-        {/* Brand Logo - Điều hướng về trang đầu tiên theo Role của User */}
-        <div className='flex items-center gap-6'>
+    <header
+      className={`${
+        sticky ? 'sticky top-0 z-50' : 'relative z-30'
+      } w-full border-b border-slate-200/80 bg-white/90 backdrop-blur-md transition-colors dark:border-slate-800/80 dark:bg-slate-950/90`}
+    >
+      <div className='flex h-16 sm:h-[68px] w-full items-center justify-between gap-4 px-4 sm:px-6 lg:px-8 xl:px-12'>
+        {/* Brand Logo - Aligned to left corner */}
+        <div className='flex flex-1 items-center justify-start shrink-0'>
           <button
             type='button'
             onClick={() => navigate({ to: getRoleHomeUrl(user) })}
-            className='focus-visible:ring-indigo-600 flex items-center gap-4 rounded-lg p-1 transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 border-none bg-transparent cursor-pointer'
+            className='flex cursor-pointer items-center rounded-lg border-none bg-transparent p-1 transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none'
             title='NexSpace Home'
             aria-label='NexSpace Home'
           >
-            <NexSpaceLogo className='mr-8 h-9 w-auto cursor-pointer' />
+            <NexSpaceLogo className='h-8 sm:h-9 w-auto cursor-pointer' />
           </button>
         </div>
 
-        {/* Center Desktop Navigation */}
-        <nav aria-label='Main Navigation' className='hidden items-center space-x-7 md:flex'>
-          {navItems.map((item) => {
-            const isInternal = item.href.startsWith('/');
-            return isInternal ? (
-              <Link
-                key={item.href}
-                to={item.href}
-                className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors duration-150 active:scale-[0.98]'
-              >
-                {item.label}
-              </Link>
-            ) : (
-              <a
-                key={item.href}
-                href={item.href}
-                className='text-muted-foreground hover:text-foreground text-sm font-medium transition-colors duration-150 active:scale-[0.98]'
-              >
-                {item.label}
-              </a>
-            );
-          })}
-
-          {/* Solutions Dropdown Menu */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button
-                type='button'
-                className='text-muted-foreground hover:text-foreground flex cursor-pointer items-center gap-1 text-sm font-medium transition-colors outline-none active:scale-[0.98]'
-              >
-                <span>{t('nav.solutions')}</span>
-                <ChevronDown className='h-4 w-4 transition-transform duration-200' />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='start' className='w-72 p-2 shadow-lg'>
-              {solutionItems.map((solution) => (
-                <DropdownMenuItem key={solution.title} asChild className='cursor-pointer'>
-                  <a
-                    href={solution.href}
-                    className='hover:bg-muted flex flex-col items-start rounded-lg p-2.5 transition-colors'
-                  >
-                    <span className='text-foreground text-sm font-semibold'>{solution.title}</span>
-                    <span className='text-muted-foreground text-xs'>{solution.description}</span>
-                  </a>
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </nav>
-
-        {/* Right Trailing Actions */}
-        <div className='flex items-center space-x-1.5 sm:space-x-2'>
-          {/* Zone 1: Secondary Access Text Links */}
-          {/* 1. Partner Action: List Your Space (Sleek text link with Host indicator) */}
-          <a
-            href='/organizer/apply'
-            className='group hidden cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:text-indigo-600 xl:inline-flex dark:hover:text-indigo-400'
+        {/* Center Primary Navigation (Single-line, strictly centered) */}
+        <nav
+          aria-label='Primary Navigation'
+          className='hidden md:flex shrink-0 items-center justify-center gap-5 lg:gap-7 whitespace-nowrap'
+        >
+          <Link
+            to='/workspaces'
+            className='whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
+            activeProps={{
+              className:
+                'whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
+            }}
           >
-            <Building2 className='h-3.5 w-3.5 text-muted-foreground transition-transform duration-150 group-hover:scale-110 group-hover:text-indigo-600 dark:group-hover:text-indigo-400' />
-            <span>{t('nav.listSpace')}</span>
-            <span className='rounded-full bg-indigo-600/10 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-indigo-600 dark:bg-indigo-400/20 dark:text-indigo-300'>
-              {t('nav.hostBadge')}
-            </span>
+            {t('nav.exploreWorkspaces')}
+          </Link>
+
+          <a
+            href='/#how-it-works'
+            onClick={handleHowItWorksClick}
+            className='whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
+          >
+            {t('nav.howItWorks')}
           </a>
 
+          <Link
+            to='/organizer/apply'
+            className='whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
+            activeProps={{
+              className:
+                'whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
+            }}
+          >
+            {t('nav.listSpace')}
+          </Link>
 
+          {isAuthenticated && userRole === 'USER' && (
+            <>
+              <Link
+                to='/workspaces/my-bookings'
+                className='whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
+                activeProps={{
+                  className:
+                    'whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
+                }}
+              >
+                {t('nav.myBookings')}
+              </Link>
+              <Link
+                to='/dashboard/preferences'
+                className='hidden lg:inline-flex whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
+                activeProps={{
+                  className:
+                    'hidden lg:inline-flex whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
+                }}
+              >
+                {t('nav.preferences')}
+              </Link>
+            </>
+          )}
+        </nav>
 
-          {/* Hairline Divider between Links and Controls */}
-          <div className='hidden h-4 w-px bg-border/60 sm:block' />
-
-          {/* Zone 2: Micro-Utility Capsule (Unified Theme Toggle & Language Dropdown) */}
-          <div className='flex items-center rounded-full border border-border/80 bg-background/80 p-0.5 shadow-2xs backdrop-blur-md'>
-            {/* Embedded Compact Theme Mode Toggle */}
+        {/* Right Controls - Aligned to right corner */}
+        <div className='flex flex-1 items-center justify-end gap-2 sm:gap-2.5 whitespace-nowrap'>
+          {/* Utility Capsule: Theme, Language, Currency */}
+          <div className='flex items-center rounded-full border border-slate-200/90 bg-slate-50/80 p-0.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80'>
             <ThemeModeToggle compact />
 
-            {/* Micro Divider */}
-            <div className='mx-0.5 h-3.5 w-px bg-border/70' />
+            <div className='mx-0.5 h-3.5 w-px bg-slate-200 dark:bg-slate-800' />
 
-            {/* Embedded Language Switcher */}
+            {/* Language Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type='button'
                   aria-label='Chuyển đổi ngôn ngữ / Switch Language'
-                  className='flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95 outline-none'
+                  className='flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                 >
-                  <span className='text-sm leading-none'>{language === 'vi' ? '🇻🇳' : '🇺🇸'}</span>
-                  <span className='text-[11px] font-bold uppercase tracking-wider'>{language}</span>
+                  <span className='text-[11px] font-bold uppercase tracking-wider'>
+                    {language}
+                  </span>
                   <ChevronDown className='h-3 w-3 opacity-60' />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44 p-1.5 shadow-lg'>
+              <DropdownMenuContent align='end' className='w-40 p-1.5 shadow-lg'>
                 <DropdownMenuItem
                   onSelect={() => setLanguage('vi')}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
@@ -176,8 +178,8 @@ export function Navbar() {
                   }`}
                 >
                   <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none'>🇻🇳</span>
-                    <span>Tiếng Việt (VI)</span>
+                    <span>🇻🇳</span>
+                    <span>Tiếng Việt</span>
                   </div>
                   {language === 'vi' && (
                     <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
@@ -192,8 +194,8 @@ export function Navbar() {
                   }`}
                 >
                   <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none'>🇺🇸</span>
-                    <span>English (EN)</span>
+                    <span>🇺🇸</span>
+                    <span>English</span>
                   </div>
                   {language === 'en' && (
                     <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
@@ -202,25 +204,23 @@ export function Navbar() {
               </DropdownMenuContent>
             </DropdownMenu>
 
-            {/* Micro Divider */}
-            <div className='mx-0.5 h-3.5 w-px bg-border/70' />
+            <div className='hidden sm:block mx-0.5 h-3.5 w-px bg-slate-200 dark:bg-slate-800' />
 
-            {/* Embedded Currency Switcher */}
+            {/* Currency Selector */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button
                   type='button'
                   aria-label='Change Currency'
-                  className='flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-muted-foreground transition-all duration-150 hover:bg-muted hover:text-foreground active:scale-95 outline-none'
+                  className='hidden sm:flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                 >
-                  <span className='text-sm leading-none font-bold'>
-                    {currency === 'VND' ? '₫' : '$'}
+                  <span className='text-[11px] font-bold uppercase tracking-wider'>
+                    {currency === 'VND' ? '₫ VND' : '$ USD'}
                   </span>
-                  <span className='text-[11px] font-bold uppercase tracking-wider'>{currency}</span>
                   <ChevronDown className='h-3 w-3 opacity-60' />
                 </button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-44 p-1.5 shadow-lg'>
+              <DropdownMenuContent align='end' className='w-40 p-1.5 shadow-lg'>
                 <DropdownMenuItem
                   onSelect={() => setCurrency('USD')}
                   className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
@@ -229,10 +229,7 @@ export function Navbar() {
                       : 'text-foreground hover:bg-muted'
                   }`}
                 >
-                  <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none font-bold'>$</span>
-                    <span>USD ($)</span>
-                  </div>
+                  <span>USD ($)</span>
                   {currency === 'USD' && (
                     <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
                   )}
@@ -245,10 +242,7 @@ export function Navbar() {
                       : 'text-foreground hover:bg-muted'
                   }`}
                 >
-                  <div className='flex items-center gap-2'>
-                    <span className='text-base leading-none font-bold'>₫</span>
-                    <span>VND (₫)</span>
-                  </div>
+                  <span>VND (₫)</span>
                   {currency === 'VND' && (
                     <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
                   )}
@@ -257,20 +251,30 @@ export function Navbar() {
             </DropdownMenu>
           </div>
 
-          {/* Zone 3: Sole Radiant CTA Button OR Authenticated User Profile */}
+          {/* Auth / Account Controls */}
           {isAuthenticated ? (
-            <div className='flex items-center gap-2 pl-1'>
-              {getUserRole(user) === 'ADMIN' && (
+            <div className='flex items-center gap-2 pl-0.5'>
+              {userRole === 'ADMIN' && (
                 <button
                   type='button'
                   onClick={() => {
                     useAuthStore.getState().setAdminViewMode('admin');
                     navigate({ to: '/dashboard/overview' });
                   }}
-                  className='hidden sm:inline-flex items-center gap-1.5 rounded-full bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer active:scale-95'
+                  className='hidden sm:inline-flex whitespace-nowrap items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer'
                 >
                   <ShieldCheck className='size-3.5' />
-                  <span>Về Trang Quản trị</span>
+                  <span>{t('nav.adminPortal')}</span>
+                </button>
+              )}
+              {userRole === 'ORGANIZER' && (
+                <button
+                  type='button'
+                  onClick={() => navigate({ to: '/dashboard/organizer' })}
+                  className='hidden sm:inline-flex whitespace-nowrap items-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 text-xs font-semibold text-white shadow-xs transition-colors cursor-pointer'
+                >
+                  <Building2 className='size-3.5' />
+                  <span>{t('nav.organizerPortal')}</span>
                 </button>
               )}
               <UserNav />
@@ -278,114 +282,174 @@ export function Navbar() {
           ) : (
             <Link
               to='/auth/sign-in'
-              className='group flex cursor-pointer items-center gap-1.5 rounded-full bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] px-4 py-2 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg hover:shadow-indigo-500/30 active:scale-[0.98]'
+              className='hidden sm:inline-flex whitespace-nowrap shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all duration-150 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none'
             >
-              <span>{t('nav.signIn')}</span>
-              <div className="relative h-3.5 w-3.5">
-                <DoorClosed className="absolute inset-0 h-3.5 w-3.5 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-                <DoorOpen className="absolute inset-0 h-3.5 w-3.5 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
-              </div>
+              {t('nav.signIn')}
             </Link>
           )}
 
-          {/* Mobile Menu Hamburger */}
+          {/* Mobile Hamburger Menu */}
           <div className='md:hidden'>
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <button
                   type='button'
                   aria-label='Open Navigation Menu'
-                  className='flex h-8 w-8 cursor-pointer items-center justify-center rounded-lg border border-border/80 text-muted-foreground hover:text-foreground'
+                  className='flex h-9 w-9 cursor-pointer items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-700 hover:bg-slate-50 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200'
                 >
                   {mobileMenuOpen ? <X className='h-4 w-4' /> : <Menu className='h-4 w-4' />}
                 </button>
               </SheetTrigger>
-              <SheetContent side='right' className='w-80 p-6'>
-                <SheetHeader className='text-left'>
-                  <SheetTitle className='text-lg font-bold'>Menu</SheetTitle>
-                </SheetHeader>
-                <div className='mt-6 flex flex-col gap-4'>
-                  {navItems.map((item) => {
-                    const isInternal = item.href.startsWith('/');
-                    return isInternal ? (
-                      <button
-                        key={item.href}
-                        type='button'
-                        onClick={() => handleMobileNavigate(item.href)}
-                        className='text-left py-2 text-base font-medium text-foreground transition-colors hover:text-indigo-600 cursor-pointer bg-transparent border-none'
-                      >
-                        {item.label}
-                      </button>
-                    ) : (
-                      <a
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className='py-2 text-base font-medium text-foreground transition-colors hover:text-indigo-600'
-                      >
-                        {item.label}
-                      </a>
-                    );
-                  })}
+              <SheetContent side='right' className='w-80 p-6 flex flex-col justify-between'>
+                <div>
+                  <SheetHeader className='text-left border-b border-slate-200/80 dark:border-slate-800 pb-4'>
+                    <SheetTitle className='text-base font-bold'>NexSpace</SheetTitle>
+                    <SheetDescription className='sr-only'>
+                      {language === 'vi'
+                        ? 'Menu điều hướng chính của NexSpace'
+                        : 'NexSpace main navigation menu'}
+                    </SheetDescription>
+                  </SheetHeader>
 
-                  <div className='my-2 border-t border-border/60 pt-4'>
-                    <div className='mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-                      {t('nav.solutions')}
-                    </div>
-                    {solutionItems.map((solution) => (
-                      <a
-                        key={solution.title}
-                        href={solution.href}
-                        onClick={() => setMobileMenuOpen(false)}
-                        className='block rounded-lg p-2 hover:bg-muted'
-                      >
-                        <div className='text-sm font-semibold text-foreground'>
-                          {solution.title}
-                        </div>
-                        <div className='text-xs text-muted-foreground'>{solution.description}</div>
-                      </a>
-                    ))}
-                  </div>
-
-                  <div className='my-2 flex flex-col gap-2.5 border-t border-border/60 pt-4'>
-                    <a
-                      href='/organizer/apply'
-                      onClick={() => setMobileMenuOpen(false)}
-                      className='flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-indigo-200/90 bg-indigo-50/80 py-2.5 text-xs font-bold text-indigo-700 transition-colors hover:bg-indigo-100 dark:border-indigo-800/80 dark:bg-indigo-950/60 dark:text-indigo-300'
+                  {/* Mobile Nav Links */}
+                  <nav aria-label='Mobile Navigation' className='mt-5 flex flex-col gap-1.5'>
+                    <button
+                      type='button'
+                      onClick={() => handleMobileNavigate('/workspaces')}
+                      className='flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
                     >
-                      <Building2 className='h-4 w-4' />
-                      <span>{t('nav.listSpace')}</span>
-                      <span className='rounded-md bg-indigo-600/10 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-wider dark:bg-indigo-400/20'>
-                        {t('nav.hostBadge')}
-                      </span>
+                      <Compass className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                      <span>{t('nav.exploreWorkspaces')}</span>
+                    </button>
+
+                    <a
+                      href='/#how-it-works'
+                      onClick={handleHowItWorksClick}
+                      className='flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
+                    >
+                      <Sparkles className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                      <span>{t('nav.howItWorks')}</span>
                     </a>
-                    {isAuthenticated ? (
-                      <div className='flex items-center justify-between p-3 rounded-xl bg-slate-100 dark:bg-slate-900 border border-border/70'>
-                        <div className='flex items-center gap-3'>
-                          <UserNav />
-                          <div className='flex flex-col text-left'>
-                            <span className='text-xs font-bold text-foreground'>
-                              {user?.fullName || user?.userName}
-                            </span>
-                            <span className='text-[11px] text-muted-foreground truncate max-w-[150px]'>
-                              {user?.email}
-                            </span>
-                          </div>
+
+                    <button
+                      type='button'
+                      onClick={() => handleMobileNavigate('/organizer/apply')}
+                      className='flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
+                    >
+                      <Building2 className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                      <span>{t('nav.listSpace')}</span>
+                    </button>
+
+                    {isAuthenticated && userRole === 'USER' && (
+                      <>
+                        <button
+                          type='button'
+                          onClick={() => handleMobileNavigate('/workspaces/my-bookings')}
+                          className='flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
+                        >
+                          <CalendarCheck className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                          <span>{t('nav.myBookings')}</span>
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => handleMobileNavigate('/dashboard/preferences')}
+                          className='flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
+                        >
+                          <SlidersHorizontal className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                          <span>{t('nav.preferences')}</span>
+                        </button>
+                      </>
+                    )}
+                  </nav>
+
+                  {/* Mobile Preferences: Language & Currency */}
+                  <div className='mt-6 border-t border-slate-200/80 dark:border-slate-800 pt-5 space-y-4'>
+                    <div>
+                      <span className='block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2'>
+                        {language === 'vi' ? 'Ngôn ngữ' : 'Language'}
+                      </span>
+                      <div className='grid grid-cols-2 gap-2'>
+                        <button
+                          type='button'
+                          onClick={() => setLanguage('vi')}
+                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            language === 'vi'
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          🇻🇳 Tiếng Việt
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => setLanguage('en')}
+                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            language === 'en'
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          🇺🇸 English
+                        </button>
+                      </div>
+                    </div>
+
+                    <div>
+                      <span className='block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2'>
+                        {language === 'vi' ? 'Tiền tệ' : 'Currency'}
+                      </span>
+                      <div className='grid grid-cols-2 gap-2'>
+                        <button
+                          type='button'
+                          onClick={() => setCurrency('USD')}
+                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            currency === 'USD'
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          $ USD
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => setCurrency('VND')}
+                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
+                            currency === 'VND'
+                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
+                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
+                          }`}
+                        >
+                          ₫ VND
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Mobile Auth Footer */}
+                <div className='border-t border-slate-200/80 dark:border-slate-800 pt-4'>
+                  {isAuthenticated ? (
+                    <div className='flex items-center justify-between rounded-xl border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900'>
+                      <div className='flex items-center gap-3 min-w-0'>
+                        <UserNav />
+                        <div className='flex flex-col text-left min-w-0'>
+                          <span className='text-xs font-bold text-slate-900 dark:text-white truncate'>
+                            {user?.fullName || user?.userName}
+                          </span>
+                          <span className='text-[11px] text-slate-500 dark:text-slate-400 truncate'>
+                            {user?.email}
+                          </span>
                         </div>
                       </div>
-                    ) : (
-                      <Button
-                        className='group flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-600 to-[#4338CA] py-2.5 text-xs font-bold text-white shadow-md shadow-indigo-500/20 transition-all duration-300 hover:from-indigo-500 hover:to-[#3730A3] hover:shadow-lg active:scale-95'
-                        onClick={() => handleMobileNavigate('/auth/sign-in')}
-                      >
-                        <span>{t('nav.signIn')}</span>
-                        <div className="relative h-4 w-4">
-                          <DoorClosed className="absolute inset-0 h-4 w-4 transition-all duration-300 group-hover:opacity-0 group-hover:scale-75" />
-                          <DoorOpen className="absolute inset-0 h-4 w-4 opacity-0 scale-75 transition-all duration-300 group-hover:opacity-100 group-hover:scale-100" />
-                        </div>
-                      </Button>
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <Button
+                      className='w-full cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] py-2.5 text-sm font-semibold text-white shadow-xs'
+                      onClick={() => handleMobileNavigate('/auth/sign-in')}
+                    >
+                      {t('nav.signIn')}
+                    </Button>
+                  )}
                 </div>
               </SheetContent>
             </Sheet>

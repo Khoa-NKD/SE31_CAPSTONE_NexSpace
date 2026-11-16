@@ -18,8 +18,14 @@ const INITIAL_ADVANCED_FILTERS: AdvancedFilterValues = {
 };
 
 export function WorkspacesPage() {
-  const [search, setSearch] = useState('');
-  const [category, setCategory] = useState('');
+  const [search, setSearch] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('search') || '';
+  });
+  const [category, setCategory] = useState(() => {
+    if (typeof window === 'undefined') return '';
+    return new URLSearchParams(window.location.search).get('category') || '';
+  });
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
   const [workspaces, setWorkspaces] = useState<PublicWorkspaceSummary[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>(INITIAL_ADVANCED_FILTERS);
