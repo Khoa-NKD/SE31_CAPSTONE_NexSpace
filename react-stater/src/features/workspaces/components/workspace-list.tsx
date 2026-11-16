@@ -60,7 +60,7 @@ export function WorkspaceList({
   const [internalSortBy, setInternalSortBy] = React.useState<string>('featuredPosition');
   const [internalSortOrder, setInternalSortOrder] = React.useState<'asc' | 'desc'>('desc');
   const [page, setPage] = React.useState(1);
-  const limit = 6;
+  const limit = 8;
 
   const activeSortBy = sortBy || internalSortBy;
   const activeSortOrder = sortOrder || internalSortOrder;
@@ -83,6 +83,7 @@ export function WorkspaceList({
     isNearbyEnabled,
     radiusKm
   });
+
   if (
     prevFilterState.search !== search ||
     prevFilterState.category !== category ||
@@ -116,23 +117,22 @@ export function WorkspaceList({
     setPage(1);
   }
 
-  const publicQuery = usePublicWorkspacesQuery(
-    {
-      search: search?.trim() || undefined,
-      category: category || undefined,
-      city: city?.trim() || undefined,
-      district: district?.trim() || undefined,
-      minPrice,
-      maxPrice,
-      amenityIds: amenityIds && amenityIds.length > 0 ? amenityIds : undefined,
-      resourceCategories: resourceCategories && resourceCategories.length > 0 ? resourceCategories : undefined,
-      minRating,
-      sortBy: activeSortBy,
-      sortOrder: activeSortOrder,
-      page,
-      limit
-    }
-  );
+  const publicQuery = usePublicWorkspacesQuery({
+    search: search?.trim() || undefined,
+    category: category || undefined,
+    city: city?.trim() || undefined,
+    district: district?.trim() || undefined,
+    minPrice,
+    maxPrice,
+    amenityIds: amenityIds && amenityIds.length > 0 ? amenityIds : undefined,
+    resourceCategories:
+      resourceCategories && resourceCategories.length > 0 ? resourceCategories : undefined,
+    minRating,
+    sortBy: activeSortBy,
+    sortOrder: activeSortOrder,
+    page,
+    limit
+  });
 
   const nearbyQuery = useNearbyWorkspacesQuery(
     {
@@ -150,7 +150,8 @@ export function WorkspaceList({
 
   const workspaces = React.useMemo(() => {
     const rawDataObj = data as (Record<string, unknown> & typeof data) | undefined;
-    const rawList = (rawDataObj?.listObjects as PublicWorkspaceSummary[] | undefined) ?? data?.content;
+    const rawList =
+      (rawDataObj?.listObjects as PublicWorkspaceSummary[] | undefined) ?? data?.content;
     return rawList || [];
   }, [data]);
 
@@ -194,96 +195,88 @@ export function WorkspaceList({
   };
 
   return (
-    <section className="flex h-full w-full flex-col gap-6 overflow-y-auto bg-background p-6 lg:w-1/2 lg:p-8 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">
-      {/* List Meta Header with sorting */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-border pb-3">
-        <div className="min-w-0 flex-1">
-          <h1 className="text-lg font-semibold tracking-tight text-foreground sm:text-xl">
+    <section className="flex h-full w-full flex-col overflow-y-auto bg-background px-4 sm:px-6 py-4 [&::-webkit-scrollbar-thumb:hover]:bg-muted-foreground/50 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar]:w-1.5">
+      {/* Results Header: Count & Sorting */}
+      <div className="flex items-center justify-between gap-3 border-b border-border/60 pb-3 mb-3 shrink-0">
+        <div className="min-w-0">
+          <h1 className="text-sm sm:text-base font-bold text-foreground truncate">
             {isLoading ? (
-              <span className="inline-flex items-center gap-2">
-                <Loader2 className="size-4 animate-spin text-primary" />
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
                 Đang tìm không gian...
               </span>
             ) : isNearbyEnabled ? (
-              `${totalElements} không gian gần bạn (trong ${radiusKm}km)`
+              `${totalElements} không gian gần bạn (${radiusKm}km)`
             ) : (
-              `${totalElements} không gian làm việc sẵn sàng`
+              `${totalElements} không gian làm việc`
             )}
           </h1>
-          <p className="mt-0.5 text-xs text-muted-foreground">
+          <p className="text-[11px] text-muted-foreground">
             {isNearbyEnabled
-              ? 'Tự động tính cự ly địa lý theo bán kính từ vị trí GPS của bạn'
-              : 'Không gian làm việc linh hoạt cho cá nhân và đội nhóm'}
+              ? 'Tự động tính cự ly địa lý theo GPS'
+              : 'Đặt bàn làm việc, phòng họp linh hoạt theo giờ'}
           </p>
         </div>
 
-        {/* Sorting Menu */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="hidden text-xs text-muted-foreground sm:inline whitespace-nowrap">Sắp xếp:</span>
+        {/* Sort selector */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className="hidden sm:inline text-xs text-muted-foreground whitespace-nowrap">
+            Sắp xếp:
+          </span>
           <div className="relative">
             <select
-              aria-label="Sort workspaces by"
+              aria-label="Sắp xếp kết quả"
               onChange={handleSortChange}
               defaultValue="recommended"
-              className="appearance-none rounded-lg border border-border bg-card py-2 pl-3 pr-8 text-xs font-semibold text-foreground shadow-sm transition-all cursor-pointer hover:border-border/80 focus:border-[#4b41e1] focus:ring-1 focus:ring-[#4b41e1]"
+              className="appearance-none rounded-xl border border-border bg-card py-1.5 pl-2.5 pr-7 text-xs font-semibold text-foreground shadow-2xs transition-all cursor-pointer hover:border-primary/50 focus:border-primary focus:ring-1 focus:ring-primary"
             >
-              <option value="recommended">{isNearbyEnabled ? 'Gần nhất (Khoảng cách)' : 'Mới nhất / Được đề xuất'}</option>
+              <option value="recommended">
+                {isNearbyEnabled ? 'Gần nhất (Khoảng cách)' : 'Mới nhất / Đề xuất'}
+              </option>
               <option value="lowest">Giá: Thấp đến cao</option>
               <option value="highest_price">Giá: Cao đến thấp</option>
               <option value="highest">Đánh giá cao nhất</option>
               <option value="popular">Phổ biến nhất</option>
               <option value="name">Tên: A → Z</option>
             </select>
-            <ChevronDown className="pointer-events-none absolute right-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
+            <ChevronDown className="pointer-events-none absolute right-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground/70" />
           </div>
         </div>
       </div>
 
-      {/* Near Me Proximity Notification Banner */}
+      {/* Near Me Alert Banner if GPS active */}
       {isNearbyEnabled && nearMeCoords && (
-        <div className="flex items-center justify-between rounded-xl bg-gradient-to-r from-primary/10 via-primary/5 to-transparent border border-primary/20 p-3 text-xs shadow-2xs">
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-primary text-primary-foreground flex items-center justify-center shrink-0 shadow-xs">
-              <Navigation className="h-4 w-4 animate-pulse" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-foreground">
-                  Đang tìm kiếm trong bán kính {radiusKm} km
-                </span>
-                <span className="inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-2 py-0.2 text-[10px] font-bold text-primary">
-                  {totalElements} kết quả
-                </span>
-              </div>
-              <p className="text-muted-foreground text-[11px] mt-0.5">
-                Vị trí GPS của bạn: <span className="font-mono text-foreground font-semibold">{nearMeCoords.lat.toFixed(4)}, {nearMeCoords.lng.toFixed(4)}</span> • Ưu tiên cự ly gần nhất
-              </p>
-            </div>
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-primary/10 border border-primary/20 px-3 py-2 text-xs shrink-0">
+          <div className="flex items-center gap-2">
+            <Navigation className="h-3.5 w-3.5 text-primary shrink-0 animate-pulse" />
+            <span className="font-semibold text-foreground text-[11px] sm:text-xs">
+              Vị trí GPS ({nearMeCoords.lat.toFixed(4)}, {nearMeCoords.lng.toFixed(4)}) • Bán kính {radiusKm}km
+            </span>
           </div>
           <Button
             size="sm"
             variant="ghost"
             onClick={onClearNearMe}
-            className="h-8 px-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-background/80 cursor-pointer"
+            className="h-6 px-2 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
           >
-            Tắt chế độ
+            Tắt
           </Button>
         </div>
       )}
 
       {/* Loading Skeletons */}
       {isLoading && (
-        <div className="flex flex-col gap-4">
-          {[1, 2, 3].map((n) => (
+        <div className="flex flex-col gap-3">
+          {[1, 2, 3, 4].map((n) => (
             <div
               key={n}
-              className="rounded-xl border border-border bg-card p-4 sm:min-h-[170px] flex flex-col sm:flex-row gap-4 animate-pulse"
+              className="rounded-2xl border border-border/60 bg-card p-3 sm:h-[168px] flex flex-col sm:flex-row gap-3 animate-pulse"
             >
-              <div className="bg-muted rounded-lg w-full h-[140px] sm:h-auto sm:w-[240px] shrink-0" />
-              <div className="flex-1 space-y-3 py-1">
-                <div className="h-4 bg-muted rounded w-1/3" />
-                <div className="h-6 bg-muted rounded w-3/4" />
-                <div className="h-4 bg-muted rounded w-1/2" />
+              <div className="bg-muted rounded-xl w-full h-[130px] sm:h-full sm:w-[210px] shrink-0" />
+              <div className="flex-1 space-y-2 py-1">
+                <div className="h-3.5 bg-muted rounded w-1/3" />
+                <div className="h-5 bg-muted rounded w-3/4" />
+                <div className="h-3.5 bg-muted rounded w-1/2" />
                 <div className="h-4 bg-muted rounded w-1/4 mt-auto" />
               </div>
             </div>
@@ -293,81 +286,81 @@ export function WorkspaceList({
 
       {/* Error State */}
       {isError && (
-        <div className="p-6 rounded-xl border border-destructive/30 bg-destructive/10 text-destructive text-center">
-          <AlertTriangle className="size-8 mx-auto text-destructive mb-2" />
-          <p className="font-semibold text-sm mb-1">Failed to load workspaces</p>
+        <div className="p-8 my-auto rounded-2xl border border-destructive/30 bg-destructive/10 text-destructive text-center">
+          <AlertTriangle className="h-8 w-8 mx-auto text-destructive mb-2" />
+          <p className="font-semibold text-sm mb-1">Không thể tải danh sách không gian</p>
           <p className="text-xs text-muted-foreground mb-4">
-            {error instanceof Error ? error.message : 'Please check your connection or retry.'}
+            {error instanceof Error ? error.message : 'Vui lòng kiểm tra kết nối mạng và thử lại.'}
           </p>
           <Button size="sm" variant="outline" onClick={() => refetch()} disabled={isFetching}>
-            Retry
+            Thử lại
           </Button>
         </div>
       )}
 
       {/* Empty State */}
       {!isLoading && !isError && workspaces.length === 0 && (
-        <div className="p-12 text-center rounded-xl border border-dashed border-border bg-card/40 my-4">
-          <Building2 className="size-10 mx-auto text-muted-foreground/40 mb-3" />
-          <h3 className="font-semibold text-base text-foreground mb-1">No workspaces found</h3>
+        <div className="p-10 my-auto text-center rounded-2xl border border-dashed border-border bg-card/40">
+          <Building2 className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
+          <h3 className="font-bold text-sm sm:text-base text-foreground mb-1">
+            Không tìm thấy không gian phù hợp
+          </h3>
           <p className="text-xs text-muted-foreground max-w-sm mx-auto">
-            No public workspaces match your selected criteria. Try clearing search filters or selecting another location.
+            Không có không gian làm việc nào khớp với tiêu chí tìm kiếm của bạn. Hãy thử thay đổi bộ lọc, xóa từ khóa hoặc chọn khu vực khác.
           </p>
         </div>
       )}
 
-      {/* Cards Feed */}
-      {!isLoading &&
-        !isError &&
-        workspaces.map((workspace) => {
-          const isCardActive = Boolean(
-            hoveredWorkspaceId && String(workspace.id) === String(hoveredWorkspaceId)
-          );
-          return (
-            <div
-              key={workspace.id}
-              onMouseEnter={() => onHoverWorkspace?.(String(workspace.id))}
-              onMouseLeave={() => onHoverWorkspace?.(null)}
-            >
+      {/* Workspace Cards List */}
+      {!isLoading && !isError && workspaces.length > 0 && (
+        <div className="flex flex-col gap-3">
+          {workspaces.map((workspace) => {
+            const isCardActive = Boolean(
+              hoveredWorkspaceId && String(workspace.id) === String(hoveredWorkspaceId)
+            );
+            return (
               <WorkspaceCard
+                key={workspace.id}
                 workspace={workspace}
                 isActive={isCardActive}
+                onHover={onHoverWorkspace}
               />
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+      )}
 
-      {/* Interactive Pagination Controls */}
+      {/* Pagination Controls */}
       {!isLoading && !isError && workspaces.length > 0 && (
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 border-t border-border pt-4 pb-2 text-xs text-muted-foreground">
-          <span>
-            Showing {(page - 1) * limit + 1}–{Math.min(page * limit, totalElements)} of {totalElements} available workspaces
+        <div className="mt-4 pt-3 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground shrink-0">
+          <span className="text-[11px]">
+            {(page - 1) * limit + 1}–{Math.min(page * limit, totalElements)} trên {totalElements} kết quả
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page <= 1 || isFetching}
-              className="h-8 gap-1 shadow-2xs cursor-pointer disabled:cursor-not-allowed"
-              aria-label="Previous page"
+              className="h-7.5 px-2.5 text-xs shadow-2xs cursor-pointer disabled:cursor-not-allowed"
+              aria-label="Trang trước"
             >
-              <ChevronLeft className="size-3.5" />
-              <span>Previous</span>
+              <ChevronLeft className="h-3.5 w-3.5 mr-0.5" />
+              <span>Trước</span>
             </Button>
-            <span className="font-mono px-2.5 py-1 rounded-md bg-muted text-foreground text-xs font-semibold">
-              Page {page} of {totalPages}
+            <span className="font-mono px-2 py-0.5 rounded-md bg-muted text-foreground text-[11px] font-semibold">
+              {page} / {totalPages}
             </span>
             <Button
               variant="outline"
               size="sm"
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages || isFetching}
-              className="h-8 gap-1 shadow-2xs cursor-pointer disabled:cursor-not-allowed"
-              aria-label="Next page"
+              className="h-7.5 px-2.5 text-xs shadow-2xs cursor-pointer disabled:cursor-not-allowed"
+              aria-label="Trang sau"
             >
-              <span>Next</span>
-              <ChevronRight className="size-3.5" />
+              <span>Sau</span>
+              <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
             </Button>
           </div>
         </div>

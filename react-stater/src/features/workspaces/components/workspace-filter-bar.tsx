@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   MapPin,
   Calendar,
@@ -25,6 +25,12 @@ import {
   PopoverContent,
   PopoverTrigger
 } from '@/components/ui/popover';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem
+} from '@/components/ui/dropdown-menu';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import {
@@ -55,10 +61,13 @@ interface WorkspaceFilterBarProps {
   onAdvancedFiltersChange: (newFilters: AdvancedFilterValues) => void;
   onResetAdvancedFilters: () => void;
   onApplySavedCriteria?: (criteria: SavedSearchCriteria) => void;
+  // View mode
+  viewMode?: 'split' | 'grid';
+  onViewModeChange?: (mode: 'split' | 'grid') => void;
 }
 
 const CATEGORIES = [
-  { id: '', label: 'Tất cả', icon: null },
+  { id: '', label: 'Tất cả loại hình', icon: Building2 },
   { id: 'coworking_hub', label: 'Coworking Hub', icon: Building2 },
   { id: 'business_lounge', label: 'Business Lounge', icon: Coffee },
   { id: 'creative_studio', label: 'Creative Studio', icon: Palette },
@@ -86,7 +95,9 @@ export function WorkspaceFilterBar({
   advancedFilters,
   onAdvancedFiltersChange,
   onResetAdvancedFilters,
-  onApplySavedCriteria
+  onApplySavedCriteria,
+  viewMode = 'split',
+  onViewModeChange
 }: WorkspaceFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(search);
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
@@ -115,11 +126,6 @@ export function WorkspaceFilterBar({
   }, [search]);
 
   React.useEffect(() => {
-    setPriceMinDraft(advancedFilters.minPrice);
-    setPriceMaxDraft(advancedFilters.maxPrice);
-  }, [advancedFilters.minPrice, advancedFilters.maxPrice]);
-
-  React.useEffect(() => {
     const timer = setTimeout(() => {
       if (localSearch !== search) {
         onSearchChange?.(localSearch);
@@ -127,6 +133,14 @@ export function WorkspaceFilterBar({
     }, 350);
     return () => clearTimeout(timer);
   }, [localSearch, search, onSearchChange]);
+
+  const handleOpenPricePopover = (open: boolean) => {
+    if (open) {
+      setPriceMinDraft(advancedFilters.minPrice);
+      setPriceMaxDraft(advancedFilters.maxPrice);
+    }
+    setIsPricePopoverOpen(open);
+  };
 
   const handleClear = () => {
     setLocalSearch('');
@@ -172,7 +186,7 @@ export function WorkspaceFilterBar({
   const isPriceActive =
     advancedFilters.minPrice !== undefined || advancedFilters.maxPrice !== undefined;
 
-  const priceLabel = React.useMemo(() => {
+  const priceLabel = useMemo(() => {
     if (advancedFilters.minPrice && advancedFilters.maxPrice) {
       return `${advancedFilters.minPrice / 1000}k - ${advancedFilters.maxPrice / 1000}k/h`;
     }
@@ -185,7 +199,11 @@ export function WorkspaceFilterBar({
     return 'Khoảng giá';
   }, [advancedFilters.minPrice, advancedFilters.maxPrice]);
 
-  const currentCriteria: SavedSearchCriteria = React.useMemo(
+  const selectedCategoryObj = useMemo(() => {
+    return CATEGORIES.find((c) => c.id === category) || CATEGORIES[0];
+  }, [category]);
+
+  const currentCriteria: SavedSearchCriteria = useMemo(
     () => ({
       search: localSearch.trim() || undefined,
       category: category || undefined,
@@ -232,19 +250,19 @@ export function WorkspaceFilterBar({
   };
 
   return (
-    <section className="relative z-40 w-full border-b border-border bg-card shadow-xs">
-      {/* Tier 1: Primary Search, Near Me GPS & Filter Triggers */}
-      <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-3 px-6 py-2.5 lg:px-10">
-        {/* Left Side: Search & Geolocation */}
-        <div className="flex flex-1 flex-wrap items-center gap-2.5 min-w-[300px]">
-          {/* Location / Search Field */}
-          <div className="relative min-w-[220px] sm:min-w-[280px] flex-1 max-w-md">
-            <div className="flex h-10 items-center rounded-lg border border-border bg-background px-3 shadow-2xs transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 hover:border-border/80">
+    <section className="relative z-40 w-full border-b border-border bg-card/95 backdrop-blur-md shadow-xs">
+      {/* Primary Unified Toolbar (56–64px height) */}
+      <div className="mx-auto flex h-14 sm:h-16 max-w-[1440px] items-center justify-between gap-2.5 px-4 sm:px-6 lg:px-8">
+        {/* Left: Location Search & Near Me Proximity */}
+        <div className="flex flex-1 items-center gap-2 min-w-0">
+          {/* Location Autocomplete Input */}
+          <div className="relative flex-1 max-w-sm sm:max-w-md">
+            <div className="flex h-9 sm:h-10 items-center rounded-xl border border-border bg-background px-3 shadow-2xs transition-all focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 hover:border-border/80">
               <MapPin className="mr-2 h-4 w-4 text-primary shrink-0" />
               <input
                 type="text"
                 className="w-full truncate border-0 bg-transparent p-0 text-xs sm:text-sm font-medium text-foreground focus:ring-0 focus:outline-none placeholder:text-muted-foreground/70"
-                placeholder="Tìm theo tên, địa chỉ, quận, tòa nhà..."
+                placeholder="Địa điểm, quận hoặc tên không gian..."
                 value={localSearch}
                 onChange={(e) => {
                   setLocalSearch(e.target.value);
@@ -305,8 +323,8 @@ export function WorkspaceFilterBar({
             />
           </div>
 
-          {/* Near Me / Geolocation Proximity Trigger */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Near Me GPS Trigger */}
+          <div className="flex items-center gap-1 shrink-0">
             <Button
               type="button"
               variant={isNearMeActive ? 'default' : 'outline'}
@@ -314,79 +332,117 @@ export function WorkspaceFilterBar({
               onClick={onToggleNearMe}
               disabled={isLocating}
               className={cn(
-                'h-10 px-3.5 gap-2 rounded-lg font-semibold text-xs shadow-2xs transition-all cursor-pointer',
+                'h-9 sm:h-10 px-2.5 sm:px-3 rounded-xl font-semibold text-xs shadow-2xs transition-all cursor-pointer',
                 isNearMeActive
-                  ? 'bg-primary text-primary-foreground hover:bg-primary/90 shadow-[0_2px_8px_rgba(75,65,225,0.25)]'
+                  ? 'bg-primary text-primary-foreground hover:bg-primary/90'
                   : 'hover:border-primary/60 hover:text-primary'
               )}
             >
               {isLocating ? (
                 <>
                   <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
-                  <span>Định vị GPS...</span>
+                  <span className="hidden sm:inline">GPS...</span>
                 </>
               ) : isNearMeActive ? (
                 <>
                   <Navigation className="h-3.5 w-3.5 fill-current shrink-0" />
-                  <span>Gần tôi ({radiusKm} km)</span>
+                  <span className="hidden sm:inline">Gần tôi ({radiusKm}km)</span>
                   <X className="h-3 w-3 ml-0.5 opacity-80 hover:opacity-100" />
                 </>
               ) : (
                 <>
                   <LocateFixed className="h-3.5 w-3.5 text-primary shrink-0" />
-                  <span>Gần tôi</span>
+                  <span className="hidden sm:inline">Gần tôi</span>
                 </>
               )}
             </Button>
 
-            {/* Radius Selector when Near Me is active */}
+            {/* Radius selector pill when Near Me is active */}
             {isNearMeActive && (
-              <div className="flex items-center bg-muted/80 rounded-lg p-0.5 border border-border shadow-2xs">
+              <div className="hidden md:flex items-center bg-muted/80 rounded-lg p-0.5 border border-border shadow-2xs">
                 {[3, 5, 10, 20].map((r) => (
                   <button
                     key={r}
                     type="button"
                     onClick={() => onRadiusKmChange?.(r)}
                     className={cn(
-                      'px-2 py-1 text-xs font-bold rounded-md transition-all cursor-pointer',
+                      'px-1.5 py-0.5 text-[11px] font-bold rounded-md transition-all cursor-pointer',
                       radiusKm === r
                         ? 'bg-card text-primary shadow-xs'
                         : 'text-muted-foreground hover:text-foreground'
                     )}
                   >
-                    {r}km
+                    {r}k
                   </button>
                 ))}
               </div>
             )}
           </div>
-
-          {/* Date & Time Picker Field */}
-          <div className="relative hidden md:block">
-            <div className="flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-border bg-background px-3 shadow-2xs transition-all hover:border-border/80 text-xs font-medium text-foreground">
-              <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
-              <span>Thời gian đặt chỗ</span>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
-            </div>
-          </div>
         </div>
 
-        {/* Right Side: Filters, Price & View Switcher */}
+        {/* Center / Right: Space Type, Date, Price, Filter, Saved, View */}
         <div className="flex items-center gap-2 shrink-0">
-          {/* Price Range Trigger with Popover */}
-          <Popover open={isPricePopoverOpen} onOpenChange={setIsPricePopoverOpen}>
+          {/* Workspace Type Dropdown */}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button
+                type="button"
+                className={cn(
+                  'hidden md:flex h-9 sm:h-10 items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer',
+                  category
+                    ? 'border-primary/60 bg-primary/10 text-primary'
+                    : 'border-border bg-background text-foreground hover:bg-muted/50'
+                )}
+              >
+                <Building2 className={cn('h-3.5 w-3.5', category ? 'text-primary' : 'text-muted-foreground')} />
+                <span className="max-w-[120px] truncate">{selectedCategoryObj.label}</span>
+                <ChevronDown className="h-3 w-3 opacity-60 ml-0.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 p-1.5 shadow-lg">
+              {CATEGORIES.map((cat) => {
+                const isSelected = category === cat.id || (!category && cat.id === '');
+                const Icon = cat.icon;
+                return (
+                  <DropdownMenuItem
+                    key={cat.id || 'all'}
+                    onSelect={() => onCategoryChange?.(cat.id)}
+                    className={cn(
+                      'flex items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium cursor-pointer',
+                      isSelected ? 'bg-primary/10 text-primary font-bold' : 'text-foreground hover:bg-muted'
+                    )}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Icon className="h-3.5 w-3.5" />
+                      <span>{cat.label}</span>
+                    </div>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                  </DropdownMenuItem>
+                );
+              })}
+            </DropdownMenuContent>
+          </DropdownMenu>
+
+          {/* Date & Time Trigger */}
+          <div className="hidden lg:flex h-9 sm:h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground shadow-2xs hover:bg-muted/50">
+            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+            <span>Hôm nay, Giờ linh hoạt</span>
+          </div>
+
+          {/* Price Range Popover */}
+          <Popover open={isPricePopoverOpen} onOpenChange={handleOpenPricePopover}>
             <PopoverTrigger asChild>
               <button
                 type="button"
                 className={cn(
-                  'flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer',
+                  'flex h-9 sm:h-10 items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer',
                   isPriceActive
                     ? 'border-primary/60 bg-primary/10 text-primary'
                     : 'border-border bg-background text-foreground hover:bg-muted/50'
                 )}
               >
                 <SlidersHorizontal className={cn('h-3.5 w-3.5', isPriceActive ? 'text-primary' : 'text-muted-foreground')} />
-                <span>{priceLabel}</span>
+                <span className="hidden sm:inline">{priceLabel}</span>
                 {isPriceActive && <span className="h-1.5 w-1.5 rounded-full bg-primary" />}
               </button>
             </PopoverTrigger>
@@ -474,12 +530,12 @@ export function WorkspaceFilterBar({
             </PopoverContent>
           </Popover>
 
-          {/* More Filters Modal Trigger */}
+          {/* More Filters Trigger */}
           <button
             type="button"
             onClick={() => setIsFilterModalOpen(true)}
             className={cn(
-              'flex h-10 items-center gap-2 rounded-lg border px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer',
+              'flex h-9 sm:h-10 items-center gap-1.5 rounded-xl border px-2.5 sm:px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer',
               activeCount > 0
                 ? 'border-primary/60 bg-primary/10 text-primary'
                 : 'border-border bg-background text-foreground hover:bg-muted/50'
@@ -488,7 +544,7 @@ export function WorkspaceFilterBar({
             <Filter className={cn('h-3.5 w-3.5', activeCount > 0 ? 'text-primary' : 'text-muted-foreground')} />
             <span>Bộ lọc</span>
             {activeCount > 0 && (
-              <Badge className="h-5 px-1.5 bg-primary text-primary-foreground font-bold text-[10px] rounded-full">
+              <Badge className="h-4.5 px-1.5 bg-primary text-primary-foreground font-bold text-[10px] rounded-full">
                 {activeCount}
               </Badge>
             )}
@@ -504,32 +560,57 @@ export function WorkspaceFilterBar({
             hasActiveFilters={hasAnyFilterOrSearch}
           />
 
-          {/* Split View vs Grid Only Toggle */}
-          <div className="ml-1 flex items-center rounded-lg border border-border bg-muted/60 p-0.5">
+          {/* View Mode Toggle (Desktop only) */}
+          <div className="hidden lg:flex items-center rounded-xl border border-border bg-muted/60 p-0.5">
             <button
               type="button"
+              onClick={() => onViewModeChange?.('split')}
               aria-label="Split Map View"
               title="Chia đôi bản đồ & danh sách"
-              className="rounded bg-card p-1.5 text-primary shadow-2xs cursor-pointer"
+              className={cn(
+                'rounded-lg p-1.5 transition-all cursor-pointer',
+                viewMode === 'split'
+                  ? 'bg-card text-primary shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              <Sidebar className="block h-4 w-4" />
+              <Sidebar className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
+              onClick={() => onViewModeChange?.('grid')}
               aria-label="Grid Only View"
               title="Chỉ hiển thị danh sách"
-              className="rounded p-1.5 text-muted-foreground transition-colors hover:bg-card/50 hover:text-foreground cursor-pointer"
+              className={cn(
+                'rounded-lg p-1.5 transition-all cursor-pointer',
+                viewMode === 'grid'
+                  ? 'bg-card text-primary shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              )}
             >
-              <Grid className="block h-4 w-4" />
+              <Grid className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Active Filter Pills Strip (If any filters applied) */}
-      {activeCount > 0 && (
-        <div className="border-t border-border/40 bg-muted/10 px-6 py-1.5 lg:px-10 flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="text-[11px] font-semibold text-muted-foreground mr-1">Bộ lọc áp dụng:</span>
+      {/* Slim Active Filter Chips Strip (Only when filters are active) */}
+      {(activeCount > 0 || Boolean(category)) && (
+        <div className="border-t border-border/40 bg-muted/15 px-4 sm:px-6 lg:px-8 py-1.5 flex flex-wrap items-center gap-1.5 text-xs">
+          <span className="text-[11px] font-semibold text-muted-foreground mr-1">Đang lọc:</span>
+
+          {category && (
+            <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-semibold text-primary">
+              {selectedCategoryObj.label}
+              <button
+                type="button"
+                onClick={() => onCategoryChange?.('')}
+                className="hover:text-primary/70 cursor-pointer"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          )}
 
           {advancedFilters.city && (
             <span className="inline-flex items-center gap-1 rounded-md bg-primary/10 border border-primary/20 px-2 py-0.5 text-[11px] font-medium text-primary">
@@ -537,7 +618,7 @@ export function WorkspaceFilterBar({
               <button
                 type="button"
                 onClick={() => onAdvancedFiltersChange({ ...advancedFilters, city: undefined })}
-                className="hover:text-primary/70"
+                className="hover:text-primary/70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -550,7 +631,7 @@ export function WorkspaceFilterBar({
               <button
                 type="button"
                 onClick={() => onAdvancedFiltersChange({ ...advancedFilters, district: undefined })}
-                className="hover:text-primary/70"
+                className="hover:text-primary/70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -563,7 +644,7 @@ export function WorkspaceFilterBar({
               <button
                 type="button"
                 onClick={() => onAdvancedFiltersChange({ ...advancedFilters, minPrice: undefined, maxPrice: undefined })}
-                className="hover:text-primary/70"
+                className="hover:text-primary/70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -584,7 +665,7 @@ export function WorkspaceFilterBar({
                     seatTypes: advancedFilters.seatTypes.filter((t) => t !== st)
                   })
                 }
-                className="hover:text-primary/70"
+                className="hover:text-primary/70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -597,7 +678,7 @@ export function WorkspaceFilterBar({
               <button
                 type="button"
                 onClick={() => onAdvancedFiltersChange({ ...advancedFilters, minRating: undefined })}
-                className="hover:opacity-70"
+                className="hover:opacity-70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -610,7 +691,7 @@ export function WorkspaceFilterBar({
               <button
                 type="button"
                 onClick={() => onAdvancedFiltersChange({ ...advancedFilters, amenityIds: [] })}
-                className="hover:text-primary/70"
+                className="hover:text-primary/70 cursor-pointer"
               >
                 <X className="h-3 w-3" />
               </button>
@@ -625,12 +706,15 @@ export function WorkspaceFilterBar({
               title="Lưu các bộ lọc này để tìm nhanh lần sau"
             >
               <Bookmark className="h-3 w-3" />
-              Lưu bộ lọc này
+              Lưu bộ lọc
             </button>
             <span className="text-muted-foreground/40 text-[10px]">|</span>
             <button
               type="button"
-              onClick={onResetAdvancedFilters}
+              onClick={() => {
+                onCategoryChange?.('');
+                onResetAdvancedFilters();
+              }}
               className="text-[11px] text-muted-foreground hover:text-foreground underline cursor-pointer"
             >
               Xóa tất cả
@@ -638,43 +722,6 @@ export function WorkspaceFilterBar({
           </div>
         </div>
       )}
-
-      {/* Tier 2: Space Type Category Filter Strip (Never clipped, horizontally scrollable) */}
-      <div className="border-t border-border/50 bg-muted/20 px-6 py-2 lg:px-10">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-2 overflow-x-auto no-scrollbar scroll-smooth">
-          {CATEGORIES.map((cat) => {
-            const isSelected = category === cat.id || (!category && cat.id === '');
-            const Icon = cat.icon;
-
-            return (
-              <button
-                key={cat.id || 'all'}
-                type="button"
-                onClick={() => onCategoryChange?.(category === cat.id && cat.id !== '' ? '' : cat.id)}
-                className={cn(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer',
-                  isSelected
-                    ? 'bg-primary text-primary-foreground shadow-xs'
-                    : 'bg-background/80 text-muted-foreground hover:bg-background hover:text-foreground border border-border/60'
-                )}
-              >
-                {Icon && <Icon className="h-3.5 w-3.5" />}
-                <span>{cat.label}</span>
-                {cat.id === '' && totalCount !== undefined && (
-                  <span
-                    className={cn(
-                      'ml-1 text-[11px] font-mono px-1.5 py-0.2 rounded-full',
-                      isSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'
-                    )}
-                  >
-                    {totalCount}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Advanced Filter Modal */}
       <WorkspaceAdvancedFilterModal
