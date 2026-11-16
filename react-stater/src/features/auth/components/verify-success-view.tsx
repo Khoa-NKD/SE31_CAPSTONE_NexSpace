@@ -1,7 +1,7 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import { ChevronDown, Check, ArrowLeft, CheckCircle2, ShieldCheck, ArrowRight, Building2 } from 'lucide-react';
+import { ChevronDown, Check, ArrowLeft, CheckCircle2, ShieldCheck, ArrowRight, Building2, Loader2 } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,16 +13,76 @@ import { useLanguage } from '../../landing/context/language-context';
 import { cn } from '@/lib/utils';
 import { motion } from 'motion/react';
 import { broadcastAuthSync } from '../utils/auth-sync';
+import { authService } from '../api/auth-service';
+import { useAuthStore } from '../store/auth-store';
+import { getRoleHomeUrl, getSignInReturnPath } from '../utils/role-guard';
+import { toast } from 'sonner';
+import type { UserDto } from '../api/types';
 
 export default function VerifySuccessViewPage() {
   const { language, setLanguage } = useLanguage();
   const navigate = useNavigate();
+  const [isProcessingAutoLogin] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return Boolean(new URLSearchParams(window.location.search).get('token'));
+    }
+    return false;
+  });
 
   useEffect(() => {
-    // 1. Notify the original waiting sign-up tab via BroadcastChannel & localStorage
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
+    const token = params?.get('token');
+    const email = params?.get('email') || undefined;
+
+    if (token) {
+      // Temporary stub while fetching me
+      useAuthStore.getState().setAuth({
+        user: {
+          id: 0,
+          userName: email || 'user',
+          email: email || '',
+          status: 'ACTIVE'
+        } as unknown as UserDto,
+        accessToken: token
+      });
+
+      authService
+        .getMe()
+        .then((user) => {
+          useAuthStore.getState().setAuth({ user, accessToken: token });
+          broadcastAuthSync({
+            type: 'EMAIL_VERIFIED_SUCCESS',
+            email: email || user.email,
+            accessToken: token,
+            user
+          });
+          toast.success(
+            language === 'vi'
+              ? `Xác thực và đăng nhập thành công! Chào mừng ${user.fullName || user.userName}`
+              : `Successfully verified and signed in! Welcome ${user.fullName || user.userName}`
+          );
+          const target = getSignInReturnPath(null, user) || getRoleHomeUrl(user);
+          setTimeout(() => {
+            if (target.startsWith('http')) {
+              window.location.replace(target);
+            } else {
+              navigate({ to: target });
+            }
+          }, 800);
+        })
+        .catch(() => {
+          broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS', email, accessToken: token });
+          setTimeout(() => {
+            navigate({ to: '/' });
+          }, 1000);
+        });
+      return;
+    }
+
+    // Fallback: Notify the original waiting sign-up tab via BroadcastChannel & localStorage
     broadcastAuthSync({ type: 'EMAIL_VERIFIED_SUCCESS' });
 
-    // 2. Try closing this tab immediately so the browser focuses back on the original sign-up tab
+    // Try closing this tab immediately so the browser focuses back on the original tab
     try {
       window.open('', '_self', '');
       window.close();
@@ -30,22 +90,21 @@ export default function VerifySuccessViewPage() {
       // Ignored if browser blocks window.close
     }
 
-    // 3. Fallback: If browser prevents auto-closing, redirect back to the original Sign Up page
     const timer = setTimeout(() => {
-      navigate({ to: '/auth/sign-up', search: { verified: 'true' } });
-    }, 800);
+      navigate({ to: '/auth/sign-in', search: { verified: 'true', email } });
+    }, 1200);
 
     return () => clearTimeout(timer);
-  }, [navigate]);
+  }, [navigate, language]);
 
-  const handleReturnToSignUp = () => {
+  const handleReturnToHomeOrSignIn = () => {
     try {
       window.open('', '_self', '');
       window.close();
     } catch {
       // Ignore
     }
-    navigate({ to: '/auth/sign-up', search: { verified: 'true' } });
+    navigate({ to: '/auth/sign-in', search: { verified: 'true' } });
   };
 
   return (
@@ -135,11 +194,11 @@ export default function VerifySuccessViewPage() {
         <header className='flex items-center justify-between w-full'>
           <button
             type='button'
-            onClick={handleReturnToSignUp}
+            onClick={handleReturnToHomeOrSignIn}
             className='inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors outline-none cursor-pointer'
           >
             <ArrowLeft className='h-4 w-4' />
-            {language === 'vi' ? 'Quay lại trang Đăng ký' : 'Back to Sign Up'}
+            {language === 'vi' ? 'Quay lại trang Đăng nhập' : 'Back to Sign In'}
           </button>
 
           {/* Micro-Utility Capsule */}
@@ -211,31 +270,50 @@ export default function VerifySuccessViewPage() {
 
             <div className='space-y-2'>
               <h1 className='text-2xl sm:text-3xl font-bold tracking-tight text-slate-900 dark:text-white'>
-                {language === 'vi' ? 'Xác thực email thành công!' : 'Email Verified Successfully!'}
+                {isProcessingAutoLogin
+                  ? language === 'vi'
+                    ? 'Đang đăng nhập vào NexSpace...'
+                    : 'Signing into NexSpace...'
+                  : language === 'vi'
+                    ? 'Xác thực email thành công!'
+                    : 'Email Verified Successfully!'}
               </h1>
               <p className='text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-sm mx-auto'>
-                {language === 'vi'
-                  ? 'Tài khoản của bạn đã được kích hoạt. Đang tự động trở về trang Đăng ký ban đầu...'
-                  : 'Your account has been activated. Returning to the original Sign Up page...'}
+                {isProcessingAutoLogin
+                  ? language === 'vi'
+                    ? 'Tài khoản của bạn đã được kích hoạt thành công. Đang tự động chuyển hướng vào hệ thống...'
+                    : 'Your account is activated. Redirecting you to the platform...'
+                  : language === 'vi'
+                    ? 'Tài khoản của bạn đã được kích hoạt. Đang chuyển về trang đăng nhập...'
+                    : 'Your account has been activated. Returning to sign in...'}
               </p>
             </div>
 
             <div className='pt-4 space-y-3'>
-              <button
-                type='button'
-                onClick={handleReturnToSignUp}
-                className='w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-indigo-600/25 cursor-pointer'
-              >
-                <span>{language === 'vi' ? 'Quay về trang Đăng ký ngay' : 'Return to Sign Up'}</span>
-                <ArrowRight className='w-4 h-4 stroke-[2.5]' />
-              </button>
+              {isProcessingAutoLogin ? (
+                <div className='flex items-center justify-center gap-2 py-3 text-indigo-600 dark:text-indigo-400 font-medium'>
+                  <Loader2 className='w-5 h-5 animate-spin' />
+                  <span>{language === 'vi' ? 'Đang chuyển hướng...' : 'Redirecting...'}</span>
+                </div>
+              ) : (
+                <>
+                  <button
+                    type='button'
+                    onClick={handleReturnToHomeOrSignIn}
+                    className='w-full h-11 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-semibold rounded-lg flex items-center justify-center gap-2 shadow-md hover:shadow-lg active:scale-[0.98] transition-all outline-none focus:ring-4 focus:ring-indigo-600/25 cursor-pointer'
+                  >
+                    <span>{language === 'vi' ? 'Đăng nhập ngay' : 'Sign In Now'}</span>
+                    <ArrowRight className='w-4 h-4 stroke-[2.5]' />
+                  </button>
 
-              <Link
-                to='/auth/sign-in'
-                className='w-full h-10 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium rounded-lg flex items-center justify-center transition-all'
-              >
-                <span>{language === 'vi' ? 'Chuyển thẳng sang Đăng nhập' : 'Go to Sign In'}</span>
-              </Link>
+                  <Link
+                    to='/'
+                    className='w-full h-10 border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 font-medium rounded-lg flex items-center justify-center transition-all'
+                  >
+                    <span>{language === 'vi' ? 'Về Trang chủ' : 'Return to Home'}</span>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </main>

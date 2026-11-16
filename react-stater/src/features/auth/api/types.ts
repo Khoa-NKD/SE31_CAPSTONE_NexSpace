@@ -82,3 +82,17 @@ export interface UpdateProfileRequest {
   phone?: string;
   avatarUrl?: string;
 }
+
+export interface GoogleAuthRequest {
+  idToken: string;
+}
+
+export interface GoogleAuthResponse {
+  requiresVerification: boolean;
+  email: string;
+  message: string;
+  accessToken?: string | null;
+  tokenType?: string | null;
+  expiresAt?: string | null;
+  user?: UserDto | null;
+}
