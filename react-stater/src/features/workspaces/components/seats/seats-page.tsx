@@ -306,9 +306,22 @@ export function SeatsPage({
               onSelect={(res) => setSelectedResource(res)}
               selectedResourceId={selectedResource?.id ?? initialResourceId}
               availabilityMap={availabilityMap}
+              activeFloorId={activeFloorId}
               onFloorChange={(floorId) => setActiveFloorId(floorId)}
               filterCategory={activeCategoryFilter}
-              onFloorListLoaded={(floors) => setLoadedFloors(floors)}
+              onFloorListLoaded={(floors) => {
+                setLoadedFloors(floors);
+                if (initialResourceId && !selectedResource) {
+                  for (const fl of floors) {
+                    const found = fl.resources?.find((r) => r.id === initialResourceId);
+                    if (found) {
+                      setSelectedResource(found);
+                      setActiveFloorId(fl.id);
+                      break;
+                    }
+                  }
+                }
+              }}
             />
 
             {/* Interactive Guidance when No Resource is Selected */}
