@@ -2,10 +2,13 @@ package base.api.feature.auth.service.impl;
 
 import base.api.feature.auth.dto.request.AuthRequest;
 import base.api.feature.auth.dto.request.CompleteForgotPasswordDto;
+import base.api.feature.auth.dto.request.GoogleAuthRequestDto;
 import base.api.feature.auth.dto.request.RegisterDto;
 import base.api.feature.auth.dto.response.AuthResponse;
+import base.api.feature.auth.dto.response.GoogleAuthResponseDto;
 import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
+import base.api.feature.auth.service.impl.GoogleTokenVerifierService.GoogleUserPayload;
 import base.api.feature.auth.repository.IEmailVerificationTokenRepository;
 import base.api.feature.auth.repository.IPasswordResetTokenRepository;
 import base.api.feature.auth.repository.IRoleRepository;
@@ -67,6 +70,7 @@ class AuthServiceImplTest {
     private EmailService emailService;
     private EmailDeliverabilityValidator emailDeliverabilityValidator;
     private TrustedClockService trustedClockService;
+    private GoogleTokenVerifierService googleTokenVerifierService;
 
     private AuthServiceImpl authService;
     private UserModel activeUser;
@@ -83,6 +87,7 @@ class AuthServiceImplTest {
         emailService = mock(EmailService.class);
         emailDeliverabilityValidator = mock(EmailDeliverabilityValidator.class);
         trustedClockService = mock(TrustedClockService.class);
+        googleTokenVerifierService = mock(GoogleTokenVerifierService.class);
         when(trustedClockService.nowInVietnam()).thenAnswer(inv -> nowInVietnam());
 
         authService = new AuthServiceImpl(
@@ -96,7 +101,8 @@ class AuthServiceImplTest {
                 jwtUtil,
                 emailService,
                 emailDeliverabilityValidator,
-                trustedClockService
+                trustedClockService,
+                googleTokenVerifierService
         );
 
         ReflectionTestUtils.setField(authService, "emailVerificationEnabled", false);
@@ -735,5 +741,137 @@ class AuthServiceImplTest {
 
         authService.resendVerificationEmail("deleted@nexspace.vn");
         verify(emailService, never()).sendHtmlEmail(eq("deleted@nexspace.vn"), anyString(), anyString());
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // 7. GOOGLE AUTHENTICATION TESTS
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @Test
+    @DisplayName("Google Login: tài khoản mới chưa từng sử dụng -> khởi tạo tài khoản INACTIVE và gửi email xác thực")
+    void loginWithGoogle_NewUser_CreatesInactiveAccountAndSendsVerificationEmail() {
+        GoogleAuthRequestDto requestDto = new GoogleAuthRequestDto("valid-google-id-token");
+        GoogleUserPayload payload = GoogleUserPayload.builder()
+                .sub("google-sub-12345")
+                .email("newuser@gmail.com")
+                .emailVerified(true)
+                .name("New User")
+                .givenName("New")
+                .familyName("User")
+                .picture("https://lh3.googleusercontent.com/avatar.jpg")
+                .build();
+
+        when(googleTokenVerifierService.verifyToken("valid-google-id-token")).thenReturn(payload);
+        when(userRepository.findByEmailIgnoreCase("newuser@gmail.com")).thenReturn(Optional.empty());
+        when(userRepository.findByGoogleId("google-sub-12345")).thenReturn(Optional.empty());
+        when(userRepository.existsByUserNameIgnoreCase(anyString())).thenReturn(false);
+
+        RoleModel userRole = new RoleModel();
+        userRole.setName("USER");
+        when(roleRepository.findByName("USER")).thenReturn(Optional.of(userRole));
+
+        when(userRepository.save(any(UserModel.class))).thenAnswer(inv -> {
+            UserModel u = inv.getArgument(0);
+            u.setId(101L);
+            return u;
+        });
+
+        GoogleAuthResponseDto response = authService.loginWithGoogle(requestDto);
+
+        assertThat(response.isRequiresVerification()).isTrue();
+        assertThat(response.getEmail()).isEqualTo("newuser@gmail.com");
+        assertThat(response.getAccessToken()).isNull();
+        assertThat(response.getMessage()).contains("Chúng tôi đã gửi email xác thực");
+
+        verify(emailService).sendHtmlEmail(eq("newuser@gmail.com"), eq("Xác thực tài khoản"), anyString());
+    }
+
+    @Test
+    @DisplayName("Google Login: tài khoản đã tồn tại và ACTIVE -> đăng nhập thành công và trả về JWT")
+    void loginWithGoogle_ExistingActiveUser_LogsInSuccessfully() {
+        GoogleAuthRequestDto requestDto = new GoogleAuthRequestDto("existing-google-id-token");
+        GoogleUserPayload payload = GoogleUserPayload.builder()
+                .sub("google-sub-existing")
+                .email("tester@nexspace.vn")
+                .emailVerified(true)
+                .name("Tester User")
+                .build();
+
+        when(googleTokenVerifierService.verifyToken("existing-google-id-token")).thenReturn(payload);
+        when(userRepository.findByEmailIgnoreCase("tester@nexspace.vn")).thenReturn(Optional.of(activeUser));
+        when(jwtUtil.generateToken(activeUser)).thenReturn("jwt-token-google-success");
+        when(jwtUtil.extractExpiration("jwt-token-google-success")).thenReturn(Instant.now().plusSeconds(3600));
+
+        GoogleAuthResponseDto response = authService.loginWithGoogle(requestDto);
+
+        assertThat(response.isRequiresVerification()).isFalse();
+        assertThat(response.getEmail()).isEqualTo("tester@nexspace.vn");
+        assertThat(response.getAccessToken()).isEqualTo("jwt-token-google-success");
+        assertThat(response.getUser()).isNotNull();
+        assertThat(response.getUser().getEmail()).isEqualTo("tester@nexspace.vn");
+
+        verify(emailService, never()).sendHtmlEmail(anyString(), anyString(), anyString());
+    }
+
+    @Test
+    @DisplayName("Google Login: tài khoản đã tồn tại nhưng chưa xác thực email (INACTIVE) -> gửi lại email xác thực")
+    void loginWithGoogle_ExistingInactiveUser_SendsVerificationEmail() {
+        GoogleAuthRequestDto requestDto = new GoogleAuthRequestDto("unverified-google-id-token");
+        GoogleUserPayload payload = GoogleUserPayload.builder()
+                .sub("google-sub-unverified")
+                .email("unverified@nexspace.vn")
+                .emailVerified(true)
+                .name("Unverified User")
+                .build();
+
+        UserModel unverifiedUser = new UserModel();
+        unverifiedUser.setId(88L);
+        unverifiedUser.setEmail("unverified@nexspace.vn");
+        unverifiedUser.setStatus(UserStatus.INACTIVE);
+        unverifiedUser.setVerified(false);
+
+        when(googleTokenVerifierService.verifyToken("unverified-google-id-token")).thenReturn(payload);
+        when(userRepository.findByEmailIgnoreCase("unverified@nexspace.vn")).thenReturn(Optional.of(unverifiedUser));
+
+        GoogleAuthResponseDto response = authService.loginWithGoogle(requestDto);
+
+        assertThat(response.isRequiresVerification()).isTrue();
+        assertThat(response.getAccessToken()).isNull();
+        assertThat(response.getMessage()).contains("chưa được kích hoạt");
+
+        verify(emailService).sendHtmlEmail(eq("unverified@nexspace.vn"), eq("Xác thực tài khoản"), anyString());
+    }
+
+    @Test
+    @DisplayName("Google Login: tài khoản bị khóa (LOCKED) hoặc xóa (DELETED) -> ném UnauthorizedException")
+    void loginWithGoogle_LockedOrDeletedUser_ThrowsUnauthorized() {
+        GoogleAuthRequestDto requestDto = new GoogleAuthRequestDto("locked-google-id-token");
+        GoogleUserPayload payload = GoogleUserPayload.builder()
+                .sub("google-sub-locked")
+                .email("locked@nexspace.vn")
+                .emailVerified(true)
+                .build();
+
+        UserModel lockedUser = new UserModel();
+        lockedUser.setId(90L);
+        lockedUser.setEmail("locked@nexspace.vn");
+        lockedUser.setStatus(UserStatus.LOCKED);
+
+        when(googleTokenVerifierService.verifyToken("locked-google-id-token")).thenReturn(payload);
+        when(userRepository.findByEmailIgnoreCase("locked@nexspace.vn")).thenReturn(Optional.of(lockedUser));
+
+        assertThatThrownBy(() -> authService.loginWithGoogle(requestDto))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Tài khoản đã bị khóa bởi Quản trị viên");
+
+        UserModel deletedUser = new UserModel();
+        deletedUser.setId(91L);
+        deletedUser.setEmail("locked@nexspace.vn");
+        deletedUser.setStatus(UserStatus.DELETED);
+        when(userRepository.findByEmailIgnoreCase("locked@nexspace.vn")).thenReturn(Optional.of(deletedUser));
+
+        assertThatThrownBy(() -> authService.loginWithGoogle(requestDto))
+                .isInstanceOf(UnauthorizedException.class)
+                .hasMessageContaining("Tài khoản đã bị xóa");
     }
 }

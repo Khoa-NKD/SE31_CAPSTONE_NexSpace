@@ -134,10 +134,11 @@ final class AuthEmailTemplates {
                         + "<a href='" + HtmlUtils.htmlEscape(buttonUrl) + "' target='_self' style='background:#2563eb;color:#fff;"
                         + "padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:600'>"
                         + buttonText + "</a></p>";
+        String safeName = (name != null && !name.isBlank()) ? HtmlUtils.htmlEscape(name) : "Quý khách";
         return "<html><body style='font-family:Arial,sans-serif;line-height:1.6;color:#333'>"
                 + "<div style='max-width:560px;margin:0 auto;padding:24px;border:1px solid #e5e7eb;border-radius:10px'>"
                 + "<h2 style='margin-top:0'>" + title + "</h2>"
-                + "<p>Xin chào <strong>" + HtmlUtils.htmlEscape(name) + "</strong>,</p>"
+                + "<p>Xin chào <strong>" + safeName + "</strong>,</p>"
                 + bodyHtml
                 + button
                 + "<p style='color:#6b7280;font-size:13px'>" + note + "</p>"

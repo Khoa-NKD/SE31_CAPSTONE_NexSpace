@@ -68,7 +68,7 @@ class AuthControllerTest {
         when(trustedClockService.nowInstant()).thenReturn(java.time.Instant.now());
         objectMapper = new ObjectMapper();
 
-        AuthController controller = new AuthController(authService, userService, trustedClockService);
+        AuthController controller = new AuthController(authService, userService, trustedClockService, objectMapper);
         ReflectionTestUtils.setField(controller, "clientUrl", "http://localhost:5173");
         ReflectionTestUtils.setField(controller, "currentUserProvider", new base.api.shared.security.CurrentUserProvider());
 
@@ -188,7 +188,13 @@ class AuthControllerTest {
     @Test
     @DisplayName("GET /api/auth/verify-email - Click link trong email redirect 302 về Client")
     void verifyEmail_ReturnsHtmlSuccess() throws Exception {
-        when(authService.verifyEmail("email-token-123")).thenReturn("tester@nexspace.vn");
+        UserDto userDto = UserDto.builder()
+                .id(10L)
+                .email("tester@nexspace.vn")
+                .userName("tester")
+                .build();
+        AuthResponse authRes = new AuthResponse("jwt-test-token", "Bearer", Instant.now().plusSeconds(3600), userDto);
+        when(authService.verifyEmailAndIssueToken("email-token-123")).thenReturn(authRes);
 
         mockMvc.perform(get("/api/auth/verify-email").param("token", "email-token-123"))
                 .andExpect(status().isOk())
