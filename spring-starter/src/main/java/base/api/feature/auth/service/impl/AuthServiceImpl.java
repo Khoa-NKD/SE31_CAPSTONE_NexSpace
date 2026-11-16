@@ -2,10 +2,13 @@ package base.api.feature.auth.service.impl;
 
 import base.api.feature.auth.dto.request.AuthRequest;
 import base.api.feature.auth.dto.request.CompleteForgotPasswordDto;
+import base.api.feature.auth.dto.request.GoogleAuthRequestDto;
 import base.api.feature.auth.dto.request.RegisterDto;
 import base.api.feature.auth.dto.response.AuthResponse;
+import base.api.feature.auth.dto.response.GoogleAuthResponseDto;
 import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
+import base.api.feature.auth.service.impl.GoogleTokenVerifierService.GoogleUserPayload;
 import base.api.feature.auth.mapper.UserMapper;
 import base.api.feature.auth.repository.IEmailVerificationTokenRepository;
 import base.api.feature.auth.repository.IPasswordResetTokenRepository;
@@ -66,6 +69,7 @@ public class AuthServiceImpl implements IAuthService {
     private final EmailService emailService;
     private final EmailDeliverabilityValidator emailDeliverabilityValidator;
     private final TrustedClockService trustedClockService;
+    private final GoogleTokenVerifierService googleTokenVerifierService;
 
     @Value("${app.auth.email-verification-enabled:false}")
     private boolean emailVerificationEnabled;
@@ -188,6 +192,116 @@ public class AuthServiceImpl implements IAuthService {
     }
 
     @Override
+    @Transactional(noRollbackFor = UnauthorizedException.class)
+    public GoogleAuthResponseDto loginWithGoogle(GoogleAuthRequestDto dto) {
+        GoogleUserPayload googleUser = googleTokenVerifierService.verifyToken(dto.getIdToken());
+        String email = googleUser.getEmail().trim().toLowerCase(Locale.ROOT);
+        String googleId = googleUser.getSub();
+
+        // 1. Kiểm tra tài khoản đã tồn tại hay chưa
+        Optional<UserModel> existingUserOpt = userRepository.findByEmailIgnoreCase(email);
+        if (existingUserOpt.isEmpty() && googleId != null && !googleId.isBlank()) {
+            existingUserOpt = userRepository.findByGoogleId(googleId);
+        }
+
+        if (existingUserOpt.isPresent()) {
+            // ── NHÁNH 2: Tài khoản Gmail đã có trên hệ thống ──
+            UserModel user = existingUserOpt.get();
+
+            if (user.getStatus() == UserStatus.DELETED) {
+                throw new UnauthorizedException("Tài khoản đã bị xóa và không thể đăng nhập");
+            }
+
+            if (user.getStatus() == UserStatus.LOCKED) {
+                if (user.getLockedUntil() != null) {
+                    LocalDateTime now = trustedClockService.nowInVietnam();
+                    if (now.isBefore(user.getLockedUntil())) {
+                        long remainingMinutes = Duration.between(now, user.getLockedUntil()).toMinutes() + 1;
+                        throw new UnauthorizedException("Tài khoản đang bị khóa đến " + user.getLockedUntil().format(DATE_TIME_FORMATTER) + " (Giờ Việt Nam GMT+7). Vui lòng thử lại sau " + remainingMinutes + " phút");
+                    } else {
+                        user.setStatus(UserStatus.ACTIVE);
+                        user.setLockedUntil(null);
+                        user.setFailedLoginCount(0);
+                        userRepository.save(user);
+                    }
+                } else {
+                    throw new UnauthorizedException("Tài khoản đã bị khóa bởi Quản trị viên");
+                }
+            }
+
+            // Nếu tài khoản chưa kích hoạt (INACTIVE) hoặc chưa xác thực email
+            if (!user.isVerified() || user.getStatus() == UserStatus.INACTIVE) {
+                sendVerificationEmail(user);
+                return GoogleAuthResponseDto.builder()
+                        .requiresVerification(true)
+                        .email(email)
+                        .message("Tài khoản chưa được kích hoạt. Chúng tôi đã gửi lại email xác thực đến " + email + ". Vui lòng kiểm tra hộp thư để xác thực trước khi đăng nhập.")
+                        .build();
+            }
+
+            // Đăng nhập thành công ngay lập tức!
+            if (user.getGoogleId() == null && googleId != null) {
+                user.setGoogleId(googleId);
+            }
+            if ((user.getAvatar() == null || user.getAvatar().isBlank()) && googleUser.getPicture() != null) {
+                user.setAvatar(googleUser.getPicture());
+            }
+            user.setFailedLoginCount(0);
+            user.setLockedUntil(null);
+            user.setLastLoginAt(trustedClockService.nowInVietnam());
+            userRepository.save(user);
+
+            String token = jwtUtil.generateToken(user);
+            return GoogleAuthResponseDto.builder()
+                    .requiresVerification(false)
+                    .email(email)
+                    .accessToken(token)
+                    .tokenType(TOKEN_TYPE)
+                    .expiresAt(jwtUtil.extractExpiration(token))
+                    .user(UserMapper.toDto(user))
+                    .message("Đăng nhập bằng Google thành công")
+                    .build();
+        } else {
+            // ── NHÁNH 1: Tài khoản Gmail chưa từng sử dụng ──
+            String baseUsername = email.split("@")[0].replaceAll("[^a-zA-Z0-9.]", "").toLowerCase(Locale.ROOT);
+            if (baseUsername.length() < 3) {
+                baseUsername = "user" + (System.currentTimeMillis() % 100000);
+            }
+            String finalUsername = baseUsername;
+            int suffix = 1;
+            while (userRepository.existsByUserNameIgnoreCase(finalUsername)) {
+                finalUsername = baseUsername + suffix++;
+            }
+
+            UserModel newUser = new UserModel();
+            newUser.setUserName(finalUsername);
+            newUser.setEmail(email);
+            String givenName = googleUser.getGivenName();
+            String name = googleUser.getName();
+            newUser.setFirstName(givenName != null && !givenName.isBlank() ? givenName : (name != null && !name.isBlank() ? name : finalUsername));
+            newUser.setLastName(trimToNull(googleUser.getFamilyName()));
+            newUser.setAvatar(googleUser.getPicture());
+            newUser.setGoogleId(googleId);
+            newUser.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+            newUser.setRoleEntity(findRole(UserRole.USER));
+            newUser.setVerified(false);
+            newUser.setStatus(UserStatus.INACTIVE);
+            newUser.setPreferredLocale("vi");
+
+            UserModel savedUser = userRepository.save(newUser);
+
+            // Gửi email xác thực đến Gmail của người dùng
+            sendVerificationEmail(savedUser);
+
+            return GoogleAuthResponseDto.builder()
+                    .requiresVerification(true)
+                    .email(email)
+                    .message("Tài khoản của bạn đã được khởi tạo qua Google. Chúng tôi đã gửi email xác thực đến " + email + ". Vui lòng kiểm tra hộp thư và bấm xác thực để hoàn tất đăng nhập.")
+                    .build();
+        }
+    }
+
+    @Override
     public void logout(String token) {
         tokenRevocationService.revoke(token);
     }
@@ -230,16 +344,18 @@ public class AuthServiceImpl implements IAuthService {
     @Override
     @Transactional
     public String verifyEmail(String token) {
-        return verifyEmailInternal(token);
+        return verifyEmailAndIssueToken(token).getUser().getEmail();
     }
 
     @Override
     @Transactional
     public void verifyEmailDirect(String token) {
-        verifyEmailInternal(token);
+        verifyEmailAndIssueToken(token);
     }
 
-    private String verifyEmailInternal(String token) {
+    @Override
+    @Transactional
+    public AuthResponse verifyEmailAndIssueToken(String token) {
         if (token == null || token.isBlank()) {
             throw new BadRequestException("Token không hợp lệ");
         }
@@ -247,16 +363,19 @@ public class AuthServiceImpl implements IAuthService {
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
 
         if (tokenModel.isUsed() || tokenModel.isExpired()) {
-            // Nếu user đã được xác thực trước đó và token đã sử dụng, trả về email an toàn
+            // Nếu user đã được xác thực trước đó và token đã sử dụng, trả về phiên hợp lệ
             Optional<UserModel> userOpt = userRepository.findById(tokenModel.getUserId());
-            if (userOpt.isPresent() && userOpt.get().isVerified() && tokenModel.isUsed()) {
-                return userOpt.get().getEmail();
+            if (userOpt.isPresent() && userOpt.get().isVerified() && tokenModel.isUsed() && userOpt.get().getStatus() == UserStatus.ACTIVE) {
+                UserModel u = userOpt.get();
+                String jwt = jwtUtil.generateToken(u);
+                return new AuthResponse(jwt, TOKEN_TYPE, jwtUtil.extractExpiration(jwt), UserMapper.toDto(u));
             }
             throw new BadRequestException("Token đã được sử dụng hoặc đã hết hạn");
         }
 
         UserModel user = userRepository.findById(tokenModel.getUserId())
                 .orElseThrow(() -> new BadRequestException("Token không hợp lệ"));
+
         if (user.getStatus() == UserStatus.DELETED) {
             throw new BadRequestException("Tài khoản đã bị xóa, không thể xác thực email");
         }
@@ -268,8 +387,13 @@ public class AuthServiceImpl implements IAuthService {
         user.setStatus(UserStatus.ACTIVE);
         user.setEmailVerifiedAt(now);
         user.setLastLoginAt(now);
+        userRepository.save(user);
+
         tokenModel.setUsed(true);
-        return user.getEmail();
+        emailVerificationTokenRepository.save(tokenModel);
+
+        String jwt = jwtUtil.generateToken(user);
+        return new AuthResponse(jwt, TOKEN_TYPE, jwtUtil.extractExpiration(jwt), UserMapper.toDto(user));
     }
 
     @Override

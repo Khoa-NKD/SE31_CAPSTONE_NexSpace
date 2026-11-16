@@ -35,6 +35,7 @@ public class SecurityConfig {
     /** Endpoint không cần JWT. Thêm endpoint public mới vào đây. */
     public static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/login",
+            "/api/auth/google",
             "/api/auth/register",
             "/api/auth/verify-email",
             "/api/auth/verification-status",
