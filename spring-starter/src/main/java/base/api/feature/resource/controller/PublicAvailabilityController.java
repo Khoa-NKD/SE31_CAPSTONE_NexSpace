@@ -1,6 +1,7 @@
 package base.api.feature.resource.controller;
 
 import base.api.feature.resource.dto.response.DeskAvailabilityResponseDto;
+import base.api.feature.resource.dto.response.RoomAvailabilityResponseDto;
 import base.api.feature.resource.service.IResourceAvailabilityService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
@@ -63,6 +64,45 @@ public class PublicAvailabilityController extends BaseAPIController {
         );
 
         return success(result, "Tra cứu chỗ trống thành công");
+    }
+
+    @Operation(
+            summary = "Kiểm tra phòng trống (Room Availability)",
+            description = "Tra cứu tình trạng khả dụng của tất cả các phòng họp/phòng riêng trong một không gian trong khoảng thời gian xác định, bao gồm kiểm tra xung đột hai chiều với các ghế con và khoảng đệm dọn dẹp."
+    )
+    @GetMapping("/rooms")
+    public ResponseEntity<ApiResponse<List<RoomAvailabilityResponseDto>>> getRoomAvailability(
+            @Parameter(description = "Mã không gian làm việc", required = true, example = "1")
+            @RequestParam @NotNull(message = "Mã không gian làm việc không được để trống") Long workspaceId,
+
+            @Parameter(description = "Mã sơ đồ tầng (tuỳ chọn lọc theo tầng cụ thể)", example = "2")
+            @RequestParam(required = false) Long floorPlanId,
+
+            @Parameter(description = "Thời gian bắt đầu (định dạng ISO-8601)", required = true, example = "2026-11-13T14:00:00")
+            @RequestParam @NotNull(message = "Thời gian bắt đầu không được để trống")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
+
+            @Parameter(description = "Thời gian kết thúc (định dạng ISO-8601)", required = true, example = "2026-11-13T16:00:00")
+            @RequestParam @NotNull(message = "Thời gian kết thúc không được để trống")
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime,
+
+            @Parameter(description = "Sức chứa tối thiểu (tuỳ chọn)", example = "6")
+            @RequestParam(required = false) Integer minCapacity
+    ) {
+        Long currentUserId = currentUserProvider.getCurrentUser()
+                .map(AuthUser::getId)
+                .orElse(null);
+
+        List<RoomAvailabilityResponseDto> result = resourceAvailabilityService.checkRoomAvailability(
+                workspaceId,
+                floorPlanId,
+                startTime,
+                endTime,
+                minCapacity,
+                currentUserId
+        );
+
+        return success(result, "Tra cứu phòng trống thành công");
     }
 }
 

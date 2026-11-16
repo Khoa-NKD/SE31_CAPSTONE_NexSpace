@@ -272,10 +272,11 @@ public class PaymentServiceImpl implements IPaymentService {
                 log.warn("Could not cancel payment link on PayOS for orderCode {}: {}", orderCode, e.getMessage());
             }
 
-            if (booking != null && booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+            if (booking != null && (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.PENDING_APPROVAL)) {
                 booking.setStatus(BookingStatus.CANCELLED);
                 booking.setCancelledAt(LocalDateTime.now());
-                booking.setCancelReason(reason);
+                booking.setCancelReason(StringUtils.hasText(reason) ? reason : "Người dùng chủ động hủy giữ chỗ");
+                booking.setHoldExpiresAt(null);
                 bookingRepository.save(booking);
             }
         }
@@ -360,7 +361,7 @@ public class PaymentServiceImpl implements IPaymentService {
             booking = pendings.get(0);
             booking.setBaseAmount(BigDecimal.valueOf(2000));
             booking.setFinalPrice(BigDecimal.valueOf(2000));
-            if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now)) {
+            if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
                 requireOrganizerAcceptingHolds(booking.getWorkspace());
                 booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
             }
@@ -422,6 +423,8 @@ public class PaymentServiceImpl implements IPaymentService {
         return BookingHoldResponseDTO.builder()
                 .bookingId(booking.getId())
                 .bookingCode(booking.getBookingCode())
+                .workspaceId(booking.getWorkspace() != null ? booking.getWorkspace().getId() : null)
+                .resourceId(booking.getResource() != null ? booking.getResource().getId() : null)
                 .seatCode(seatCode)
                 .resourceName(resourceName)
                 .workspaceName(workspaceName)

@@ -10,6 +10,8 @@ import java.time.LocalDateTime;
 public class BookingHoldResponseDTO {
     Long bookingId;
     String bookingCode;
+    Long workspaceId;
+    Long resourceId;
     String seatCode;
     String resourceName;
     String workspaceName;
