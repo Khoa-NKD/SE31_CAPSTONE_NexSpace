@@ -17,3 +17,18 @@ export function useHoldResourceMutation() {
     }
   });
 }
+
+/**
+ * Hook Mutation cho phép khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release).
+ */
+export function useReleaseHoldMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<HoldResourceResponseDto, Error, number>({
+    mutationFn: (bookingId) => resourceAvailabilityService.releaseHold(bookingId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: availabilityKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+    }
+  });
+}

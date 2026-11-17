@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { backendRequest } from '@/features/auth/api/session';
@@ -257,24 +257,6 @@ export function SeatsPage({
 
   const createBookingMutation = useCreateBookingMutation();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-
-  const lastUnavailableIdRef = useRef<number | null>(null);
-
-  // Real-time defense: If another user locks or books the currently selected resource, notify user
-  useEffect(() => {
-    if (selectedResource && availabilityMap.has(selectedResource.id)) {
-      const avail = availabilityMap.get(selectedResource.id);
-      if ((avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') && lastUnavailableIdRef.current !== selectedResource.id) {
-        lastUnavailableIdRef.current = selectedResource.id;
-        toast.warning(
-          c(
-            'The seat you selected was just held or booked by someone else.',
-            'Vị trí bạn vừa chọn đã được người khác giữ chỗ hoặc đặt chỗ.'
-          )
-        );
-      }
-    }
-  }, [availabilityMap, selectedResource, c]);
 
   const handleScheduleChange = (schedule: ScheduleSelection) => {
     if (schedule.isoStartTime && schedule.isoEndTime) {
