@@ -2,6 +2,8 @@ import { apiClient } from '@/lib/api-client';
 import type {
   DeskAvailabilityParams,
   DeskAvailabilityResponseDto,
+  HoldResourceRequestDto,
+  HoldResourceResponseDto,
   RoomAvailabilityParams,
   RoomAvailabilityResponseDto
 } from './types';
@@ -34,7 +36,24 @@ export const resourceAvailabilityService = {
         minCapacity: params.minCapacity
       }
     });
+  },
+
+  /**
+   * Giữ chỗ tạm thời (Temporary Hold) kèm cơ chế Idempotent Reuse và giới hạn tối đa 3 hold
+   */
+  async holdResource(payload: HoldResourceRequestDto): Promise<HoldResourceResponseDto> {
+    return apiClient.post<HoldResourceResponseDto>('/bookings/hold', payload);
+  },
+
+  /**
+   * Lấy thông tin phiên giữ chỗ đang có hiệu lực của tài nguyên
+   */
+  async getActiveHold(resourceId: number): Promise<HoldResourceResponseDto> {
+    return apiClient.get<HoldResourceResponseDto>('/bookings/hold', {
+      params: { resourceId }
+    });
   }
 };
+
 
 
