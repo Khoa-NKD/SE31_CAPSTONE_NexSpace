@@ -187,9 +187,16 @@ public class FloorDesignService {
                 .orElseThrow(() -> new NotFoundException("Layout template not found"));
         if (id != null && !ResourceResponses.revision(item).equals(input.expectedRevision()))
             throw new ConflictException("Template changed. Refresh first");
-        if (templates.existsByOrganizerIdAndNameIgnoreCaseAndIdNot(actor, input.name().trim(), id == null ? -1L : id))
+        // Locking reads see the latest committed presets after waiting for the owner lock.
+        var library = templates.findForUpdateByOrganizerId(actor);
+        if (library.stream().anyMatch(existing -> !Objects.equals(existing.getId(), id)
+                && existing.getName().trim().equalsIgnoreCase(input.name().trim())))
             throw new ConflictException("A template with this name already exists");
-        if (id == null && templates.findByOrganizerIdOrderByNameAsc(actor).size() >= 500)
+        var identity = LayoutTemplateIdentity.key(input.kind(), input.name());
+        if (library.stream().anyMatch(existing -> !Objects.equals(existing.getId(), id)
+                && LayoutTemplateIdentity.key(existing.getKind(), existing.getName()).equals(identity)))
+            throw new ConflictException("This furnishing already exists in your library. Edit the existing template instead");
+        if (id == null && library.size() >= 500)
             throw new ConflictException("The library has reached its 500-template limit");
         item.setOrganizerId(actor); item.setName(input.name().trim()); item.setKind(input.kind());
         item.setWidthM(input.widthM()); item.setLengthM(input.lengthM()); item.setColor(input.color()); item.setIcon(input.icon()); item.setActive(true);
