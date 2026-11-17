@@ -1,3 +1,13 @@
+import {
+  expandCanvasSelection,
+  pasteCanvasSelection,
+  type CanvasClipboard
+} from '../utils/canvas-selection';
+import { changedLayoutResources } from '../utils/manual-layout-draft';
+import type { GroupEditPhase } from './use-canvas-multi-selection';
+import type { FloorLayout, FloorDecoration } from '../api/resources';
+import type { ResourceTypePhoto } from '../api/resource-type-photos';
+import { ResourceTypePhotoField } from './resource-type-photo-field';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -15,7 +25,14 @@ import {
   type DraftForm
 } from '../utils/resource-drafts';
 import { moveWithRoom } from '../utils/placement';
-import { layoutGeometry, insideRoom, previewLayout } from '../utils/layout-placement';
+import { canvasPosition } from '../utils/canvas-resource-form';
+import {
+  layoutGeometry,
+  insideRoom,
+  previewLayout,
+  containingRoomId,
+  withSpatialParents
+} from '../utils/layout-placement';
 import { useBlocker } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import {
@@ -42,7 +59,6 @@ import {
   Ruler,
   SlidersHorizontal,
   Copy,
-  ClipboardPaste,
   Plus,
   Trash2
 } from 'lucide-react';
@@ -62,6 +78,8 @@ import {
   resourceFormSchema,
   saveResource,
   saveResourceBatch,
+  saveFloorDecorations,
+  deleteResource,
   resourcePayload,
   floorLayoutOptions,
   getResource,
@@ -164,6 +182,11 @@ export function ResourceEditor({
   const [extraDecorations, setExtraDecorations] = useState<
     import('../api/resources').FloorDecoration[]
   >([]);
+  const [sceneOverride, setSceneOverride] = useState<FloorLayout>();
+  const [emptyCanvas, setEmptyCanvas] = useState(false);
+  const [groupClipboard, setGroupClipboard] = useState<CanvasClipboard | null>(null);
+  const [groupSelection, setGroupSelection] = useState<string[]>([]);
+  const groupOperation = useRef(false);
   const [copyContents, setCopyContents] = useState(true);
   const [deskTypeId, setDeskTypeId] = useState(
     String(options.types.find((t) => t.category === 'DESK' && t.active && t.currency)?.id ?? '')
@@ -212,7 +235,7 @@ export function ResourceEditor({
   };
   const activeDraft = inheritSize({ key: activeKey, form: activeForm, current });
   const form = activeDraft.form;
-  const drafts = [...staged.map(inheritSize), activeDraft];
+  const drafts = emptyCanvas ? staged.map(inheritSize) : [...staged.map(inheritSize), activeDraft];
   const sizeLocked = hasStandardSize(type);
   const sizeUnavailable = drafts.some((draft) => {
     if (draft.current?.resourceTypeId === Number(draft.form.resourceTypeId)) return false;
@@ -220,13 +243,27 @@ export function ResourceEditor({
     return hasStandardSize(draftType) && !standardSize(draftType);
   });
   const composed = floorQuery.data
-    ? resourceDraftLayout(floorQuery.data, drafts, options)
+    ? resourceDraftLayout(
+        sceneOverride?.floor.id === floorId ? sceneOverride : floorQuery.data,
+        drafts,
+        options
+      )
     : undefined;
   const canvasLayout = composed
     ? { ...composed, decorations: [...(composed.decorations ?? []), ...extraDecorations] }
     : undefined;
   const setForm = (update: DraftForm | ((previous: DraftForm) => DraftForm)) => {
-    const next = typeof update === 'function' ? update(form) : update;
+    setEmptyCanvas(false);
+    let next = typeof update === 'function' ? update(form) : update;
+    const nextPose = draftGeometry(next);
+    if (
+      nextPose &&
+      canvasLayout &&
+      options.types.find((item) => item.id === Number(next.resourceTypeId))?.category === 'DESK'
+    ) {
+      const parent = containingRoomId(canvasLayout.resources, nextPose, activeKey);
+      next = { ...next, parentRoomId: parent ? String(parent) : '' };
+    }
     const before = draftGeometry(form),
       after = draftGeometry(next);
     if (
@@ -237,7 +274,13 @@ export function ResourceEditor({
       setStaged((items) =>
         items.map((item) => {
           const pose = draftGeometry(item.form);
-          if (Number(item.form.parentRoomId) !== activeKey || !pose) return item;
+          if (
+            options.types.find((type) => type.id === Number(item.form.resourceTypeId))?.category !==
+              'DESK' ||
+            !pose ||
+            !insideRoom(pose, before)
+          )
+            return item;
           const moved = moveWithRoom(pose, before, after);
           return {
             ...item,
@@ -265,7 +308,11 @@ export function ResourceEditor({
   const [initialForm] = useState(() => JSON.stringify(activeForm));
   const [confirmClose, setConfirmClose] = useState(false);
   const dirty =
-    staged.length > 0 || extraDecorations.length > 0 || JSON.stringify(activeForm) !== initialForm;
+    staged.length > 0 ||
+    extraDecorations.length > 0 ||
+    !!sceneOverride ||
+    emptyCanvas ||
+    JSON.stringify(activeForm) !== initialForm;
   const navigation = useBlocker({
     shouldBlockFn: () => dirty || busy,
     enableBeforeUnload: () => dirty || busy,
@@ -276,10 +323,37 @@ export function ResourceEditor({
     if (dirty) setConfirmClose(true);
     else onClose();
   };
-  const [undoPositions, setUndoPositions] = useState<PlacementFields[]>([]);
-  const [redoPositions, setRedoPositions] = useState<PlacementFields[]>([]);
+  type EditorSnapshot = {
+    drafts: ResourceDraft[];
+    extra: FloorDecoration[];
+    scene?: FloorLayout;
+    empty: boolean;
+    active: number;
+  };
+  const snapshot = (): EditorSnapshot => ({
+    drafts: drafts.map((draft) => ({ ...draft, form: { ...draft.form } })),
+    extra: [...extraDecorations],
+    scene: sceneOverride,
+    empty: emptyCanvas,
+    active: activeKey
+  });
+  const restore = (saved: EditorSnapshot) => {
+    const active = saved.drafts.find((draft) => draft.key === saved.active) ?? saved.drafts[0];
+    if (active) {
+      setActiveKey(active.key);
+      setCurrent(active.current);
+      setActiveForm({ ...active.form });
+    }
+    setStaged(saved.drafts.filter((draft) => draft.key !== active?.key));
+    setExtraDecorations(saved.extra);
+    setSceneOverride(saved.scene);
+    setEmptyCanvas(saved.empty);
+  };
+  const [undoPositions, setUndoPositions] = useState<EditorSnapshot[]>([]);
+  const [redoPositions, setRedoPositions] = useState<EditorSnapshot[]>([]);
+  const groupStart = useRef<EditorSnapshot | null>(null);
   const checkpoint = () => {
-    setUndoPositions((previous) => [...previous.slice(-99), selectPlacementFields(form)]);
+    setUndoPositions((previous) => [...previous.slice(-99), snapshot()]);
     setRedoPositions([]);
   };
   const changePosition = (position: PlacementFields, record = true) => {
@@ -287,19 +361,209 @@ export function ResourceEditor({
     setForm((previous) => ({ ...previous, ...position }));
   };
   const undoPosition = () => {
-    const position = undoPositions.at(-1);
-    if (!position) return;
-    setRedoPositions((previous) => [...previous, selectPlacementFields(form)]);
+    const saved = undoPositions.at(-1);
+    if (!saved) return;
+    setRedoPositions((previous) => [...previous, snapshot()]);
     setUndoPositions((previous) => previous.slice(0, -1));
-    setForm((previous) => ({ ...previous, ...position }));
+    restore(saved);
   };
   const redoPosition = () => {
-    const position = redoPositions.at(-1);
-    if (!position) return;
-    setUndoPositions((previous) => [...previous, selectPlacementFields(form)]);
+    const saved = redoPositions.at(-1);
+    if (!saved) return;
+    setUndoPositions((previous) => [...previous, snapshot()]);
     setRedoPositions((previous) => previous.slice(0, -1));
-    setForm((previous) => ({ ...previous, ...position }));
+    restore(saved);
   };
+  function installGroupScene(next: FloorLayout, collection = drafts) {
+    next = withSpatialParents(next);
+    const updated = collection.map((draft) => {
+      const item = next.resources.find((item) => item.id === draft.key);
+      return item
+        ? {
+            ...draft,
+            form: {
+              ...draft.form,
+              ...canvasPosition(item),
+              parentRoomId: item.parentRoomId ? String(item.parentRoomId) : ''
+            }
+          }
+        : draft;
+    });
+    const active = updated.find((draft) => draft.key === activeKey) ?? updated[0];
+    if (active) {
+      setActiveKey(active.key);
+      setCurrent(active.current);
+      setActiveForm({ ...active.form });
+    } else {
+      setCurrent(undefined);
+      setActiveKey(nextKey.current--);
+      setActiveForm({
+        ...resourceDraftForm(options),
+        floorPlanId: String(floorId),
+        posX: '',
+        posY: ''
+      });
+    }
+    setStaged(updated.filter((draft) => draft.key !== active?.key));
+    setEmptyCanvas(!active);
+    const extraIds = new Set(extraDecorations.map((item) => item.id));
+    setExtraDecorations((next.decorations ?? []).filter((item) => extraIds.has(item.id)));
+    setSceneOverride({
+      ...next,
+      resources: next.resources.filter((item) => item.id > 0),
+      decorations: (next.decorations ?? []).filter((item) => !extraIds.has(item.id))
+    });
+  }
+  function changeGroup(next: FloorLayout, phase: GroupEditPhase) {
+    if (phase === 'start') {
+      groupStart.current = snapshot();
+      checkpoint();
+      return;
+    }
+    if (phase === 'cancel') {
+      if (groupStart.current) restore(groupStart.current);
+      setUndoPositions((previous) => previous.slice(0, -1));
+      groupStart.current = null;
+      return;
+    }
+    installGroupScene(next);
+    if (phase === 'end') groupStart.current = null;
+  }
+  function copyGroup(keys: string[], includeContents = true) {
+    if (!canvasLayout || busy) return null;
+    const copied = {
+      scene: canvasLayout,
+      keys: includeContents ? expandCanvasSelection(canvasLayout, keys) : keys,
+      includeContents
+    };
+    setGroupClipboard(copied);
+    toast.success(c('Group copied.', 'Đã sao chép nhóm.'));
+    return copied;
+  }
+  async function pasteGroup(copied = groupClipboard) {
+    if (!copied || !canvasLayout || busy || groupOperation.current) return;
+    groupOperation.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const pasted = pasteCanvasSelection(canvasLayout, copied, c('en', 'vi') as 'en' | 'vi');
+      if (!pasted) return;
+      const copies = await Promise.all(
+        pasted.resources.map(async (item) => {
+          const sourceId = pasted.sources.get(item.id)!;
+          const original = drafts.find((draft) => draft.key === sourceId);
+          const detail =
+            original?.current ?? (sourceId > 0 ? await getResource(sourceId) : undefined);
+          if (detail && (detail.workspaceId !== workspaceId || detail.floorPlanId !== floorId))
+            throw new Error(
+              c('Resource no longer belongs to this floor.', 'Chỗ không còn thuộc sơ đồ này.')
+            );
+          const sourceForm = original?.form ?? resourceDraftForm(options, detail);
+          return {
+            key: item.id,
+            form: {
+              ...sourceForm,
+              ...canvasPosition(item),
+              code: item.code,
+              name: item.name,
+              parentRoomId: item.parentRoomId ? String(item.parentRoomId) : ''
+            }
+          };
+        })
+      );
+      checkpoint();
+      nextKey.current = Math.min(nextKey.current, ...copies.map((item) => item.key)) - 1;
+      if (copies[0]) {
+        setActiveKey(copies[0].key);
+        setActiveForm(copies[0].form);
+        setCurrent(undefined);
+        setEmptyCanvas(false);
+        setStaged([...drafts, ...copies.slice(1)]);
+      }
+      setExtraDecorations((items) => [...items, ...pasted.decorations]);
+      setGroupSelection([
+        ...copies.map((item) => 'resource:' + item.key),
+        ...pasted.decorations.map((item) => 'decoration:' + item.id)
+      ]);
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : c('Could not paste group.', 'Không dán được nhóm.')
+      );
+    } finally {
+      groupOperation.current = false;
+      setBusy(false);
+    }
+  }
+  async function deleteGroup(keys: string[]) {
+    if (!canvasLayout || busy || groupOperation.current) return;
+    const selected = new Set(expandCanvasSelection(canvasLayout, keys));
+    if (!selected.size) return;
+    groupOperation.current = true;
+    setBusy(true);
+    setError('');
+    const deleted = new Set<number>();
+    let failure: unknown;
+    try {
+      const details = await Promise.all(
+        canvasLayout.resources
+          .filter((item) => item.id > 0 && selected.has('resource:' + item.id))
+          .map(async (item) => {
+            const detail = await getResource(item.id);
+            if (
+              detail.revision !== item.revision ||
+              detail.workspaceId !== workspaceId ||
+              detail.floorPlanId !== floorId
+            )
+              throw new Error(
+                c(
+                  'The floor changed. Reload before deleting.',
+                  'Sơ đồ đã thay đổi. Tải lại trước khi xóa.'
+                )
+              );
+            return detail;
+          })
+      );
+      details.sort((a, b) => Number(a.category === 'ROOM') - Number(b.category === 'ROOM'));
+      for (const detail of details) {
+        await deleteResource(detail);
+        deleted.add(detail.id);
+      }
+    } catch (error) {
+      failure = error;
+    }
+    const remaining = canvasLayout.resources.filter((item) =>
+      item.id > 0 ? !deleted.has(item.id) : !selected.has('resource:' + item.id)
+    );
+    const next = {
+      ...canvasLayout,
+      resources: remaining,
+      decorations: (canvasLayout.decorations ?? []).filter(
+        (item) => !selected.has('decoration:' + item.id)
+      )
+    };
+    if (deleted.size) {
+      const refreshed = await floorQuery.refetch();
+      if (refreshed.data) next.floor = refreshed.data.floor;
+    }
+    installGroupScene(
+      next,
+      drafts.filter((draft) => remaining.some((item) => item.id === draft.key))
+    );
+    setGroupSelection([]);
+    setUndoPositions([]);
+    setRedoPositions([]);
+    groupOperation.current = false;
+    setBusy(false);
+    if (failure)
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : c('Some objects could not be deleted.', 'Một số đối tượng chưa xóa được.')
+      );
+    else toast.success(c('Selection removed.', 'Đã xóa nhóm đã chọn.'));
+  }
   const set = (key: keyof typeof form, value: string) => {
     if (['posX', 'posY', 'width', 'height', 'rotation'].includes(key)) checkpoint();
     setForm((v) => ({ ...v, [key]: value }));
@@ -316,6 +580,8 @@ export function ResourceEditor({
     canvasLayout
   );
   function activate(draft: ResourceDraft, collection = drafts) {
+    setGroupSelection([]);
+    setEmptyCanvas(false);
     setStaged(collection.filter((item) => item.key !== draft.key));
     setActiveKey(draft.key);
     setCurrent(draft.current);
@@ -555,7 +821,7 @@ export function ResourceEditor({
   }
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (busy || placement.blocked || sizeUnavailable) return;
+    if (busy || (!emptyCanvas && placement.blocked) || sizeUnavailable) return;
     setErrors({});
     setError('');
     if (studio && !drafts.every((draft) => draftGeometry(draft.form))) {
@@ -567,9 +833,66 @@ export function ResourceEditor({
       );
       return;
     }
+    const savingDrafts = drafts.map((draft) => {
+      const pose = draftGeometry(draft.form);
+      if (
+        !pose ||
+        !canvasLayout ||
+        options.types.find((type) => type.id === Number(draft.form.resourceTypeId))?.category !==
+          'DESK'
+      )
+        return draft;
+      const parent = containingRoomId(canvasLayout.resources, pose, draft.key);
+      return { ...draft, form: { ...draft.form, parentRoomId: parent ? String(parent) : '' } };
+    });
+    if (!savingDrafts.length && canvasLayout && floorQuery.data) {
+      setBusy(true);
+      try {
+        const changes = changedLayoutResources(floorQuery.data, canvasLayout);
+        const items = await Promise.all(
+          changes.map(async (item) => {
+            const detail = await getResource(item.id);
+            const parsed = resourceFormSchema.parse({
+              ...resourceDraftForm(options, detail),
+              ...canvasPosition(item),
+              parentRoomId: item.parentRoomId ? String(item.parentRoomId) : ''
+            });
+            return {
+              clientId: 'r_' + item.id,
+              id: item.id,
+              input: resourcePayload(parsed, detail)
+            };
+          })
+        );
+        if (items.length)
+          await saveResourceBatch(
+            workspaceId,
+            floorId,
+            floorQuery.data.floor.revision,
+            items,
+            canvasLayout.decorations
+          );
+        else
+          await saveFloorDecorations(
+            workspaceId,
+            floorQuery.data,
+            canvasLayout.decorations ?? [],
+            String(canvasLayout.width ?? 1200),
+            String(canvasLayout.height ?? 800)
+          );
+        await onSaved();
+        onClose();
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : 'Could not save layout');
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+    const activeSaving = savingDrafts.find((draft) => draft.key === activeKey)!.form;
     const parsed = resourceFormSchema.safeParse({
-      ...form,
-      parentRoomId: Number(form.parentRoomId) < 0 ? '' : form.parentRoomId
+      ...activeSaving,
+      parentRoomId: Number(activeSaving.parentRoomId) < 0 ? '' : activeSaving.parentRoomId
     });
     if (!parsed.success) {
       setErrors(Object.fromEntries(parsed.error.issues.map((i) => [String(i.path[0]), i.message])));
@@ -591,12 +914,52 @@ export function ResourceEditor({
     }
     setBusy(true);
     try {
-      if (drafts.length === 1 && !extraDecorations.length)
+      const changedPeers = (canvasLayout?.resources ?? []).filter((item) => {
+        if (
+          item.id < 1 ||
+          item.status === 'ARCHIVED' ||
+          savingDrafts.some((draft) => draft.key === item.id)
+        )
+          return false;
+        const before = floorQuery.data?.resources.find((resource) => resource.id === item.id);
+        const pose = layoutGeometry(item);
+        if (!before || !pose || !canvasLayout) return false;
+        return (
+          (before.parentRoomId ?? null) !== (item.parentRoomId ?? null) ||
+          ['posX', 'posY', 'width', 'height', 'rotation'].some(
+            (field) => before[field as keyof typeof before] !== item[field as keyof typeof item]
+          )
+        );
+      });
+      for (const item of changedPeers) {
+        const detail = await getResource(item.id);
+        if (
+          detail.revision !==
+          floorQuery.data?.resources.find((resource) => resource.id === item.id)?.revision
+        )
+          throw new Error(
+            c(
+              'The floor changed. Reload before saving.',
+              'Sơ đồ đã thay đổi. Tải lại trước khi lưu.'
+            )
+          );
+        const parent = item.parentRoomId;
+        savingDrafts.push({
+          key: item.id,
+          current: detail,
+          form: {
+            ...resourceDraftForm(options, detail),
+            ...canvasPosition(item),
+            parentRoomId: parent ? String(parent) : ''
+          }
+        });
+      }
+      if (savingDrafts.length === 1 && !extraDecorations.length && !sceneOverride)
         await saveResource(workspaceId, parsed.data, current);
       else {
         if (!floorQuery.data || !canvasLayout)
           throw new Error(c('Reload the floor before saving.', 'Tải lại sơ đồ trước khi lưu.'));
-        const changedDrafts = changedResourceDrafts(drafts, options);
+        const changedDrafts = changedResourceDrafts(savingDrafts, options);
         const items = changedDrafts.map((draft) => {
           const data = resourceFormSchema.safeParse({
             ...draft.form,
@@ -630,7 +993,15 @@ export function ResourceEditor({
             Number(form.floorPlanId),
             floorQuery.data.floor.revision,
             items,
-            extraDecorations.length ? canvasLayout.decorations : undefined
+            canvasLayout.decorations
+          );
+        else
+          await saveFloorDecorations(
+            workspaceId,
+            floorQuery.data,
+            canvasLayout.decorations ?? [],
+            String(canvasLayout.width ?? 1200),
+            String(canvasLayout.height ?? 800)
           );
       }
       await onSaved();
@@ -756,10 +1127,7 @@ export function ResourceEditor({
                     <option value=''>{c('Choose floor', 'Chọn tầng')}</option>
                     {options.floors.map((f) => (
                       <option key={f.id} value={f.id}>
-                        {f.location
-                          ? `${f.location.buildingName} / ${f.location.physicalFloorName} / `
-                          : ''}
-                        {f.name} · {f.status}
+                        {c('Floor', 'Tầng')} {f.floorNumber} · {f.status}
                       </option>
                     ))}
                   </select>
@@ -840,6 +1208,7 @@ export function ResourceEditor({
                     <select
                       className={selectClass}
                       value={form.parentRoomId ?? ''}
+                      disabled
                       onChange={(e) => set('parentRoomId', e.target.value)}
                     >
                       <option value=''>
@@ -872,8 +1241,8 @@ export function ResourceEditor({
                   </Field>
                   <p className='text-xs text-muted-foreground'>
                     {c(
-                      'Choose a room when this seat is physically inside it. Coordinates are relative to the floor. The seat follows the room and is included in the room booking.',
-                      'Chọn phòng khi ghế nằm trong phòng đó. Tọa độ tính theo tầng. Ghế bật/tắt theo phòng và đi kèm khi khách đặt nguyên phòng.'
+                      'Room membership is determined by position. Drag the seat fully inside a room to assign it, or outside to make it an open-area seat.',
+                      'Phòng được xác định theo vị trí. Kéo ghế nằm trọn trong phòng để gán vào phòng; kéo ra ngoài để thành ghế khu mở.'
                     )}
                   </p>
                 </div>
@@ -1116,44 +1485,39 @@ export function ResourceEditor({
                   draftLayout={canvasLayout}
                   onSelect={(key) => void selectDraft(key)}
                   onCopy={() => void copySelection()}
-                  onPaste={() => pasteSelection()}
-                  actions={
+                  onPaste={() => (groupClipboard ? void pasteGroup() : pasteSelection())}
+                  actions={(selectionToolbar, selectionCount) => (
                     <div className='space-y-3'>
-                      <div className='flex flex-wrap items-center gap-2'>
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || !draftGeometry(form)}
-                          onClick={() => void copySelection()}
-                        >
-                          <Copy className='size-4' />
-                          {c('Copy', 'Sao chép')}
-                        </Button>
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || !clipboard}
-                          onClick={() => pasteSelection()}
-                        >
-                          <ClipboardPaste className='size-4' />
-                          {c('Paste', 'Dán')}
-                        </Button>
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='secondary'
-                          disabled={busy || !draftGeometry(form)}
-                          onClick={async () => {
-                            const snapshot = await copySelection();
-                            if (snapshot) pasteSelection(snapshot);
-                          }}
-                        >
-                          <Copy className='size-4' />
-                          {c('Duplicate', 'Nhân bản')}
-                        </Button>
-                        {!current && drafts.length > 1 && (
+                      <div className='flex items-center gap-2 overflow-x-auto whitespace-nowrap'>
+                        {selectionToolbar}
+                        {selectionCount === 0 && (
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant='secondary'
+                            disabled={busy || !draftGeometry(form)}
+                            onClick={async () => {
+                              const copied = copyGroup(['resource:' + activeKey], copyContents);
+                              if (copied) void pasteGroup(copied);
+                            }}
+                          >
+                            <Copy className='size-4' />
+                            {c('Duplicate', 'Nhân bản')}
+                          </Button>
+                        )}
+                        {selectionCount === 0 && type?.category === 'ROOM' && (
+                          <label className='flex shrink-0 items-center gap-2 text-xs text-muted-foreground'>
+                            <input
+                              type='checkbox'
+                              checked={copyContents}
+                              onChange={(e) => setCopyContents(e.target.checked)}
+                              disabled={busy}
+                              className='size-4 accent-primary'
+                            />
+                            {c('Include seats and furnishings', 'Kèm ghế và đồ bố trí trong phòng')}
+                          </label>
+                        )}
+                        {selectionCount === 0 && !current && drafts.length > 1 && (
                           <Button
                             type='button'
                             size='sm'
@@ -1193,19 +1557,6 @@ export function ResourceEditor({
                             <Plus className='size-4' />
                             {c('Add seat inside room', 'Thêm ghế trong phòng')}
                           </Button>
-                          <label className='flex w-full items-center gap-2 text-xs text-muted-foreground'>
-                            <input
-                              type='checkbox'
-                              checked={copyContents}
-                              onChange={(e) => setCopyContents(e.target.checked)}
-                              disabled={busy}
-                              className='size-4 accent-primary'
-                            />
-                            {c(
-                              'Include seats and furnishings when copying this room',
-                              'Sao chép cả ghế và đồ bố trí bên trong phòng'
-                            )}
-                          </label>
                         </div>
                       )}
                       <div
@@ -1236,7 +1587,18 @@ export function ResourceEditor({
                         )}
                       </p>
                     </div>
-                  }
+                  )}
+                  onGroupChange={changeGroup}
+                  onGroupDelete={(keys) => void deleteGroup(keys)}
+                  onGroupCopy={(keys) => {
+                    copyGroup(keys);
+                  }}
+                  onGroupDuplicate={(keys) => {
+                    const copied = copyGroup(keys);
+                    if (copied) void pasteGroup(copied);
+                  }}
+                  groupSelection={groupSelection}
+                  hideActive={emptyCanvas}
                   workspaceId={workspaceId}
                   floorId={Number(form.floorPlanId)}
                   resourceId={activeKey}
@@ -1257,7 +1619,8 @@ export function ResourceEditor({
             </section>
           </EditorCanvas>
         </div>
-        {placement.result && !placement.result.valid && (
+        {!emptyCanvas && placement.result && !placement.result.valid &&
+          !placement.result.roomEdgeCollisions.size && (
           <p
             role='alert'
             className='rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive'
@@ -1284,7 +1647,10 @@ export function ResourceEditor({
             <Button type='button' variant='outline' disabled={busy} onClick={close}>
               {c('Cancel', 'Hủy')}
             </Button>
-            <Button type='submit' disabled={busy || placement.blocked || sizeUnavailable}>
+            <Button
+              type='submit'
+              disabled={busy || (!emptyCanvas && placement.blocked) || sizeUnavailable}
+            >
               {busy ? (
                 <LoaderCircle className='size-4 animate-spin' />
               ) : (
@@ -1609,6 +1975,7 @@ function ResourceTypeSetupDialog({
   const [hour, setHour] = useState(current?.pricePerHour ?? '');
   const [day, setDay] = useState(current?.pricePerDay ?? '');
   const [month, setMonth] = useState(current?.pricePerMonth ?? '');
+  const [photos, setPhotos] = useState<ResourceTypePhoto[]>();
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (busy) return;
@@ -1677,7 +2044,8 @@ function ResourceTypeSetupDialog({
           standardWidthM: standardWidth ? Number(standardWidth) : null,
           standardLengthM: standardLength ? Number(standardLength) : null
         },
-        current
+        current,
+        photos
       );
       await onSaved();
       onTypeSaved?.(savedType);
@@ -1840,6 +2208,11 @@ function ResourceTypeSetupDialog({
                   </Field>
                 ))}
               </div>
+              <ResourceTypePhotoField<ResourceTypePhoto>
+                photos={photos ?? current?.photoUrls ?? []}
+                onChange={setPhotos}
+                disabled={busy}
+              />
               <p className='text-muted-foreground text-xs'>
                 {c(
                   'Updating type prices affects resources inheriting those prices, never past booking totals. Existing currencies are not converted.',

@@ -168,7 +168,7 @@ export function AreaPlacementEditor({
                 fill='currentColor'
                 fontSize={Math.min(scale * 0.035, o.width * 0.09)}
               >
-                {o.layoutName || o.workspaceName}
+                {o.workspaceName}
               </text>
             </g>
           ))}

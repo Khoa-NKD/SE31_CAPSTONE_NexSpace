@@ -2,6 +2,10 @@ import type { Building } from '../api/buildings';
 import type { FloorOption } from '../api/resources';
 
 export interface WorkspaceBuildingFloor extends FloorOption {
+  outline?: 'RECTANGULAR' | 'ROUNDED';
+  physicalWidth?: number;
+  physicalHeight?: number;
+  cornerRadiusPx?: number;
   workspaceId?: number;
   displayName?: string;
   linked: boolean;
@@ -39,6 +43,7 @@ export function workspaceBuildingFloors(
         revision: ''
       }),
       name: physical.name,
+      ...(physical.outline ? { outline: physical.outline, physicalWidth: physical.width, physicalHeight: physical.height, cornerRadiusPx: (physical.cornerRadiusM ?? 0) * 60 } : {}),
       displayName: names.length ? `${physical.name} (${names.join(', ')})` : physical.name,
       workspaceId: linked ? workspaceId : undefined,
       linked

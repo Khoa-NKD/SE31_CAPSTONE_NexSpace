@@ -6,7 +6,10 @@ export function aiPreviewGeometry(layout: FloorLayout) {
   const object = !resource ? layout.decorations?.find((item) => layoutGeometry(item)) : undefined;
   const shape = resource ? layoutGeometry(resource) : object ? layoutGeometry(object) : undefined;
   if (!shape)
-    return { valid: true, fits: true, collisions: new Set<string>(), collisionKeys: new Set<string>() };
+    return {
+      valid: true, fits: true, collisions: new Set<string>(), collisionKeys: new Set<string>(),
+      roomEdgeCollisions: new Set<string>()
+    };
   return previewLayout(
     layout,
     shape,

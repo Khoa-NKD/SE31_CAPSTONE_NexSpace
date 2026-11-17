@@ -369,6 +369,7 @@ export function DecorationLayer({
     <>
       {items.map((item) => (
         <g
+          data-selection-key={`decoration:${item.id}`}
           key={item.id}
           transform={`rotate(${item.rotation} ${item.posX + item.width / 2} ${item.posY + item.height / 2})`}
           pointerEvents={blockSelection || onSelect ? 'auto' : 'none'}

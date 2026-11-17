@@ -1,5 +1,5 @@
 import type { FloorLayout, FloorDecoration } from '../api/resources';
-import { insideRoom, layoutGeometry } from './layout-placement.ts';
+import { insideRoom, layoutGeometry, withSpatialParents } from './layout-placement.ts';
 import { moveWithRoom, type PlacementFields } from './placement.ts';
 
 /** Stage edits against the current scene, carrying room contents exactly once per movement. */
@@ -42,12 +42,16 @@ export function stageLayoutObject(
     const next = moveWithRoom(original, before, pose);
     return { ...item, posX: next.x, posY: next.y, rotation: next.rotation };
   };
-  return {
+  return withSpatialParents({
     ...layout,
     resources: layout.resources.map((item) =>
       item.id === resource.id
         ? { ...item, ...position }
-        : movingRoom && item.parentRoomId === resource.id
+        : movingRoom &&
+            item.category === 'DESK' &&
+            item.status !== 'ARCHIVED' &&
+            !!layoutGeometry(item) &&
+            insideRoom(layoutGeometry(item)!, before)
           ? (move(item) as typeof item)
           : item
     ),
@@ -56,7 +60,7 @@ export function stageLayoutObject(
         ? (move(item) as FloorDecoration)
         : item
     )
-  };
+  });
 }
 
 export function changedLayoutResources(base: FloorLayout, draft: FloorLayout) {
@@ -64,9 +68,11 @@ export function changedLayoutResources(base: FloorLayout, draft: FloorLayout) {
     const before = base.resources.find((original) => original.id === item.id);
     return (
       before &&
-      ['posX', 'posY', 'width', 'height', 'rotation'].some(
-        (field) => before[field as keyof typeof before] !== item[field as keyof typeof item]
-      )
+      item.status !== 'ARCHIVED' &&
+      ((before.parentRoomId ?? null) !== (item.parentRoomId ?? null) ||
+        ['posX', 'posY', 'width', 'height', 'rotation'].some(
+          (field) => before[field as keyof typeof before] !== item[field as keyof typeof item]
+        ))
     );
   });
 }

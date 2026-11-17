@@ -23,6 +23,9 @@ export interface FloorOccupant {
   height: number;
 }
 export interface PhysicalFloor {
+  areaM2?: number;
+  outline?: FloorOutline;
+  cornerRadiusM?: number;
   realWidthM?: number | null;
   realLengthM?: number | null;
   geometryVersion?: number;
@@ -35,6 +38,7 @@ export interface PhysicalFloor {
   occupants: FloorOccupant[];
 }
 export interface Building {
+  workspaceId?: number | null;
   id: number;
   name: string;
   address: string;
@@ -46,6 +50,8 @@ export interface Building {
   floors: PhysicalFloor[];
 }
 export interface FloorLocation {
+  outline?: FloorOutline;
+  cornerRadiusM?: number;
   buildingId: number;
   buildingName: string;
   buildingAddress: string;
@@ -57,6 +63,27 @@ export interface FloorLocation {
   width: number;
   height: number;
 }
+export type FloorOutline = 'RECTANGULAR' | 'ROUNDED';
+export interface WorkspaceSiteInput {
+  address: string;
+  city: string;
+  ward: string;
+  latitude: number;
+  longitude: number;
+  expectedRevision?: string;
+  floors: { floorNumber: number; widthM: number; lengthM: number; outline: FloorOutline; cornerRadiusM?: number }[];
+}
+export const workspaceSiteOptions = (actorId: number, workspaceId: number) =>
+  queryOptions({
+    queryKey: ['organizer-resources', actorId, 'workspace-site', workspaceId],
+    queryFn: async ({ signal }) => {
+      const result = await backendRequest<Building | null>(`/organizer/workspaces/${workspaceId}/site`, 'GET', undefined, true, signal);
+      return result?.id ? result : null;
+    },
+    retry: false
+  });
+export const saveWorkspaceSite = (workspaceId: number, input: WorkspaceSiteInput) =>
+  backendRequest<Building>(`/organizer/workspaces/${workspaceId}/site`, 'PUT', input);
 export const buildingsOptions = (actorId: number) =>
   queryOptions({
     queryKey: ['organizer-resources', actorId, 'buildings'],
@@ -87,7 +114,8 @@ export const saveBuilding = (
       longitude: body.longitude === undefined ? undefined : Number(body.longitude.toFixed(8)),
       city: body.city,
       ward: body.ward,
-      ...(current ? { expectedRevision: current.revision } : { floorCount: body.floorCount })
+      floorCount: body.floorCount,
+      ...(current ? { expectedRevision: current.revision } : {})
     }
   );
 export const savePhysicalFloor = (

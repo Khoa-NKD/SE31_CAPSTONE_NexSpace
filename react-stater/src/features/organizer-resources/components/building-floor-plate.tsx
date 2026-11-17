@@ -1,3 +1,4 @@
+import { floorCornerRadius } from '../utils/floor-outline';
 import { useId } from 'react';
 import type { FloorLayout, LayoutItem } from '../api/resources';
 import { DecorationLayer } from './decoration-visual';
@@ -60,7 +61,7 @@ export function BuildingFloorPlate({ layout, label }: { layout: FloorLayout; lab
       <rect
         width={width}
         height={height}
-        rx='8'
+        rx={floorCornerRadius(layout.floor.location, width, height)}
         className='fill-background stroke-primary/40'
         strokeWidth='3'
         vectorEffect='non-scaling-stroke'

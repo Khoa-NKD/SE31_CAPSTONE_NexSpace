@@ -1,5 +1,5 @@
 import type { FloorLayout, ResourceDetail, ResourceForm, ResourceOptions } from '../api/resources';
-import { layoutGeometry, insideRoom } from './layout-placement.ts';
+import { layoutGeometry, insideRoom, withSpatialParents } from './layout-placement.ts';
 import { moveWithRoom } from './placement.ts';
 
 export type DraftForm = Omit<ResourceForm, 'floorPlanId' | 'resourceTypeId'> & {
@@ -80,7 +80,13 @@ export function resourceDraftLayout(
     if (!before || !after) continue;
     resources = resources.map((item) => {
       const shape = layoutGeometry(item);
-      if (item.parentRoomId !== draft.key || !shape || drafts.some((d) => d.key === item.id))
+      if (
+        item.category !== 'DESK' ||
+        item.status === 'ARCHIVED' ||
+        !shape ||
+        !insideRoom(shape, before) ||
+        drafts.some((d) => d.key === item.id)
+      )
         return item;
       const moved = moveWithRoom(shape, before, after);
       return { ...item, posX: moved.x, posY: moved.y, rotation: moved.rotation };
@@ -98,6 +104,7 @@ export function resourceDraftLayout(
       id: key,
       name: form.name,
       code: form.code,
+      resourceTypeId: Number(form.resourceTypeId) || undefined,
       category: options.types.find((t) => t.id === Number(form.resourceTypeId))?.category,
       parentRoomId: Number(form.parentRoomId) || null,
       posX: form.posX === '' ? null : Number(form.posX),
@@ -109,5 +116,5 @@ export function resourceDraftLayout(
       revision: current?.revision ?? 'draft'
     }))
   );
-  return { ...base, resources, decorations };
+  return withSpatialParents({ ...base, resources, decorations });
 }

@@ -1,4 +1,5 @@
-import { buildingsOptions } from '../api/buildings';
+import { workspaceSiteOptions } from '../api/buildings';
+import { useNavigate } from '@tanstack/react-router';
 import { FloorActions } from './floor-actions';
 import { useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -39,22 +40,27 @@ export function FloorSetupView({
   const actorId = user?.id ?? 0;
   const allowed = mounted && !!token && getUserRole(user) === 'ORGANIZER';
   const client = useQueryClient();
+  const navigate = useNavigate();
   const workspaces = useQuery({ ...resourceWorkspacesOptions(actorId), enabled: allowed });
   const selected = workspaces.data?.find((workspace) => workspace.id === location.workspaceId);
   const options = useQuery({
     ...resourceOptions(actorId, selected?.id ?? 0),
     enabled: allowed && !!selected
   });
-  const locations = useQuery({ ...buildingsOptions(actorId), enabled: allowed });
-  const physicalBuilding = locations.data?.find((b) =>
-    options.data?.floors.some((f) => f.location?.buildingId === b.id)
-  );
+  const site = useQuery({
+    ...workspaceSiteOptions(actorId, selected?.id ?? 0),
+    enabled: allowed && !!selected
+  });
+  const physicalBuilding = site.data ?? undefined;
   const [dialog, setDialog] = useState<{
     kind: 'floor' | 'type';
     floorId: number;
   } | null>(null);
   const saved = () => invalidateResources(client, actorId);
-  if (!mounted || (allowed && (workspaces.isPending || (!!selected && options.isPending))))
+  if (
+    !mounted ||
+    (allowed && (workspaces.isPending || (!!selected && (options.isPending || site.isPending))))
+  )
     return (
       <div
         role='status'
@@ -73,17 +79,20 @@ export function FloorSetupView({
         )}
       </p>
     );
-  if (workspaces.isError || (selected && options.isError))
+  if (workspaces.isError || (selected && (options.isError || site.isError)))
     return (
       <div role='alert' className='rounded-2xl border border-destructive/20 bg-destructive/5 p-6'>
         <p className='mb-3 text-sm text-destructive'>
-          {workspaces.error?.message ?? options.error?.message}
+          {workspaces.error?.message ?? options.error?.message ?? site.error?.message}
         </p>
         <Button
           variant='outline'
           onClick={() => {
             void workspaces.refetch();
-            if (selected) void options.refetch();
+            if (selected) {
+              void options.refetch();
+              void site.refetch();
+            }
           }}
         >
           {c('Retry', 'Thử lại')}
@@ -117,8 +126,11 @@ export function FloorSetupView({
         </Button>
       </div>
     );
-  const setupNeedsFloor =
-    location.setup && !floor && canConfigureWorkspaceResources(selected.status);
+  const editSite = () =>
+    void navigate({
+      to: '/dashboard/organizer/workspaces/create/location',
+      search: { id: String(selected.id), studio: true }
+    });
   return (
     <>
       {!floor && physicalBuilding && options.data.floors.some((f) => !f.location) && (
@@ -141,7 +153,7 @@ export function FloorSetupView({
                   className='text-sm font-medium hover:text-primary'
                   onClick={() => onNavigate({ workspaceId: selected.id, floorId: f.id })}
                 >
-                  {f.name} · {f.floorNumber}
+                  {c('Floor', 'Tầng')} {f.floorNumber}
                 </button>
                 <FloorActions
                   workspaceId={selected.id}
@@ -168,7 +180,7 @@ export function FloorSetupView({
           onFloorChange={(floorId) => onNavigate({ workspaceId: selected.id, floorId })}
           onBack={() => onNavigate({ workspaceId: selected.id })}
           onSaved={saved}
-          onAdd={(kind, floorId) => setDialog({ kind, floorId })}
+          onAdd={(kind, floorId) => (kind === 'floor' ? editSite() : setDialog({ kind, floorId }))}
         />
       ) : (
         <WorkspaceBuildingView
@@ -181,10 +193,10 @@ export function FloorSetupView({
           onOpenFloor={(floorId, workspaceId) =>
             onNavigate({ workspaceId: workspaceId ?? selected.id, floorId })
           }
-          onAddFloor={() => setDialog({ kind: 'floor', floorId: 0 })}
+          onAddFloor={editSite}
         />
       )}
-      {(dialog || setupNeedsFloor) && (
+      {dialog && (
         <ResourceSetupDialog
           workspaceId={selected.id}
           kind={dialog?.kind ?? 'floor'}
@@ -197,7 +209,6 @@ export function FloorSetupView({
           }}
           onClose={() => {
             setDialog(null);
-            if (setupNeedsFloor) onNavigate({ workspaceId: selected.id });
           }}
         />
       )}
