@@ -246,7 +246,8 @@ class FloorAiDatabaseTest {
         assertThat(ai.savedDraft(owner, workspace, floor)).isEqualTo(saved);
         assertThat(resources.floorLayout(owner, workspace, floor).resources()).isEmpty();
         ai.propose(owner, workspace, floor, request());
-        verify(gemini).design(argThat(context -> context instanceof Map<?, ?> map && map.containsKey("savedMetricDraft")));
+        verify(gemini).design(argThat(context -> context instanceof Map<?, ?> map && map.containsKey("savedMetricDraft")),
+                isNull(), isNull(), any());
     }
 
     @Test void publicMapUsesPublishedGeometryUntilExplicitRepublish() {
@@ -297,7 +298,7 @@ class FloorAiDatabaseTest {
     @Test void missingKeyDoesNotCallProviderOrWriteResources() {
         when(gemini.status()).thenReturn(new FloorDesign.Status(false,"test"));
         assertThatThrownBy(() -> ai.propose(owner,workspace,floor,request())).isInstanceOf(ConflictException.class);
-        verify(gemini,never()).design(any()); assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
+        verify(gemini,never()).design(any(), any(), any(), any()); assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
     }
     @Test void changedFloorRejectsStaleProposal() {
         when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
@@ -323,7 +324,7 @@ class FloorAiDatabaseTest {
         when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Overlap",null,List.of(first,other),List.of(),List.of(),List.of()));
         var draft = ai.propose(owner, workspace, floor, request());
         assertThat(draft.design().resources()).containsExactly(first, other);
-        verify(gemini).design(any());
+        verify(gemini).design(any(), isNull(), isNull(), any());
         assertThatThrownBy(() -> ai.apply(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false)))
                 .isInstanceOf(BadRequestException.class).hasMessageContaining("overlapping resources");
         assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
