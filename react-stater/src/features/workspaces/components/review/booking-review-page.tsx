@@ -128,9 +128,18 @@ export function BookingReviewPage({
 
         {/* Hold Urgency Top Banner */}
         <HoldUrgencyBanner
+          bookingId={effectiveBooking?.id ? Number(effectiveBooking.id) : undefined}
           seatCode={seatCode || 'Desk A-12'}
           holdExpiresAt={effectiveExpiresAt}
           initialSeconds={effectiveInitialSeconds}
+          serverTime={effectiveHoldData?.serverTime}
+          onReleaseSuccess={() => {
+            if (workspaceId) {
+              window.location.href = `/workspaces/${workspaceId}`;
+            } else {
+              window.history.back();
+            }
+          }}
         />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}
