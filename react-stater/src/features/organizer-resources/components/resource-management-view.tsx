@@ -1,4 +1,5 @@
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
+import { useNavigate } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { ResourceInventoryTable } from './resource-inventory-table';
 import { ResourceFloorManager } from './resource-floor-manager';
@@ -76,6 +77,7 @@ export function ResourceManagementView({
   initialWorkspaceId?: number;
   initialFloorId?: number;
 }) {
+  const navigate = useNavigate();
   const mounted = useSyncExternalStore(
     subscribe,
     () => true,
@@ -135,6 +137,10 @@ export function ResourceManagementView({
     setEditor(value);
   };
   const openSetup = (value: { kind: 'floor' | 'type'; current?: TypeOption }) => {
+    if (value.kind === 'floor' && selectedWorkspace) {
+      void navigate({ to: '/dashboard/organizer/workspaces/create/location', search: { id: String(selectedWorkspace.id), studio: true } });
+      return;
+    }
     setNotice({ success: '', error: '' });
     setSetup(value);
   };
@@ -397,7 +403,7 @@ export function ResourceManagementView({
                 onClick={() => openSetup({ kind: 'floor' })}
               >
                 <Layers3 className='size-4' />
-                {c('Link floor', 'Liên kết tầng')}
+                {c('Location & floors', 'Địa điểm & tầng')}
               </Button>
               <Button
                 variant='outline'
@@ -494,7 +500,7 @@ export function ResourceManagementView({
                 <option value=''>{c('All floors', 'Tất cả tầng')}</option>
                 {options.data?.floors.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.name}
+                    {c('Floor', 'Tầng')} {f.floorNumber}
                   </option>
                 ))}
               </select>

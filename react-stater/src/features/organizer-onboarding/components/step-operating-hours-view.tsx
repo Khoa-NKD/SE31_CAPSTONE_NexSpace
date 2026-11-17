@@ -229,7 +229,7 @@ export function StepOperatingHoursView() {
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => ({ id: prev.id ? String(prev.id) : undefined, stage: 'floors' }) });
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -284,10 +284,10 @@ export function StepOperatingHoursView() {
     <div className='w-full max-w-5xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
       <div>
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={2} />
+        <WizardHeader currentStep={4} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={2} />
+        <WizardStepper currentStep={4} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>

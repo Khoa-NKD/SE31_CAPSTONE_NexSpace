@@ -106,7 +106,7 @@ export function ResourceInventoryTable({
                   </div>
                 </td>
                 <td className='px-5 py-4'>
-                  <p>{resource.floorName}</p>
+                  <p>{c('Floor', 'Tầng')} {floor?.floorNumber ?? '—'}</p>
                   <p className='text-muted-foreground mt-1 text-xs'>{resource.resourceTypeName}</p>
                   {resource.category === 'DESK' && (
                     <Badge variant='outline' className='mt-2 text-[11px]'>

@@ -1,5 +1,5 @@
 export interface AiReferenceImage {
-  mimeType: 'image/jpeg';
+  mimeType: 'image/jpeg' | 'image/png';
   base64: string;
   preview: string;
   thumbnail: string;
@@ -20,7 +20,7 @@ export async function prepareAiReferenceImage(file: File): Promise<AiReferenceIm
       bitmap.width * bitmap.height > 20000000
     )
       throw new Error('IMAGE_DIMENSIONS');
-    const scale = Math.min(1, 1800 / Math.max(bitmap.width, bitmap.height));
+    const scale = Math.min(1, 3072 / Math.max(bitmap.width, bitmap.height));
     const canvas = document.createElement('canvas');
     canvas.width = Math.max(1, Math.round(bitmap.width * scale));
     canvas.height = Math.max(1, Math.round(bitmap.height * scale));
@@ -29,7 +29,10 @@ export async function prepareAiReferenceImage(file: File): Promise<AiReferenceIm
     context.fillStyle = '#ffffff';
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const preview = canvas.toDataURL('image/jpeg', 0.9);
+    // Preserve lines and small symbols in diagrams. Fall back to JPEG for dense raster images.
+    const lossless = file.type === 'image/png' ? canvas.toDataURL('image/png') : null;
+    const mimeType = lossless && lossless.length <= 6990508 ? 'image/png' : 'image/jpeg';
+    const preview = mimeType === 'image/png' ? lossless! : canvas.toDataURL('image/jpeg', 0.94);
     const base64 = preview.slice(preview.indexOf(',') + 1);
     if (base64.length > 6990508) throw new Error('IMAGE_SIZE');
     const thumbnailScale = Math.min(1, 480 / Math.max(canvas.width, canvas.height));
@@ -39,7 +42,7 @@ export async function prepareAiReferenceImage(file: File): Promise<AiReferenceIm
     context.fillRect(0, 0, canvas.width, canvas.height);
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
     const thumbnail = canvas.toDataURL('image/jpeg', 0.75);
-    return { mimeType: 'image/jpeg', base64, preview, thumbnail, name: file.name || 'Screenshot' };
+    return { mimeType, base64, preview, thumbnail, name: file.name || 'Screenshot' };
   } finally {
     bitmap.close();
   }

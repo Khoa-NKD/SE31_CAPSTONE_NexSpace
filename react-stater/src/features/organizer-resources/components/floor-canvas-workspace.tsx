@@ -1,15 +1,25 @@
+import {
+  expandCanvasSelection,
+  pasteCanvasSelection,
+  type CanvasClipboard
+} from '../utils/canvas-selection';
+import type { GroupEditPhase } from './use-canvas-multi-selection';
 import { aiPreviewGeometry } from '../utils/ai-preview-geometry';
-import { copyDisplayName } from '../utils/copy-names';
 import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { FurnishingPalette } from './furnishing-palette';
-import { ResourceEditor, ResourceSetupDialog, FloorDimensionsDialog } from './resource-editor';
+import { ResourceEditor, FloorDimensionsDialog } from './resource-editor';
 import { designMetricsOptions } from '../api/floor-design';
 import { FloorLocationBanner } from './floor-location-banner';
 import { stageLayoutObject, changedLayoutResources } from '../utils/manual-layout-draft';
 
 import { FloorAiAssistant } from './floor-ai-assistant';
-import { aiDesignPreview, aiPreviewChanges, adjustAiProposal } from '../utils/ai-design-preview';
-import { insideRoom, layoutGeometry } from '../utils/layout-placement';
+import {
+  aiDesignPreview,
+  aiPreviewChanges,
+  adjustAiProposal,
+  aiProposalWithScene
+} from '../utils/ai-design-preview';
+import { insideRoom, layoutGeometry, withSpatialParents } from '../utils/layout-placement';
 import type { AiProposal } from '../api/floor-design';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useBlocker } from '@tanstack/react-router';
@@ -30,7 +40,6 @@ import {
   MousePointer2,
   LockKeyhole,
   Trash2,
-  Copy,
   CheckCircle2,
   LoaderCircle,
   X,
@@ -53,6 +62,7 @@ import {
   floorLayoutOptions,
   getResource,
   deleteResource,
+  deleteRoomWithSeats,
   saveResourceBatch,
   resourcePayload,
   saveFloorDecorations,
@@ -62,12 +72,9 @@ import {
   type FloorLayout,
   type ResourceDetail,
   type ResourceOptions,
-  type TypeOption,
-  type WorkspaceOption,
-  type DecorationKind
+  type WorkspaceOption
 } from '../api/resources';
 import { canvasPosition, canvasResourceForm } from '../utils/canvas-resource-form';
-import { decorationPresets } from '../utils/decoration-presets';
 import { selectPlacementFields, type PlacementFields } from '../utils/placement';
 import { FloorLayoutPreview } from './floor-layout-preview';
 import { ResourcePlacementEditor } from './resource-placement-editor';
@@ -132,6 +139,7 @@ export function FloorCanvasWorkspace({
     fields: PlacementFields;
     initial: PlacementFields;
     ready: Promise<void>;
+    scene: FloorLayout;
   } | null>(null);
   const floorId = initialFloorId;
   const queryClient = useQueryClient();
@@ -156,7 +164,8 @@ export function FloorCanvasWorkspace({
       if (document.fullscreenElement !== container.current) setCanvasFullscreen(false);
     };
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !document.fullscreenElement) setCanvasFullscreen(false);
+      if (event.key === 'Escape' && !event.defaultPrevented && !document.fullscreenElement &&
+          !document.querySelector('[role="dialog"][data-state="open"]')) setCanvasFullscreen(false);
     };
     document.addEventListener('fullscreenchange', sync);
     document.addEventListener('keydown', escape);
@@ -189,7 +198,6 @@ export function FloorCanvasWorkspace({
   const [aiProposal, setAiProposal] = useState<AiProposal | null>(null);
   const [aiUndo, setAiUndo] = useState<AiProposal[]>([]);
   const [aiRedo, setAiRedo] = useState<AiProposal[]>([]);
-  const [objectClipboard, setObjectClipboard] = useState<FloorDecoration | null>(null);
   const scene = sceneDraft?.layout ?? query.data;
   const layout = scene
     ? {
@@ -202,6 +210,11 @@ export function FloorCanvasWorkspace({
         ]
       }
     : undefined;
+  const [groupClipboard, setGroupClipboard] = useState<CanvasClipboard | null>(null);
+  const [groupSelection, setGroupSelection] = useState<string[]>([]);
+  const [copySources, setCopySources] = useState<Map<number, ResourceDetail>>(new Map());
+  const groupOperation = useRef(false);
+  const groupStart = useRef<{ layout: FloorLayout; proposal: AiProposal | null } | null>(null);
   const [selection, setSelection] = useState<Selection | null>(null);
   const selectedType = options.types.find(
     (type) => type.id === selection?.resource?.resourceTypeId
@@ -226,8 +239,6 @@ export function FloorCanvasWorkspace({
     typeId?: number;
   } | null>(null);
   const [editorCanvas, setEditorCanvas] = useState<HTMLDivElement | null>(null);
-  const [catalogOpen, setCatalogOpen] = useState(false);
-  const [catalogType, setCatalogType] = useState<TypeOption | null>(null);
   const [filter, setFilter] = useState<'all' | 'resources' | 'objects'>('all');
   const [settings, setSettings] = useState(false);
   const [dimensions, setDimensions] = useState<{ width: string; height: string } | null>(null);
@@ -270,8 +281,9 @@ export function FloorCanvasWorkspace({
     },
     layout
   );
+  const groupGeometry = !selection && dirtyScene && layout ? aiPreviewGeometry(layout) : undefined;
   const editable =
-    writable && !!layout?.editableLayout && !availabilityMode && !aiOpen && !aiProposal;
+    writable && !!layout?.editableLayout && !availabilityMode && !aiWorking && !aiProposal;
   const width = dimensions?.width ?? String(layout?.width ?? 1200);
   const height = dimensions?.height ?? String(layout?.height ?? 800);
   const act = (action: () => void) => {
@@ -358,7 +370,19 @@ export function FloorCanvasWorkspace({
     if (!resource) return;
     setLoadingSelection(true);
     try {
-      const detail = await getResource(resource.id);
+      const copied = resource.id < 0 ? copySources.get(resource.id) : undefined;
+      const detail = copied
+        ? {
+            ...copied,
+            ...resource,
+            id: resource.id,
+            workspaceId,
+            floorPlanId: floorId,
+            category: resource.category ?? copied.category,
+            resourceTypeId: resource.resourceTypeId ?? copied.resourceTypeId,
+            capacity: resource.capacity ?? copied.capacity
+          }
+        : await getResource(resource.id);
       if (request.current !== serial) return;
       if (detail.revision !== resource.revision) {
         await query.refetch();
@@ -398,16 +422,20 @@ export function FloorCanvasWorkspace({
   ) {
     if (phase === 'cancel') {
       const previous = overviewDrag.current;
-      if (previous) stage(previous.key, previous.initial);
+      if (previous && query.data) {
+        setSceneDraft((draft) => ({ base: draft?.base ?? query.data!, layout: previous.scene }));
+      }
       overviewDrag.current = null;
       clearSelection();
       setOverviewDragging(false);
       return;
     }
     if (phase === 'start') {
-      if (!editable || busy || loadingSelection) return;
-      if (selection) stage(selection.key, selection.fields, selection.object);
-      const current = { key, fields, initial: fields, ready: Promise.resolve() };
+      if (!editable || busy || loadingSelection || !layout) return;
+      const scene = selection
+        ? stageLayoutObject(layout, selection.key, selection.fields, selection.object)
+        : layout;
+      const current = { key, fields, initial: fields, ready: Promise.resolve(), scene };
       overviewDrag.current = current;
       setOverviewDragging(true);
       current.ready = choose(key);
@@ -416,7 +444,13 @@ export function FloorCanvasWorkspace({
     const current = overviewDrag.current;
     if (!current || current.key !== key) return;
     current.fields = fields;
-    stage(key, fields);
+    if (query.data) {
+      setSceneDraft((draft) => ({
+        base: draft?.base ?? query.data!,
+        layout: stageLayoutObject(current.scene, key, fields)
+      }));
+      setPendingObjects([]);
+    }
     setSelection((previous) => (previous?.key === key ? { ...previous, fields } : previous));
     if (phase === 'end') {
       await current.ready;
@@ -440,97 +474,245 @@ export function FloorCanvasWorkspace({
     if (selection) stage(selection.key, selection.fields, selection.object);
     void choose(key);
   };
-  function selectedObject() {
-    if (!selection?.object) return;
-    return {
-      ...selection.object,
-      posX: Number(selection.fields.posX),
-      posY: Number(selection.fields.posY),
-      width: Number(selection.fields.width),
-      height: Number(selection.fields.height),
-      rotation: Number(selection.fields.rotation)
-    };
-  }
-  function copyObject() {
-    const object = selectedObject();
-    if (!object) return;
-    setObjectClipboard({ ...object });
-    toast.success(c('Layout object copied.', 'Đã sao chép đồ bố trí.'));
-  }
-  function addObject(kind: DecorationKind, copy?: FloorDecoration) {
-    const add = () => {
-      if ((layout?.decorations?.length ?? 0) >= 500) {
-        toast.error(
-          c('A floor supports up to 500 furnishings.', 'Mỗi sơ đồ tối đa 500 đồ bố trí.')
-        );
-        return;
+  function changeGroupScene(next: FloorLayout, phase: GroupEditPhase) {
+    if (!layout || busy || aiWorking) return;
+    if (phase === 'start') {
+      groupStart.current = { layout: aiLayout ?? layout, proposal: aiProposal };
+      if (aiProposal) rememberAi();
+      return;
+    }
+    if (phase === 'cancel') {
+      if (groupStart.current?.proposal) {
+        setAiProposal(groupStart.current.proposal);
+        setAiUndo((items) => items.slice(0, -1));
+      } else if (groupStart.current) {
+        setSceneDraft({ base: sceneDraft?.base ?? query.data!, layout: groupStart.current.layout });
+        setPendingObjects([]);
       }
-      const preset = decorationPresets[kind];
-      const object: FloorDecoration = copy
-        ? {
-            ...copy,
-            id: `decor-${crypto.randomUUID()}`,
-            label: copyDisplayName(
-              copy.label,
-              (layout?.decorations ?? []).map((item) => item.label),
-              language === 'vi' ? 'vi' : 'en',
-              100
-            ),
-            posX: copy.posX + 20,
-            posY: copy.posY + 20
-          }
-        : {
-            id: `decor-${crypto.randomUUID()}`,
-            kind,
-            label: c(preset.en, preset.vi),
-            posX: Math.max(0, Math.round(((layout?.width ?? 1200) - preset.width) / 2)),
-            posY: Math.max(0, Math.round(((layout?.height ?? 800) - preset.height) / 2)),
-            width: preset.width,
-            height: preset.height,
-            rotation: 0,
-            color: preset.color
-          };
-      const fields = canvasPosition(object);
-      const previous = selectedObject();
-      setPendingObjects((items) => [
-        ...items.filter((item) => item.id !== previous?.id),
-        ...(previous ? [previous] : []),
-        object
+      groupStart.current = null;
+      return;
+    }
+    if (aiProposal) {
+      try {
+        setAiProposal(
+          aiProposalWithScene(layout, groupStart.current?.proposal ?? aiProposal, next)
+        );
+      } catch (failure) {
+        setError(failure instanceof Error ? failure.message : 'Could not move selection');
+      }
+    } else {
+      setSceneDraft({ base: sceneDraft?.base ?? query.data!, layout: next });
+      setPendingObjects([]);
+      setSelection((previous) => {
+        if (!previous) return null;
+        const object = next.decorations?.find((item) => 'decoration:' + item.id === previous.key);
+        const resource = next.resources.find((item) => 'resource:' + item.id === previous.key);
+        return object || resource
+          ? {
+              ...previous,
+              fields: canvasPosition((object ?? resource)!),
+              ...(object ? { object } : {})
+            }
+          : null;
+      });
+    }
+    if (phase === 'end') groupStart.current = null;
+  }
+  function copySceneGroup(keys: string[]) {
+    const source = aiLayout ?? layout;
+    if (!source || busy || aiWorking) return null;
+    const copied = { scene: source, keys: expandCanvasSelection(source, keys) };
+    setGroupClipboard(copied);
+    return copied;
+  }
+  async function duplicateSceneGroup(keys: string[]) {
+    const copied = copySceneGroup(keys);
+    if (copied) await pasteSceneGroup(copied);
+  }
+  async function pasteSceneGroup(copied = groupClipboard) {
+    const destination = aiLayout ?? layout;
+    if (!copied || !destination || busy || aiWorking || groupOperation.current) return;
+    groupOperation.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const pasted = pasteCanvasSelection(destination, copied, language === 'vi' ? 'vi' : 'en');
+      if (!pasted) return;
+      let copiedResourceIds = pasted.resources.map((item) => item.id);
+      if (aiProposal && layout) {
+        const nextProposal = aiProposalWithScene(layout, aiProposal, pasted.layout);
+        rememberAi();
+        setAiProposal(nextProposal);
+        copiedResourceIds = pasted.resources.map(
+          (_, index) => -(nextProposal.design.resources.length - pasted.resources.length + index + 1)
+        );
+      } else {
+        const sources = await Promise.all(
+          pasted.resources.map(async (item) => {
+            const sourceId = pasted.sources.get(item.id)!;
+            const source = sourceId < 0 ? copySources.get(sourceId) : await getResource(sourceId);
+            if (!source || source.workspaceId !== workspaceId || source.floorPlanId !== floorId)
+              throw new Error(
+                c(
+                  'Save the source before duplicating it here.',
+                  'Lưu đối tượng nguồn trước khi nhân bản tại đây.'
+                )
+              );
+            return [item.id, source] as const;
+          })
+        );
+        setCopySources((previous) => new Map([...previous, ...sources]));
+        setSceneDraft({ base: sceneDraft?.base ?? query.data!, layout: pasted.layout });
+        setPendingObjects([]);
+        clearSelection();
+      }
+      setGroupSelection([
+        ...copiedResourceIds.map((id) => `resource:${id}`),
+        ...pasted.decorations.map((item) => 'decoration:' + item.id)
       ]);
-      setSelection({ key: `decoration:${object.id}`, object, initial: fields, fields });
-      setUndo([]);
-      setRedo([]);
-      setSettings(false);
-      setDimensions(null);
-      setError('');
-    };
-    if (selection) stage(selection.key, selection.fields, selection.object);
-    if (!busy && !loadingSelection && editable) add();
+    } catch (failure) {
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : c('Could not duplicate.', 'Không nhân bản được.')
+      );
+    } finally {
+      groupOperation.current = false;
+      setBusy(false);
+    }
+  }
+  async function deleteSceneGroup(keys: string[]) {
+    const source = aiLayout ?? layout;
+    if (!source || busy || aiWorking || groupOperation.current) return;
+    const selected = new Set(expandCanvasSelection(source, keys));
+    if (!selected.size) return;
+    if (aiProposal && layout) {
+      rememberAi();
+      setAiProposal(
+        aiProposalWithScene(layout, aiProposal, {
+          ...source,
+          resources: source.resources.filter((item) => !selected.has('resource:' + item.id)),
+          decorations: (source.decorations ?? []).filter(
+            (item) => !selected.has('decoration:' + item.id)
+          )
+        })
+      );
+      setGroupSelection([]);
+      return;
+    }
+    groupOperation.current = true;
+    setBusy(true);
+    setError('');
+    const deleted = new Set<number>();
+    let failure: unknown;
+    try {
+      const details = await Promise.all(
+        source.resources
+          .filter((item) => item.id > 0 && selected.has('resource:' + item.id))
+          .map(async (item) => {
+            const detail = await getResource(item.id);
+            if (
+              detail.revision !== item.revision ||
+              detail.workspaceId !== workspaceId ||
+              detail.floorPlanId !== floorId
+            )
+              throw new Error(
+                c(
+                  'The floor changed. Reload before deleting.',
+                  'Sơ đồ đã thay đổi. Tải lại trước khi xóa.'
+                )
+              );
+            return detail;
+          })
+      );
+      details.sort((a, b) => Number(a.category === 'ROOM') - Number(b.category === 'ROOM'));
+      for (const detail of details) {
+        await deleteResource(detail);
+        deleted.add(detail.id);
+      }
+    } catch (error) {
+      failure = error;
+    }
+    let base = sceneDraft?.base ?? query.data!;
+    if (deleted.size) {
+      const refreshed = await query.refetch();
+      if (refreshed.data) base = refreshed.data;
+    }
+    const next = withSpatialParents({
+      ...source,
+      floor: base.floor,
+      resources: source.resources.filter((item) =>
+        item.id > 0 ? !deleted.has(item.id) : !selected.has('resource:' + item.id)
+      ),
+      decorations: (source.decorations ?? []).filter(
+        (item) => !selected.has('decoration:' + item.id)
+      )
+    });
+    setSceneDraft({ base, layout: next });
+    setPendingObjects([]);
+    clearSelection();
+    setGroupSelection([]);
+    groupOperation.current = false;
+    setBusy(false);
+    if (failure)
+      setError(
+        failure instanceof Error
+          ? failure.message
+          : c('Some objects could not be removed.', 'Một số đối tượng chưa xóa được.')
+      );
   }
   async function save() {
-    if (!layout || busy || loadingSelection || overviewDragging || !editable || validation.blocked)
+    if (
+      !layout || busy || loadingSelection || overviewDragging || !editable ||
+      validation.blocked || groupGeometry?.roomEdgeCollisions.size
+    )
       return;
     setBusy(true);
     setError('');
     try {
-      const finalLayout = selection
-        ? stageLayoutObject(layout, selection.key, selection.fields, selection.object)
-        : layout;
+      const finalLayout = withSpatialParents(
+        selection
+          ? stageLayoutObject(layout, selection.key, selection.fields, selection.object)
+          : layout
+      );
       const base = sceneDraft?.base ?? query.data!;
-      const changes = changedLayoutResources(base, finalLayout);
+      const changes = [
+        ...changedLayoutResources(base, finalLayout),
+        ...finalLayout.resources.filter((item) => item.id < 0)
+      ];
       const items = await Promise.all(
         changes.map(async (item) => {
-          const detail = await getResource(item.id);
+          const detail = item.id < 0 ? copySources.get(item.id) : await getResource(item.id);
+          if (!detail)
+            throw new Error(
+              c(
+                'Copy source is missing. Duplicate the object again.',
+                'Thiếu dữ liệu nguồn. Vui lòng nhân bản lại.'
+              )
+            );
           const original = base.resources.find((resource) => resource.id === item.id)!;
-          if (detail.revision !== original.revision)
+          if (item.id > 0 && detail.revision !== original.revision)
             throw new Error(
               c(
                 'The floor changed. Reload before saving.',
                 'Sơ đồ đã thay đổi. Tải lại trước khi lưu.'
               )
             );
-          const form = resourceFormSchema.parse(canvasResourceForm(detail, canvasPosition(item)));
-          return { clientId: `r_${item.id}`, id: item.id, input: resourcePayload(form, detail) };
+          const form = resourceFormSchema.parse({
+            ...canvasResourceForm(detail, canvasPosition(item)),
+            code: item.code,
+            name: item.name,
+            parentRoomId:
+              item.parentRoomId && item.parentRoomId > 0 ? String(item.parentRoomId) : ''
+          });
+          return {
+            clientId: `r_${item.id}`,
+            id: item.id > 0 ? item.id : undefined,
+            ...(item.parentRoomId && item.parentRoomId < 0
+              ? { parentClientId: `r_${item.parentRoomId}` }
+              : {}),
+            input: resourcePayload(form, item.id > 0 ? detail : undefined)
+          };
         })
       );
       if (items.length)
@@ -553,6 +735,7 @@ export function FloorCanvasWorkspace({
       setDimensions(null);
       await onSaved();
       setSceneDraft(null);
+      setCopySources(new Map());
       setPendingObjects([]);
       toast.success(
         c(
@@ -622,8 +805,13 @@ export function FloorCanvasWorkspace({
     setBusy(true);
     setDeleteError('');
     try {
-      const deletedId = selection.resource.id;
-      await deleteResource(selection.resource);
+      const resource = selection.resource;
+      const deletedIds = new Set([resource.id]);
+      if (resource.category === 'ROOM') {
+        for (const id of await deleteRoomWithSeats(resource)) deletedIds.add(id);
+      } else {
+        await deleteResource(resource);
+      }
       const layoutKey = floorLayoutOptions(actorId, workspaceId, floorId).queryKey;
       // Cancel older reads so a late response cannot restore the deleted resource on the canvas.
       await queryClient.cancelQueries({ queryKey: layoutKey, exact: true });
@@ -631,13 +819,15 @@ export function FloorCanvasWorkspace({
         current
           ? {
               ...current,
-              resources: current.resources.filter((resource) => resource.id !== deletedId)
+              resources: current.resources.filter((item) => !deletedIds.has(item.id)),
+              decorations: current.decorations?.filter((item) => !roomObjectIds.has(item.id))
             }
           : current
       );
       // Deletion is blocked while dirty; this clean staged snapshot must not mask refreshed server data.
       setSceneDraft(null);
       clearSelection();
+      setGroupSelection([]);
       setRemove(false);
       await onSaved();
       toast.success(c('Resource deleted.', 'Đã xóa ghế/phòng.'));
@@ -712,10 +902,19 @@ export function FloorCanvasWorkspace({
   }
   const resources = layout?.resources ?? [],
     objects = layout?.decorations ?? [];
-  const roomSeats =
-    selection?.resource?.category === 'ROOM'
-      ? resources.filter((item) => item.parentRoomId === selection.resource?.id)
-      : [];
+  const roomToDelete = selection?.resource?.category === 'ROOM' ? selection.resource : null;
+  const roomToDeletePose = roomToDelete && layoutGeometry(roomToDelete);
+  const roomSeats = roomToDelete
+    ? resources.filter((item) => item.parentRoomId === roomToDelete.id)
+    : [];
+  const roomObjectIds = new Set(
+    roomToDeletePose
+      ? objects.filter((item) => {
+          const pose = layoutGeometry(item);
+          return pose && insideRoom(pose, roomToDeletePose);
+        }).map((item) => item.id)
+      : []
+  );
   const entries = [
     ...resources.map((item) => ({
       key: `resource:${item.id}`,
@@ -755,6 +954,8 @@ export function FloorCanvasWorkspace({
             )
           : null;
   const name = selection?.resource?.name ?? selection?.object?.label;
+  const selectedSeat = layout?.resources.find((item) => item.id === selection?.resource?.id);
+  const selectedRoom = layout?.resources.find((item) => item.id === selectedSeat?.parentRoomId);
 
   const aiLayout =
     layout && aiProposal && !aiProposal.design.question
@@ -786,7 +987,10 @@ export function FloorCanvasWorkspace({
                 'Có đồ vật nằm ngoài vùng hoặc phòng chứa.'
               )
             : '',
-          aiGeometry.collisions.size
+          aiGeometry.roomEdgeCollisions.size
+            ? c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ') +
+              [...aiGeometry.roomEdgeCollisions].slice(0, 5).join(', ')
+            : aiGeometry.collisions.size
             ? c('Overlapping objects: ', 'Đồ vật chồng lấn: ') +
               [...aiGeometry.collisions].slice(0, 5).join(', ')
             : ''
@@ -832,16 +1036,7 @@ export function FloorCanvasWorkspace({
         rotation: Number(fields.rotation)
       });
       setAiProposal(next);
-      if (phase === 'end') {
-        aiDrag.current = null;
-        if (!aiPreviewGeometry(aiDesignPreview(layout, next, options)).valid)
-          toast.error(
-            c(
-              'Objects overlap or leave their area. Adjust the draft before applying.',
-              'Đồ vật chồng lấn hoặc ra ngoài vùng. Cần chỉnh lại trước khi áp dụng.'
-            )
-          );
-      }
+      if (phase === 'end') aiDrag.current = null;
     } catch (error) {
       if (phase === 'end') {
         aiDrag.current = null;
@@ -873,6 +1068,15 @@ export function FloorCanvasWorkspace({
   return (
     <div
       ref={container}
+      onKeyDown={(event) => {
+        if (
+          event.defaultPrevented || !(event.target instanceof SVGElement) ||
+          !editable || !selection || busy || overviewDragging || resourceEditor ||
+          !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z'
+        ) return;
+        event.preventDefault();
+        history(event.shiftKey ? 'redo' : 'undo');
+      }}
       className={`flex flex-col overflow-hidden border border-border bg-card shadow-sm ${canvasFullscreen ? 'fixed inset-0 z-50 h-dvh min-h-0 rounded-none' : 'min-h-[720px] rounded-2xl xl:h-[calc(100dvh-8.5rem)]'} [&:fullscreen]:h-screen [&:fullscreen]:rounded-none`}
     >
       <div inert={!!resourceEditor} className={canvasFullscreen ? 'hidden' : 'shrink-0'}>
@@ -1076,19 +1280,10 @@ export function FloorCanvasWorkspace({
           >
             {options.floors.map((item) => (
               <option key={item.id} value={item.id}>
-                {item.name} · {item.status}
+                {c('Floor', 'Tầng')} {item.floorNumber} · {item.status}
               </option>
             ))}
           </select>
-          <Button
-            size='sm'
-            variant='ghost'
-            disabled={!writable || busy}
-            onClick={() => act(() => onAdd('floor', floorId))}
-          >
-            <Plus className='size-3.5' />
-            {c('Link floor', 'Liên kết tầng')}
-          </Button>
           <div className='ml-auto flex items-center gap-2'>
             <Badge variant='secondary' className='text-[10px]'>
               {layout?.draftChanges
@@ -1265,69 +1460,6 @@ export function FloorCanvasWorkspace({
             <Maximize2 className='size-3.5 text-primary' />
           </button>
           <div className='shrink-0 space-y-2 border-t border-border bg-card p-3'>
-            <Button
-              variant={catalogOpen ? 'secondary' : 'outline'}
-              size='sm'
-              className='w-full text-xs'
-              onClick={() => setCatalogOpen((value) => !value)}
-              aria-expanded={catalogOpen}
-            >
-              <SlidersHorizontal className='size-3.5' />
-              {c('Resource types & prices', 'Loại chỗ & giá')}
-            </Button>
-            {catalogOpen && (
-              <div className='max-h-56 space-y-1 overflow-y-auto rounded-lg border p-1'>
-                {options.types.map((type) => (
-                  <div key={type.id} className='flex items-center gap-1'>
-                    <button
-                      type='button'
-                      disabled={!editable}
-                      className='min-w-0 flex-1 rounded-md p-2 text-left text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
-                      onClick={() => act(() => setCatalogType(type))}
-                    >
-                      <span className='block font-medium'>{type.name}</span>
-                      <span className='text-muted-foreground'>
-                        {type.standardWidthM ?? '—'} × {type.standardLengthM ?? '—'} m ·{' '}
-                        {type.currency ?? '—'}
-                      </span>
-                    </button>
-                    <Button
-                      size='icon'
-                      variant='ghost'
-                      className='size-7 shrink-0'
-                      aria-label={c(`Add ${type.name}`, `Thêm ${type.name}`)}
-                      title={c('Place this type on the canvas', 'Đặt loại chỗ này lên sơ đồ')}
-                      disabled={
-                        !editable || !type.active || !type.currency || busy || loadingSelection
-                      }
-                      onClick={() =>
-                        act(() => {
-                          clearSelection();
-                          setResourceEditor({ typeId: type.id });
-                        })
-                      }
-                    >
-                      <Plus className='size-3.5' />
-                    </Button>
-                  </div>
-                ))}
-                {!options.types.length && (
-                  <p className='p-2 text-xs text-muted-foreground'>
-                    {c('No resource types yet.', 'Chưa có loại chỗ.')}
-                  </p>
-                )}
-                <Button
-                  variant='ghost'
-                  size='sm'
-                  className='w-full text-xs'
-                  disabled={!editable}
-                  onClick={() => act(() => onAdd('type', floorId))}
-                >
-                  <Plus className='size-3.5' />
-                  {c('New type', 'Tạo loại chỗ')}
-                </Button>
-              </div>
-            )}
             <p className='text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
               {c('Add to floor', 'Thêm vào sơ đồ')}
             </p>
@@ -1431,7 +1563,7 @@ export function FloorCanvasWorkspace({
                 <h2 className='font-semibold'>{c('Start with a floor', 'Bắt đầu với một tầng')}</h2>
                 <Button disabled={!writable} onClick={() => onAdd('floor', 0)}>
                   <Plus className='size-4' />
-                  {c('Link floor', 'Liên kết tầng')}
+                  {c('Location & floors', 'Địa điểm & tầng')}
                 </Button>
               </div>
             ) : query.isPending ? (
@@ -1455,6 +1587,18 @@ export function FloorCanvasWorkspace({
                   onToggleFullscreen={() => void toggleCanvasFullscreen()}
                   fullscreenActive={canvasFullscreen}
                   presentation='workspace'
+                  onGroupChange={
+                    (editable && !busy) || (!!aiProposal && !aiWorking && !busy)
+                      ? changeGroupScene
+                      : undefined
+                  }
+                  onGroupDelete={(keys) => void deleteSceneGroup(keys)}
+                  onGroupCopy={(keys) => {
+                    copySceneGroup(keys);
+                  }}
+                  onGroupDuplicate={(keys) => void duplicateSceneGroup(keys)}
+                  onPaste={() => void pasteSceneGroup()}
+                  groupSelection={groupSelection}
                   actions={
                     <Button variant='outline' size='sm' onClick={() => setAiPrecisionEdit(false)}>
                       <ChevronLeft className='size-4' />
@@ -1516,6 +1660,19 @@ export function FloorCanvasWorkspace({
                 />
               ) : (
                 <FloorLayoutPreview
+                  onGroupChange={
+                    (editable || (!!aiProposal && !aiWorking)) && !busy
+                      ? changeGroupScene
+                      : undefined
+                  }
+                  onGroupDelete={(keys) => void deleteSceneGroup(keys)}
+                  onGroupCopy={(keys) => {
+                    copySceneGroup(keys);
+                  }}
+                  onGroupDuplicate={(keys) => void duplicateSceneGroup(keys)}
+                  onGroupPaste={() => void pasteSceneGroup()}
+                  groupCanPaste={!!groupClipboard}
+                  groupSelection={groupSelection}
                   onToggleFullscreen={() => void toggleCanvasFullscreen()}
                   fullscreenActive={canvasFullscreen}
                   presentation='workspace'
@@ -1569,52 +1726,6 @@ export function FloorCanvasWorkspace({
                           </Button>
                         )}
                       </>
-                    ) : editable && selection ? (
-                      <>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || overviewDragging || !undo.length}
-                          onClick={() => history('undo')}
-                        >
-                          {c('Undo', 'Hoàn tác')}
-                        </Button>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || overviewDragging || !redo.length}
-                          onClick={() => history('redo')}
-                        >
-                          {c('Redo', 'Làm lại')}
-                        </Button>
-                        {selection.object && (
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={busy || overviewDragging}
-                            onClick={copyObject}
-                          >
-                            <Copy className='size-4' />
-                            {c('Copy', 'Sao chép')}
-                          </Button>
-                        )}
-                        {objectClipboard && (
-                          <Button
-                            size='sm'
-                            variant='outline'
-                            disabled={busy || overviewDragging}
-                            onClick={() => addObject(objectClipboard.kind, objectClipboard)}
-                          >
-                            {c('Paste', 'Dán')}
-                          </Button>
-                        )}
-                        <span className='text-xs text-muted-foreground'>
-                          {c(
-                            'Edits to all objects remain in this draft until you save.',
-                            'Thay đổi của các đồ vật được giữ chung đến khi bạn lưu tất cả.'
-                          )}
-                        </span>
-                      </>
                     ) : undefined
                   }
                   onObjectDrag={
@@ -1627,7 +1738,9 @@ export function FloorCanvasWorkspace({
                         : undefined
                   }
                   previewChanges={aiProposal ? aiPreviewChanges(layout, aiProposal) : undefined}
-                  collisionKeys={aiGeometry?.collisionKeys ?? validation.result?.collisionKeys}
+                  collisionKeys={
+                    aiGeometry?.collisionKeys ?? validation.result?.collisionKeys ?? groupGeometry?.collisionKeys
+                  }
                   layout={aiLayout ?? layout}
                   width={layout.width ?? 1200}
                   height={layout.height ?? 800}
@@ -1776,6 +1889,16 @@ export function FloorCanvasWorkspace({
                             {selection.resource?.code ??
                               c('Layout only · not bookable', 'Chỉ bố trí · không đặt chỗ')}
                           </p>
+                          {selectedSeat?.category === 'DESK' && (
+                            <p className='mt-1 text-xs text-muted-foreground'>
+                              {selectedRoom
+                                ? c(
+                                    `Room · ${selectedRoom.name}`,
+                                    `Trong phòng · ${selectedRoom.name}`
+                                  )
+                                : c('Open area', 'Khu mở')}
+                            </p>
+                          )}
                         </div>
                         {selection.object && (
                           <>
@@ -1902,7 +2025,10 @@ export function FloorCanvasWorkspace({
                             role='alert'
                             className='rounded-lg border border-destructive/20 bg-destructive/5 p-2.5 text-xs text-destructive'
                           >
-                            {validation.result.collisions.size
+                            {validation.result.roomEdgeCollisions.size
+                              ? c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ') +
+                                [...validation.result.roomEdgeCollisions].join(', ')
+                              : validation.result.collisions.size
                               ? `${c('Overlapping objects', 'Đối tượng chồng lấn')}: ${[...validation.result.collisions].join(', ')}`
                               : c(
                                   'Objects must fit inside the floor and their room.',
@@ -1930,7 +2056,15 @@ export function FloorCanvasWorkspace({
                             variant='outline'
                             className='w-full text-xs'
                             size='sm'
-                            disabled={busy || !editable}
+                            disabled={busy || !editable || selection.resource.id < 0}
+                            title={
+                              selection.resource.id < 0
+                                ? c(
+                                    'Save the copy before editing its properties.',
+                                    'Lưu bản sao trước khi chỉnh thông tin.'
+                                  )
+                                : undefined
+                            }
                             onClick={() =>
                               act(() => {
                                 const resource = selection.resource!;
@@ -1960,25 +2094,6 @@ export function FloorCanvasWorkspace({
                         )}
                         {selection.object && (
                           <div className='flex gap-2'>
-                            <Button
-                              size='sm'
-                              variant='outline'
-                              className='flex-1 text-xs'
-                              disabled={busy || !editable}
-                              onClick={() =>
-                                addObject(selection.object!.kind, {
-                                  ...selection.object!,
-                                  posX: Number(selection.fields.posX),
-                                  posY: Number(selection.fields.posY),
-                                  width: Number(selection.fields.width),
-                                  height: Number(selection.fields.height),
-                                  rotation: Number(selection.fields.rotation)
-                                })
-                              }
-                            >
-                              <Copy className='size-3.5' />
-                              {c('Duplicate', 'Nhân bản')}
-                            </Button>
                             <Button
                               size='icon'
                               variant='outline'
@@ -2036,7 +2151,7 @@ export function FloorCanvasWorkspace({
                             {layout?.floor.location?.buildingName ??
                               c('Building not linked', 'Chưa liên kết tòa nhà')}
                           </p>
-                          <p>{layout?.floor.location?.physicalFloorName ?? layout?.floor.name}</p>
+                          <p>{c('Floor', 'Tầng')} {layout?.floor.floorNumber}</p>
                           {metrics.isPending ? (
                             <p role='status'>{c('Loading dimensions…', 'Đang tải kích thước…')}</p>
                           ) : metrics.isError ? (
@@ -2177,6 +2292,12 @@ export function FloorCanvasWorkspace({
           )}
       </div>
       <footer className='relative flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground'>
+        {!!groupGeometry?.roomEdgeCollisions.size && (
+          <p role='status' className='basis-full text-xs text-destructive'>
+            {c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ')}
+            {[...groupGeometry.roomEdgeCollisions].slice(0, 5).join(', ')}
+          </p>
+        )}
         {layout?.floor.status === 'PUBLISHED' &&
           !layout.draftChanges &&
           resources.length > 0 &&
@@ -2190,7 +2311,10 @@ export function FloorCanvasWorkspace({
         {dirtyManual && !selection && (
           <Button
             size='sm'
-            disabled={busy || loadingSelection || overviewDragging || !editable}
+            disabled={
+              busy || loadingSelection || overviewDragging || !editable ||
+              !!groupGeometry?.roomEdgeCollisions.size
+            }
             onClick={() => void save()}
           >
             <Save className='size-4' />
@@ -2349,30 +2473,13 @@ export function FloorCanvasWorkspace({
               {deleteError}
             </p>
           )}
-          {roomSeats.length > 0 && (
-            <div className='space-y-2'>
-              <p className='text-sm text-muted-foreground'>
-                {c(
-                  'Move or remove the seats in this room before deleting it.',
-                  'Chuyển ghế ra khỏi phòng hoặc xóa ghế trước khi xóa phòng.'
-                )}
-              </p>
-              <div className='flex max-h-36 flex-wrap gap-2 overflow-auto'>
-                {roomSeats.map((seat) => (
-                  <Button
-                    key={seat.id}
-                    variant='outline'
-                    size='sm'
-                    onClick={() => {
-                      setRemove(false);
-                      select(`resource:${seat.id}`);
-                    }}
-                  >
-                    {seat.name} · {seat.code}
-                  </Button>
-                ))}
-              </div>
-            </div>
+          {(roomSeats.length > 0 || roomObjectIds.size > 0) && (
+            <p className='text-sm text-muted-foreground'>
+              {c(
+                `This will delete the room, its ${roomSeats.length} seats and ${roomObjectIds.size} furnishings inside it.`,
+                `Thao tác này sẽ xóa phòng cùng ${roomSeats.length} ghế và ${roomObjectIds.size} đồ bố trí bên trong.`
+              )}
+            </p>
           )}
           <div className='flex justify-end gap-2'>
             <Button variant='outline' disabled={busy} onClick={() => setRemove(false)}>
@@ -2380,7 +2487,7 @@ export function FloorCanvasWorkspace({
             </Button>
             <Button
               variant='destructive'
-              disabled={busy || roomSeats.length > 0}
+              disabled={busy}
               onClick={() => void (selection?.resource ? removeResource() : removeObject())}
             >
               {busy && <LoaderCircle className='size-4 animate-spin' />}
@@ -2389,15 +2496,6 @@ export function FloorCanvasWorkspace({
           </div>
         </DialogContent>
       </Dialog>
-      {catalogType && (
-        <ResourceSetupDialog
-          workspaceId={workspaceId}
-          kind='type'
-          current={catalogType}
-          onSaved={onSaved}
-          onClose={() => setCatalogType(null)}
-        />
-      )}
       {editingFloorDimensions && metrics.data && (
         <FloorDimensionsDialog
           actorId={actorId}

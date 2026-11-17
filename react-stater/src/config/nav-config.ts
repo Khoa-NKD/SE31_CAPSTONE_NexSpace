@@ -224,12 +224,6 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Buildings',
-        url: '/dashboard/organizer/buildings',
-        icon: 'building',
-        isActive: false
-      },
-      {
         title: 'Floor Plan & Zones',
         url: '/dashboard/organizer/floorplan',
         icon: 'floorPlan',
