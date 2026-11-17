@@ -1,20 +1,13 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
-import {
-  useWorkspaceAssetsQuery
-} from '@/features/workspaces/api/queries';
-import {
-  useDeleteWorkspaceAssetMutation
-} from '@/features/workspaces/api/mutations';
+import { useWorkspaceAssetsQuery } from '@/features/workspaces/api/queries';
+import { useDeleteWorkspaceAssetMutation } from '@/features/workspaces/api/mutations';
 import { AssetStatusBadge } from './asset-status-badge';
 import { AssetDialog } from './asset-dialog';
 import { MaintenanceDialog } from './maintenance-dialog';
 import { MaintenanceHistoryDialog } from './maintenance-history-dialog';
 import type { AssetStatus, WorkspaceAssetDto } from '@/features/workspaces/api/types';
-import {
-  calculateAssetMetrics,
-  filterAssets,
-  paginateAssets
-} from '../utils/assets';
+import { calculateAssetMetrics, filterAssets, paginateAssets } from '../utils/assets';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -66,6 +59,7 @@ interface WorkspaceAssetsManagerProps {
 }
 
 export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerProps) {
+  const c = useOrganizerCopy();
   const [search, setSearch] = useState('');
   const [selectedStatus, setSelectedStatus] = useState<AssetStatus | 'ALL'>('ALL');
   const [page, setPage] = useState(1);
@@ -117,11 +111,15 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
 
   // Filter tabs definition with dynamic counters
   const filterTabs: { key: AssetStatus | 'ALL'; label: string; count: number }[] = [
-    { key: 'ALL', label: 'Tất cả', count: metrics.total },
-    { key: 'IN_USE', label: 'Đang dùng', count: metrics.inUse },
-    { key: 'UNDER_MAINTENANCE', label: 'Bảo trì', count: metrics.underMaintenance },
-    { key: 'BROKEN', label: 'Báo hỏng', count: metrics.broken },
-    { key: 'RETIRED', label: 'Ngừng dùng', count: metrics.retired }
+    { key: 'ALL', label: c('All', 'Tất cả'), count: metrics.total },
+    { key: 'IN_USE', label: c('Currently in use', 'Đang dùng'), count: metrics.inUse },
+    {
+      key: 'UNDER_MAINTENANCE',
+      label: c('Maintenance', 'Bảo trì'),
+      count: metrics.underMaintenance
+    },
+    { key: 'BROKEN', label: c('Reported broken', 'Báo hỏng'), count: metrics.broken },
+    { key: 'RETIRED', label: c('No longer in use', 'Ngừng dùng'), count: metrics.retired }
   ];
 
   const handleOpenAdd = () => {
@@ -173,7 +171,9 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <Box className='w-5 h-5' />
           </div>
           <div>
-            <p className='text-xs text-muted-foreground font-medium'>Tổng số tài sản</p>
+            <p className='text-xs text-muted-foreground font-medium'>
+              {c('Total assets', 'Tổng số tài sản')}
+            </p>
             <p className='text-xl font-bold text-foreground'>{metrics.total}</p>
           </div>
         </div>
@@ -183,8 +183,12 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <CheckCircle2 className='w-5 h-5' />
           </div>
           <div>
-            <p className='text-xs text-muted-foreground font-medium'>Đang hoạt động tốt</p>
-            <p className='text-xl font-bold text-emerald-600 dark:text-emerald-400'>{metrics.inUse}</p>
+            <p className='text-xs text-muted-foreground font-medium'>
+              {c('Working normally', 'Đang hoạt động tốt')}
+            </p>
+            <p className='text-xl font-bold text-emerald-600 dark:text-emerald-400'>
+              {metrics.inUse}
+            </p>
           </div>
         </div>
 
@@ -193,8 +197,12 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <Wrench className='w-5 h-5' />
           </div>
           <div>
-            <p className='text-xs text-muted-foreground font-medium'>Đang bảo trì / sửa</p>
-            <p className='text-xl font-bold text-amber-600 dark:text-amber-400'>{metrics.underMaintenance}</p>
+            <p className='text-xs text-muted-foreground font-medium'>
+              {c('Under maintenance / repair', 'Đang bảo trì / sửa')}
+            </p>
+            <p className='text-xl font-bold text-amber-600 dark:text-amber-400'>
+              {metrics.underMaintenance}
+            </p>
           </div>
         </div>
 
@@ -203,7 +211,9 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <AlertTriangle className='w-5 h-5' />
           </div>
           <div>
-            <p className='text-xs text-muted-foreground font-medium'>Báo hỏng chờ sửa</p>
+            <p className='text-xs text-muted-foreground font-medium'>
+              {c('Broken, awaiting repair', 'Báo hỏng chờ sửa')}
+            </p>
             <p className='text-xl font-bold text-rose-600 dark:text-rose-400'>{metrics.broken}</p>
           </div>
         </div>
@@ -215,7 +225,10 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
           <div className='relative w-full sm:w-72'>
             <Search className='w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground' />
             <Input
-              placeholder='Tìm mã, tên hoặc vị trí thiết bị...'
+              placeholder={c(
+                'Search equipment code, name or location...',
+                'Tìm mã, tên hoặc vị trí thiết bị...'
+              )}
               className='pl-9 h-9 text-xs sm:text-sm'
               value={search}
               onChange={(e) => {
@@ -266,10 +279,13 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             onClick={() => refetch()}
             disabled={isFetching}
             className='h-9 text-xs'
-            title='Làm mới dữ liệu từ máy chủ'
+            title={c('Refresh server data', 'Làm mới dữ liệu từ máy chủ')}
           >
-            <RotateCcw className={`w-3.5 h-3.5 mr-1 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
-            Tải lại
+            <RotateCcw
+              className={`w-3.5 h-3.5 mr-1 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`}
+            />
+
+            {c('Reload', 'Tải lại')}
           </Button>
           <Button
             type='button'
@@ -278,7 +294,8 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             className='h-9 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
           >
             <Plus className='w-4 h-4 mr-1' />
-            Thêm tài sản
+
+            {c('Add asset', 'Thêm tài sản')}
           </Button>
         </div>
       </div>
@@ -288,23 +305,32 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
         {isLoading ? (
           <div className='py-20 flex flex-col items-center justify-center text-muted-foreground gap-3'>
             <Loader2 className='w-8 h-8 animate-spin text-indigo-600' />
-            <p className='text-sm font-medium'>Đang tải danh sách cơ sở vật chất...</p>
+            <p className='text-sm font-medium'>
+              {c('Loading equipment...', 'Đang tải danh sách cơ sở vật chất...')}
+            </p>
           </div>
         ) : isError ? (
           <div className='py-16 text-center text-rose-500 space-y-2'>
             <AlertTriangle className='w-10 h-10 mx-auto' />
-            <p className='font-semibold'>Không thể tải danh sách tài sản</p>
+            <p className='font-semibold'>
+              {c('Unable to load assets', 'Không thể tải danh sách tài sản')}
+            </p>
             <Button size='sm' variant='outline' onClick={() => refetch()}>
-              Thử lại
+              {c('Try again', 'Thử lại')}
             </Button>
           </div>
         ) : allAssets.length === 0 ? (
           /* Empty state: No assets registered yet */
           <div className='py-20 text-center text-muted-foreground space-y-3'>
             <Box className='w-12 h-12 mx-auto text-muted-foreground/60' />
-            <p className='font-semibold text-foreground text-base'>Chưa có tài sản hoặc thiết bị nào</p>
+            <p className='font-semibold text-foreground text-base'>
+              {c('No assets or equipment yet', 'Chưa có tài sản hoặc thiết bị nào')}
+            </p>
             <p className='text-xs max-w-sm mx-auto text-muted-foreground'>
-              Thêm trang thiết bị (máy chiếu, điều hòa, bàn ghế, smart TV) để quản lý tình trạng và ghi nhật ký bảo dưỡng định kỳ.
+              {c(
+                'Add equipment to track its condition and maintenance history.',
+                'Thêm trang thiết bị (máy chiếu, điều hòa, bàn ghế, smart TV) để quản lý tình trạng và ghi nhật ký bảo dưỡng định kỳ.'
+              )}
             </p>
             <Button
               size='sm'
@@ -312,7 +338,8 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
               className='mt-2 bg-indigo-600 hover:bg-indigo-700 text-white'
             >
               <Plus className='w-4 h-4 mr-1' />
-              Thêm thiết bị đầu tiên
+
+              {c('Add your first equipment', 'Thêm thiết bị đầu tiên')}
             </Button>
           </div>
         ) : filteredAssets.length === 0 ? (
@@ -320,10 +347,16 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
           <div className='py-16 text-center text-muted-foreground space-y-3'>
             <FilterX className='w-10 h-10 mx-auto text-muted-foreground/60' />
             <p className='font-semibold text-foreground text-sm'>
-              Không tìm thấy thiết bị phù hợp với bộ lọc hiện tại
+              {c(
+                'No equipment matches the current filters',
+                'Không tìm thấy thiết bị phù hợp với bộ lọc hiện tại'
+              )}
             </p>
             <p className='text-xs text-muted-foreground'>
-              Thử đổi từ khóa tìm kiếm hoặc chuyển sang tab trạng thái khác.
+              {c(
+                'Try another search or status tab.',
+                'Thử đổi từ khóa tìm kiếm hoặc chuyển sang tab trạng thái khác.'
+              )}
             </p>
             <Button
               size='sm'
@@ -331,7 +364,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
               onClick={handleResetFilters}
               className='h-8 text-xs'
             >
-              Xóa bộ lọc
+              {c('Clear filters', 'Xóa bộ lọc')}
             </Button>
           </div>
         ) : (
@@ -339,12 +372,24 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <Table>
               <TableHeader>
                 <TableRow className='bg-muted/40 hover:bg-muted/40'>
-                  <TableHead className='w-28 font-bold text-xs'>Mã tài sản</TableHead>
-                  <TableHead className='min-w-48 font-bold text-xs'>Tên thiết bị & Vị trí</TableHead>
-                  <TableHead className='w-20 font-bold text-xs text-center'>Số lượng</TableHead>
-                  <TableHead className='w-36 font-bold text-xs'>Trạng thái</TableHead>
-                  <TableHead className='w-36 font-bold text-xs'>Lịch bảo trì tới</TableHead>
-                  <TableHead className='w-32 font-bold text-xs text-right'>Giá mua</TableHead>
+                  <TableHead className='w-28 font-bold text-xs'>
+                    {c('Asset code', 'Mã tài sản')}
+                  </TableHead>
+                  <TableHead className='min-w-48 font-bold text-xs'>
+                    {c('Equipment & Location', 'Tên thiết bị & Vị trí')}
+                  </TableHead>
+                  <TableHead className='w-20 font-bold text-xs text-center'>
+                    {c('Quantity', 'Số lượng')}
+                  </TableHead>
+                  <TableHead className='w-36 font-bold text-xs'>
+                    {c('Status', 'Trạng thái')}
+                  </TableHead>
+                  <TableHead className='w-36 font-bold text-xs'>
+                    {c('Next maintenance', 'Lịch bảo trì tới')}
+                  </TableHead>
+                  <TableHead className='w-32 font-bold text-xs text-right'>
+                    {c('Purchase price', 'Giá mua')}
+                  </TableHead>
                   <TableHead className='w-44 font-bold text-xs text-right'>Hành động</TableHead>
                 </TableRow>
               </TableHeader>
@@ -360,7 +405,10 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                         <p className='font-bold text-xs sm:text-sm text-foreground'>{asset.name}</p>
                         {asset.resourceName && (
                           <p className='text-2xs text-muted-foreground mt-0.5'>
-                            Gắn với: <span className='font-medium text-foreground/80'>{asset.resourceName}</span>
+                            {c('Linked to:', 'Gắn với:')}{' '}
+                            <span className='font-medium text-foreground/80'>
+                              {asset.resourceName}
+                            </span>
                           </p>
                         )}
                         {asset.note && (
@@ -381,15 +429,21 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
 
                     <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
                       {asset.nextMaintenanceDate ? (
-                        <span>{new Date(asset.nextMaintenanceDate).toLocaleDateString('vi-VN')}</span>
+                        <span>
+                          {new Date(asset.nextMaintenanceDate).toLocaleDateString(
+                            c('en-US', 'vi-VN')
+                          )}
+                        </span>
                       ) : (
-                        <span className='text-muted-foreground/50'>Chưa lên lịch</span>
+                        <span className='text-muted-foreground/50'>
+                          {c('Not scheduled', 'Chưa lên lịch')}
+                        </span>
                       )}
                     </TableCell>
 
                     <TableCell className='text-xs text-right font-medium text-foreground whitespace-nowrap'>
                       {asset.purchasePrice
-                        ? `${Number(asset.purchasePrice).toLocaleString('vi-VN')} đ`
+                        ? `${Number(asset.purchasePrice).toLocaleString(c('en-US', 'vi-VN'))} đ`
                         : '—'}
                     </TableCell>
 
@@ -400,7 +454,10 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                           size='icon'
                           variant='ghost'
                           className='h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
-                          title='Báo hỏng / Lập lịch bảo trì'
+                          title={c(
+                            'Report issue / Schedule maintenance',
+                            'Báo hỏng / Lập lịch bảo trì'
+                          )}
                           onClick={() => handleOpenMaintenance(asset)}
                         >
                           <Wrench className='w-3.5 h-3.5' />
@@ -411,7 +468,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                           size='icon'
                           variant='ghost'
                           className='h-8 w-8 text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/40'
-                          title='Xem lịch sử bảo trì'
+                          title={c('View maintenance history', 'Xem lịch sử bảo trì')}
                           onClick={() => handleOpenHistory(asset)}
                         >
                           <History className='w-3.5 h-3.5' />
@@ -422,7 +479,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                           size='icon'
                           variant='ghost'
                           className='h-8 w-8 text-muted-foreground hover:text-foreground'
-                          title='Chỉnh sửa thông tin tài sản'
+                          title={c('Edit asset information', 'Chỉnh sửa thông tin tài sản')}
                           onClick={() => handleOpenEdit(asset)}
                         >
                           <Pencil className='w-3.5 h-3.5' />
@@ -433,7 +490,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                           size='icon'
                           variant='ghost'
                           className='h-8 w-8 text-rose-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40'
-                          title='Xóa tài sản'
+                          title={c('Delete asset', 'Xóa tài sản')}
                           onClick={() => setAssetToDelete(asset)}
                         >
                           <Trash2 className='w-3.5 h-3.5' />
@@ -452,16 +509,17 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
           <div className='p-4 border-t border-border flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-muted-foreground'>
             {/* Left: Summary text */}
             <div className='flex flex-wrap items-center gap-1.5'>
-              <span>Hiển thị</span>
+              <span>{c('Showing', 'Hiển thị')}</span>
               <span className='font-bold text-foreground'>{startIndex + 1}</span>
               <span>–</span>
               <span className='font-bold text-foreground'>{endIndex}</span>
-              <span>trong tổng số</span>
+              <span>{c('out of', 'trong tổng số')}</span>
               <span className='font-bold text-foreground'>{totalRecords}</span>
-              <span>thiết bị</span>
+              <span>{c('equipment', 'thiết bị')}</span>
               <span className='text-muted-foreground/60'>•</span>
               <span>
-                Trang <span className='font-semibold text-foreground'>{currentPage}</span> / {totalPages}
+                {c('Page', 'Trang')}{' '}
+                <span className='font-semibold text-foreground'>{currentPage}</span> / {totalPages}
               </span>
             </div>
 
@@ -469,7 +527,9 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             <div className='flex flex-wrap items-center gap-4 sm:gap-6'>
               {/* Page size selector */}
               <div className='flex items-center space-x-2'>
-                <span className='text-xs font-medium text-muted-foreground whitespace-nowrap'>Số mục:</span>
+                <span className='text-xs font-medium text-muted-foreground whitespace-nowrap'>
+                  {c('Items:', 'Số mục:')}
+                </span>
                 <Select
                   value={`${pageSize}`}
                   onValueChange={(val) => {
@@ -481,10 +541,10 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                     <SelectValue placeholder={`${pageSize}`} />
                   </SelectTrigger>
                   <SelectContent side='top'>
-                    <SelectItem value='5'>5 / trang</SelectItem>
-                    <SelectItem value='10'>10 / trang</SelectItem>
-                    <SelectItem value='20'>20 / trang</SelectItem>
-                    <SelectItem value='50'>50 / trang</SelectItem>
+                    <SelectItem value='5'>{c('5 / page', '5 / trang')}</SelectItem>
+                    <SelectItem value='10'>{c('10 / page', '10 / trang')}</SelectItem>
+                    <SelectItem value='20'>{c('20 / page', '20 / trang')}</SelectItem>
+                    <SelectItem value='50'>{c('50 / page', '50 / trang')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -498,7 +558,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                   disabled={currentPage <= 1}
                   onClick={() => setPage(1)}
                   className='h-8 w-8 text-xs'
-                  title='Về trang đầu tiên'
+                  title={c('Go to first page', 'Về trang đầu tiên')}
                 >
                   <ChevronsLeft className='w-3.5 h-3.5' />
                 </Button>
@@ -509,7 +569,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                   disabled={currentPage <= 1}
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   className='h-8 w-8 text-xs'
-                  title='Trang trước'
+                  title={c('Previous page', 'Trang trước')}
                 >
                   <ChevronLeft className='w-3.5 h-3.5' />
                 </Button>
@@ -569,7 +629,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                   disabled={currentPage >= totalPages}
                   onClick={() => setPage(totalPages)}
                   className='h-8 w-8 text-xs'
-                  title='Đến trang cuối'
+                  title={c('Go to last page', 'Đến trang cuối')}
                 >
                   <ChevronsRight className='w-3.5 h-3.5' />
                 </Button>
@@ -610,20 +670,30 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
       <AlertDialog open={Boolean(assetToDelete)} onOpenChange={(o) => !o && setAssetToDelete(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Xác nhận xóa tài sản?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {c('Confirm asset deletion?', 'Xác nhận xóa tài sản?')}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Bạn có chắc chắn muốn xóa tài sản <strong>{assetToDelete?.name}</strong> ({assetToDelete?.assetCode}) khỏi không gian làm việc này? Hành động này sẽ xóa cả lịch sử bảo trì liên quan và không thể khôi phục.
+              {c('Are you sure you want to delete asset', 'Bạn có chắc chắn muốn xóa tài sản')}{' '}
+              <strong>{assetToDelete?.name}</strong> ({assetToDelete?.assetCode}
+              {c(
+                ') from this workspace? Its maintenance history will also be deleted. This cannot be undone.',
+                ') khỏi không gian làm việc này? Hành động này sẽ xóa cả lịch sử bảo trì liên quan và không thể khôi phục.'
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel disabled={deleteMutation.isPending}>Hủy</AlertDialogCancel>
+            <AlertDialogCancel disabled={deleteMutation.isPending}>
+              {c('Cancel', 'Hủy')}
+            </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleConfirmDelete}
               disabled={deleteMutation.isPending}
               className='bg-rose-600 hover:bg-rose-700 text-white'
             >
               {deleteMutation.isPending && <Loader2 className='w-4 h-4 animate-spin mr-1' />}
-              Xác nhận xóa
+
+              {c('Confirm Delete', 'Xác nhận xóa')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

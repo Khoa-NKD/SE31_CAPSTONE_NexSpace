@@ -88,6 +88,7 @@ export function FloorAiAssistant({
   onApplied,
   onPlace,
   onClose,
+  onMinimize,
   onFocus,
   onBusy
 }: {
@@ -105,6 +106,7 @@ export function FloorAiAssistant({
   onApplied: () => void;
   onPlace: (item: FloorDecoration) => void;
   onClose: () => void;
+  onMinimize?: () => void;
   onFocus: (key: string) => void;
   onBusy: (busy: boolean) => void;
 }) {
@@ -221,7 +223,9 @@ export function FloorAiAssistant({
       currency: c('currency', 'tiền tệ'),
       price: c('at least one valid price', 'ít nhất một mức giá hợp lệ')
     })[issue];
-  const [geometryReview, setGeometryReview] = useState<(GeometryReview & { expectedRevision: string }) | null>(null);
+  const [geometryReview, setGeometryReview] = useState<
+    (GeometryReview & { expectedRevision: string }) | null
+  >(null);
   const [measurementMode, setMeasurementMode] = useState<MeasurementMode>('RESIZE');
   const [dimensions, setDimensions] = useState<{
     width: string;
@@ -579,7 +583,11 @@ export function FloorAiAssistant({
       await client.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
       onApplied();
     } catch (e) {
-      const message = c('The proposal was not saved. The canvas still shows a preview. ', 'Chưa lưu được đề xuất. Sơ đồ đang hiển thị vẫn là bản xem trước. ') + proposalIssueLabel(errorMessage(e));
+      const message =
+        c(
+          'The proposal was not saved. The canvas still shows a preview. ',
+          'Chưa lưu được đề xuất. Sơ đồ đang hiển thị vẫn là bản xem trước. '
+        ) + proposalIssueLabel(errorMessage(e));
       setError(message);
       warnInChat(message);
     } finally {
@@ -597,9 +605,18 @@ export function FloorAiAssistant({
       changeProposal(null);
       await onSaved();
       await retainedDraft.refetch();
-      toast.success(c('Draft saved. You can continue after confirming measurements.', 'Đã lưu bản nháp. Bạn có thể tiếp tục sau khi xác nhận số đo.'));
-    } catch (e) { report(e); }
-    finally { saving.current = false; setBusy(false); }
+      toast.success(
+        c(
+          'Draft saved. You can continue after confirming measurements.',
+          'Đã lưu bản nháp. Bạn có thể tiếp tục sau khi xác nhận số đo.'
+        )
+      );
+    } catch (e) {
+      report(e);
+    } finally {
+      saving.current = false;
+      setBusy(false);
+    }
   }
   async function saveMeasurements(event: React.FormEvent) {
     event.preventDefault();
@@ -617,7 +634,10 @@ export function FloorAiAssistant({
         confirmGeometryConversion: true
       };
       if (!geometryReview) {
-        setGeometryReview({ ...await previewDesignMetrics(workspaceId, floorId, input), expectedRevision: input.expectedRevision });
+        setGeometryReview({
+          ...(await previewDesignMetrics(workspaceId, floorId, input)),
+          expectedRevision: input.expectedRevision
+        });
         return;
       }
       if (!geometryReview.applicable) return;
@@ -638,6 +658,21 @@ export function FloorAiAssistant({
   async function savePreset(event: React.FormEvent) {
     event.preventDefault();
     if (!template || !canWrite) return;
+    const duplicate = (library.data ?? []).find(
+      (item) =>
+        item.id !== editing?.id &&
+        presetKey(item.kind, item.name, item.icon) ===
+          presetKey(template.kind, template.name, template.icon)
+    );
+    if (duplicate) {
+      setError(
+        c(
+          `This item already exists in your library: ${duplicate.name}. Edit the existing preset.`,
+          `Vật dụng đã có trong kho: ${duplicate.name}. Hãy chỉnh mẫu hiện có.`
+        )
+      );
+      return;
+    }
     setBusy(true);
     setError('');
     try {
@@ -819,6 +854,22 @@ export function FloorAiAssistant({
           >
             {expanded ? <Minimize2 className='size-4' /> : <Maximize2 className='size-4' />}
           </Button>
+          {onMinimize && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='size-8 shrink-0'
+              aria-label={c('Minimize AI panel', 'Thu gọn bảng AI')}
+              title={c('Minimize AI panel', 'Thu gọn bảng AI')}
+              onClick={() => {
+                setExpanded(false);
+                onMinimize();
+              }}
+            >
+              <ChevronDown className='size-4' />
+            </Button>
+          )}
           <Button
             variant='ghost'
             size='icon'
@@ -886,12 +937,30 @@ export function FloorAiAssistant({
         {tab !== 'AI' && toolsNotice}
         {!proposal && retainedDraft.data && (
           <div className='rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs'>
-            <p>{c('A saved design draft is available. AI will use it when you continue.', 'Có bản nháp thiết kế đã lưu. AI sẽ dùng lại bố cục này khi bạn tiếp tục.')}</p>
-            <Button type='button' variant='link' size='sm' disabled={busy} onClick={() => {
-              setTab('AI');
-              setScope('WORKSPACE');
-              setPrompt(c('Continue the saved draft using the current measurements, preserving catalog footprints.', 'Tiếp tục bản nháp đã lưu theo số đo hiện tại, giữ đúng kích thước chuẩn của các loại chỗ.'));
-            }}>{c('Continue saved draft', 'Tiếp tục bản nháp')}</Button>
+            <p>
+              {c(
+                'A saved design draft is available. AI will use it when you continue.',
+                'Có bản nháp thiết kế đã lưu. AI sẽ dùng lại bố cục này khi bạn tiếp tục.'
+              )}
+            </p>
+            <Button
+              type='button'
+              variant='link'
+              size='sm'
+              disabled={busy}
+              onClick={() => {
+                setTab('AI');
+                setScope('WORKSPACE');
+                setPrompt(
+                  c(
+                    'Continue the saved draft using the current measurements, preserving catalog footprints.',
+                    'Tiếp tục bản nháp đã lưu theo số đo hiện tại, giữ đúng kích thước chuẩn của các loại chỗ.'
+                  )
+                );
+              }}
+            >
+              {c('Continue saved draft', 'Tiếp tục bản nháp')}
+            </Button>
           </div>
         )}
         {error && (
@@ -1044,7 +1113,10 @@ export function FloorAiAssistant({
                 onClick={() => setTab('METRICS')}
                 className='w-full rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-left text-xs'
               >
-                {c('An image can use estimated scale. Add real dimensions for a more accurate layout →', 'Có thể dựng theo ảnh bằng tỷ lệ ước lượng. Thêm kích thước thực để bố trí chính xác hơn →')}
+                {c(
+                  'An image can use estimated scale. Add real dimensions for a more accurate layout →',
+                  'Có thể dựng theo ảnh bằng tỷ lệ ước lượng. Thêm kích thước thực để bố trí chính xác hơn →'
+                )}
               </button>
             )}
             <div ref={chatEnd} />
@@ -1446,10 +1518,18 @@ export function FloorAiAssistant({
                 )}
                 {needsConfirmedScale && (
                   <p className='rounded-lg border border-amber-500/25 bg-amber-500/10 p-3 text-xs'>
-                    {c('Save this draft before reviewing the real floor dimensions. AI can continue from the retained arrangement.', 'Lưu bản nháp trước khi xác nhận kích thước tầng. AI sẽ tiếp tục từ bố cục đã giữ, không cần làm lại từ đầu.')}
+                    {c(
+                      'Save this draft before reviewing the real floor dimensions. AI can continue from the retained arrangement.',
+                      'Lưu bản nháp trước khi xác nhận kích thước tầng. AI sẽ tiếp tục từ bố cục đã giữ, không cần làm lại từ đầu.'
+                    )}
                   </p>
                 )}
-                <Button variant='outline' className='w-full' disabled={busy || !canWrite} onClick={() => void retainDraft()}>
+                <Button
+                  variant='outline'
+                  className='w-full'
+                  disabled={busy || !canWrite}
+                  onClick={() => void retainDraft()}
+                >
                   {c('Save design draft', 'Lưu bản nháp thiết kế')}
                 </Button>
                 <Button
@@ -1512,8 +1592,8 @@ export function FloorAiAssistant({
               {!d.allAreasMeasured && (
                 <p className='text-muted-foreground'>
                   {c(
-                      'Some linked floors still need real dimensions.',
-                      'Một số tầng liên kết chưa có kích thước thực.'
+                    'Some linked floors still need real dimensions.',
+                    'Một số tầng liên kết chưa có kích thước thực.'
                   )}
                 </p>
               )}
@@ -1548,7 +1628,14 @@ export function FloorAiAssistant({
                     'Chiều dài nằm ngang, chiều rộng nằm dọc của toàn tầng. Đổi biên tầng giữ nguyên các vùng workspace và bố trí.'
                   )}
                 </p>
-                <MeasurementModeField value={measurementMode} disabled={busy} onChange={value => { setMeasurementMode(value); setGeometryReview(null); }} />
+                <MeasurementModeField
+                  value={measurementMode}
+                  disabled={busy}
+                  onChange={(value) => {
+                    setMeasurementMode(value);
+                    setGeometryReview(null);
+                  }}
+                />
                 {(
                   [
                     ['width', c('Physical floor width (m)', 'Dài toàn tầng — ngang (m)')],
@@ -1578,20 +1665,37 @@ export function FloorAiAssistant({
                       step={key === 'width' || key === 'length' ? '.01' : '1'}
                       required={key === 'width' || key === 'length'}
                       value={dimensions[key]}
-                      onChange={(e) => { setDimensions({ ...dimensions, [key]: e.target.value }); setGeometryReview(null); }}
+                      onChange={(e) => {
+                        setDimensions({ ...dimensions, [key]: e.target.value });
+                        setGeometryReview(null);
+                      }}
                     />
                   </label>
                 ))}
                 <GeometryReviewNotice review={geometryReview} />
                 <div className='flex gap-2'>
-                  <Button type='submit' size='sm' disabled={!canWrite || !!proposal || busy || (!!geometryReview && !geometryReview.applicable)}>
-                    {geometryReview ? c('Confirm and save', 'Xác nhận và lưu') : c('Review dimensions', 'Kiểm tra kích thước')}
+                  <Button
+                    type='submit'
+                    size='sm'
+                    disabled={
+                      !canWrite ||
+                      !!proposal ||
+                      busy ||
+                      (!!geometryReview && !geometryReview.applicable)
+                    }
+                  >
+                    {geometryReview
+                      ? c('Confirm and save', 'Xác nhận và lưu')
+                      : c('Review dimensions', 'Kiểm tra kích thước')}
                   </Button>
                   <Button
                     type='button'
                     variant='ghost'
                     size='sm'
-                    onClick={() => { setDimensions(null); setGeometryReview(null); }}
+                    onClick={() => {
+                      setDimensions(null);
+                      setGeometryReview(null);
+                    }}
                   >
                     {c('Cancel', 'Hủy')}
                   </Button>
@@ -1828,7 +1932,9 @@ export function FloorAiAssistant({
                   {(['widthM', 'lengthM'] as const).map((key) => (
                     <label key={key} className='space-y-1 text-xs'>
                       <span>
-                        {key === 'widthM' ? c('Width (m)', 'Dài — ngang (m)') : c('Length (m)', 'Rộng — dọc (m)')}
+                        {key === 'widthM'
+                          ? c('Width (m)', 'Dài — ngang (m)')
+                          : c('Length (m)', 'Rộng — dọc (m)')}
                       </span>
                       <Input
                         type='number'

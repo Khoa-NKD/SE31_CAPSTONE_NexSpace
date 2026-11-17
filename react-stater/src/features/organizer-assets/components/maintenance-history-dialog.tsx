@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -20,7 +21,11 @@ import {
 import { useAssetMaintenanceLogsQuery } from '@/features/workspaces/api/queries';
 import { useUpdateMaintenanceLogMutation } from '@/features/workspaces/api/mutations';
 import { MaintenanceStatusBadge, MaintenanceTypeBadge } from './asset-status-badge';
-import type { MaintenanceLogDto, MaintenanceStatus, WorkspaceAssetDto } from '@/features/workspaces/api/types';
+import type {
+  MaintenanceLogDto,
+  MaintenanceStatus,
+  WorkspaceAssetDto
+} from '@/features/workspaces/api/types';
 import { History, Wrench, CheckCircle, Loader2, Calendar } from 'lucide-react';
 
 interface MaintenanceHistoryDialogProps {
@@ -38,10 +43,8 @@ export function MaintenanceHistoryDialog({
   asset,
   onOpenNewLog
 }: MaintenanceHistoryDialogProps) {
-  const { data: logs = [], isLoading } = useAssetMaintenanceLogsQuery(
-    workspaceId,
-    asset?.id
-  );
+  const c = useOrganizerCopy();
+  const { data: logs = [], isLoading } = useAssetMaintenanceLogsQuery(workspaceId, asset?.id);
 
   const [selectedLogToUpdate, setSelectedLogToUpdate] = useState<MaintenanceLogDto | null>(null);
   const [updateStatus, setUpdateStatus] = useState<MaintenanceStatus>('COMPLETED');
@@ -89,7 +92,9 @@ export function MaintenanceHistoryDialog({
           <div className='flex items-center justify-between min-w-0 gap-2'>
             <DialogTitle className='flex items-center gap-2 min-w-0'>
               <History className='w-5 h-5 text-indigo-600 dark:text-indigo-400 shrink-0' />
-              <span className='truncate'>Lịch sử bảo trì: {asset?.name} ({asset?.assetCode})</span>
+              <span className='truncate'>
+                {c('Maintenance history:', 'Lịch sử bảo trì:')} {asset?.name} ({asset?.assetCode})
+              </span>
             </DialogTitle>
             {onOpenNewLog && (
               <Button
@@ -103,7 +108,8 @@ export function MaintenanceHistoryDialog({
                 className='text-xs font-semibold'
               >
                 <Wrench className='w-3.5 h-3.5 mr-1 text-amber-600' />
-                Báo hỏng mới
+
+                {c('Report new issue', 'Báo hỏng mới')}
               </Button>
             )}
           </div>
@@ -112,13 +118,22 @@ export function MaintenanceHistoryDialog({
         {isLoading ? (
           <div className='py-12 flex flex-col items-center justify-center text-muted-foreground gap-2'>
             <Loader2 className='w-6 h-6 animate-spin text-indigo-600' />
-            <p className='text-sm'>Đang tải lịch sử bảo trì...</p>
+            <p className='text-sm'>
+              {c('Loading maintenance history...', 'Đang tải lịch sử bảo trì...')}
+            </p>
           </div>
         ) : logs.length === 0 ? (
           <div className='py-12 text-center text-muted-foreground border border-dashed border-border rounded-xl my-2'>
             <CheckCircle className='w-10 h-10 mx-auto mb-2 text-emerald-500 opacity-80' />
-            <p className='font-medium text-foreground'>Chưa có lịch sử bảo trì nào</p>
-            <p className='text-xs mt-1'>Thiết bị này hoạt động bình thường và chưa phát sinh sự cố nào.</p>
+            <p className='font-medium text-foreground'>
+              {c('No maintenance history yet', 'Chưa có lịch sử bảo trì nào')}
+            </p>
+            <p className='text-xs mt-1'>
+              {c(
+                'This equipment has no reported issues.',
+                'Thiết bị này hoạt động bình thường và chưa phát sinh sự cố nào.'
+              )}
+            </p>
           </div>
         ) : (
           <div className='space-y-4 my-2'>
@@ -134,7 +149,11 @@ export function MaintenanceHistoryDialog({
                   </div>
                   <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
                     <Calendar className='w-3.5 h-3.5' />
-                    <span>{log.createdAt ? new Date(log.createdAt).toLocaleString('vi-VN') : '—'}</span>
+                    <span>
+                      {log.createdAt
+                        ? new Date(log.createdAt).toLocaleString(c('en-US', 'vi-VN'))
+                        : '—'}
+                    </span>
                   </div>
                 </div>
 
@@ -144,22 +163,32 @@ export function MaintenanceHistoryDialog({
 
                 <div className='grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-muted-foreground pt-1 border-t border-border/50'>
                   <div>
-                    <span className='font-semibold text-foreground/70'>Người báo: </span>
-                    {log.reportedByName || 'Hệ thống'}
+                    <span className='font-semibold text-foreground/70'>
+                      {c('Reported by:', 'Người báo:')}{' '}
+                    </span>
+                    {log.reportedByName || c('System', 'Hệ thống')}
                   </div>
                   <div>
-                    <span className='font-semibold text-foreground/70'>Đơn vị sửa: </span>
-                    {log.performedBy || 'Nội bộ'}
+                    <span className='font-semibold text-foreground/70'>
+                      {c('Service provider:', 'Đơn vị sửa:')}{' '}
+                    </span>
+                    {log.performedBy || c('Internal', 'Nội bộ')}
                   </div>
                   <div>
-                    <span className='font-semibold text-foreground/70'>Chi phí: </span>
-                    {log.cost ? `${Number(log.cost).toLocaleString('vi-VN')} đ` : 'Chưa tính'}
+                    <span className='font-semibold text-foreground/70'>
+                      {c('Cost:', 'Chi phí:')}{' '}
+                    </span>
+                    {log.cost
+                      ? `${Number(log.cost).toLocaleString(c('en-US', 'vi-VN'))} đ`
+                      : c('Not calculated', 'Chưa tính')}
                   </div>
                 </div>
 
                 {log.resultNote && (
                   <div className='text-xs bg-muted/60 p-2.5 rounded-lg border border-border/60 text-foreground'>
-                    <span className='font-semibold text-emerald-600 dark:text-emerald-400'>Kết quả xử lý: </span>
+                    <span className='font-semibold text-emerald-600 dark:text-emerald-400'>
+                      {c('Resolution:', 'Kết quả xử lý:')}{' '}
+                    </span>
                     {log.resultNote}
                   </div>
                 )}
@@ -174,7 +203,8 @@ export function MaintenanceHistoryDialog({
                       className='text-xs h-7 border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-300'
                     >
                       <CheckCircle className='w-3 h-3 mr-1' />
-                      Cập nhật tiến độ / Hoàn tất
+
+                      {c('Update progress / Complete', 'Cập nhật tiến độ / Hoàn tất')}
                     </Button>
                   </div>
                 )}
@@ -187,26 +217,38 @@ export function MaintenanceHistoryDialog({
         {selectedLogToUpdate && (
           <div className='p-4 mt-2 border-t-2 border-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/20 rounded-xl space-y-3'>
             <h4 className='text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300'>
-              Cập nhật tiến độ: #{selectedLogToUpdate.id}
+              {c('Update progress: #', 'Cập nhật tiến độ: #')}
+              {selectedLogToUpdate.id}
             </h4>
             <form onSubmit={handleSaveUpdate} className='space-y-3'>
               <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 min-w-0'>
                 <div className='space-y-1 min-w-0'>
-                  <Label className='text-xs font-semibold'>Trạng thái</Label>
-                  <Select value={updateStatus} onValueChange={(val: MaintenanceStatus) => setUpdateStatus(val)}>
+                  <Label className='text-xs font-semibold'>{c('Status', 'Trạng thái')}</Label>
+                  <Select
+                    value={updateStatus}
+                    onValueChange={(val: MaintenanceStatus) => setUpdateStatus(val)}
+                  >
                     <SelectTrigger className='w-full min-w-0 h-8 text-xs [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value='IN_PROGRESS'>Đang xử lý (In Progress)</SelectItem>
-                      <SelectItem value='COMPLETED'>Hoàn thành (Đưa thiết bị về sẵn sàng)</SelectItem>
-                      <SelectItem value='CANCELLED'>Hủy bỏ (Cancelled)</SelectItem>
+                      <SelectItem value='IN_PROGRESS'>
+                        {c('In Progress', 'Đang xử lý (In Progress)')}
+                      </SelectItem>
+                      <SelectItem value='COMPLETED'>
+                        {c('Completed (equipment ready)', 'Hoàn thành (Đưa thiết bị về sẵn sàng)')}
+                      </SelectItem>
+                      <SelectItem value='CANCELLED'>
+                        {c('Cancelled maintenance', 'Hủy bỏ (Cancelled)')}
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
 
                 <div className='space-y-1 min-w-0'>
-                  <Label className='text-xs font-semibold'>Chi phí thực tế (VNĐ)</Label>
+                  <Label className='text-xs font-semibold'>
+                    {c('Actual cost (VND)', 'Chi phí thực tế (VNĐ)')}
+                  </Label>
                   <Input
                     className='h-8 text-xs w-full min-w-0'
                     type='number'
@@ -219,13 +261,18 @@ export function MaintenanceHistoryDialog({
               </div>
 
               <div className='space-y-1'>
-                <Label className='text-xs font-semibold'>Ghi chú kết quả sau sửa chữa</Label>
+                <Label className='text-xs font-semibold'>
+                  {c('Repair result notes', 'Ghi chú kết quả sau sửa chữa')}
+                </Label>
                 <Textarea
                   rows={2}
                   className='text-xs'
                   value={resultNote}
                   onChange={(e) => setResultNote(e.target.value)}
-                  placeholder='VD: Đã thay bóng đèn mới, thử chiếu hình ảnh sắc nét, hoạt động ổn định...'
+                  placeholder={c(
+                    'e.g. Replaced the lamp and verified clear, stable projection...',
+                    'VD: Đã thay bóng đèn mới, thử chiếu hình ảnh sắc nét, hoạt động ổn định...'
+                  )}
                 />
               </div>
 
@@ -237,7 +284,7 @@ export function MaintenanceHistoryDialog({
                   className='h-8 text-xs'
                   onClick={() => setSelectedLogToUpdate(null)}
                 >
-                  Đóng
+                  {c('Close', 'Đóng')}
                 </Button>
                 <Button
                   type='submit'
@@ -246,7 +293,8 @@ export function MaintenanceHistoryDialog({
                   className='h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white'
                 >
                   {isUpdating && <Loader2 className='w-3 h-3 animate-spin mr-1' />}
-                  Lưu tiến độ
+
+                  {c('Save progress', 'Lưu tiến độ')}
                 </Button>
               </div>
             </form>
@@ -255,11 +303,10 @@ export function MaintenanceHistoryDialog({
 
         <DialogFooter>
           <Button type='button' variant='outline' onClick={() => onOpenChange(false)}>
-            Đóng
+            {c('Close', 'Đóng')}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-

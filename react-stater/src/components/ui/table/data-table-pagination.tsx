@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import type { Table } from '@tanstack/react-table';
 import { Icons } from '@/components/icons';
 
@@ -22,6 +23,7 @@ export function DataTablePagination<TData>({
   className,
   ...props
 }: DataTablePaginationProps<TData>) {
+  const c = useOrganizerCopy();
   return (
     <div
       className={cn(
@@ -33,16 +35,20 @@ export function DataTablePagination<TData>({
       <div className='text-muted-foreground text-sm whitespace-nowrap'>
         {table.getFilteredSelectedRowModel().rows.length > 0 ? (
           <>
-            {table.getFilteredSelectedRowModel().rows.length} of{' '}
-            {table.getFilteredRowModel().rows.length} row(s) selected.
+            {table.getFilteredSelectedRowModel().rows.length} {c('of', 'trên')}{' '}
+            {table.getFilteredRowModel().rows.length} {c('row(s) selected.', 'dòng đã chọn.')}
           </>
         ) : (
-          <>{table.getFilteredRowModel().rows.length} row(s) total.</>
+          <>
+            {table.getFilteredRowModel().rows.length} {c('row(s) total.', 'dòng.')}
+          </>
         )}
       </div>
       <div className='flex items-center gap-2 sm:gap-6 lg:gap-8'>
         <div className='hidden items-center space-x-2 sm:flex'>
-          <p className='text-sm font-medium whitespace-nowrap'>Rows per page</p>
+          <p className='text-sm font-medium whitespace-nowrap'>
+            {c('Rows per page', 'Số dòng mỗi trang')}
+          </p>
           <Select
             value={`${table.getState().pagination.pageSize}`}
             onValueChange={(value) => {
@@ -62,11 +68,12 @@ export function DataTablePagination<TData>({
           </Select>
         </div>
         <div className='flex items-center justify-center text-sm font-medium whitespace-nowrap'>
-          Page {table.getState().pagination.pageIndex + 1} of {table.getPageCount()}
+          {c('Page', 'Trang')} {table.getState().pagination.pageIndex + 1} {c('of', 'trên')}{' '}
+          {table.getPageCount()}
         </div>
         <div className='flex items-center space-x-1'>
           <Button
-            aria-label='Go to first page'
+            aria-label={c('Go to first page', 'Đến trang đầu')}
             variant='outline'
             size='icon'
             className='hidden size-8 lg:flex'
@@ -76,7 +83,7 @@ export function DataTablePagination<TData>({
             <Icons.chevronsLeft />
           </Button>
           <Button
-            aria-label='Go to previous page'
+            aria-label={c('Go to previous page', 'Đến trang trước')}
             variant='outline'
             size='icon'
             className='size-8'
@@ -86,7 +93,7 @@ export function DataTablePagination<TData>({
             <Icons.chevronLeft />
           </Button>
           <Button
-            aria-label='Go to next page'
+            aria-label={c('Go to next page', 'Đến trang sau')}
             variant='outline'
             size='icon'
             className='size-8'
@@ -96,7 +103,7 @@ export function DataTablePagination<TData>({
             <Icons.chevronRight />
           </Button>
           <Button
-            aria-label='Go to last page'
+            aria-label={c('Go to last page', 'Đến trang cuối')}
             variant='outline'
             size='icon'
             className='hidden size-8 lg:flex'

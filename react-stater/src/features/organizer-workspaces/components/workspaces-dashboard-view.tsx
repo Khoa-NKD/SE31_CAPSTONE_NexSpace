@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo, useCallback } from 'react';
 import { Link, useSearch } from '@tanstack/react-router';
@@ -25,6 +26,7 @@ import { mapCanonicalToOrganizerWorkspace } from '../utils/workspace-mapper';
 import type { WorkspaceFilter, WorkspaceStatus } from '../types';
 
 export function WorkspacesDashboardView() {
+  const c = useOrganizerCopy();
   const routerSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const page = (routerSearch.page as number) ?? 1;
   const perPage = (routerSearch.perPage as number) ?? 10;
@@ -122,7 +124,10 @@ export function WorkspacesDashboardView() {
   const handleStatusChange = useCallback(
     (id: string, newStatus: WorkspaceStatus) => {
       const targetWs = workspaces.find((w) => w.id === id);
-      const actionMap: Record<WorkspaceStatus, 'ACTIVATE' | 'PENDING' | 'MAINTENANCE' | 'DRAFT' | 'ARCHIVE'> = {
+      const actionMap: Record<
+        WorkspaceStatus,
+        'ACTIVATE' | 'PENDING' | 'MAINTENANCE' | 'DRAFT' | 'ARCHIVE'
+      > = {
         ACTIVE: 'ACTIVATE',
         PENDING: 'PENDING',
         MAINTENANCE: 'MAINTENANCE',
@@ -149,7 +154,10 @@ export function WorkspacesDashboardView() {
     [workspaces, lifecycleMutation, updateWorkspaceStatus, refetch]
   );
 
-  const columns = useMemo(() => getWorkspaceColumns(handleStatusChange), [handleStatusChange]);
+  const columns = useMemo(
+    () => getWorkspaceColumns(c, handleStatusChange),
+    [c, handleStatusChange]
+  );
 
   const { table } = useDataTable({
     data: filteredWorkspaces,
@@ -168,11 +176,17 @@ export function WorkspacesDashboardView() {
   return (
     <div className='w-full max-w-[1360px] mx-auto py-2 sm:py-4 flex flex-col gap-6'>
       <OrganizerPageHeader
-        title="My Workspaces"
-        description="Manage and configure your workspace venues."
+        title={c('My Workspaces', 'Không gian của tôi')}
+        description={c(
+          'Manage and configure your workspace venues.',
+          'Quản lý và cấu hình các không gian làm việc của bạn.'
+        )}
       >
         {isFetching && !isLoading && (
-          <Loader2 className='size-4 animate-spin text-primary' aria-label='Refreshing workspaces' />
+          <Loader2
+            className='size-4 animate-spin text-primary'
+            aria-label={c('Refreshing workspaces', 'Đang làm mới danh sách không gian')}
+          />
         )}
         {/* Action Controls */}
         <div className='flex flex-wrap items-center gap-3'>
@@ -181,11 +195,17 @@ export function WorkspacesDashboardView() {
             <Search className='absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none' />
             <Input
               type='search'
-              placeholder='Search workspace by name or address...'
+              placeholder={c(
+                'Search workspace by name or address...',
+                'Tìm không gian theo tên hoặc địa chỉ...'
+              )}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className='pl-9 h-9 text-xs sm:text-sm bg-card'
-              aria-label='Search workspace by name or address'
+              aria-label={c(
+                'Search workspace by name or address',
+                'Tìm không gian theo tên hoặc địa chỉ'
+              )}
               disabled={isLoading || isHardError}
             />
           </div>
@@ -197,20 +217,20 @@ export function WorkspacesDashboardView() {
               size='sm'
               className='h-8 px-2.5 gap-1.5 text-xs'
               onClick={() => setViewMode('table')}
-              aria-label='Table View'
+              aria-label={c('Table View', 'Dạng bảng')}
             >
               <TableIcon className='size-3.5' />
-              <span className='hidden sm:inline'>Table</span>
+              <span className='hidden sm:inline'>{c('Table', 'Bảng')}</span>
             </Button>
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
               size='sm'
               className='h-8 px-2.5 gap-1.5 text-xs'
               onClick={() => setViewMode('grid')}
-              aria-label='Grid View'
+              aria-label={c('Grid View', 'Dạng lưới')}
             >
               <LayoutGrid className='size-3.5' />
-              <span className='hidden sm:inline'>Grid</span>
+              <span className='hidden sm:inline'>{c('Grid', 'Lưới')}</span>
             </Button>
           </div>
 
@@ -222,7 +242,7 @@ export function WorkspacesDashboardView() {
           >
             <Link to='/dashboard/organizer/workspaces/create'>
               <Plus className='size-4' />
-              <span>Create Workspace</span>
+              <span>{c('Create Workspace', 'Tạo không gian')}</span>
             </Link>
           </Button>
         </div>
@@ -230,30 +250,28 @@ export function WorkspacesDashboardView() {
 
       {/* Filter Segmented Controls */}
       <div className='flex items-center justify-between'>
-        <WorkspaceFilterPills
-          filter={filter}
-          onFilterChange={setFilter}
-          counts={counts}
-        />
+        <WorkspaceFilterPills filter={filter} onFilterChange={setFilter} counts={counts} />
 
         <div className='text-xs text-muted-foreground hidden sm:block'>
           {isLoading ? (
-            <span>Loading venues...</span>
+            <span>{c('Loading venues...', 'Đang tải không gian...')}</span>
           ) : isHardError ? (
-            <span className='text-rose-500'>Connection error</span>
+            <span className='text-rose-500'>{c('Connection error', 'Lỗi kết nối')}</span>
           ) : (
             <>
-              Showing <span className='font-semibold text-foreground'>{filteredWorkspaces.length}</span> of{' '}
+              {c('Showing', 'Hiển thị')}{' '}
+              <span className='font-semibold text-foreground'>{filteredWorkspaces.length}</span>{' '}
+              {c('of', 'trên')}{' '}
               <span className='font-semibold text-foreground'>{totalElements}</span>{' '}
-              {totalElements === 1 ? 'venue' : 'venues'}
+              {totalElements === 1 ? c('venue', 'không gian') : c('venues', 'không gian')}
             </>
           )}
         </div>
       </div>
 
       {/* Loading Skeleton */}
-      {isLoading && (
-        viewMode === 'table' ? (
+      {isLoading &&
+        (viewMode === 'table' ? (
           <div className='flex flex-col gap-4 animate-pulse'>
             <div className='h-12 bg-muted rounded-lg w-full' />
             <div className='h-72 bg-muted/60 rounded-lg w-full' />
@@ -275,8 +293,7 @@ export function WorkspacesDashboardView() {
               </div>
             ))}
           </div>
-        )
-      )}
+        ))}
 
       {/* Error State with Retry Button */}
       {isHardError && (
@@ -284,11 +301,16 @@ export function WorkspacesDashboardView() {
           <div className='size-12 rounded-full bg-destructive/10 flex items-center justify-center text-destructive mb-3'>
             <AlertCircle className='size-6' />
           </div>
-          <h3 className='text-base font-semibold text-foreground'>Failed to load workspaces</h3>
+          <h3 className='text-base font-semibold text-foreground'>
+            {c('Failed to load workspaces', 'Không thể tải danh sách không gian')}
+          </h3>
           <p className='text-xs sm:text-sm text-muted-foreground max-w-md mt-1 mb-4'>
             {error instanceof Error
               ? error.message
-              : 'Could not communicate with the backend API service.'}
+              : c(
+                  'Could not communicate with the backend API service.',
+                  'Không thể kết nối đến máy chủ.'
+                )}
           </p>
           <Button
             variant='outline'
@@ -297,7 +319,7 @@ export function WorkspacesDashboardView() {
             className='gap-2 text-xs border-destructive/30 hover:bg-destructive/10 text-destructive'
           >
             <RefreshCw className='size-3.5' />
-            <span>Retry Connection</span>
+            <span>{c('Retry Connection', 'Kết nối lại')}</span>
           </Button>
         </div>
       )}
@@ -324,11 +346,19 @@ export function WorkspacesDashboardView() {
           <div className='size-12 rounded-full bg-muted flex items-center justify-center text-muted-foreground mb-3'>
             <Building2 className='size-6' />
           </div>
-          <h3 className='text-base font-semibold text-foreground'>No workspaces found</h3>
+          <h3 className='text-base font-semibold text-foreground'>
+            {c('No workspaces found', 'Không tìm thấy không gian')}
+          </h3>
           <p className='text-xs sm:text-sm text-muted-foreground max-w-sm mt-1 mb-4'>
             {searchQuery
-              ? `No workspaces match "${searchQuery}". Try clearing your search.`
-              : 'You have not registered any workspace venues yet.'}
+              ? c(
+                  `No workspaces match "${searchQuery}". Try clearing your search.`,
+                  `Không có không gian khớp với "${searchQuery}". Hãy thử xóa tìm kiếm.`
+                )
+              : c(
+                  'You have not registered any workspace venues yet.',
+                  'Bạn chưa đăng ký không gian làm việc nào.'
+                )}
           </p>
           {searchQuery ? (
             <Button
@@ -337,7 +367,7 @@ export function WorkspacesDashboardView() {
               onClick={() => setSearchQuery('')}
               className='text-xs'
             >
-              Clear Search
+              {c('Clear Search', 'Xóa tìm kiếm')}
             </Button>
           ) : (
             <Button
@@ -348,7 +378,7 @@ export function WorkspacesDashboardView() {
             >
               <Link to='/dashboard/organizer/workspaces/create'>
                 <Plus className='size-4' />
-                <span>Create Your First Workspace</span>
+                <span>{c('Create Your First Workspace', 'Tạo không gian đầu tiên')}</span>
               </Link>
             </Button>
           )}

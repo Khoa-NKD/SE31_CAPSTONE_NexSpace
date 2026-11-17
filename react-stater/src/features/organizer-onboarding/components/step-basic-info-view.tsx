@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -21,6 +22,7 @@ import { WizardHeader } from './wizard-header';
 import { WizardStepper } from './wizard-stepper';
 import { useWizardStore } from '../store/wizard-store';
 import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
+import { getWizardCategoryLabel, getWizardValidationMessage } from '../utils/wizard-copy';
 import { basicInfoSchema } from '../schemas/wizard-schemas';
 import type { SpaceCategory } from '../types/wizard';
 
@@ -54,16 +56,14 @@ interface StepBasicInfoViewProps {
   routeWorkspaceId?: string;
 }
 
-export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepBasicInfoViewProps = {}) {
+export function StepBasicInfoView({
+  routeWorkspaceId: _routeWorkspaceId
+}: StepBasicInfoViewProps = {}) {
+  const c = useOrganizerCopy();
   const router = useRouter();
   const basicInfo = useWizardStore((state) => state.basicInfo);
   const setBasicInfo = useWizardStore((state) => state.setBasicInfo);
-  const {
-    canonicalWorkspaceId,
-    serverVersion,
-    isSaving,
-    saveDraftToServer
-  } = useWizardDraftSync();
+  const { canonicalWorkspaceId, serverVersion, isSaving, saveDraftToServer } = useWizardDraftSync();
 
   // Form local state initialized from store and updated when store hydrates
   const [name, setName] = useState(basicInfo.name);
@@ -92,7 +92,14 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
       contactPhone,
       contactEmail
     });
-    await saveDraftToServer();
+    const saved = await saveDraftToServer();
+    if (saved) {
+      void router.navigate({
+        to: '/dashboard/organizer/workspaces/create',
+        search: (prev) => ({ ...prev, id: String(saved.id) }),
+        replace: true
+      });
+    }
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -116,16 +123,23 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
         }
       });
       setErrors(fieldErrors);
-      toast.error('Validation Error', {
-        description: 'Please correct the highlighted fields before proceeding.'
+      toast.error(c(c('Validation Error', 'Thông tin chưa hợp lệ'), 'Thông tin chưa hợp lệ'), {
+        description: c(
+          'Please correct the highlighted fields before proceeding.',
+          'Vui lòng sửa các mục được đánh dấu trước khi tiếp tục.'
+        )
       });
       return;
     }
 
     setErrors({});
     setBasicInfo(values);
-    await saveDraftToServer({ silent: true });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev });
+    const saved = await saveDraftToServer({ silent: true });
+    if (!saved) return;
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/hours',
+      search: (prev) => ({ ...prev, id: String(saved.id) })
+    });
   };
 
   return (
@@ -144,8 +158,14 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
             <CloudSync className='size-5 shrink-0' />
             <p className='text-xs sm:text-sm font-medium'>
               {canonicalWorkspaceId
-                ? `Canonical record ${canonicalWorkspaceId} (v${serverVersion || 1}) synchronized with REST API.`
-                : 'Changes will be saved automatically as draft to your account.'}
+                ? c(
+                    `Draft #${canonicalWorkspaceId} saved (v${serverVersion || 1}).`,
+                    `Đã lưu bản nháp #${canonicalWorkspaceId} (v${serverVersion || 1}).`
+                  )
+                : c(
+                    'Changes will be saved as a draft to your account.',
+                    'Thông tin sẽ được lưu thành bản nháp trong tài khoản của bạn.'
+                  )}
             </p>
           </div>
           {canonicalWorkspaceId && (
@@ -161,10 +181,13 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
         {/* Card Header */}
         <div className='border-b border-border pb-5 mb-6'>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-foreground tracking-tight'>
-            Basic Information
+            {c('Basic Information', 'Thông tin cơ bản')}
           </h1>
           <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-            Set up the public title and specifications of your workspace to attract suitable enterprise and flexible tenants.
+            {c(
+              'Set up the public title and specifications of your workspace to attract suitable enterprise and flexible tenants.',
+              'Thiết lập tên và thông tin không gian để khách hàng dễ dàng lựa chọn.'
+            )}
           </p>
         </div>
 
@@ -172,11 +195,18 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
         <form onSubmit={handleContinue} className='space-y-6'>
           {/* Field 1: Workspace Public Name */}
           <div>
-            <label htmlFor='workspace-name' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-              Workspace Public Name <span className='text-destructive'>*</span>
+            <label
+              htmlFor='workspace-name'
+              className='block text-xs sm:text-sm font-semibold text-foreground mb-1'
+            >
+              {c('Workspace Public Name', 'Tên công khai của không gian')}{' '}
+              <span className='text-destructive'>*</span>
             </label>
             <p className='text-xs text-muted-foreground mb-2'>
-              This will be displayed prominently across NexSpace marketplace and booking confirmations.
+              {c(
+                'This will be displayed prominently across NexSpace marketplace and booking confirmations.',
+                'Tên này xuất hiện trên NexSpace và trong xác nhận đặt chỗ.'
+              )}
             </p>
             <Input
               id='workspace-name'
@@ -186,19 +216,33 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
                 setName(e.target.value);
                 if (errors.name) setErrors((prev) => ({ ...prev, name: '' }));
               }}
-              placeholder='e.g., NexSpace Executive Center Saigon'
+              placeholder={c(
+                'e.g., NexSpace Executive Center Saigon',
+                'VD: NexSpace Executive Center Saigon'
+              )}
               className={`h-10 text-xs sm:text-sm ${errors.name ? 'border-destructive focus-visible:ring-destructive' : ''}`}
             />
-            {errors.name && <p className='text-xs text-destructive mt-1 font-medium'>{errors.name}</p>}
+            {errors.name && (
+              <p className='text-xs text-destructive mt-1 font-medium'>
+                {getWizardValidationMessage(errors.name, c)}
+              </p>
+            )}
           </div>
 
           {/* Field 2: Space Category */}
           <div>
-            <span id='space-category-label' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-              Space Category <span className='text-destructive'>*</span>
+            <span
+              id='space-category-label'
+              className='block text-xs sm:text-sm font-semibold text-foreground mb-1'
+            >
+              {c('Space Category', 'Loại hình không gian')}{' '}
+              <span className='text-destructive'>*</span>
             </span>
             <p className='text-xs text-muted-foreground mb-3'>
-              Select the primary layout style that defines this venue.
+              {c(
+                'Select the primary layout style that defines this venue.',
+                'Chọn loại hình chính của không gian này.'
+              )}
             </p>
 
             <div
@@ -251,23 +295,39 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
 
                     <div>
                       <h3 className='text-xs sm:text-sm font-semibold text-foreground mb-1'>
-                        {cat.title}
+                        {getWizardCategoryLabel(cat.id, c)}
                       </h3>
                       <p className='text-[11px] sm:text-xs text-muted-foreground leading-snug'>
-                        {cat.description}
+                        {c(
+                          cat.description,
+                          {
+                            coworking_hub:
+                              'Ghế linh hoạt, buồng làm việc riêng và khu vực cộng đồng.',
+                            business_lounge: 'Phòng riêng, phòng họp cao cấp và dịch vụ hỗ trợ.',
+                            creative_studio:
+                              'Không gian mở, sản xuất ảnh/video và phòng dự án linh hoạt.'
+                          }[cat.id]
+                        )}
                       </p>
                     </div>
                   </div>
                 );
               })}
             </div>
-            {errors.category && <p className='text-xs text-destructive mt-1 font-medium'>{errors.category}</p>}
+            {errors.category && (
+              <p className='text-xs text-destructive mt-1 font-medium'>
+                {getWizardValidationMessage(errors.category, c)}
+              </p>
+            )}
           </div>
 
           {/* Field 3: Short Description */}
           <div>
-            <label htmlFor='workspace-description' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-              Short Description
+            <label
+              htmlFor='workspace-description'
+              className='block text-xs sm:text-sm font-semibold text-foreground mb-1'
+            >
+              {c('Short Description', 'Mô tả ngắn')}
             </label>
             <div className='relative'>
               <Textarea
@@ -279,22 +339,40 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
                   setDescription(e.target.value);
                   if (errors.description) setErrors((prev) => ({ ...prev, description: '' }));
                 }}
-                placeholder='Summarize your venue in 1-2 punchy sentences...'
+                placeholder={c(
+                  'Summarize your venue in 1-2 punchy sentences...',
+                  'Giới thiệu không gian trong 1–2 câu ngắn gọn...'
+                )}
                 className={`text-xs sm:text-sm leading-relaxed resize-none ${errors.description ? 'border-destructive' : ''}`}
               />
             </div>
             <div className='flex items-center justify-between mt-1.5 text-xs text-muted-foreground'>
-              <span>Summarize your venue in 1-2 punchy sentences</span>
-              <span className='font-mono font-medium'>{description.length} / 200 characters</span>
+              <span>
+                {c(
+                  'Summarize your venue in 1-2 punchy sentences',
+                  'Giới thiệu không gian trong 1–2 câu ngắn gọn'
+                )}
+              </span>
+              <span className='font-mono font-medium'>
+                {description.length} {c('/ 200 characters', '/ 200 ký tự')}
+              </span>
             </div>
-            {errors.description && <p className='text-xs text-destructive mt-1 font-medium'>{errors.description}</p>}
+            {errors.description && (
+              <p className='text-xs text-destructive mt-1 font-medium'>
+                {getWizardValidationMessage(errors.description, c)}
+              </p>
+            )}
           </div>
 
           {/* Contact phone and support email */}
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
             <div>
-              <label htmlFor='contact-phone' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-                Booking Inquiry Hotline <span className='text-destructive'>*</span>
+              <label
+                htmlFor='contact-phone'
+                className='block text-xs sm:text-sm font-semibold text-foreground mb-1'
+              >
+                {c('Booking Inquiry Hotline', 'Số điện thoại hỗ trợ đặt chỗ')}{' '}
+                <span className='text-destructive'>*</span>
               </label>
               <div className='relative flex items-center'>
                 <Phone className='absolute left-3 size-4 text-muted-foreground pointer-events-none' />
@@ -309,12 +387,20 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
                   className={`h-10 pl-9 text-xs sm:text-sm ${errors.contactPhone ? 'border-destructive' : ''}`}
                 />
               </div>
-              {errors.contactPhone && <p className='text-xs text-destructive mt-1 font-medium'>{errors.contactPhone}</p>}
+              {errors.contactPhone && (
+                <p className='text-xs text-destructive mt-1 font-medium'>
+                  {getWizardValidationMessage(errors.contactPhone, c)}
+                </p>
+              )}
             </div>
 
             <div>
-              <label htmlFor='contact-email' className='block text-xs sm:text-sm font-semibold text-foreground mb-1'>
-                Venue Support Email <span className='text-destructive'>*</span>
+              <label
+                htmlFor='contact-email'
+                className='block text-xs sm:text-sm font-semibold text-foreground mb-1'
+              >
+                {c('Venue Support Email', 'Email hỗ trợ của không gian')}{' '}
+                <span className='text-destructive'>*</span>
               </label>
               <div className='relative flex items-center'>
                 <Mail className='absolute left-3 size-4 text-muted-foreground pointer-events-none' />
@@ -329,7 +415,11 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
                   className={`h-10 pl-9 text-xs sm:text-sm ${errors.contactEmail ? 'border-destructive' : ''}`}
                 />
               </div>
-              {errors.contactEmail && <p className='text-xs text-destructive mt-1 font-medium'>{errors.contactEmail}</p>}
+              {errors.contactEmail && (
+                <p className='text-xs text-destructive mt-1 font-medium'>
+                  {getWizardValidationMessage(errors.contactEmail, c)}
+                </p>
+              )}
             </div>
           </div>
 
@@ -343,7 +433,11 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
               className='gap-2 text-xs sm:text-sm border-border hover:bg-muted'
             >
               {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-              <span>{isSaving ? 'Saving Draft...' : 'Save as Draft'}</span>
+              <span>
+                {isSaving
+                  ? c(c('Saving Draft...', 'Đang lưu bản nháp...'), 'Đang lưu bản nháp...')
+                  : c(c('Save as Draft', 'Lưu bản nháp'), 'Lưu bản nháp')}
+              </span>
             </Button>
 
             <Button
@@ -351,8 +445,12 @@ export function StepBasicInfoView({ routeWorkspaceId: _routeWorkspaceId }: StepB
               disabled={isSaving}
               className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
             >
-              <span>Continue to Operating Hours</span>
-              {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+              <span>{c('Continue to Operating Hours', 'Tiếp tục đến giờ hoạt động')}</span>
+              {isSaving ? (
+                <Loader2 className='size-4 animate-spin' />
+              ) : (
+                <ArrowRight className='size-4' />
+              )}
             </Button>
           </div>
         </form>

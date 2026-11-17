@@ -1,3 +1,4 @@
+import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
   User,
@@ -47,52 +48,68 @@ interface BookingDetailDialogProps {
 function getResourceCategoryIcon(category: string) {
   switch (category) {
     case 'HOT_DESK':
-      return <Laptop className="w-4 h-4 text-primary" />;
+      return <Laptop className='w-4 h-4 text-primary' />;
     case 'DEDICATED_DESK':
-      return <Users className="w-4 h-4 text-amber-500" />;
+      return <Users className='w-4 h-4 text-amber-500' />;
     case 'MEETING_ROOM':
-      return <Presentation className="w-4 h-4 text-purple-500" />;
+      return <Presentation className='w-4 h-4 text-purple-500' />;
     case 'BOOTH':
-      return <PhoneCall className="w-4 h-4 text-blue-500" />;
+      return <PhoneCall className='w-4 h-4 text-blue-500' />;
     default:
-      return <Laptop className="w-4 h-4 text-muted-foreground" />;
+      return <Laptop className='w-4 h-4 text-muted-foreground' />;
   }
 }
 
-function getStatusBadge(status: string) {
+function getStatusBadge(status: string, c: OrganizerCopy) {
   switch (status) {
     case 'PENDING_APPROVAL':
       return (
-        <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/60 font-semibold text-xs">
-          <Clock className="w-3.5 h-3.5 mr-1" /> Needs Approval
+        <Badge
+          variant='outline'
+          className='bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/60 font-semibold text-xs'
+        >
+          <Clock className='w-3.5 h-3.5 mr-1' /> {c('Needs Approval', 'Chờ duyệt')}
         </Badge>
       );
     case 'CONFIRMED':
       return (
-        <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60 font-semibold text-xs">
-          <CheckCircle2 className="w-3.5 h-3.5 mr-1" /> Confirmed & Paid
+        <Badge
+          variant='outline'
+          className='bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800/60 font-semibold text-xs'
+        >
+          <CheckCircle2 className='w-3.5 h-3.5 mr-1' />{' '}
+          {c('Confirmed & Paid', 'Đã xác nhận và thanh toán')}
         </Badge>
       );
     case 'PENDING_PAYMENT':
       return (
-        <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60 font-semibold text-xs">
-          <Clock className="w-3.5 h-3.5 mr-1" /> Pending Payment
+        <Badge
+          variant='outline'
+          className='bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 dark:border-amber-800/60 font-semibold text-xs'
+        >
+          <Clock className='w-3.5 h-3.5 mr-1' /> {c('Pending Payment', 'Chờ thanh toán')}
         </Badge>
       );
     case 'CANCELLED':
       return (
-        <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60 font-semibold text-xs">
-          <XCircle className="w-3.5 h-3.5 mr-1" /> Cancelled
+        <Badge
+          variant='outline'
+          className='bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 dark:border-rose-800/60 font-semibold text-xs'
+        >
+          <XCircle className='w-3.5 h-3.5 mr-1' /> {c('Cancelled', 'Đã hủy')}
         </Badge>
       );
     case 'COMPLETED':
       return (
-        <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/60 font-semibold text-xs">
-          <ShieldCheck className="w-3.5 h-3.5 mr-1" /> Completed
+        <Badge
+          variant='outline'
+          className='bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-400 dark:border-blue-800/60 font-semibold text-xs'
+        >
+          <ShieldCheck className='w-3.5 h-3.5 mr-1' /> {c('Completed', 'Đã hoàn tất')}
         </Badge>
       );
     default:
-      return <Badge variant="outline">{status}</Badge>;
+      return <Badge variant='outline'>{status}</Badge>;
   }
 }
 
@@ -110,6 +127,7 @@ export function BookingDetailDialog({
   onApproveBooking,
   onRejectBooking
 }: BookingDetailDialogProps) {
+  const c = useOrganizerCopy();
   const [copied, setCopied] = useState(false);
 
   if (!booking) return null;
@@ -122,58 +140,63 @@ export function BookingDetailDialog({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto p-0 gap-0">
-        <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/20">
-          <div className="flex items-start justify-between gap-4">
+      <DialogContent className='sm:max-w-[620px] max-h-[90vh] overflow-y-auto p-0 gap-0'>
+        <DialogHeader className='p-6 pb-4 border-b border-border bg-muted/20'>
+          <div className='flex items-start justify-between gap-4'>
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="font-mono text-sm font-bold text-foreground">
+              <div className='flex items-center gap-2 mb-1'>
+                <span className='font-mono text-sm font-bold text-foreground'>
                   {booking.bookingCode || booking.id}
                 </span>
                 <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-foreground"
+                  variant='ghost'
+                  size='icon'
+                  className='h-6 w-6 text-muted-foreground hover:text-foreground'
                   onClick={handleCopyId}
-                  aria-label="Copy Booking ID"
+                  aria-label={c('Copy Booking ID', 'Sao chép mã đặt chỗ')}
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                  {copied ? (
+                    <Check className='w-3.5 h-3.5 text-emerald-600' />
+                  ) : (
+                    <Copy className='w-3.5 h-3.5' />
+                  )}
                 </Button>
-                {getStatusBadge(booking.status)}
+                {getStatusBadge(booking.status, c)}
               </div>
-              <DialogTitle className="text-lg font-bold">
-                Reservation Details & Audit Log
+              <DialogTitle className='text-lg font-bold'>
+                {c('Reservation Details & Audit Log', 'Chi tiết và lịch sử đặt chỗ')}
               </DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                Created on {booking.createdAt} • Real-time PayOS Verified
+              <DialogDescription className='text-xs text-muted-foreground mt-0.5'>
+                {c('Created on', 'Ngày tạo')} {booking.createdAt} • Real-time PayOS Verified
               </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="p-6 space-y-6">
+        <div className='p-6 space-y-6'>
           {/* Customer Profile Section */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <User className="w-3.5 h-3.5 text-primary" /> Customer Profile
+          <section className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2'>
+              <User className='w-3.5 h-3.5 text-primary' />{' '}
+              {c('Customer Profile', 'Thông tin khách hàng')}
             </h3>
-            <div className="flex items-center gap-4 p-3.5 bg-muted/40 rounded-xl border border-border">
-              <div className="w-12 h-12 rounded-full overflow-hidden bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0">
-                <span className="text-sm font-bold text-primary">
+            <div className='flex items-center gap-4 p-3.5 bg-muted/40 rounded-xl border border-border'>
+              <div className='w-12 h-12 rounded-full overflow-hidden bg-primary/10 border border-primary/20 flex items-center justify-center shrink-0'>
+                <span className='text-sm font-bold text-primary'>
                   {booking.customerInitials || booking.customerName.slice(0, 2).toUpperCase()}
                 </span>
               </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-foreground truncate">
+              <div className='flex-1 min-w-0'>
+                <p className='text-sm font-semibold text-foreground truncate'>
                   {booking.customerName}
                 </p>
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-0.5">
-                  <span className="flex items-center gap-1">
-                    <Mail className="w-3 h-3" /> {booking.customerEmail}
+                <div className='flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground mt-0.5'>
+                  <span className='flex items-center gap-1'>
+                    <Mail className='w-3 h-3' /> {booking.customerEmail}
                   </span>
                   {booking.customerPhone && (
-                    <span className="flex items-center gap-1">
-                      <Phone className="w-3 h-3" /> {booking.customerPhone}
+                    <span className='flex items-center gap-1'>
+                      <Phone className='w-3 h-3' /> {booking.customerPhone}
                     </span>
                   )}
                 </div>
@@ -182,33 +205,38 @@ export function BookingDetailDialog({
           </section>
 
           {/* Reserved Resource & Time Schedule */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <MapPin className="w-3.5 h-3.5 text-primary" /> Resource & Space Allocation
+          <section className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2'>
+              <MapPin className='w-3.5 h-3.5 text-primary' />{' '}
+              {c('Resource & Space Allocation', 'Ghế/phòng và khu vực được đặt')}
             </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-muted/40 rounded-xl border border-border">
-              <div className="space-y-1">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Assigned Resource</span>
-                <div className="flex items-center gap-2">
-                  <div className="p-1 rounded bg-background border border-border">
+            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 p-3.5 bg-muted/40 rounded-xl border border-border'>
+              <div className='space-y-1'>
+                <span className='text-[11px] text-muted-foreground uppercase font-medium'>
+                  {c('Assigned Resource', 'Ghế/phòng được đặt')}
+                </span>
+                <div className='flex items-center gap-2'>
+                  <div className='p-1 rounded bg-background border border-border'>
                     {getResourceCategoryIcon(booking.resourceCategory)}
                   </div>
                   <div>
-                    <p className="text-sm font-semibold text-foreground">{booking.resourceName}</p>
-                    <p className="text-xs text-muted-foreground">{booking.resourceZone}</p>
+                    <p className='text-sm font-semibold text-foreground'>{booking.resourceName}</p>
+                    <p className='text-xs text-muted-foreground'>{booking.resourceZone}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="space-y-1">
-                <span className="text-[11px] text-muted-foreground uppercase font-medium">Reserved Time Window</span>
-                <div className="space-y-0.5">
-                  <p className="text-xs font-medium text-foreground flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5 text-muted-foreground" />
+              <div className='space-y-1'>
+                <span className='text-[11px] text-muted-foreground uppercase font-medium'>
+                  {c('Reserved Time Window', 'Thời gian đặt')}
+                </span>
+                <div className='space-y-0.5'>
+                  <p className='text-xs font-medium text-foreground flex items-center gap-1.5'>
+                    <Calendar className='w-3.5 h-3.5 text-muted-foreground' />
                     {booking.reservedDate}
                   </p>
-                  <p className="text-xs text-muted-foreground flex items-center gap-1.5 font-mono">
-                    <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+                  <p className='text-xs text-muted-foreground flex items-center gap-1.5 font-mono'>
+                    <Clock className='w-3.5 h-3.5 text-muted-foreground' />
                     {booking.reservedTimeWindow}
                   </p>
                 </div>
@@ -217,42 +245,51 @@ export function BookingDetailDialog({
           </section>
 
           {/* Payment & Financial Ledger */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <CreditCard className="w-3.5 h-3.5 text-primary" /> PayOS Financial Ledger
+          <section className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2'>
+              <CreditCard className='w-3.5 h-3.5 text-primary' /> PayOS Financial Ledger
             </h3>
-            <div className="p-3.5 bg-muted/40 rounded-xl border border-border space-y-3">
-              <div className="flex items-center justify-between">
+            <div className='p-3.5 bg-muted/40 rounded-xl border border-border space-y-3'>
+              <div className='flex items-center justify-between'>
                 <div>
-                  <p className="text-xs text-muted-foreground">Gateway & Method</p>
-                  <p className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <p className='text-xs text-muted-foreground'>
+                    {c('Gateway & Method', 'Cổng và phương thức thanh toán')}
+                  </p>
+                  <p className='text-sm font-semibold text-foreground flex items-center gap-1.5'>
                     {booking.paymentGateway === 'PAYOS_QR' ? (
-                      <QrCode className="w-4 h-4 text-emerald-600" />
+                      <QrCode className='w-4 h-4 text-emerald-600' />
                     ) : (
-                      <CreditCard className="w-4 h-4 text-indigo-600" />
+                      <CreditCard className='w-4 h-4 text-indigo-600' />
                     )}
                     {booking.paymentGatewayLabel || booking.paymentGateway?.replace('_', ' ') || ''}
                   </p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Total Transaction Value</p>
-                  <p className="text-base font-extrabold text-foreground font-mono">
+                <div className='text-right'>
+                  <p className='text-xs text-muted-foreground'>
+                    {c('Total Transaction Value', 'Tổng giá trị giao dịch')}
+                  </p>
+                  <p className='text-base font-extrabold text-foreground font-mono'>
                     {formatCurrency(booking.amount)}
                   </p>
                 </div>
               </div>
 
-              <Separator className="bg-border/60" />
+              <Separator className='bg-border/60' />
 
-              <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className='grid grid-cols-2 gap-2 text-xs'>
                 <div>
-                  <span className="text-muted-foreground">Internal Ref:</span>{' '}
-                  <span className="font-mono font-medium text-foreground">{booking.id}</span>
+                  <span className='text-muted-foreground'>
+                    {c('Internal Ref:', 'Mã tham chiếu nội bộ:')}
+                  </span>{' '}
+                  <span className='font-mono font-medium text-foreground'>{booking.id}</span>
                 </div>
                 <div>
-                  <span className="text-muted-foreground">Status Reason:</span>{' '}
-                  <span className="font-medium text-foreground">
-                    {booking.statusReason || (booking.status === 'CONFIRMED' ? 'Paid & Verified' : booking.status)}
+                  <span className='text-muted-foreground'>
+                    {c('Status Reason:', 'Lý do trạng thái:')}
+                  </span>{' '}
+                  <span className='font-medium text-foreground'>
+                    {booking.statusReason ||
+                      (booking.status === 'CONFIRMED' ? 'Paid & Verified' : booking.status)}
                   </span>
                 </div>
               </div>
@@ -260,41 +297,49 @@ export function BookingDetailDialog({
           </section>
 
           {/* Turnstile Access & Check-In Status */}
-          <section className="space-y-3">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-              <ShieldCheck className="w-3.5 h-3.5 text-primary" /> Turnstile & Access Control
+          <section className='space-y-3'>
+            <h3 className='text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2'>
+              <ShieldCheck className='w-3.5 h-3.5 text-primary' />{' '}
+              {c('Turnstile & Access Control', 'Kiểm soát ra vào')}
             </h3>
-            <div className="p-3.5 bg-muted/40 rounded-xl border border-border flex items-center justify-between">
+            <div className='p-3.5 bg-muted/40 rounded-xl border border-border flex items-center justify-between'>
               <div>
-                <p className="text-xs text-muted-foreground">Current Access State</p>
-                <p className="text-sm font-semibold text-foreground flex items-center gap-1.5 mt-0.5">
+                <p className='text-xs text-muted-foreground'>
+                  {c('Current Access State', 'Trạng thái ra vào hiện tại')}
+                </p>
+                <p className='text-sm font-semibold text-foreground flex items-center gap-1.5 mt-0.5'>
                   {booking.checkInState === 'CHECKED_IN' ? (
-                    <span className="text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold">
-                      <LockOpen className="w-4 h-4" /> Checked In & Access Active
+                    <span className='text-emerald-600 dark:text-emerald-400 flex items-center gap-1 font-semibold'>
+                      <LockOpen className='w-4 h-4' />{' '}
+                      {c('Checked In & Access Active', 'Đã nhận chỗ và được phép ra vào')}
                     </span>
                   ) : booking.checkInState === 'CHECKED_OUT' ? (
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <CheckCircle2 className="w-4 h-4" /> Checked Out
+                    <span className='text-muted-foreground flex items-center gap-1'>
+                      <CheckCircle2 className='w-4 h-4' /> {c('Checked Out', 'Đã trả chỗ')}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground flex items-center gap-1">
-                      <Clock className="w-4 h-4" /> {booking.checkInState?.replace('_', ' ') || ''}
+                    <span className='text-muted-foreground flex items-center gap-1'>
+                      <Clock className='w-4 h-4' /> {booking.checkInState?.replace('_', ' ') || ''}
                     </span>
                   )}
                 </p>
-                <p className="text-[11px] text-muted-foreground mt-0.5">
-                  {booking.checkInTime ? `Turnstile check-in logged at ${booking.checkInTime}` : 'Awaiting arrival at security turnstile'}
+                <p className='text-[11px] text-muted-foreground mt-0.5'>
+                  {booking.checkInTime
+                    ? `Turnstile check-in logged at ${booking.checkInTime}`
+                    : 'Awaiting arrival at security turnstile'}
                 </p>
               </div>
 
               {onCheckInToggle && booking.status === 'CONFIRMED' && (
                 <Button
-                  variant="outline"
-                  size="sm"
-                  className="text-xs"
+                  variant='outline'
+                  size='sm'
+                  className='text-xs'
                   onClick={() => onCheckInToggle(booking.id)}
                 >
-                  {booking.checkInState === 'CHECKED_IN' ? 'Force Check-Out' : 'Manual Turnstile Check-In'}
+                  {booking.checkInState === 'CHECKED_IN'
+                    ? 'Force Check-Out'
+                    : 'Manual Turnstile Check-In'}
                 </Button>
               )}
             </div>
@@ -302,92 +347,92 @@ export function BookingDetailDialog({
 
           {/* Notes or Special Requests */}
           {booking.notes && (
-            <div className="p-3 bg-muted/20 border border-border rounded-lg text-xs">
-              <span className="font-semibold text-foreground">Special Instructions:</span>{' '}
-              <span className="text-muted-foreground">{booking.notes}</span>
+            <div className='p-3 bg-muted/20 border border-border rounded-lg text-xs'>
+              <span className='font-semibold text-foreground'>
+                {c('Special Instructions:', 'Yêu cầu đặc biệt:')}
+              </span>{' '}
+              <span className='text-muted-foreground'>{booking.notes}</span>
             </div>
           )}
 
           {/* Rejection / Cancellation Reason */}
           {booking.cancelReason && (
-            <div className="p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs space-y-1">
+            <div className='p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg text-xs space-y-1'>
               <div>
-                <span className="font-semibold text-rose-700 dark:text-rose-400">
-                  {booking.cancelSource === 'ORGANIZER' ? 'Lý do hủy bởi Organizer:' : 'Lý do hủy bởi Khách hàng:'}
+                <span className='font-semibold text-rose-700 dark:text-rose-400'>
+                  {booking.cancelSource === 'ORGANIZER'
+                    ? 'Lý do hủy bởi Organizer:'
+                    : 'Lý do hủy bởi Khách hàng:'}
                 </span>{' '}
-                <span className="text-foreground">{booking.cancelReason}</span>
+                <span className='text-foreground'>{booking.cancelReason}</span>
               </div>
               {booking.refundAmount != null && booking.refundAmount > 0 && (
-                <div className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                  Chính sách hoàn tiền: Hoàn {booking.refundPercent ?? 0}% ({formatCurrency(booking.refundAmount)})
+                <div className='text-[11px] font-medium text-emerald-600 dark:text-emerald-400'>
+                  {c('Refund policy: Refund', 'Chính sách hoàn tiền: Hoàn')}{' '}
+                  {booking.refundPercent ?? 0}% ({formatCurrency(booking.refundAmount)})
                 </div>
               )}
             </div>
           )}
         </div>
 
-        <DialogFooter className="p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2 w-full sm:w-auto">
+        <DialogFooter className='p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3'>
+          <div className='flex items-center gap-2 w-full sm:w-auto'>
             {booking.status === 'PENDING_APPROVAL' && (
-              <div className="flex items-center gap-2">
+              <div className='flex items-center gap-2'>
                 <Button
-                  variant="default"
-                  size="sm"
-                  className="text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  variant='default'
+                  size='sm'
+                  className='text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white'
                   onClick={() => {
                     onApproveBooking?.(booking);
                     onClose();
                   }}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Approve Booking
+                  <CheckCircle2 className='w-3.5 h-3.5' /> {c('Approve Booking', 'Duyệt đặt chỗ')}
                 </Button>
                 <Button
-                  variant="destructive"
-                  size="sm"
-                  className="text-xs gap-1.5"
+                  variant='destructive'
+                  size='sm'
+                  className='text-xs gap-1.5'
                   onClick={() => {
                     onRejectBooking?.(booking);
                     onClose();
                   }}
                 >
-                  <XCircle className="w-3.5 h-3.5" /> Reject Request
+                  <XCircle className='w-3.5 h-3.5' /> {c('Reject Request', 'Từ chối yêu cầu')}
                 </Button>
               </div>
             )}
 
             {booking.status === 'CONFIRMED' && onCancelBooking && (
               <Button
-                variant="destructive"
-                size="sm"
-                className="text-xs gap-1.5"
+                variant='destructive'
+                size='sm'
+                className='text-xs gap-1.5'
                 onClick={() => {
                   onCancelBooking(booking.id);
                   onClose();
                 }}
               >
-                <XCircle className="w-3.5 h-3.5" /> Cancel Reservation
+                <XCircle className='w-3.5 h-3.5' /> {c('Cancel Reservation', 'Hủy đặt chỗ')}
               </Button>
             )}
           </div>
 
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+          <div className='flex items-center gap-2 w-full sm:w-auto justify-end'>
             {onSendReminder && booking.status !== 'CANCELLED' && (
               <Button
-                variant="outline"
-                size="sm"
-                className="text-xs gap-1.5"
+                variant='outline'
+                size='sm'
+                className='text-xs gap-1.5'
                 onClick={() => onSendReminder(booking)}
               >
-                <Send className="w-3.5 h-3.5" /> Resend Confirmation
+                <Send className='w-3.5 h-3.5' /> {c('Resend Confirmation', 'Gửi lại xác nhận')}
               </Button>
             )}
-            <Button
-              variant="default"
-              size="sm"
-              className="text-xs"
-              onClick={onClose}
-            >
-              Done
+            <Button variant='default' size='sm' className='text-xs' onClick={onClose}>
+              {c('Done', 'Xong')}
             </Button>
           </div>
         </DialogFooter>
@@ -395,4 +440,3 @@ export function BookingDetailDialog({
     </Dialog>
   );
 }
-

@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { type Table as TanstackTable, flexRender } from '@tanstack/react-table';
 import type * as React from 'react';
 
@@ -19,6 +20,7 @@ interface DataTableProps<TData> extends React.ComponentProps<'div'> {
 }
 
 export function DataTable<TData>({ table, actionBar, children }: DataTableProps<TData>) {
+  const c = useOrganizerCopy();
   return (
     <div className='flex flex-1 flex-col space-y-4'>
       {children}
@@ -65,8 +67,8 @@ export function DataTable<TData>({ table, actionBar, children }: DataTableProps<
                   <TableRow>
                     <TableCell colSpan={table.getAllColumns().length} className='h-24 text-center'>
                       {table.getState().columnFilters.length > 0
-                        ? 'No results match your filters.'
-                        : 'No data to display yet.'}
+                        ? c('No results match your filters.', 'Không có kết quả khớp bộ lọc.')
+                        : c('No data to display yet.', 'Chưa có dữ liệu.')}
                     </TableCell>
                   </TableRow>
                 )}

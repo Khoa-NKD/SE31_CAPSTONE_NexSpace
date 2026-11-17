@@ -12,6 +12,7 @@ export function BuildingStorey({
   index,
   gap,
   camera,
+  disabled = false,
   hovered,
   picked,
   layout,
@@ -26,6 +27,7 @@ export function BuildingStorey({
   index: number;
   gap: number;
   camera: { angle: number; tilt: number; zoom: number };
+  disabled?: boolean;
   hovered: boolean;
   picked: boolean;
   layout?: FloorLayout;
@@ -37,32 +39,41 @@ export function BuildingStorey({
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
-  const transform = picked
+  const isPicked = picked && !disabled;
+  const isHovered = hovered && !disabled;
+  const transform = isPicked
     ? 'translate3d(var(--picked-x), var(--picked-y), var(--picked-z)) rotateX(34deg) rotateZ(-8deg) scale(var(--picked-scale))'
-    : `rotateX(${camera.tilt}deg) rotateZ(${camera.angle}deg) scale(${camera.zoom}) translateZ(${index * gap}px) scale3d(${hovered ? 1.025 : 1}, ${hovered ? 1.025 : 1}, 1)`;
+    : `rotateX(${camera.tilt}deg) rotateZ(${camera.angle}deg) scale(${camera.zoom}) translateZ(${index * gap}px) scale3d(${isHovered ? 1.025 : 1}, ${isHovered ? 1.025 : 1}, 1)`;
   return (
     <div
-      className={`nexspace-building-storey ${picked ? 'is-picked' : ''} ${hovered ? 'is-hovered' : ''}`}
+      className={`nexspace-building-storey ${isPicked ? 'is-picked' : ''} ${isHovered ? 'is-hovered' : ''} ${disabled ? 'is-muted' : ''}`}
       style={
         {
           transform,
           '--floor-depth': `${Math.max(3, Math.min(29, gap - 4))}px`,
-          zIndex: picked ? 1000 : index + 1
+          zIndex: isPicked ? 1000 : index + 1
         } as CSSProperties
       }
-      onMouseEnter={() => onHover(floor.id)}
+      onMouseEnter={() => onHover(disabled ? null : floor.id)}
     >
       <button
         type='button'
+        disabled={disabled}
         className='nexspace-storey-pick'
-        title={label}
-        aria-label={`${c('Inspect floor', 'Xem thông tin tầng')} ${label}, ${c('Floor', 'Tầng')} ${floor.floorNumber}`}
-        aria-pressed={picked}
-        onFocus={() => onHover(floor.id)}
-        onClick={onPick}
+        title={
+          disabled
+            ? `${label} · ${c('Not linked to this workspace', 'Không thuộc workspace này')}`
+            : label
+        }
+        aria-label={`${c('Floor', 'Tầng')} ${floor.floorNumber}: ${label}${disabled ? ` · ${c('Not linked to this workspace', 'Không thuộc workspace này')}` : ''}`}
+        aria-pressed={isPicked}
+        onFocus={() => {
+          if (!disabled) onHover(floor.id);
+        }}
+        onClick={disabled ? undefined : onPick}
       >
         <span className='nexspace-building-floor-top'>
-          {picked ? (
+          {isPicked ? (
             <span className='nexspace-storey-real-layout'>
               {loading ? (
                 <span
@@ -96,7 +107,7 @@ export function BuildingStorey({
         </span>
         <span className='nexspace-building-floor-front'>
           <span className='nexspace-building-windows' />
-          {(gap >= 18 || hovered || picked) && (
+          {(gap >= 18 || isHovered || isPicked) && (
             <span className='nexspace-building-floor-tag' title={label}>
               {label}
             </span>
@@ -106,7 +117,7 @@ export function BuildingStorey({
           <span className='nexspace-building-windows' />
         </span>
       </button>
-      {picked && (
+      {isPicked && (
         <>
           <div
             className='nexspace-storey-hologram'

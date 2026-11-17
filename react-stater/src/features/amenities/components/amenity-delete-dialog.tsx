@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import {
   Dialog,
@@ -25,14 +26,13 @@ export function AmenityDeleteDialog({
   amenity,
   isOrganizer
 }: AmenityDeleteDialogProps) {
+  const c = useOrganizerCopy();
   const adminDeleteMutation = useDeleteAmenityMutation();
   const orgDeleteMutation = useDeleteOrganizerAmenityMutation();
 
   if (!amenity) return null;
 
-  const isPending = isOrganizer
-    ? orgDeleteMutation.isPending
-    : adminDeleteMutation.isPending;
+  const isPending = isOrganizer ? orgDeleteMutation.isPending : adminDeleteMutation.isPending;
 
   const handleDelete = async () => {
     try {
@@ -55,16 +55,23 @@ export function AmenityDeleteDialog({
             <AlertTriangle className='size-5' />
           </div>
           <DialogTitle>
-            {isOrganizer ? 'Xóa tiện ích riêng?' : 'Delete Amenity?'}
+            {isOrganizer ? c('Delete custom amenity?', 'Xóa tiện ích riêng?') : 'Delete Amenity?'}
           </DialogTitle>
           <DialogDescription className='text-xs leading-relaxed'>
             {isOrganizer ? (
               <>
-                Bạn có chắc chắn muốn xóa tiện ích riêng{' '}
+                {c(
+                  'Are you sure you want to delete the custom amenity',
+                  'Bạn có chắc chắn muốn xóa tiện ích riêng'
+                )}{' '}
                 <strong className='text-foreground font-semibold'>
                   &quot;{amenity.name}&quot;
                 </strong>{' '}
-                (ID: #{amenity.id}) khỏi danh sách của tổ chức không? Hành động này không thể hoàn tác.
+                (ID: #{amenity.id}
+                {c(
+                  ") from your organization's list? This action cannot be undone.",
+                  ') khỏi danh sách của tổ chức không? Hành động này không thể hoàn tác.'
+                )}
               </>
             ) : (
               <>
@@ -85,7 +92,7 @@ export function AmenityDeleteDialog({
             onClick={() => onOpenChange(false)}
             disabled={isPending}
           >
-            {isOrganizer ? 'Hủy bỏ' : 'Cancel'}
+            {isOrganizer ? c('Cancel deletion', 'Hủy bỏ') : c('Cancel', 'Hủy')}
           </Button>
           <Button
             type='button'
@@ -95,11 +102,10 @@ export function AmenityDeleteDialog({
             className='gap-2'
           >
             {isPending && <Loader2 className='size-4 animate-spin' />}
-            {isOrganizer ? 'Xác nhận xóa' : 'Confirm Delete'}
+            {c('Confirm Delete', 'Xác nhận xóa')}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
 }
-

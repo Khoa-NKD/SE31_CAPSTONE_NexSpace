@@ -1,5 +1,7 @@
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { copyDisplayName, copyResourceCode } from '../utils/copy-names';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -16,7 +18,14 @@ import { moveWithRoom } from '../utils/placement';
 import { layoutGeometry, insideRoom, previewLayout } from '../utils/layout-placement';
 import { useBlocker } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
-import { designMetricsOptions, previewDesignMetrics, saveDesignMetrics, type DesignMetrics, type GeometryReview, type MeasurementMode } from '../api/floor-design';
+import {
+  designMetricsOptions,
+  previewDesignMetrics,
+  saveDesignMetrics,
+  type DesignMetrics,
+  type GeometryReview,
+  type MeasurementMode
+} from '../api/floor-design';
 import { GeometryReviewNotice } from './geometry-review';
 import { MeasurementModeField } from './measurement-mode-field';
 import { geometryDisplay, geometryInput } from '../utils/metric-units';
@@ -85,23 +94,39 @@ function useCopy() {
 
 const hasStandardSize = (item?: TypeOption) =>
   Number(item?.standardWidthM) > 0 && Number(item?.standardLengthM) > 0;
+type StudioEditorOptions = {
+  canvasTarget: HTMLElement | null;
+  initialTypeId?: number;
+  existingCodes?: string[];
+  onToggleFullscreen?: () => void;
+  fullscreenActive?: boolean;
+};
+
+/** Keep the form and its canvas in one editor session, even in the studio's separate panes. */
+function EditorCanvas({ studio, children }: { studio?: StudioEditorOptions; children: ReactNode }) {
+  if (!studio) return children;
+  return studio.canvasTarget ? createPortal(children, studio.canvasTarget) : null;
+}
 
 export function ResourceEditor({
   workspaceId,
   options: initialOptions,
   current: initialCurrent,
+  studio,
   onClose,
   onSaved
 }: {
   workspaceId: number;
   options: ResourceOptions;
   current?: ResourceDetail;
+  studio?: StudioEditorOptions;
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const c = useCopy();
   const [addedTypes, setAddedTypes] = useState<TypeOption[]>([]);
   const [creatingType, setCreatingType] = useState(false);
+  const [editingType, setEditingType] = useState(false);
   const [editingDimensions, setEditingDimensions] = useState(false);
   const options = {
     ...initialOptions,
@@ -114,7 +139,25 @@ export function ResourceEditor({
   const [error, setError] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [current, setCurrent] = useState(initialCurrent);
-  const [activeForm, setActiveForm] = useState(() => resourceDraftForm(options, initialCurrent));
+  const [activeForm, setActiveForm] = useState(() => {
+    const initial = resourceDraftForm(options, initialCurrent);
+    const chosen = options.types.find(
+      (item) => item.id === (studio?.initialTypeId ?? Number(initial.resourceTypeId))
+    );
+    return studio && !initialCurrent
+      ? {
+          ...initial,
+          resourceTypeId: String(chosen?.id ?? ''),
+          name: chosen?.name ?? '',
+          code: uniqueResourceCode(
+            `${chosen?.category === 'ROOM' ? 'ROOM' : 'SEAT'}-${initial.floorPlanId}`,
+            studio.existingCodes ?? []
+          ),
+          posX: '0',
+          posY: '0'
+        }
+      : initial;
+  });
   const [activeKey, setActiveKey] = useState(initialCurrent?.id ?? -1);
   const nextKey = useRef(-2);
   const [staged, setStaged] = useState<ResourceDraft[]>([]);
@@ -377,18 +420,21 @@ export function ResourceEditor({
     const before = draftGeometry(snapshot.root.form)!;
     const after = { ...before, x: before.x + before.width + 20 };
     const codes = canvasLayout.resources.map((item) => item.code);
+    const names = canvasLayout.resources.map((item) => item.name);
     const rootKey = nextKey.current--;
     const copies = [snapshot.root, ...snapshot.children].map((source, index) => {
       const pose = draftGeometry(source.form)!;
       const moved = index === 0 ? after : moveWithRoom(pose, before, after);
-      const code = uniqueResourceCode(source.form.code, codes);
+      const code = copyResourceCode(source.form.code, codes);
+      const name = copyDisplayName(source.form.name, names, c('en', 'vi') as 'en' | 'vi');
       codes.push(code);
+      names.push(name);
       return {
         key: index === 0 ? rootKey : nextKey.current--,
         form: {
           ...source.form,
           code,
-          name: `${source.form.name} (${c('copy', 'bản sao')})`.slice(0, 150),
+          name,
           parentRoomId: index === 0 ? source.form.parentRoomId : String(rootKey),
           posX: String(moved.x),
           posY: String(moved.y),
@@ -512,6 +558,15 @@ export function ResourceEditor({
     if (busy || placement.blocked || sizeUnavailable) return;
     setErrors({});
     setError('');
+    if (studio && !drafts.every((draft) => draftGeometry(draft.form))) {
+      setError(
+        c(
+          'Place every resource on the canvas before saving.',
+          'Đặt từng ghế/phòng lên sơ đồ trước khi lưu.'
+        )
+      );
+      return;
+    }
     const parsed = resourceFormSchema.safeParse({
       ...form,
       parentRoomId: Number(form.parentRoomId) < 0 ? '' : form.parentRoomId
@@ -590,22 +645,67 @@ export function ResourceEditor({
     }
   }
   return (
-    <div className='mx-auto w-full max-w-[1800px] pb-4'>
-      <OrganizerPageHeader
-        className='mb-4'
-        title={current ? c('Edit resource', 'Cập nhật ghế/phòng') : c('Create resource', 'Tạo ghế/phòng')}
-        description={current ? undefined : c('Save as a draft before enabling bookings.', 'Lưu bản nháp trước khi bật nhận đặt.')}
-        leading={
-          <Button type='button' variant='outline' size='icon' className='size-9 shrink-0' disabled={busy} onClick={close} aria-label={c('Back', 'Quay lại')}>
+    <div className={studio ? 'min-h-0 overflow-y-auto p-4' : 'mx-auto w-full max-w-[1800px] pb-4'}>
+      {studio ? (
+        <div className='mb-4 space-y-2 border-b pb-3'>
+          <Button type='button' size='sm' variant='ghost' disabled={busy} onClick={close}>
             <ArrowLeft className='size-4' />
+            {c('Back to layout', 'Về bố trí')}
           </Button>
-        }
-      >
-        <span className='inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
-          {type?.category === 'ROOM' ? <DoorOpen className='size-3.5' /> : <Armchair className='size-3.5' />}
-          {type?.category === 'ROOM' ? c('Meeting room', 'Phòng') : c('Work seat', 'Ghế làm việc')}
-        </span>
-      </OrganizerPageHeader>
+          <h2 className='text-base font-semibold'>
+            {current
+              ? c('Edit seat / room', 'Chỉnh ghế / phòng')
+              : c('Add seat / room', 'Thêm ghế / phòng')}
+          </h2>
+          <p className='text-xs text-muted-foreground'>
+            {c(
+              'Drag on the canvas, enter details, then save. Publishing and booking availability stay separate.',
+              'Kéo trên sơ đồ, điền thông tin rồi lưu. Xuất bản và bật nhận đặt là các bước riêng.'
+            )}
+          </p>
+        </div>
+      ) : (
+        <OrganizerPageHeader
+          className='mb-4'
+          title={
+            current
+              ? c('Edit resource', 'Cập nhật ghế/phòng')
+              : c('Create resource', 'Tạo ghế/phòng')
+          }
+          description={
+            current
+              ? undefined
+              : c(
+                  'Save as a draft before enabling bookings.',
+                  'Lưu bản nháp trước khi bật nhận đặt.'
+                )
+          }
+          leading={
+            <Button
+              type='button'
+              variant='outline'
+              size='icon'
+              className='size-9 shrink-0'
+              disabled={busy}
+              onClick={close}
+              aria-label={c('Back', 'Quay lại')}
+            >
+              <ArrowLeft className='size-4' />
+            </Button>
+          }
+        >
+          <span className='inline-flex items-center gap-1.5 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary'>
+            {type?.category === 'ROOM' ? (
+              <DoorOpen className='size-3.5' />
+            ) : (
+              <Armchair className='size-3.5' />
+            )}
+            {type?.category === 'ROOM'
+              ? c('Meeting room', 'Phòng')
+              : c('Work seat', 'Ghế làm việc')}
+          </span>
+        </OrganizerPageHeader>
+      )}
       <form onSubmit={submit} noValidate className='space-y-4'>
         {error && (
           <p
@@ -615,43 +715,56 @@ export function ResourceEditor({
             {error}
           </p>
         )}
-        <div className='grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]'>
-          <section className='min-w-0 rounded-2xl border border-border bg-card p-5'>
+        <div
+          className={
+            studio
+              ? 'space-y-4'
+              : 'grid items-start gap-5 xl:grid-cols-[360px_minmax(0,1fr)] 2xl:grid-cols-[400px_minmax(0,1fr)]'
+          }
+        >
+          <section
+            className={studio ? 'min-w-0' : 'min-w-0 rounded-2xl border border-border bg-card p-5'}
+          >
             <h2 className='mb-1 flex items-center gap-2 text-base font-semibold'>
               <SlidersHorizontal className='size-4 text-primary' />
               {c('Resource details', 'Thông tin ghế/phòng')}
             </h2>
-            <p className='mb-5 text-xs text-muted-foreground'>
+            <p className='mb-5 text-xs text-muted-foreground' hidden={!!studio}>
               {c(
                 'Choose the floor, type and details for this resource.',
                 'Chọn tầng, loại chỗ và điền thông tin cho ghế/phòng.'
               )}
             </p>
-            <fieldset disabled={busy} className='grid gap-4 sm:grid-cols-2 xl:grid-cols-1'>
-              <Field label={c('Floor *', 'Tầng *')} error={errors.floorPlanId}>
-                <select
-                  className={selectClass}
-                  value={form.floorPlanId}
-                  disabled={!!current || staged.length > 0}
-                  onChange={(e) =>
-                    setForm((value) => ({
-                      ...value,
-                      floorPlanId: e.target.value,
-                      parentRoomId: options.rooms ? '' : undefined
-                    }))
-                  }
-                >
-                  <option value=''>{c('Choose floor', 'Chọn tầng')}</option>
-                  {options.floors.map((f) => (
-                    <option key={f.id} value={f.id}>
-                      {f.location
-                        ? `${f.location.buildingName} / ${f.location.physicalFloorName} / `
-                        : ''}
-                      {f.name} · {f.status}
-                    </option>
-                  ))}
-                </select>
-              </Field>
+            <fieldset
+              disabled={busy}
+              className={studio ? 'grid gap-4' : 'grid gap-4 sm:grid-cols-2 xl:grid-cols-1'}
+            >
+              {!studio && (
+                <Field label={c('Floor *', 'Tầng *')} error={errors.floorPlanId}>
+                  <select
+                    className={selectClass}
+                    value={form.floorPlanId}
+                    disabled={!!current || staged.length > 0}
+                    onChange={(e) =>
+                      setForm((value) => ({
+                        ...value,
+                        floorPlanId: e.target.value,
+                        parentRoomId: options.rooms ? '' : undefined
+                      }))
+                    }
+                  >
+                    <option value=''>{c('Choose floor', 'Chọn tầng')}</option>
+                    {options.floors.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.location
+                          ? `${f.location.buildingName} / ${f.location.physicalFloorName} / `
+                          : ''}
+                        {f.name} · {f.status}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
+              )}
               <Field label={c('Resource type *', 'Loại chỗ *')} error={errors.resourceTypeId}>
                 <select
                   className={selectClass}
@@ -678,6 +791,37 @@ export function ResourceEditor({
                     </option>
                   ))}
                 </select>
+                {type && (
+                  <details className='mt-2 rounded-lg border bg-muted/20 p-2 text-xs font-normal'>
+                    <summary className='cursor-pointer font-medium'>
+                      {c('Type details & prices', 'Thông tin loại chỗ & giá')}
+                    </summary>
+                    <div className='mt-2 space-y-1 text-muted-foreground'>
+                      <p>
+                        {type.name} · {type.capacity} {c('people', 'người')} · {type.currency}
+                      </p>
+                      <p>
+                        {type.standardWidthM ?? '—'} × {type.standardLengthM ?? '—'} m
+                      </p>
+                      <p>
+                        {c('Hourly', 'Theo giờ')}: {type.pricePerHour ?? '—'} ·{' '}
+                        {c('Daily', 'Theo ngày')}: {type.pricePerDay ?? '—'}
+                      </p>
+                      <p>
+                        {c('Monthly', 'Theo tháng')}: {type.pricePerMonth ?? '—'}
+                      </p>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        disabled={busy}
+                        onClick={() => setEditingType(true)}
+                      >
+                        {c('Edit shared type', 'Sửa loại chỗ dùng chung')}
+                      </Button>
+                    </div>
+                  </details>
+                )}
                 <Button
                   type='button'
                   variant='ghost'
@@ -805,246 +949,313 @@ export function ResourceEditor({
               </p>
             </div>
           </section>
-          <section className='min-w-0 overflow-hidden rounded-2xl border border-border bg-card xl:sticky xl:top-4'>
-            <div className='border-b border-border bg-muted/20 p-4'>
-              <h2 className='mb-3 flex items-center gap-2 text-sm font-semibold'>
-                <MapPin className='size-4 text-primary' />
-                {metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED'
-                  ? c('Real position & dimensions (m)', 'Vị trí và kích thước thực (m)')
-                  : c('Floor coordinates & dimensions (px)', 'Vị trí và kích thước trên sơ đồ (px)')}
-              </h2>
-              <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
-                {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map((key) => (
-                  <Field
-                    key={key}
-                    label={
-                      {
-                        posX: 'X',
-                        posY: 'Y',
-                        width: c('Length (horizontal)', 'Dài (ngang)'),
-                        height: c('Width (vertical)', 'Rộng (dọc)'),
-                        rotation: c('Rotation', 'Góc xoay')
-                      }[key]
-                    }
-                    error={errors[key]}
-                  >
-                    <Input
-                      value={geometryDisplay(form[key], metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED', key === 'rotation')}
+          <EditorCanvas studio={studio}>
+            <section
+              className={
+                studio
+                  ? 'flex h-full min-h-[480px] min-w-0 flex-1 flex-col overflow-hidden bg-card'
+                  : 'min-w-0 overflow-hidden rounded-2xl border border-border bg-card xl:sticky xl:top-4'
+              }
+            >
+              <details
+                open={studio ? undefined : true}
+                className='border-b border-border bg-muted/20 p-3'
+              >
+                <summary className='cursor-pointer text-xs font-medium'>
+                  {c('Position & dimensions', 'Vị trí & kích thước')}
+                </summary>
+                <div className='mt-3'>
+                  <h2 className='mb-3 flex items-center gap-2 text-sm font-semibold'>
+                    <MapPin className='size-4 text-primary' />
+                    {metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED'
+                      ? c('Real position & dimensions (m)', 'Vị trí và kích thước thực (m)')
+                      : c(
+                          'Floor coordinates & dimensions (px)',
+                          'Vị trí và kích thước trên sơ đồ (px)'
+                        )}
+                  </h2>
+                  <div className='grid grid-cols-2 gap-3 sm:grid-cols-5'>
+                    {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map((key) => (
+                      <Field
+                        key={key}
+                        label={
+                          {
+                            posX: 'X',
+                            posY: 'Y',
+                            width: c('Length (horizontal)', 'Dài (ngang)'),
+                            height: c('Width (vertical)', 'Rộng (dọc)'),
+                            rotation: c('Rotation', 'Góc xoay')
+                          }[key]
+                        }
+                        error={errors[key]}
+                      >
+                        <Input
+                          value={geometryDisplay(
+                            form[key],
+                            metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED',
+                            key === 'rotation'
+                          )}
+                          disabled={busy}
+                          readOnly={sizeLocked && (key === 'width' || key === 'height')}
+                          inputMode='decimal'
+                          onChange={(e) =>
+                            set(
+                              key,
+                              geometryInput(
+                                e.target.value,
+                                metrics.data?.geometryVersion === 2 &&
+                                  current?.status !== 'ARCHIVED',
+                                key === 'rotation'
+                              )
+                            )
+                          }
+                        />
+                      </Field>
+                    ))}
+                  </div>
+                  {sizeUnavailable ? (
+                    <div className='mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm'>
+                      <p className='font-medium'>
+                        {floorQuery.isError || metrics.isError
+                          ? c('Could not load floor dimensions.', 'Không tải được kích thước tầng.')
+                          : floorQuery.isPending || metrics.isPending
+                            ? c('Loading floor dimensions…', 'Đang tải kích thước tầng…')
+                            : floorQuery.data?.floor.location
+                              ? c(
+                                  'Set the floor dimensions to use this resource type.',
+                                  'Nhập kích thước thực của tầng để dùng loại chỗ này.'
+                                )
+                              : c(
+                                  'Link the layout to a physical floor first.',
+                                  'Hãy liên kết sơ đồ với một tầng vật lý trước.'
+                                )}
+                      </p>
+                      {(floorQuery.isError || metrics.isError) && (
+                        <Button
+                          type='button'
+                          variant='outline'
+                          size='sm'
+                          className='mt-2'
+                          onClick={() => {
+                            if (floorQuery.isError) void floorQuery.refetch();
+                            if (metrics.isError) void metrics.refetch();
+                          }}
+                        >
+                          {c('Retry', 'Thử lại')}
+                        </Button>
+                      )}
+                    </div>
+                  ) : (
+                    sizeLocked && (
+                      <div className='mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
+                        <span>
+                          {c(
+                            'Size follows the selected type. Choose a separate type for a different size.',
+                            'Kích thước theo loại chỗ. Muốn dùng kích thước khác, hãy chọn loại chỗ riêng.'
+                          )}
+                        </span>
+                        {current && standardSize(type) && (
+                          <Button
+                            type='button'
+                            variant='outline'
+                            size='sm'
+                            disabled={busy}
+                            onClick={() =>
+                              changePosition({
+                                ...selectPlacementFields(form),
+                                ...standardSize(type)
+                              })
+                            }
+                          >
+                            {c('Use standard size', 'Dùng kích thước chuẩn')}
+                          </Button>
+                        )}
+                      </div>
+                    )
+                  )}
+                  {floorQuery.data?.floor.location && metrics.data && (
+                    <Button
+                      type='button'
+                      size='sm'
+                      variant='outline'
+                      className='mt-3'
                       disabled={busy}
-                      readOnly={sizeLocked && (key === 'width' || key === 'height')}
-                      inputMode='decimal'
-                      onChange={(e) => set(key, geometryInput(e.target.value, metrics.data?.geometryVersion === 2 && current?.status !== 'ARCHIVED', key === 'rotation'))}
-                    />
-                  </Field>
-                ))}
-              </div>
-              {sizeUnavailable ? (
-                <div className='mt-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm'>
-                  <p className='font-medium'>
-                    {floorQuery.isError || metrics.isError
-                      ? c('Could not load floor dimensions.', 'Không tải được kích thước tầng.')
-                      : floorQuery.isPending || metrics.isPending
-                        ? c('Loading floor dimensions…', 'Đang tải kích thước tầng…')
-                        : floorQuery.data?.floor.location
-                          ? c('Set the floor dimensions to use this resource type.', 'Nhập kích thước thực của tầng để dùng loại chỗ này.')
-                          : c('Link the layout to a physical floor first.', 'Hãy liên kết sơ đồ với một tầng vật lý trước.')}
-                  </p>
-                  {(floorQuery.isError || metrics.isError) && (
-                    <Button type='button' variant='outline' size='sm' className='mt-2' onClick={() => {
-                      if (floorQuery.isError) void floorQuery.refetch();
-                      if (metrics.isError) void metrics.refetch();
-                    }}>
-                      {c('Retry', 'Thử lại')}
+                      onClick={() => {
+                        if (dirty) {
+                          toast.error(
+                            c(
+                              'Save or discard the current changes before reviewing shared floor measurements.',
+                              'Lưu hoặc bỏ thay đổi đang chỉnh trước khi cập nhật số đo tầng dùng chung.'
+                            )
+                          );
+                          return;
+                        }
+                        setEditingDimensions(true);
+                      }}
+                    >
+                      <Ruler className='size-4' />
+                      {metrics.data.physicalWidthM && metrics.data.physicalLengthM
+                        ? c('Edit floor dimensions', 'Sửa kích thước tầng')
+                        : c('Set floor dimensions', 'Cấu hình kích thước tầng')}
                     </Button>
                   )}
                 </div>
-              ) : (
-                sizeLocked && (
-                  <div className='mt-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground'>
-                    <span>
-                      {c(
-                        'Size follows the selected type. Choose a separate type for a different size.',
-                        'Kích thước theo loại chỗ. Muốn dùng kích thước khác, hãy chọn loại chỗ riêng.'
-                      )}
-                    </span>
-                    {current && standardSize(type) && (
-                      <Button
-                        type='button'
-                        variant='outline'
-                        size='sm'
-                        disabled={busy}
-                        onClick={() =>
-                          changePosition({ ...selectPlacementFields(form), ...standardSize(type) })
-                        }
-                      >
-                        {c('Use standard size', 'Dùng kích thước chuẩn')}
-                      </Button>
-                    )}
-                  </div>
-                )
-              )}
-              {floorQuery.data?.floor.location && metrics.data && (
-                <Button type='button' size='sm' variant='outline' className='mt-3' disabled={busy}
-                  onClick={() => {
-                    if (dirty) {
-                      toast.error(c('Save or discard the current changes before reviewing shared floor measurements.', 'Lưu hoặc bỏ thay đổi đang chỉnh trước khi cập nhật số đo tầng dùng chung.'));
-                      return;
-                    }
-                    setEditingDimensions(true);
-                  }}>
-                  <Ruler className='size-4' />
-                  {metrics.data.physicalWidthM && metrics.data.physicalLengthM
-                    ? c('Edit floor dimensions', 'Sửa kích thước tầng')
-                    : c('Set floor dimensions', 'Cấu hình kích thước tầng')}
-                </Button>
-              )}
-            </div>
-            <div className='flex h-[680px] min-h-[540px] flex-col xl:h-[calc(100dvh-340px)]'>
-              <ResourcePlacementEditor
-                presentation='workspace'
-                key={form.floorPlanId}
-                draftLayout={canvasLayout}
-                onSelect={(key) => void selectDraft(key)}
-                onCopy={() => void copySelection()}
-                onPaste={() => pasteSelection()}
-                actions={
-                  <div className='space-y-3'>
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='outline'
-                        disabled={busy || !draftGeometry(form)}
-                        onClick={() => void copySelection()}
-                      >
-                        <Copy className='size-4' />
-                        {c('Copy', 'Sao chép')}
-                      </Button>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='outline'
-                        disabled={busy || !clipboard}
-                        onClick={() => pasteSelection()}
-                      >
-                        <ClipboardPaste className='size-4' />
-                        {c('Paste', 'Dán')}
-                      </Button>
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='secondary'
-                        disabled={busy || !draftGeometry(form)}
-                        onClick={async () => {
-                          const snapshot = await copySelection();
-                          if (snapshot) pasteSelection(snapshot);
-                        }}
-                      >
-                        <Copy className='size-4' />
-                        {c('Duplicate', 'Nhân bản')}
-                      </Button>
-                      {!current && drafts.length > 1 && (
-                        <Button
-                          type='button'
-                          size='sm'
-                          variant='ghost'
-                          disabled={busy}
-                          onClick={removeDraft}
-                        >
-                          <Trash2 className='size-4' />
-                          {c('Remove draft', 'Bỏ bản nháp')}
-                        </Button>
-                      )}
-                    </div>
-                    {type?.category === 'ROOM' && (
-                      <div className='flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3'>
-                        <select
-                          aria-label={c('Desk type to add', 'Loại ghế cần thêm')}
-                          className={`${selectClass} min-w-0 flex-1`}
-                          value={deskTypeId}
-                          disabled={busy}
-                          onChange={(e) => setDeskTypeId(e.target.value)}
-                        >
-                          <option value=''>{c('Choose a desk type', 'Chọn loại ghế')}</option>
-                          {options.types
-                            .filter((t) => t.category === 'DESK' && t.active && t.currency)
-                            .map((t) => (
-                              <option key={t.id} value={t.id}>
-                                {t.name} · {t.currency}
-                              </option>
-                            ))}
-                        </select>
-                        <Button
-                          type='button'
-                          size='sm'
-                          disabled={busy || !deskTypeId || !draftGeometry(form)}
-                          onClick={addDesk}
-                        >
-                          <Plus className='size-4' />
-                          {c('Add seat inside room', 'Thêm ghế trong phòng')}
-                        </Button>
-                        <label className='flex w-full items-center gap-2 text-xs text-muted-foreground'>
-                          <input
-                            type='checkbox'
-                            checked={copyContents}
-                            onChange={(e) => setCopyContents(e.target.checked)}
-                            disabled={busy}
-                            className='size-4 accent-primary'
-                          />
-                          {c(
-                            'Include seats and furnishings when copying this room',
-                            'Sao chép cả ghế và đồ bố trí bên trong phòng'
-                          )}
-                        </label>
-                      </div>
-                    )}
-                    <div
-                      className='flex max-h-24 flex-wrap gap-2 overflow-y-auto'
-                      aria-label={c('Resources in this edit session', 'Ghế/phòng đang chỉnh')}
-                    >
-                      {drafts.map((draft) => (
-                        <Button
-                          key={draft.key}
-                          type='button'
-                          size='sm'
-                          variant={draft.key === activeKey ? 'default' : 'outline'}
-                          disabled={busy}
-                          onClick={() => activate(draft)}
-                          className='h-7 rounded-full px-3 text-xs'
-                        >
-                          {draft.form.code || c('New resource', 'Chỗ mới')}
-                          {!draft.current && (
-                            <span className='opacity-70'>· {c('Draft', 'Nháp')}</span>
-                          )}
-                        </Button>
-                      ))}
-                    </div>
-                    <p className='text-[11px] text-muted-foreground'>
-                      {c(
-                        'Copies are unsaved. Position them in free space, then save all changes together. Ctrl/Cmd+C and V work when the canvas is focused.',
-                        'Bản sao chưa được lưu. Kéo đến chỗ trống rồi lưu tất cả cùng lúc. Ctrl/Cmd+C và V dùng khi đang chọn canvas.'
-                      )}
-                    </p>
-                  </div>
+              </details>
+              <div
+                className={
+                  studio
+                    ? 'flex min-h-[360px] flex-1 flex-col'
+                    : 'flex h-[680px] min-h-[540px] flex-col xl:h-[calc(100dvh-340px)]'
                 }
-                workspaceId={workspaceId}
-                floorId={Number(form.floorPlanId)}
-                resourceId={activeKey}
-                parentRoomId={form.parentRoomId ? Number(form.parentRoomId) : undefined}
-                category={type?.category}
-                value={form}
-                disabled={busy}
-                sizeLocked={sizeLocked}
-                onBegin={checkpoint}
-                onChange={changePosition}
-                onUndo={undoPosition}
-                onRedo={redoPosition}
-                onReset={() => changePosition(initialPosition)}
-                canUndo={undoPositions.length > 0}
-                canRedo={redoPositions.length > 0}
-              />
-            </div>
-          </section>
+              >
+                <ResourcePlacementEditor
+                  onToggleFullscreen={studio?.onToggleFullscreen}
+                  fullscreenActive={studio?.fullscreenActive}
+                  presentation='workspace'
+                  key={form.floorPlanId}
+                  draftLayout={canvasLayout}
+                  onSelect={(key) => void selectDraft(key)}
+                  onCopy={() => void copySelection()}
+                  onPaste={() => pasteSelection()}
+                  actions={
+                    <div className='space-y-3'>
+                      <div className='flex flex-wrap items-center gap-2'>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='outline'
+                          disabled={busy || !draftGeometry(form)}
+                          onClick={() => void copySelection()}
+                        >
+                          <Copy className='size-4' />
+                          {c('Copy', 'Sao chép')}
+                        </Button>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='outline'
+                          disabled={busy || !clipboard}
+                          onClick={() => pasteSelection()}
+                        >
+                          <ClipboardPaste className='size-4' />
+                          {c('Paste', 'Dán')}
+                        </Button>
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='secondary'
+                          disabled={busy || !draftGeometry(form)}
+                          onClick={async () => {
+                            const snapshot = await copySelection();
+                            if (snapshot) pasteSelection(snapshot);
+                          }}
+                        >
+                          <Copy className='size-4' />
+                          {c('Duplicate', 'Nhân bản')}
+                        </Button>
+                        {!current && drafts.length > 1 && (
+                          <Button
+                            type='button'
+                            size='sm'
+                            variant='ghost'
+                            disabled={busy}
+                            onClick={removeDraft}
+                          >
+                            <Trash2 className='size-4' />
+                            {c('Remove draft', 'Bỏ bản nháp')}
+                          </Button>
+                        )}
+                      </div>
+                      {type?.category === 'ROOM' && (
+                        <div className='flex flex-wrap items-center gap-3 rounded-xl border border-primary/20 bg-primary/5 p-3'>
+                          <select
+                            aria-label={c('Desk type to add', 'Loại ghế cần thêm')}
+                            className={`${selectClass} min-w-0 flex-1`}
+                            value={deskTypeId}
+                            disabled={busy}
+                            onChange={(e) => setDeskTypeId(e.target.value)}
+                          >
+                            <option value=''>{c('Choose a desk type', 'Chọn loại ghế')}</option>
+                            {options.types
+                              .filter((t) => t.category === 'DESK' && t.active && t.currency)
+                              .map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name} · {t.currency}
+                                </option>
+                              ))}
+                          </select>
+                          <Button
+                            type='button'
+                            size='sm'
+                            disabled={busy || !deskTypeId || !draftGeometry(form)}
+                            onClick={addDesk}
+                          >
+                            <Plus className='size-4' />
+                            {c('Add seat inside room', 'Thêm ghế trong phòng')}
+                          </Button>
+                          <label className='flex w-full items-center gap-2 text-xs text-muted-foreground'>
+                            <input
+                              type='checkbox'
+                              checked={copyContents}
+                              onChange={(e) => setCopyContents(e.target.checked)}
+                              disabled={busy}
+                              className='size-4 accent-primary'
+                            />
+                            {c(
+                              'Include seats and furnishings when copying this room',
+                              'Sao chép cả ghế và đồ bố trí bên trong phòng'
+                            )}
+                          </label>
+                        </div>
+                      )}
+                      <div
+                        className='flex max-h-24 flex-wrap gap-2 overflow-y-auto'
+                        aria-label={c('Resources in this edit session', 'Ghế/phòng đang chỉnh')}
+                      >
+                        {drafts.map((draft) => (
+                          <Button
+                            key={draft.key}
+                            type='button'
+                            size='sm'
+                            variant={draft.key === activeKey ? 'default' : 'outline'}
+                            disabled={busy}
+                            onClick={() => activate(draft)}
+                            className='h-7 rounded-full px-3 text-xs'
+                          >
+                            {draft.form.code || c('New resource', 'Chỗ mới')}
+                            {!draft.current && (
+                              <span className='opacity-70'>· {c('Draft', 'Nháp')}</span>
+                            )}
+                          </Button>
+                        ))}
+                      </div>
+                      <p className='text-[11px] text-muted-foreground'>
+                        {c(
+                          'Copies are unsaved. Position them in free space, then save all changes together. Ctrl/Cmd+C and V work when the canvas is focused.',
+                          'Bản sao chưa được lưu. Kéo đến chỗ trống rồi lưu tất cả cùng lúc. Ctrl/Cmd+C và V dùng khi đang chọn canvas.'
+                        )}
+                      </p>
+                    </div>
+                  }
+                  workspaceId={workspaceId}
+                  floorId={Number(form.floorPlanId)}
+                  resourceId={activeKey}
+                  parentRoomId={form.parentRoomId ? Number(form.parentRoomId) : undefined}
+                  category={type?.category}
+                  value={form}
+                  disabled={busy}
+                  sizeLocked={sizeLocked}
+                  onBegin={checkpoint}
+                  onChange={changePosition}
+                  onUndo={undoPosition}
+                  onRedo={redoPosition}
+                  onReset={() => changePosition(initialPosition)}
+                  canUndo={undoPositions.length > 0}
+                  canRedo={redoPositions.length > 0}
+                />
+              </div>
+            </section>
+          </EditorCanvas>
         </div>
         {placement.result && !placement.result.valid && (
           <p
@@ -1057,7 +1268,13 @@ export function ResourceEditor({
             )}
           </p>
         )}
-        <footer className='sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/95 px-5 py-4 shadow-lg backdrop-blur-md'>
+        <footer
+          className={
+            studio
+              ? 'sticky -bottom-4 z-20 space-y-2 border-t bg-card/95 py-3 backdrop-blur-md'
+              : 'sticky bottom-0 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-card/95 px-5 py-4 shadow-lg backdrop-blur-md'
+          }
+        >
           <p className='text-sm text-muted-foreground' role='status'>
             {dirty
               ? c('You have unsaved changes', 'Có thay đổi chưa lưu')
@@ -1087,7 +1304,10 @@ export function ResourceEditor({
           workspaceId={workspaceId}
           floorId={floorId}
           metrics={metrics.data}
-          onConverted={async () => { await onSaved(); onClose(); }}
+          onConverted={async () => {
+            await onSaved();
+            onClose();
+          }}
           onClose={() => setEditingDimensions(false)}
         />
       )}
@@ -1104,6 +1324,14 @@ export function ResourceEditor({
               parentRoomId: savedType.category === 'ROOM' ? '' : value.parentRoomId
             }));
           }}
+        />
+      )}
+      {editingType && type && (
+        <ResourceTypeSetupDialog
+          workspaceId={workspaceId}
+          current={type}
+          onClose={() => setEditingType(false)}
+          onSaved={onSaved}
         />
       )}
       <Dialog
@@ -1155,7 +1383,14 @@ export function ResourceEditor({
   );
 }
 
-function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose, onConverted }: {
+export function FloorDimensionsDialog({
+  actorId,
+  workspaceId,
+  floorId,
+  metrics,
+  onClose,
+  onConverted
+}: {
   actorId: number;
   workspaceId: number;
   floorId: number;
@@ -1202,8 +1437,10 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
       await queryClient.cancelQueries({ queryKey });
       queryClient.setQueryData(queryKey, saved);
       void queryClient.invalidateQueries({
-        predicate: ({ queryKey: key }) => key[0] === 'organizer-resources' &&
-          key[1] === actorId && key[3] === 'design-metrics' &&
+        predicate: ({ queryKey: key }) =>
+          key[0] === 'organizer-resources' &&
+          key[1] === actorId &&
+          key[3] === 'design-metrics' &&
           (key[2] !== workspaceId || key[4] !== floorId)
       });
       void queryClient.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
@@ -1215,7 +1452,11 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
         setConflict(true);
         void queryClient.invalidateQueries({ queryKey });
       }
-      setError(e instanceof Error ? e.message : c('Could not save floor dimensions.', 'Không lưu được kích thước tầng.'));
+      setError(
+        e instanceof Error
+          ? e.message
+          : c('Could not save floor dimensions.', 'Không lưu được kích thước tầng.')
+      );
     } finally {
       saving.current = false;
       setBusy(false);
@@ -1223,35 +1464,90 @@ function FloorDimensionsDialog({ actorId, workspaceId, floorId, metrics, onClose
   }
 
   return (
-    <Dialog open onOpenChange={(open) => { if (!open && !saving.current) onClose(); }}>
+    <Dialog
+      open
+      onOpenChange={(open) => {
+        if (!open && !saving.current) onClose();
+      }}
+    >
       <DialogContent className='max-h-[90dvh] overflow-y-auto sm:max-w-xl'>
         <DialogHeader>
-          <DialogTitle className='flex items-center gap-2'><Ruler className='size-5 text-primary' />{c('Physical floor dimensions', 'Kích thước thực của tầng')}</DialogTitle>
+          <DialogTitle className='flex items-center gap-2'>
+            <Ruler className='size-5 text-primary' />
+            {c('Physical floor dimensions', 'Kích thước thực của tầng')}
+          </DialogTitle>
           <DialogDescription>
-            {c('Use the measurements of the entire physical floor. All workspaces on this floor share them.', 'Nhập số đo của toàn tầng vật lý. Các workspace trên cùng tầng dùng chung số đo này.')}
+            {c(
+              'Use the measurements of the entire physical floor. All workspaces on this floor share them.',
+              'Nhập số đo của toàn tầng vật lý. Các workspace trên cùng tầng dùng chung số đo này.'
+            )}
           </DialogDescription>
         </DialogHeader>
         <form className='space-y-4' onSubmit={submit}>
-          <MeasurementModeField value={measurementMode} disabled={busy} onChange={value => { setMeasurementMode(value); setReview(null); }} />
+          <MeasurementModeField
+            value={measurementMode}
+            disabled={busy}
+            onChange={(value) => {
+              setMeasurementMode(value);
+              setReview(null);
+            }}
+          />
           <div className='grid grid-cols-2 gap-3'>
             <Field label={c('Floor width (m)', 'Dài toàn tầng — ngang (m)')}>
-              <Input type='number' min='0.01' max='10000' step='0.01' required value={width} disabled={busy} onChange={(event) => { setWidth(event.target.value); setReview(null); }} />
+              <Input
+                type='number'
+                min='0.01'
+                max='10000'
+                step='0.01'
+                required
+                value={width}
+                disabled={busy}
+                onChange={(event) => {
+                  setWidth(event.target.value);
+                  setReview(null);
+                }}
+              />
             </Field>
             <Field label={c('Floor length (m)', 'Rộng toàn tầng — dọc (m)')}>
-              <Input type='number' min='0.01' max='10000' step='0.01' required value={length} disabled={busy} onChange={(event) => { setLength(event.target.value); setReview(null); }} />
+              <Input
+                type='number'
+                min='0.01'
+                max='10000'
+                step='0.01'
+                required
+                value={length}
+                disabled={busy}
+                onChange={(event) => {
+                  setLength(event.target.value);
+                  setReview(null);
+                }}
+              />
             </Field>
           </div>
           <GeometryReviewNotice review={review} />
-          {(outdated || error) && <p role='alert' className='text-sm text-destructive'>
-            {outdated
-              ? c('Close and reopen this dialog to review the latest floor settings.', 'Đóng rồi mở lại hộp thoại để kiểm tra cấu hình tầng mới nhất.')
-              : error}
-          </p>}
+          {(outdated || error) && (
+            <p role='alert' className='text-sm text-destructive'>
+              {outdated
+                ? c(
+                    'Close and reopen this dialog to review the latest floor settings.',
+                    'Đóng rồi mở lại hộp thoại để kiểm tra cấu hình tầng mới nhất.'
+                  )
+                : error}
+            </p>
+          )}
           <div className='flex justify-end gap-2'>
-            <Button type='button' variant='outline' disabled={busy} onClick={onClose}>{c('Cancel', 'Hủy')}</Button>
+            <Button type='button' variant='outline' disabled={busy} onClick={onClose}>
+              {c('Cancel', 'Hủy')}
+            </Button>
             <Button type='submit' disabled={busy || outdated || (!!review && !review.applicable)}>
-              {busy ? <LoaderCircle className='size-4 animate-spin' /> : <Save className='size-4' />}
-              {review ? c('Confirm and save', 'Xác nhận và lưu') : c('Review dimensions', 'Kiểm tra kích thước')}
+              {busy ? (
+                <LoaderCircle className='size-4 animate-spin' />
+              ) : (
+                <Save className='size-4' />
+              )}
+              {review
+                ? c('Confirm and save', 'Xác nhận và lưu')
+                : c('Review dimensions', 'Kiểm tra kích thước')}
             </Button>
           </div>
         </form>

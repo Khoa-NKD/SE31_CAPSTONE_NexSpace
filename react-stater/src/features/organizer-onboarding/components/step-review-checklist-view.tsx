@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -34,22 +35,7 @@ import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
 import { isDurableMediaUrl } from '../utils/wizard-api-mapper';
 import { isOperatingTimeRangeValid } from '../schemas/wizard-schemas';
 import type { DaySchedule } from '../types/wizard';
-
-const CATEGORY_LABELS: Record<string, string> = {
-  coworking_hub: 'Dedicated Coworking Hub',
-  business_lounge: 'Executive Business Lounge',
-  creative_studio: 'Creative Studio Space'
-};
-
-const DAY_SHORT_LABELS: Record<string, string> = {
-  monday: 'Mon',
-  tuesday: 'Tue',
-  wednesday: 'Wed',
-  thursday: 'Thu',
-  friday: 'Fri',
-  saturday: 'Sat',
-  sunday: 'Sun'
-};
+import { getWizardCategoryLabel, getWizardDayLabel } from '../utils/wizard-copy';
 
 interface ScheduleGroup {
   daysLabel: string;
@@ -79,7 +65,10 @@ function calculateDayDurationHours(openTime: string, closeTime: string): number 
   return Math.round(((end - start) / 60) * 10) / 10;
 }
 
-function groupConsecutiveSchedule(schedule: DaySchedule[]): ScheduleGroup[] {
+function groupConsecutiveSchedule(
+  schedule: DaySchedule[],
+  c: (en: string, vi: string) => string
+): ScheduleGroup[] {
   if (!schedule || schedule.length === 0) return [];
 
   const groups: ScheduleGroup[] = [];
@@ -94,14 +83,18 @@ function groupConsecutiveSchedule(schedule: DaySchedule[]): ScheduleGroup[] {
     } else if (key === currentKey) {
       currentGroupDays.push(day);
     } else {
-      const first = DAY_SHORT_LABELS[currentGroupDays[0].day] || currentGroupDays[0].label;
-      const last = DAY_SHORT_LABELS[currentGroupDays[currentGroupDays.length - 1].day] || currentGroupDays[currentGroupDays.length - 1].label;
+      const first = getWizardDayLabel(currentGroupDays[0].day, c);
+      const last = getWizardDayLabel(currentGroupDays[currentGroupDays.length - 1].day, c);
       const daysLabel = currentGroupDays.length === 1 ? first : `${first} – ${last}`;
       const isOpen = currentGroupDays[0].isOpen;
-      const duration = isOpen ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime) : undefined;
+      const duration = isOpen
+        ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime)
+        : undefined;
       groups.push({
         daysLabel,
-        timeRange: isOpen ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}` : 'Closed',
+        timeRange: isOpen
+          ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}`
+          : 'Closed',
         isOpen,
         durationHours: duration
       });
@@ -111,14 +104,18 @@ function groupConsecutiveSchedule(schedule: DaySchedule[]): ScheduleGroup[] {
   }
 
   if (currentGroupDays.length > 0) {
-    const first = DAY_SHORT_LABELS[currentGroupDays[0].day] || currentGroupDays[0].label;
-    const last = DAY_SHORT_LABELS[currentGroupDays[currentGroupDays.length - 1].day] || currentGroupDays[currentGroupDays.length - 1].label;
+    const first = getWizardDayLabel(currentGroupDays[0].day, c);
+    const last = getWizardDayLabel(currentGroupDays[currentGroupDays.length - 1].day, c);
     const daysLabel = currentGroupDays.length === 1 ? first : `${first} – ${last}`;
     const isOpen = currentGroupDays[0].isOpen;
-    const duration = isOpen ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime) : undefined;
+    const duration = isOpen
+      ? calculateDayDurationHours(currentGroupDays[0].openTime, currentGroupDays[0].closeTime)
+      : undefined;
     groups.push({
       daysLabel,
-      timeRange: isOpen ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}` : 'Closed',
+      timeRange: isOpen
+        ? `${currentGroupDays[0].openTime} – ${currentGroupDays[0].closeTime}`
+        : 'Closed',
       isOpen,
       durationHours: duration
     });
@@ -134,32 +131,19 @@ function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolea
 }
 
 export function StepReviewChecklistView() {
+  const c = useOrganizerCopy();
   const router = useRouter();
-  const {
-    basicInfo,
-    location,
-    operatingHours,
-    amenities,
-    media,
-    canonicalWorkspaceId,
-    saveDraft,
-    setSubmissionStatus
-  } = useWizardStore();
+  const { basicInfo, location, operatingHours, amenities, media, saveDraft, setSubmissionStatus } =
+    useWizardStore();
 
-  const {
-    isSaving,
-    saveDraftToServer
-  } = useWizardDraftSync();
+  const { isSaving, saveDraftToServer } = useWizardDraftSync();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
 
   // Validation audits for Steps 1–4
   const isBasicInfoValid = Boolean(
-    basicInfo.name &&
-    basicInfo.category &&
-    basicInfo.contactPhone &&
-    basicInfo.contactEmail
+    basicInfo.name && basicInfo.category && basicInfo.contactPhone && basicInfo.contactEmail
   );
   const isOperatingHoursValid =
     operatingHours.is247 ||
@@ -172,9 +156,7 @@ export function StepReviewChecklistView() {
   const durableMediaCount = media.items.filter(isItemValidMedia).length;
   const hasDurableCover = Boolean(
     media.coverPhotoId &&
-    media.items.some(
-      (item) => item.id === media.coverPhotoId && isItemValidMedia(item)
-    )
+    media.items.some((item) => item.id === media.coverPhotoId && isItemValidMedia(item))
   );
   const hasOnlyLocalPreviews = media.items.length > 0 && durableMediaCount === 0;
   const isMediaValid = durableMediaCount >= 1 && (hasDurableCover || durableMediaCount > 0);
@@ -183,7 +165,11 @@ export function StepReviewChecklistView() {
   const auditSections = [
     { id: 'basic_info', name: 'Basic Information', valid: isBasicInfoValid },
     { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid },
-    { id: 'media_amenities', name: 'Amenities & Media Assets', valid: isAmenitiesValid && isMediaValid }
+    {
+      id: 'media_amenities',
+      name: 'Amenities & Media Assets',
+      valid: isAmenitiesValid && isMediaValid
+    }
   ];
 
   const completedSectionsCount = auditSections.filter((s) => s.valid).length;
@@ -196,15 +182,16 @@ export function StepReviewChecklistView() {
     setIsSubmitting(true);
     try {
       const saved = await saveDraftToServer({ silent: true });
+      if (!saved) return;
       setSubmissionStatus('draft');
       saveDraft();
-      toast.success('Workspace Saved as Draft', {
-        description: `${basicInfo.name || 'Workspace'}${saved?.id ? ` (#${saved.id})` : ''} has been saved in DRAFT status.`
+      toast.success(c('Workspace Saved as Draft', 'Đã lưu bản nháp không gian'), {
+        description: `${basicInfo.name || c('Workspace', 'Không gian')}${saved?.id ? ` (#${saved.id})` : ''} has been saved in DRAFT status.`
       });
       router.navigate({ to: '/dashboard/organizer/workspaces' });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to save draft';
-      toast.error('Save Draft Error', { description: msg });
+      toast.error(c('Save Draft Error', 'Không thể lưu bản nháp'), { description: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -214,18 +201,21 @@ export function StepReviewChecklistView() {
     setIsSubmitting(true);
     try {
       const saved = await saveDraftToServer({ silent: true });
+      if (!saved) return;
       setSubmissionStatus('draft');
       saveDraft();
 
-      const rawId = saved?.id || canonicalWorkspaceId;
-      const numericMatch = rawId ? String(rawId).match(/\d+/) : null;
-      const numericWorkspaceId = numericMatch ? Number(numericMatch[0]) : undefined;
+      const numericWorkspaceId = Number(saved.id);
 
-      toast.success('Workspace Draft Saved', {
+      toast.success(c('Workspace Draft Saved', 'Đã lưu bản nháp không gian'), {
         description: 'Redirecting to Floor Plan & Zones setup...'
       });
 
-      if (numericWorkspaceId && Number.isSafeInteger(numericWorkspaceId) && numericWorkspaceId > 0) {
+      if (
+        numericWorkspaceId &&
+        Number.isSafeInteger(numericWorkspaceId) &&
+        numericWorkspaceId > 0
+      ) {
         router.navigate({
           to: '/dashboard/organizer/floorplan',
           search: { workspaceId: numericWorkspaceId }
@@ -235,7 +225,7 @@ export function StepReviewChecklistView() {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Failed to proceed to Floor & Zone setup';
-      toast.error('Navigation Error', { description: msg });
+      toast.error(c('Navigation Error', 'Không thể chuyển trang'), { description: msg });
     } finally {
       setIsSubmitting(false);
     }
@@ -246,12 +236,21 @@ export function StepReviewChecklistView() {
       {/* Sub-Header / Breadcrumbs */}
       <div className='px-4 sm:px-8 pt-4 pb-2 border-b border-border bg-card/60 backdrop-blur-xs'>
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs'>
-          <nav aria-label='Breadcrumb' className='flex items-center gap-1.5 text-muted-foreground truncate'>
-            <span className='hover:text-foreground transition-colors'>Workspaces</span>
+          <nav
+            aria-label={c('Breadcrumb', 'Điều hướng')}
+            className='flex items-center gap-1.5 text-muted-foreground truncate'
+          >
+            <span className='hover:text-foreground transition-colors'>
+              {c('Workspaces', 'Không gian')}
+            </span>
             <span>&gt;</span>
-            <span className='font-medium text-foreground truncate'>{basicInfo.name || 'New Workspace'}</span>
+            <span className='font-medium text-foreground truncate'>
+              {basicInfo.name || c('New Workspace', 'Không gian mới')}
+            </span>
             <span>&gt;</span>
-            <span className='font-bold text-indigo-600 dark:text-indigo-400'>Overview &amp; Review</span>
+            <span className='font-bold text-indigo-600 dark:text-indigo-400'>
+              {c('Overview & Review', 'Tổng quan và kiểm tra')}
+            </span>
           </nav>
 
           <div className='flex items-center gap-2'>
@@ -263,7 +262,8 @@ export function StepReviewChecklistView() {
                   : 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800'
               }`}
             >
-              Pre-Flight Audit • {auditScorePercent}% Ready
+              {c('Pre-Flight Audit •', 'Kiểm tra hồ sơ •')} {auditScorePercent}
+              {c('% Ready', '% hoàn tất')}
             </Badge>
 
             <Button
@@ -273,7 +273,7 @@ export function StepReviewChecklistView() {
               className='h-7 px-2.5 text-xs gap-1.5 border-border hover:bg-muted'
             >
               <Eye className='size-3.5 text-muted-foreground' />
-              <span>Preview Listing</span>
+              <span>{c('Preview Listing', 'Xem trước trang giới thiệu')}</span>
             </Button>
           </div>
         </div>
@@ -285,13 +285,16 @@ export function StepReviewChecklistView() {
         <div>
           <div className='flex items-center gap-2 text-indigo-600 dark:text-indigo-400 text-xs font-bold mb-1'>
             <CheckCircle2 className='size-4' />
-            <span>Workspace Overview &amp; Review</span>
+            <span>{c('Workspace Overview & Review', 'Tổng quan và kiểm tra không gian')}</span>
           </div>
           <h1 className='text-2xl sm:text-3xl font-bold font-heading text-foreground tracking-tight'>
-            Workspace Overview &amp; Review
+            {c('Workspace Overview & Review', 'Tổng quan và kiểm tra không gian')}
           </h1>
           <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-            Review your workspace information, operating hours, amenities, and gallery photos before saving or proceeding to floor plan and zones setup.
+            {c(
+              'Review your workspace information, operating hours, amenities, and gallery photos before saving or proceeding to floor plan and zones setup.',
+              'Kiểm tra thông tin, giờ hoạt động, tiện ích và ảnh trước khi lưu hoặc thiết lập sơ đồ.'
+            )}
           </p>
 
           {/* Readiness Alert Banner */}
@@ -299,16 +302,36 @@ export function StepReviewChecklistView() {
             <div className='mt-4 p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs sm:text-sm flex items-start gap-3'>
               <ShieldCheck className='size-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5' />
               <div>
-                <span className='font-bold text-foreground'>Workspace overview details complete! </span>
-                Choose <strong>Save Draft</strong> to return to your workspace list in DRAFT status, or <strong>Go to Setup Floor &amp; Zone</strong> to proceed to floor and zone configuration.
+                <span className='font-bold text-foreground'>
+                  {c(
+                    'Workspace overview details complete!',
+                    'Thông tin không gian đã đầy đủ!'
+                  )}{' '}
+                </span>
+                {c('Choose', 'Chọn')} <strong>{c('Save Draft', 'Lưu bản nháp')}</strong>{' '}
+                {c(
+                  'to return to your workspace list in DRAFT status, or',
+                  'để về danh sách không gian ở trạng thái bản nháp, hoặc'
+                )}{' '}
+                <strong>{c('Go to Setup Floor & Zone', 'Thiết lập tầng và khu vực')}</strong>{' '}
+                {c(
+                  'to proceed to floor and zone configuration.',
+                  'để tiếp tục cấu hình tầng và khu vực.'
+                )}
               </div>
             </div>
           ) : (
             <div className='mt-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs sm:text-sm flex items-start gap-3'>
               <AlertTriangle className='size-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
               <div>
-                <span className='font-bold text-foreground'>Some sections are still incomplete. </span>
-                Please review and complete all required sections before continuing.
+                <span className='font-bold text-foreground'>
+                  {c('Some sections are still incomplete.', 'Một số mục chưa đầy đủ.')}{' '}
+                </span>
+
+                {c(
+                  'Please review and complete all required sections before continuing.',
+                  'Hãy hoàn thành các mục bắt buộc trước khi tiếp tục.'
+                )}
               </div>
             </div>
           )}
@@ -322,8 +345,15 @@ export function StepReviewChecklistView() {
                 <Building2 className='size-5' />
               </div>
               <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Basic Information</h2>
-                <p className='text-xs text-muted-foreground'>Workspace identity, space category, usable area, description &amp; contact hotline</p>
+                <h2 className='text-sm sm:text-base font-bold text-foreground'>
+                  {c('Basic Information', 'Thông tin cơ bản')}
+                </h2>
+                <p className='text-xs text-muted-foreground'>
+                  {c(
+                    'Workspace identity, space category, usable area, description & contact hotline',
+                    'Tên, loại hình, mô tả và thông tin liên hệ của không gian'
+                  )}
+                </p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
@@ -340,53 +370,80 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev })}
+                onClick={() =>
+                  router.navigate({
+                    to: '/dashboard/organizer/workspaces/create',
+                    search: (prev) => prev
+                  })
+                }
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 1</span>
+                <span className='hidden sm:inline'>{c('Edit Step 1', 'Sửa bước 1')}</span>
               </Button>
             </div>
           </div>
 
           <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-xs sm:text-sm'>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Workspace Public Name</span>
-              <span className='font-semibold text-foreground mt-0.5 block'>{basicInfo.name || 'Not provided'}</span>
-            </div>
-            <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Space Category</span>
-              <span className='font-medium text-foreground mt-0.5 block'>
-                {CATEGORY_LABELS[basicInfo.category] || basicInfo.category.replace('_', ' ')}
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                {c('Workspace Public Name', 'Tên công khai của không gian')}
+              </span>
+              <span className='font-semibold text-foreground mt-0.5 block'>
+                {basicInfo.name || c('Not provided', 'Chưa cung cấp')}
               </span>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Total Usable Area</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                {c('Space Category', 'Loại hình không gian')}
+              </span>
+              <span className='font-medium text-foreground mt-0.5 block'>
+                {getWizardCategoryLabel(basicInfo.category, c)}
+              </span>
+            </div>
+            <div>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                Total Usable Area
+              </span>
               <span className='font-semibold text-foreground mt-0.5 block'>
                 {basicInfo.totalArea ? `${basicInfo.totalArea} m² (sqm)` : '0 m²'}
               </span>
             </div>
             <div className='sm:col-span-2 lg:col-span-3'>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Short Description</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                {c('Short Description', 'Mô tả ngắn')}
+              </span>
               <p className='font-normal text-foreground/90 mt-0.5 bg-muted/30 p-2.5 rounded-lg border border-border/60 text-xs sm:text-sm leading-relaxed'>
-                {basicInfo.description ? basicInfo.description : <span className='italic text-muted-foreground'>No description provided</span>}
+                {basicInfo.description ? (
+                  basicInfo.description
+                ) : (
+                  <span className='italic text-muted-foreground'>
+                    {c('No description provided', 'Chưa có mô tả')}
+                  </span>
+                )}
               </p>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Booking Inquiry Hotline</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                {c('Booking Inquiry Hotline', 'Số điện thoại hỗ trợ đặt chỗ')}
+              </span>
               <span className='font-medium text-foreground mt-0.5 block font-mono'>
-                {basicInfo.contactPhone || 'Not provided'}
+                {basicInfo.contactPhone || c('Not provided', 'Chưa cung cấp')}
               </span>
             </div>
             <div>
-              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Venue Support Email</span>
+              <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                {c('Venue Support Email', 'Email hỗ trợ của không gian')}
+              </span>
               <span className='font-medium text-foreground mt-0.5 block'>
-                {basicInfo.contactEmail || 'Not provided'}
+                {basicInfo.contactEmail || c('Not provided', 'Chưa cung cấp')}
               </span>
             </div>
             {location.entryNotes && (
               <div className='sm:col-span-2 lg:col-span-3'>
-                <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>Entry Instructions</span>
+                <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
+                  {c('Entry Instructions', 'Hướng dẫn vào không gian')}
+                </span>
                 <p className='font-normal text-foreground/80 mt-0.5 text-xs italic'>
                   {location.entryNotes}
                 </p>
@@ -403,8 +460,15 @@ export function StepReviewChecklistView() {
                 <Clock className='size-5' />
               </div>
               <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Operating Hours &amp; Access Policy</h2>
-                <p className='text-xs text-muted-foreground'>Weekly operating schedules, statutory holiday exceptions &amp; door access protocols</p>
+                <h2 className='text-sm sm:text-base font-bold text-foreground'>
+                  {c('Operating Hours & Access Policy', 'Giờ hoạt động và chính sách ra vào')}
+                </h2>
+                <p className='text-xs text-muted-foreground'>
+                  {c(
+                    'Weekly operating schedules, statutory holiday exceptions & door access protocols',
+                    'Lịch hoạt động trong tuần, ngày lễ và quy định ra vào'
+                  )}
+                </p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
@@ -421,11 +485,16 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev })}
+                onClick={() =>
+                  router.navigate({
+                    to: '/dashboard/organizer/workspaces/create/hours',
+                    search: (prev) => prev
+                  })
+                }
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 2</span>
+                <span className='hidden sm:inline'>{c('Edit Step 2', 'Sửa bước 2')}</span>
               </Button>
             </div>
           </div>
@@ -434,11 +503,11 @@ export function StepReviewChecklistView() {
           <div className='space-y-3 pt-1'>
             <div className='flex items-center justify-between'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
-                Weekly Operating Schedule
+                {c('Weekly Operating Schedule', 'Lịch hoạt động trong tuần')}
               </span>
               {operatingHours.is247 && (
                 <Badge className='bg-indigo-600 text-white text-[10px] font-bold'>
-                  Open 24/7 Active
+                  {c('Open 24/7 Active', 'Đang mở cửa 24/7')}
                 </Badge>
               )}
             </div>
@@ -447,14 +516,17 @@ export function StepReviewChecklistView() {
               <div className='p-3 rounded-lg bg-indigo-50/50 dark:bg-indigo-950/40 border border-indigo-100 dark:border-indigo-900/60 flex items-center gap-2.5'>
                 <Sparkles className='size-4 text-indigo-600 shrink-0' />
                 <span className='text-xs font-semibold text-indigo-950 dark:text-indigo-200'>
-                  24/7 Unlimited Access • Workspace remains open continuously all 7 days with no closed intervals.
+                  {c(
+                    '24/7 Unlimited Access • Workspace remains open continuously all 7 days with no closed intervals.',
+                    'Hoạt động 24/7 • Không gian mở cửa liên tục cả 7 ngày trong tuần.'
+                  )}
                 </span>
               </div>
             ) : (
               <div className='space-y-2.5'>
                 {/* Consecutive Group Summary */}
                 <div className='flex flex-wrap gap-2'>
-                  {groupConsecutiveSchedule(operatingHours.schedule).map((group, idx) => (
+                  {groupConsecutiveSchedule(operatingHours.schedule, c).map((group, idx) => (
                     <div
                       key={idx}
                       className={`px-3 py-2 rounded-lg border text-xs flex items-center gap-2 ${
@@ -468,14 +540,20 @@ export function StepReviewChecklistView() {
                         <div className='flex items-center gap-1.5'>
                           <span className='font-medium text-foreground'>{group.timeRange}</span>
                           {typeof group.durationHours === 'number' && group.durationHours > 0 && (
-                            <Badge variant='secondary' className='text-[10px] h-4 px-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-semibold'>
-                              {group.durationHours} hrs
+                            <Badge
+                              variant='secondary'
+                              className='text-[10px] h-4 px-1.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 font-semibold'
+                            >
+                              {group.durationHours} {c('hrs', 'giờ')}
                             </Badge>
                           )}
                         </div>
                       ) : (
-                        <Badge variant='outline' className='text-[10px] h-4 px-1.5 bg-muted text-muted-foreground'>
-                          Closed
+                        <Badge
+                          variant='outline'
+                          className='text-[10px] h-4 px-1.5 bg-muted text-muted-foreground'
+                        >
+                          {c('Closed', 'Đóng cửa')}
                         </Badge>
                       )}
                     </div>
@@ -485,7 +563,7 @@ export function StepReviewChecklistView() {
                 {/* 7-Day Visual Strip */}
                 <div className='grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 pt-1'>
                   {operatingHours.schedule.map((day) => {
-                    const shortName = DAY_SHORT_LABELS[day.day] || day.label;
+                    const shortName = getWizardDayLabel(day.day, c);
                     return (
                       <div
                         key={day.day}
@@ -495,20 +573,24 @@ export function StepReviewChecklistView() {
                             : 'bg-muted/30 border-dashed border-border/60 opacity-60'
                         }`}
                       >
-                        <span className='text-[11px] font-bold text-foreground block'>{shortName}</span>
+                        <span className='text-[11px] font-bold text-foreground block'>
+                          {shortName}
+                        </span>
                         {day.isOpen ? (
                           <div className='mt-1'>
                             <span className='text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 block truncate'>
                               {day.openTime}
                             </span>
-                            <span className='text-[9px] text-muted-foreground block leading-tight'>to</span>
+                            <span className='text-[9px] text-muted-foreground block leading-tight'>
+                              {c('to', 'đến')}
+                            </span>
                             <span className='text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 block truncate'>
                               {day.closeTime}
                             </span>
                           </div>
                         ) : (
                           <span className='text-[10px] font-medium text-muted-foreground mt-1.5 block'>
-                            Closed
+                            {c('Closed', 'Đóng cửa')}
                           </span>
                         )}
                       </div>
@@ -523,18 +605,28 @@ export function StepReviewChecklistView() {
           <div className='grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-border/60 text-xs'>
             <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
-                Public Holidays Policy
+                {c('Public Holidays Policy', 'Chính sách ngày lễ')}
               </span>
               <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
                 {operatingHours.blockHolidays ? (
                   <>
                     <ShieldCheck className='size-3.5 text-emerald-600 shrink-0' />
-                    <span>Auto-block on 5 statutory holidays (11 official days + compensatory)</span>
+                    <span>
+                      {c(
+                        'Auto-block on 5 statutory holidays (11 official days + compensatory)',
+                        'Tự động ngừng nhận đặt vào ngày lễ (11 ngày chính thức và ngày nghỉ bù)'
+                      )}
+                    </span>
                   </>
                 ) : (
                   <>
                     <AlertCircle className='size-3.5 text-muted-foreground shrink-0' />
-                    <span>Standard hours apply on public holidays (No auto-block)</span>
+                    <span>
+                      {c(
+                        'Standard hours apply on public holidays (No auto-block)',
+                        'Áp dụng giờ hoạt động thông thường vào ngày lễ'
+                      )}
+                    </span>
                   </>
                 )}
               </span>
@@ -542,18 +634,25 @@ export function StepReviewChecklistView() {
 
             <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
-                Check-in Grace Period
+                {c('Check-in Grace Period', 'Thời gian nhận chỗ sớm')}
               </span>
               <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
                 {operatingHours.allowGracePeriod ? (
                   <>
                     <CheckCircle2 className='size-3.5 text-emerald-600 shrink-0' />
-                    <span>15-minute early check-in allowed before official opening</span>
+                    <span>
+                      {c(
+                        '15-minute early check-in allowed before official opening',
+                        'Cho phép nhận chỗ sớm 15 phút'
+                      )}
+                    </span>
                   </>
                 ) : (
                   <>
                     <Clock className='size-3.5 text-muted-foreground shrink-0' />
-                    <span>Standard check-in at scheduled booking start</span>
+                    <span>
+                      {c('Standard check-in at scheduled booking start', 'Nhận chỗ đúng giờ đặt')}
+                    </span>
                   </>
                 )}
               </span>
@@ -561,21 +660,31 @@ export function StepReviewChecklistView() {
 
             <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
-                Check-in Access Type
+                {c('Check-in Access Type', 'Hình thức ra vào')}
               </span>
               <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
                 <QrCode className='size-3.5 text-indigo-600 shrink-0' />
-                <span>Automated QR Gate &amp; Smart Turnstile Access</span>
+                <span>
+                  {c(
+                    'Automated QR Gate & Smart Turnstile Access',
+                    'Cổng QR và cổng kiểm soát thông minh'
+                  )}
+                </span>
               </span>
             </div>
 
             <div className='p-2.5 rounded-lg border border-border/60 bg-muted/20'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider block'>
-                Cancellation Policy
+                {c('Cancellation Policy', 'Chính sách hủy')}
               </span>
               <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
                 <CheckCircle2 className='size-3.5 text-emerald-600 shrink-0' />
-                <span>Flexible (Full refund up to 2 hours before booking)</span>
+                <span>
+                  {c(
+                    'Flexible (Full refund up to 2 hours before booking)',
+                    'Linh hoạt (hoàn tiền toàn bộ nếu hủy trước giờ đặt ít nhất 2 tiếng)'
+                  )}
+                </span>
               </span>
             </div>
           </div>
@@ -589,8 +698,15 @@ export function StepReviewChecklistView() {
                 <ImageIcon className='size-5' />
               </div>
               <div>
-                <h2 className='text-sm sm:text-base font-bold text-foreground'>Amenities &amp; Media Assets</h2>
-                <p className='text-xs text-muted-foreground'>Facility perks, high-resolution photography &amp; hero media assets</p>
+                <h2 className='text-sm sm:text-base font-bold text-foreground'>
+                  {c('Amenities & Media Assets', 'Tiện ích và thư viện ảnh')}
+                </h2>
+                <p className='text-xs text-muted-foreground'>
+                  {c(
+                    'Facility perks, high-resolution photography & hero media assets',
+                    'Tiện ích, ảnh chất lượng cao và ảnh bìa'
+                  )}
+                </p>
               </div>
             </div>
             <div className='flex items-center gap-2'>
@@ -607,11 +723,16 @@ export function StepReviewChecklistView() {
               <Button
                 variant='ghost'
                 size='sm'
-                onClick={() => router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities', search: (prev) => prev })}
+                onClick={() =>
+                  router.navigate({
+                    to: '/dashboard/organizer/workspaces/create/amenities',
+                    search: (prev) => prev
+                  })
+                }
                 className='h-8 text-xs text-muted-foreground hover:text-indigo-600 gap-1'
               >
                 <Edit className='size-3.5' />
-                <span className='hidden sm:inline'>Edit Step 3-4</span>
+                <span className='hidden sm:inline'>{c('Edit Step 3-4', 'Sửa bước 3–4')}</span>
               </Button>
             </div>
           </div>
@@ -620,9 +741,12 @@ export function StepReviewChecklistView() {
           <div>
             <div className='flex items-center justify-between text-xs mb-2'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider'>
-                Selected Amenities ({amenities.length} Verified)
+                {c('Selected Amenities (', 'Tiện ích đã chọn (')}
+                {amenities.length} {c('Verified)', 'đã xác minh)')}
               </span>
-              <span className='text-muted-foreground text-[11px]'>Certified by host</span>
+              <span className='text-muted-foreground text-[11px]'>
+                {c('Certified by host', 'Đối tác xác nhận')}
+              </span>
             </div>
             <div className='flex flex-wrap gap-1.5'>
               {amenities.slice(0, 10).map((am) => (
@@ -636,7 +760,7 @@ export function StepReviewChecklistView() {
               ))}
               {amenities.length > 10 && (
                 <span className='px-2 py-1 rounded bg-muted text-muted-foreground text-xs'>
-                  +{amenities.length - 10} more
+                  +{amenities.length - 10} {c('more', 'khác')}
                 </span>
               )}
             </div>
@@ -647,9 +771,17 @@ export function StepReviewChecklistView() {
             <div className='p-3.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 flex items-start gap-2.5 text-xs'>
               <AlertTriangle className='size-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5' />
               <div>
-                <p className='font-semibold'>Local Previews Only (Upload Service Offline)</p>
+                <p className='font-semibold'>
+                  {c(
+                    'Local Previews Only (Upload Service Offline)',
+                    'Chỉ có ảnh xem trước (dịch vụ tải ảnh ngoại tuyến)'
+                  )}
+                </p>
                 <p className='mt-0.5 text-amber-800/90 dark:text-amber-300/90'>
-                  Your gallery contains only temporary local file previews. Because cloud storage is not connected, these photos cannot be saved to the server or submitted for review. At least 1 durable photograph is required.
+                  {c(
+                    'Your gallery contains only temporary local file previews. Because cloud storage is not connected, these photos cannot be saved to the server or submitted for review. At least 1 durable photograph is required.',
+                    'Thư viện chỉ có ảnh xem trước tạm thời, chưa lưu lên máy chủ. Cần ít nhất 1 ảnh đã tải lên để gửi hồ sơ.'
+                  )}
                 </p>
               </div>
             </div>
@@ -659,9 +791,12 @@ export function StepReviewChecklistView() {
           <div>
             <div className='flex items-center justify-between text-xs mb-2'>
               <span className='text-[10px] uppercase font-bold text-muted-foreground tracking-wider'>
-                Media Assets ({media.items.length} Photos in Gallery)
+                {c('Media Assets (', 'Thư viện ảnh (')}
+                {media.items.length} {c('Photos in Gallery)', 'ảnh)')}
               </span>
-              <span className='text-muted-foreground text-[11px]'>Standard 16:9 ratio</span>
+              <span className='text-muted-foreground text-[11px]'>
+                {c('Standard 16:9 ratio', 'Tỷ lệ tiêu chuẩn 16:9')}
+              </span>
             </div>
             <div className='grid grid-cols-2 sm:grid-cols-4 gap-3'>
               {/* Cover Photo */}
@@ -674,23 +809,29 @@ export function StepReviewChecklistView() {
                   />
                   <span className='absolute top-2 left-2 px-2 py-0.5 rounded bg-black/80 text-white text-[10px] font-bold flex items-center gap-1 backdrop-blur-xs'>
                     <Star className='size-3 text-amber-400 fill-amber-400' />
-                    <span>Cover Photo</span>
+                    <span>{c('Cover Photo', 'Ảnh bìa')}</span>
                   </span>
                 </div>
               )}
               {/* Other Thumbnails */}
-              {media.items.filter((m) => m.id !== coverPhoto?.id).slice(0, 2).map((photo) => (
-                <div key={photo.id} className='relative h-32 rounded-lg overflow-hidden border border-border group bg-muted'>
-                  <img
-                    src={photo.url}
-                    alt={photo.name}
-                    className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-200'
-                  />
-                  <span className='absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-medium truncate max-w-[120px]'>
-                    {photo.caption || photo.name}
-                  </span>
-                </div>
-              ))}
+              {media.items
+                .filter((m) => m.id !== coverPhoto?.id)
+                .slice(0, 2)
+                .map((photo) => (
+                  <div
+                    key={photo.id}
+                    className='relative h-32 rounded-lg overflow-hidden border border-border group bg-muted'
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.name}
+                      className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-200'
+                    />
+                    <span className='absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/70 text-white text-[10px] font-medium truncate max-w-[120px]'>
+                      {photo.caption || photo.name}
+                    </span>
+                  </div>
+                ))}
             </div>
           </div>
         </section>
@@ -703,7 +844,9 @@ export function StepReviewChecklistView() {
           <div className='flex flex-col w-full sm:w-auto'>
             <div className='flex items-center gap-3'>
               <span className='text-xs sm:text-sm font-bold text-foreground'>
-                {completedSectionsCount} of {auditSections.length} Overview Sections Ready ({auditScorePercent}%)
+                {completedSectionsCount} {c('of', 'trên')} {auditSections.length}{' '}
+                {c('Overview Sections Ready (', 'Các mục đã hoàn tất (')}
+                {auditScorePercent}%)
               </span>
               <div className='h-2 w-32 bg-muted rounded-full overflow-hidden'>
                 <div
@@ -715,7 +858,10 @@ export function StepReviewChecklistView() {
               </div>
             </div>
             <span className='text-[11px] text-muted-foreground mt-0.5'>
-              Save as DRAFT and return to Workspaces, or continue to Setup Floor &amp; Zone.
+              {c(
+                'Save as DRAFT and return to Workspaces, or continue to Setup Floor & Zone.',
+                'Lưu bản nháp và về danh sách không gian, hoặc tiếp tục thiết lập tầng và khu vực.'
+              )}
             </span>
           </div>
 
@@ -728,8 +874,16 @@ export function StepReviewChecklistView() {
               onClick={handleSaveAsDraftAndExit}
               className='h-10 px-4 text-xs sm:text-sm font-medium border-border gap-1.5'
             >
-              {isSaving || isSubmitting ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-              <span>{isSaving ? 'Saving Draft...' : 'Save Draft'}</span>
+              {isSaving || isSubmitting ? (
+                <Loader2 className='size-4 animate-spin' />
+              ) : (
+                <Save className='size-4' />
+              )}
+              <span>
+                {isSaving
+                  ? c(c('Saving Draft...', 'Đang lưu bản nháp...'), 'Đang lưu bản nháp...')
+                  : c('Save Draft', 'Lưu bản nháp')}
+              </span>
             </Button>
 
             <Button
@@ -738,8 +892,12 @@ export function StepReviewChecklistView() {
               onClick={handleGoToSetupFloorAndZone}
               className='h-10 px-5 text-xs sm:text-sm font-semibold gap-2 shadow-xs transition-all bg-indigo-600 hover:bg-indigo-700 text-white'
             >
-              <span>Go to Setup Floor &amp; Zone</span>
-              {isSubmitting ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+              <span>{c('Go to Setup Floor & Zone', 'Thiết lập tầng và khu vực')}</span>
+              {isSubmitting ? (
+                <Loader2 className='size-4 animate-spin' />
+              ) : (
+                <ArrowRight className='size-4' />
+              )}
             </Button>
           </div>
         </div>
@@ -749,15 +907,24 @@ export function StepReviewChecklistView() {
       <Dialog open={isPreviewModalOpen} onOpenChange={setIsPreviewModalOpen}>
         <DialogContent className='sm:max-w-2xl max-h-[85vh] overflow-y-auto'>
           <DialogHeader>
-            <DialogTitle>Public Marketplace Listing Preview</DialogTitle>
+            <DialogTitle>
+              {c('Public Marketplace Listing Preview', 'Xem trước trang không gian công khai')}
+            </DialogTitle>
             <DialogDescription>
-              This is how customers will see your workspace in the NexSpace mobile &amp; web apps.
+              {c(
+                'This is how customers will see your workspace in the NexSpace mobile & web apps.',
+                'Đây là cách khách hàng nhìn thấy không gian trên ứng dụng và website NexSpace.'
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className='space-y-4 py-2'>
             {coverPhoto && (
               <div className='relative w-full aspect-video rounded-xl overflow-hidden border border-border'>
-                <img src={coverPhoto.url} alt={basicInfo.name} className='w-full h-full object-cover' />
+                <img
+                  src={coverPhoto.url}
+                  alt={basicInfo.name}
+                  className='w-full h-full object-cover'
+                />
                 <div className='absolute bottom-3 left-3 bg-black/70 backdrop-blur-xs text-white px-3 py-1.5 rounded-lg text-xs font-semibold'>
                   {basicInfo.category.replace('_', ' ')}
                 </div>
@@ -767,12 +934,18 @@ export function StepReviewChecklistView() {
               <h3 className='text-lg font-bold text-foreground'>{basicInfo.name}</h3>
               <p className='text-xs text-muted-foreground flex items-center gap-1 mt-1'>
                 <MapPin className='size-3.5 text-muted-foreground' />
-                <span>{location.streetAddress || 'Address will be inherited from the linked building'}</span>
+                <span>
+                  {location.streetAddress || 'Address will be inherited from the linked building'}
+                </span>
               </p>
-              <p className='text-xs text-foreground mt-2 leading-relaxed'>{basicInfo.description}</p>
+              <p className='text-xs text-foreground mt-2 leading-relaxed'>
+                {basicInfo.description}
+              </p>
             </div>
             <div className='border-t border-border pt-3'>
-              <h4 className='text-xs font-bold text-foreground mb-1.5'>Featured Amenities</h4>
+              <h4 className='text-xs font-bold text-foreground mb-1.5'>
+                {c('Featured Amenities', 'Tiện ích nổi bật')}
+              </h4>
               <div className='flex flex-wrap gap-1'>
                 {amenities.map((a) => (
                   <Badge key={a} variant='secondary' className='text-[10px] capitalize'>
@@ -783,7 +956,9 @@ export function StepReviewChecklistView() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant='outline' onClick={() => setIsPreviewModalOpen(false)}>Close Preview</Button>
+            <Button variant='outline' onClick={() => setIsPreviewModalOpen(false)}>
+              {c('Close Preview', 'Đóng xem trước')}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

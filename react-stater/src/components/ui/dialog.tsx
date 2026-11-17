@@ -13,8 +13,31 @@ function DialogTrigger({ ...props }: React.ComponentProps<typeof DialogPrimitive
   return <DialogPrimitive.Trigger data-slot='dialog-trigger' {...props} />;
 }
 
-function DialogPortal({ ...props }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
-  return <DialogPrimitive.Portal data-slot='dialog-portal' {...props} />;
+const subscribeToFullscreen = (notify: () => void) => {
+  document.addEventListener('fullscreenchange', notify);
+  return () => document.removeEventListener('fullscreenchange', notify);
+};
+const fullscreenContainer = () =>
+  document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null;
+const serverFullscreenContainer = () => null;
+
+function DialogPortal({
+  container,
+  ...props
+}: React.ComponentProps<typeof DialogPrimitive.Portal>) {
+  const fullscreen = React.useSyncExternalStore(
+    subscribeToFullscreen,
+    fullscreenContainer,
+    serverFullscreenContainer
+  );
+  // Native fullscreen only displays descendants of its root, including confirmation dialogs.
+  return (
+    <DialogPrimitive.Portal
+      data-slot='dialog-portal'
+      container={container ?? fullscreen ?? undefined}
+      {...props}
+    />
+  );
 }
 
 function DialogClose({ ...props }: React.ComponentProps<typeof DialogPrimitive.Close>) {

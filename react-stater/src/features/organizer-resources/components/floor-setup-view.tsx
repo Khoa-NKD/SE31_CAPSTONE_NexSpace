@@ -11,13 +11,12 @@ import {
   resourceWorkspacesOptions,
   resourceOptions,
   canConfigureWorkspaceResources,
-  invalidateResources,
-  type ResourceDetail
+  invalidateResources
 } from '../api/resources';
 import { FloorCanvasWorkspace } from './floor-canvas-workspace';
 import { WorkspaceFloorGallery } from './workspace-floor-gallery';
 import { WorkspaceBuildingView } from './workspace-building-view';
-import { ResourceEditor, ResourceSetupDialog } from './resource-editor';
+import { ResourceSetupDialog } from './resource-editor';
 
 const subscribe = () => () => {};
 export type FloorStudioLocation = { workspaceId?: number; floorId?: number; setup?: boolean };
@@ -51,9 +50,8 @@ export function FloorSetupView({
     options.data?.floors.some((f) => f.location?.buildingId === b.id)
   );
   const [dialog, setDialog] = useState<{
-    kind: 'floor' | 'type' | 'resource';
+    kind: 'floor' | 'type';
     floorId: number;
-    resource?: ResourceDetail;
   } | null>(null);
   const saved = () => invalidateResources(client, actorId);
   if (!mounted || (allowed && (workspaces.isPending || (!!selected && options.isPending))))
@@ -121,23 +119,6 @@ export function FloorSetupView({
     );
   const setupNeedsFloor =
     location.setup && !floor && canConfigureWorkspaceResources(selected.status);
-  if (dialog?.kind === 'resource')
-    return (
-      <ResourceEditor
-        workspaceId={selected.id}
-        options={
-          dialog.resource
-            ? options.data
-            : {
-                ...options.data,
-                floors: options.data.floors.filter((item) => item.id === dialog.floorId)
-              }
-        }
-        current={dialog.resource}
-        onSaved={saved}
-        onClose={() => setDialog(null)}
-      />
-    );
   return (
     <>
       {!floor && physicalBuilding && options.data.floors.some((f) => !f.location) && (
@@ -188,9 +169,6 @@ export function FloorSetupView({
           onBack={() => onNavigate({ workspaceId: selected.id })}
           onSaved={saved}
           onAdd={(kind, floorId) => setDialog({ kind, floorId })}
-          onEditResource={(resource) =>
-            setDialog({ kind: 'resource', floorId: resource.floorPlanId, resource })
-          }
         />
       ) : (
         <WorkspaceBuildingView

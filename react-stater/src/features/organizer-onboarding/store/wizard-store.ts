@@ -40,7 +40,13 @@ export const INITIAL_LOCATION: LocationValues = {
 export const INITIAL_SCHEDULE: DaySchedule[] = [
   { day: 'monday', label: 'Monday', isOpen: true, openTime: '08:00 AM', closeTime: '10:00 PM' },
   { day: 'tuesday', label: 'Tuesday', isOpen: true, openTime: '08:00 AM', closeTime: '10:00 PM' },
-  { day: 'wednesday', label: 'Wednesday', isOpen: true, openTime: '08:00 AM', closeTime: '10:00 PM' },
+  {
+    day: 'wednesday',
+    label: 'Wednesday',
+    isOpen: true,
+    openTime: '08:00 AM',
+    closeTime: '10:00 PM'
+  },
   { day: 'thursday', label: 'Thursday', isOpen: true, openTime: '08:00 AM', closeTime: '10:00 PM' },
   { day: 'friday', label: 'Friday', isOpen: true, openTime: '08:00 AM', closeTime: '10:00 PM' },
   { day: 'saturday', label: 'Saturday', isOpen: true, openTime: '09:00 AM', closeTime: '06:00 PM' },
@@ -172,7 +178,9 @@ export interface WizardStore extends OnboardingDraftState {
   addZone: (zone: ZoneItem) => void;
   updateZone: (id: string, updates: Partial<ZoneItem>) => void;
   removeZone: (id: string) => void;
-  setFloorPlanSettings: (settings: Partial<Pick<FloorPlanValues, 'gridSnap' | 'showDimensions' | 'zoomLevel'>>) => void;
+  setFloorPlanSettings: (
+    settings: Partial<Pick<FloorPlanValues, 'gridSnap' | 'showDimensions' | 'zoomLevel'>>
+  ) => void;
   setSubmissionStatus: (status: 'draft' | 'under_review' | 'published') => void;
   setCanonicalWorkspace: (id: string, version: number) => void;
   setClientDraftKey: (key: string) => void;
@@ -563,6 +571,7 @@ export const useWizardStore = create<WizardStore>()(
 
       resetDraft: () =>
         set(() => ({
+          isSavingToServer: false,
           version: 1,
           lastSavedAt: new Date().toISOString(),
           isDraftSynced: true,
@@ -620,7 +629,9 @@ export const useWizardStore = create<WizardStore>()(
           floorPlan: {
             ...currentState.floorPlan,
             ...p.floorPlan,
-            floors: p.floorPlan?.floors?.length ? p.floorPlan.floors : currentState.floorPlan.floors,
+            floors: p.floorPlan?.floors?.length
+              ? p.floorPlan.floors
+              : currentState.floorPlan.floors,
             zones: p.floorPlan?.zones?.length ? p.floorPlan.zones : currentState.floorPlan.zones
           },
           submissionStatus: p.submissionStatus || currentState.submissionStatus

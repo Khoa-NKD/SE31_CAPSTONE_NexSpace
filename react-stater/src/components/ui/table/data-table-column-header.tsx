@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import type { Column } from '@tanstack/react-table';
 import { Icons } from '@/components/icons';
 
@@ -23,6 +24,7 @@ export function DataTableColumnHeader<TData, TValue>({
   className,
   ...props
 }: DataTableColumnHeaderProps<TData, TValue>) {
+  const c = useOrganizerCopy();
   if (!column.getCanSort() && !column.getCanHide()) {
     return <div className={cn(className)}>{title}</div>;
   }
@@ -55,7 +57,8 @@ export function DataTableColumnHeader<TData, TValue>({
               onClick={() => column.toggleSorting(false)}
             >
               <Icons.chevronUp />
-              Asc
+
+              {c('Asc', 'Tăng dần')}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
               className='[&_svg]:text-muted-foreground relative pr-8 pl-2 [&>span:first-child]:right-2 [&>span:first-child]:left-auto'
@@ -63,7 +66,8 @@ export function DataTableColumnHeader<TData, TValue>({
               onClick={() => column.toggleSorting(true)}
             >
               <Icons.chevronDown />
-              Desc
+
+              {c('Desc', 'Giảm dần')}
             </DropdownMenuCheckboxItem>
             {column.getIsSorted() && (
               <DropdownMenuItem
@@ -71,7 +75,8 @@ export function DataTableColumnHeader<TData, TValue>({
                 onClick={() => column.clearSorting()}
               >
                 <Icons.close />
-                Reset
+
+                {c('Reset', 'Đặt lại')}
               </DropdownMenuItem>
             )}
           </>
@@ -83,7 +88,8 @@ export function DataTableColumnHeader<TData, TValue>({
             onClick={() => column.toggleVisibility(false)}
           >
             <Icons.eyeOff />
-            Hide
+
+            {c('Hide', 'Ẩn')}
           </DropdownMenuCheckboxItem>
         )}
       </DropdownMenuContent>

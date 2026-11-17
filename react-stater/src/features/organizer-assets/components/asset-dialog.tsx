@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -17,7 +18,10 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { useCreateWorkspaceAssetMutation, useUpdateWorkspaceAssetMutation } from '@/features/workspaces/api/mutations';
+import {
+  useCreateWorkspaceAssetMutation,
+  useUpdateWorkspaceAssetMutation
+} from '@/features/workspaces/api/mutations';
 import type { AssetStatus, WorkspaceAssetDto } from '@/features/workspaces/api/types';
 import { Loader2 } from 'lucide-react';
 
@@ -35,6 +39,7 @@ interface AssetFormProps {
 }
 
 function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
+  const c = useOrganizerCopy();
   const isEdit = Boolean(assetToEdit);
 
   const [assetCode, setAssetCode] = useState(assetToEdit?.assetCode || '');
@@ -114,11 +119,11 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
         <div className='space-y-1.5'>
           <Label htmlFor='assetCode' className='text-xs font-semibold'>
-            Mã tài sản <span className='text-rose-500'>*</span>
+            {c('Asset code', 'Mã tài sản')} <span className='text-rose-500'>*</span>
           </Label>
           <Input
             id='assetCode'
-            placeholder='VD: PRJ-001, AIR-002...'
+            placeholder={c('e.g. PRJ-001, AIR-002...', 'VD: PRJ-001, AIR-002...')}
             value={assetCode}
             onChange={(e) => setAssetCode(e.target.value)}
             required
@@ -127,11 +132,11 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
         <div className='space-y-1.5'>
           <Label htmlFor='assetName' className='text-xs font-semibold'>
-            Tên tài sản <span className='text-rose-500'>*</span>
+            {c('Asset name', 'Tên tài sản')} <span className='text-rose-500'>*</span>
           </Label>
           <Input
             id='assetName'
-            placeholder='VD: Máy chiếu Epson EB-X06...'
+            placeholder={c('e.g. Epson EB-X06 projector...', 'VD: Máy chiếu Epson EB-X06...')}
             value={name}
             onChange={(e) => setName(e.target.value)}
             required
@@ -142,7 +147,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
         <div className='space-y-1.5 min-w-0'>
           <Label htmlFor='quantity' className='text-xs font-semibold'>
-            Số lượng
+            {c('Quantity', 'Số lượng')}
           </Label>
           <Input
             id='quantity'
@@ -156,17 +161,22 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
         <div className='space-y-1.5 min-w-0'>
           <Label htmlFor='status' className='text-xs font-semibold'>
-            Trạng thái hoạt động
+            {c('Operational status', 'Trạng thái hoạt động')}
           </Label>
           <Select value={status} onValueChange={(val: AssetStatus) => setStatus(val)}>
-            <SelectTrigger id='status' className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'>
-              <SelectValue placeholder='Chọn trạng thái' />
+            <SelectTrigger
+              id='status'
+              className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'
+            >
+              <SelectValue placeholder={c('Select status', 'Chọn trạng thái')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='IN_USE'>Đang sử dụng (In Use)</SelectItem>
-              <SelectItem value='UNDER_MAINTENANCE'>Đang bảo trì (Under Maintenance)</SelectItem>
-              <SelectItem value='BROKEN'>Báo hỏng (Broken)</SelectItem>
-              <SelectItem value='RETIRED'>Ngừng sử dụng (Retired)</SelectItem>
+              <SelectItem value='IN_USE'>{c('In Use', 'Đang sử dụng (In Use)')}</SelectItem>
+              <SelectItem value='UNDER_MAINTENANCE'>
+                {c('Under Maintenance', 'Đang bảo trì (Under Maintenance)')}
+              </SelectItem>
+              <SelectItem value='BROKEN'>{c('Broken', 'Báo hỏng (Broken)')}</SelectItem>
+              <SelectItem value='RETIRED'>{c('Retired', 'Ngừng sử dụng (Retired)')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -175,7 +185,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
         <div className='space-y-1.5'>
           <Label htmlFor='purchasePrice' className='text-xs font-semibold'>
-            Giá mua (VNĐ)
+            {c('Purchase price (VND)', 'Giá mua (VNĐ)')}
           </Label>
           <Input
             id='purchasePrice'
@@ -189,7 +199,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
         <div className='space-y-1.5'>
           <Label htmlFor='purchaseDate' className='text-xs font-semibold'>
-            Ngày mua
+            {c('Purchase date', 'Ngày mua')}
           </Label>
           <Input
             id='purchaseDate'
@@ -203,7 +213,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
         <div className='space-y-1.5'>
           <Label htmlFor='warrantyUntil' className='text-xs font-semibold'>
-            Thời hạn bảo hành
+            {c('Warranty expiry', 'Thời hạn bảo hành')}
           </Label>
           <Input
             id='warrantyUntil'
@@ -215,7 +225,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
         <div className='space-y-1.5'>
           <Label htmlFor='nextMaintenanceDate' className='text-xs font-semibold'>
-            Lịch bảo trì tiếp theo
+            {c('Next maintenance date', 'Lịch bảo trì tiếp theo')}
           </Label>
           <Input
             id='nextMaintenanceDate'
@@ -228,25 +238,23 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
       <div className='space-y-1.5'>
         <Label htmlFor='note' className='text-xs font-semibold'>
-          Ghi chú vị trí / mô tả bổ sung
+          {c('Location notes / additional description', 'Ghi chú vị trí / mô tả bổ sung')}
         </Label>
         <Textarea
           id='note'
           rows={3}
-          placeholder='VD: Đặt cố định tại phòng họp Sapphire tầng 2...'
+          placeholder={c(
+            'e.g. Installed in the Sapphire meeting room on floor 2...',
+            'VD: Đặt cố định tại phòng họp Sapphire tầng 2...'
+          )}
           value={note}
           onChange={(e) => setNote(e.target.value)}
         />
       </div>
 
       <DialogFooter className='pt-2'>
-        <Button
-          type='button'
-          variant='outline'
-          onClick={onClose}
-          disabled={isSubmitting}
-        >
-          Hủy
+        <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
+          {c('Cancel', 'Hủy')}
         </Button>
         <Button
           type='submit'
@@ -254,19 +262,15 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           className='bg-indigo-600 hover:bg-indigo-700 text-white'
         >
           {isSubmitting && <Loader2 className='w-4 h-4 animate-spin mr-2' />}
-          {isEdit ? 'Lưu thay đổi' : 'Thêm tài sản'}
+          {isEdit ? c('Save changes', 'Lưu thay đổi') : c('Add asset', 'Thêm tài sản')}
         </Button>
       </DialogFooter>
     </form>
   );
 }
 
-export function AssetDialog({
-  open,
-  onOpenChange,
-  workspaceId,
-  assetToEdit
-}: AssetDialogProps) {
+export function AssetDialog({ open, onOpenChange, workspaceId, assetToEdit }: AssetDialogProps) {
+  const c = useOrganizerCopy();
   const isEdit = Boolean(assetToEdit);
 
   return (
@@ -274,7 +278,12 @@ export function AssetDialog({
       <DialogContent className='max-w-xl max-h-[90vh] overflow-y-auto overflow-x-hidden'>
         <DialogHeader className='min-w-0 overflow-hidden pr-6'>
           <DialogTitle className='truncate'>
-            {isEdit ? `Chỉnh sửa tài sản #${assetToEdit?.assetCode}` : 'Thêm tài sản / thiết bị mới'}
+            {isEdit
+              ? c(
+                  `Edit asset #${assetToEdit?.assetCode}`,
+                  `Chỉnh sửa tài sản #${assetToEdit?.assetCode}`
+                )
+              : c('Add asset / equipment', 'Thêm tài sản / thiết bị mới')}
           </DialogTitle>
         </DialogHeader>
 
