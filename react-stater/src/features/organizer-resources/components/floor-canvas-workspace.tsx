@@ -223,8 +223,35 @@ export function FloorCanvasWorkspace({
     Number(selectedType?.standardWidthM) > 0 && Number(selectedType?.standardLengthM) > 0;
   const [availabilityMode, setAvailabilityMode] = useState(false);
   const [calendarFocus, setCalendarFocus] = useState({ key: null as string | null, sequence: 0 });
-  const calendar = useFloorAvailability(actorId, workspaceId, floorId, availabilityMode);
+  const calendar = useFloorAvailability(actorId, workspaceId, floorId, availabilityMode, layout);
   const calendarState = (key: string) => calendar.states[Number(key.slice('resource:'.length))];
+  const availabilityStatus = (key: string) => {
+    const state = calendarState(key);
+    const resource = layout?.resources.find((item) => `resource:${item.id}` === key);
+    const room = resource?.category === 'DESK' && resource.parentRoomId
+      ? layout?.resources.find((item) => item.id === resource.parentRoomId)
+      : undefined;
+    return (
+      <span className='mt-1.5 block space-y-1'>
+        <span
+          className='inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold'
+          style={state ? { color: availabilityColors[state], borderColor: availabilityColors[state] } : undefined}
+        >
+          {state && <span className='size-1.5 shrink-0 rounded-full bg-current' />}
+          {state
+            ? availabilityLabel(state, language === 'vi')
+            : calendar.query.isPending
+              ? c('Loading status…', 'Đang tải trạng thái…')
+              : c('Status unavailable', 'Chưa tải được trạng thái')}
+        </span>
+        {room && (
+          <span className='block truncate text-[10px] text-muted-foreground' title={room.name}>
+            {c('Follows room', 'Theo phòng')}: {room.name}
+          </span>
+        )}
+      </span>
+    );
+  };
   const focusCalendar = (key: string | null) =>
     setCalendarFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
   const [undo, setUndo] = useState<PlacementFields[]>([]);
@@ -1430,18 +1457,7 @@ export function FloorCanvasWorkspace({
                   <span className='block truncate text-[10px] text-muted-foreground'>
                     {entry.sub}
                   </span>
-                  {availabilityMode && !entry.object && (
-                    <span
-                      className='mt-1 block text-[10px] font-semibold'
-                      style={{ color: availabilityColors[calendarState(entry.key)] }}
-                    >
-                      {calendarState(entry.key)
-                        ? availabilityLabel(calendarState(entry.key), language === 'vi')
-                        : calendar.query.isError
-                          ? c('Status unavailable', 'Chưa tải được trạng thái')
-                          : c('Loading status…', 'Đang tải trạng thái…')}
-                    </span>
-                  )}
+                  {availabilityMode && !entry.object && availabilityStatus(entry.key)}
                 </span>
               </button>
             ))}
@@ -2384,6 +2400,7 @@ export function FloorCanvasWorkspace({
                 <span className='min-w-0 flex-1'>
                   <span className='block truncate text-sm font-semibold'>{entry.label}</span>
                   <span className='block truncate text-xs text-muted-foreground'>{entry.sub}</span>
+                  {availabilityMode && !entry.object && availabilityStatus(entry.key)}
                 </span>
                 <MousePointer2 className='size-4 shrink-0 text-muted-foreground' />
               </button>
