@@ -1,0 +1,7 @@
+# Owner document access and draft editing
+
+- `GET /api/organizer/documents/{documentId}/content?download=false` serves a current document belonging to the authenticated applicant. The owner must be active, email verified and have USER or ORGANIZER role. Another owner's document, a retained version or a missing document returns 404. The binary response uses no-store, nosniff and sandbox headers. Storage keys remain private.
+- The existing `POST /api/organizer/applications/current/correction-documents` also accepts DRAFT profiles. Replacement requires the current lifecycle revision and explicit expected document ID. The profile lock serializes replacement and submission; old versions and files are retained, and the new version is PENDING.
+- Draft replacement does not submit the application. REVISION_REQUESTED allows correction and explicit resubmission. REJECTED is final: it does not allow correction or resubmission. PENDING_REVIEW, APPROVED and suspended profiles also cannot change documents through this endpoint. See `organizer-review-decisions.md` for the current decision rules.
+- The application page reuses the existing image and PDF viewer, including download, zoom, rotation and PDF pagination. Interface text follows the shared Vietnamese/English language selection; user-entered data and reviewer comments are preserved.
+- No schema changes or shared-database test fixtures are required.

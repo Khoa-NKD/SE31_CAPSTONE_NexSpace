@@ -1,0 +1,98 @@
+<#
+.SYNOPSIS
+    Script đồng bộ tự động file application-local.properties từ GitHub Secret Gist hoặc file mẫu.
+.DESCRIPTION
+    Tải file cấu hình bí mật cho team NexSpace mà không cần đưa mật khẩu lên Git public repo.
+#>
+
+$TargetDir = Join-Path $PSScriptRoot "spring-starter/src/main/resources"
+$TargetFile = Join-Path $TargetDir "application-local.properties"
+$ExampleFile = Join-Path $TargetDir "application-local.properties.example"
+$UrlFile = Join-Path $PSScriptRoot ".gist-url"
+
+Write-Host "==========================================================" -ForegroundColor Cyan
+Write-Host " NexSpace - Dong bo cau hinh application-local.properties" -ForegroundColor Cyan
+Write-Host "==========================================================" -ForegroundColor Cyan
+
+# 1. Kiem tra thu muc target
+if (-not (Test-Path $TargetDir)) {
+    New-Item -ItemType Directory -Path $TargetDir -Force | Out-Null
+}
+
+# 2. Lay duong link Gist
+$GistUrl = ""
+if (Test-Path $UrlFile) {
+    $GistUrl = (Get-Content $UrlFile -Raw).Trim()
+}
+
+# Tu dong trich xuat Gist ID tu URL cache neu co
+if ($GistUrl -match "([a-f0-9]{32})") {
+    $GistUrl = "https://gist.githubusercontent.com/raw/$($Matches[1])"
+}
+
+if ([string]::IsNullOrWhiteSpace($GistUrl)) {
+    Write-Host "`nChua co cau hinh link Gist cua nhom!" -ForegroundColor Yellow
+    Write-Host "1. Nhap link Secret Gist hoac Raw URL cua nhom (chi can nhap 1 lan duy nhat):"
+    Write-Host "2. Hoac nhan Enter de tu dong tao tu application-local.properties.example (offline mode):"
+    $InputUrl = Read-Host "Link Gist [Enter de dung file .example]"
+    $InputUrl = $InputUrl.Trim()
+    
+    if ([string]::IsNullOrWhiteSpace($InputUrl)) {
+        if (Test-Path $ExampleFile) {
+            Copy-Item $ExampleFile $TargetFile -Force
+            Write-Host "`n[+] Da tao file cau hinh mau tu .example tai:" -ForegroundColor Green
+            Write-Host "    $TargetFile" -ForegroundColor Yellow
+            Write-Host "[*] Vui long mo file tren va dien thong tin ket noi MySQL/Secrets cua ban." -ForegroundColor Cyan
+            exit 0
+        } else {
+            Write-Host "[-] Khong tim thay file $ExampleFile" -ForegroundColor Red
+            exit 1
+        }
+    }
+    $GistUrl = $InputUrl
+}
+
+# Tu dong trich xuat 32 ky tu hex Gist ID tu bat ky link Gist nao
+if ($GistUrl -match "([a-f0-9]{32})") {
+    $GistId = $Matches[1]
+    $GistUrl = "https://gist.githubusercontent.com/raw/$GistId"
+    Write-Host "[*] Nhan dien Gist ID: $GistId" -ForegroundColor Gray
+    Write-Host "[*] Tu dong chuyen doi sang Raw Gist URL: $GistUrl" -ForegroundColor Gray
+}
+
+# 3. Tai noi dung moi nhat tu Gist (kem timestamp tranh cache)
+Write-Host "`n[*] Dang tai cau hinh moi nhat tu Gist..." -ForegroundColor Cyan
+try {
+    $Timestamp = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+    $FetchUrl = if ($GistUrl.Contains("?")) { "$GistUrl&t=$Timestamp" } else { "$GistUrl`?t=$Timestamp" }
+    
+    $Content = (Invoke-RestMethod -Uri $FetchUrl -Method Get -Headers @{ "Cache-Control" = "no-cache"; "Pragma" = "no-cache" } -ErrorAction Stop)
+
+    if ([string]::IsNullOrWhiteSpace($Content)) {
+        throw "Noi dung tai ve rong."
+    }
+
+    if ($Content -match "<!DOCTYPE html>|<html|404: Not Found") {
+        throw "Link Gist tra ve ma loi hoac trang web HTML (404 Not Found). Kiem tra lai Gist ID."
+    }
+
+    # Luu file application-local.properties
+    [System.IO.File]::WriteAllText($TargetFile, $Content, [System.Text.Encoding]::UTF8)
+
+    # Luu cache URL cho cac lan sau
+    [System.IO.File]::WriteAllText($UrlFile, $GistUrl, [System.Text.Encoding]::UTF8)
+
+    Write-Host "`n[+] THANH CONG: Da cap nhat file cau hinh tai:" -ForegroundColor Green
+    Write-Host "    $TargetFile" -ForegroundColor Yellow
+    Write-Host "[+] Gio day ban co the khoi chay Backend binh thuong!" -ForegroundColor Green
+}
+catch {
+    Write-Host "`n[-] LOI khi tai file: $_" -ForegroundColor Red
+    Write-Host "[-] Kiem tra lai duong link Gist va ket noi mang." -ForegroundColor Red
+    
+    # Xoa file cache URL de lan sau nguoi dung co the nhap lai link dung
+    if (Test-Path $UrlFile) {
+        Remove-Item $UrlFile -Force
+    }
+    exit 1
+}

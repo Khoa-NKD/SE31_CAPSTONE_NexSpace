@@ -1,0 +1,125 @@
+package base.api.shared.entity.resource;
+
+import base.api.shared.entity.BaseModel;
+import base.api.shared.enums.BookableResourceStatus;
+import base.api.shared.enums.NoiseLevel;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.FetchType;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.ManyToOne;
+import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
+
+import lombok.Getter;
+import lombok.Setter;
+
+import org.hibernate.annotations.Check;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.math.BigDecimal;
+
+/**
+ * Chỗ đặt cụ thể trên sơ đồ. Chỉ ACTIVE mới đặt được. Giá giờ hiệu lực = COALESCE(pricePerHour,
+ * resourceType.pricePerHour); giá ngày/tháng lấy từ Resource_Type, sau đó mới áp Pricing_Rule.
+ */
+@Getter
+@Setter
+@Entity
+@Table(
+        name = "bookable_resource",
+        uniqueConstraints = {
+            @UniqueConstraint(
+                    name = "ux_bookable_resource_floor_label",
+                    columnNames = {"floor_plan_id", "label"})
+        })
+@Check(
+        name = "ck_bookable_resource_price",
+        constraints = "price_per_hour IS NULL OR price_per_hour > 0")
+public class BookableResourceModel extends BaseModel {
+    @Column(name = "pos_x_m", precision = 16, scale = 6)
+    private BigDecimal posXM;
+    @Column(name = "pos_y_m", precision = 16, scale = 6)
+    private BigDecimal posYM;
+    @Column(name = "width_m", precision = 16, scale = 6)
+    private BigDecimal widthM;
+    @Column(name = "length_m", precision = 16, scale = 6)
+    private BigDecimal lengthM;
+
+    private boolean metric() {
+        return floorPlan != null && floorPlan.getBuildingFloor() != null
+                && floorPlan.getBuildingFloor().getGeometryVersion() >= 2;
+    }
+    public BigDecimal getPosX() { return metric() && posXM != null ? MetricGeometry.pixels(posXM) : posX; }
+    public BigDecimal getPosY() { return metric() && posYM != null ? MetricGeometry.pixels(posYM) : posY; }
+    public BigDecimal getWidth() { return metric() && widthM != null ? MetricGeometry.pixels(widthM) : width; }
+    public BigDecimal getHeight() { return metric() && lengthM != null ? MetricGeometry.pixels(lengthM) : height; }
+    public void setPosX(BigDecimal value) { posX = value; if (metric()) posXM = MetricGeometry.metres(value); }
+    public void setPosY(BigDecimal value) { posY = value; if (metric()) posYM = MetricGeometry.metres(value); }
+    public void setWidth(BigDecimal value) { width = value; if (metric()) widthM = MetricGeometry.metres(value); }
+    public void setHeight(BigDecimal value) { height = value; if (metric()) lengthM = MetricGeometry.metres(value); }
+
+
+    /** Optional containing room; open-area desks have no parent. Never cascade room deletion. */
+    @jakarta.persistence.ManyToOne(fetch = jakarta.persistence.FetchType.LAZY)
+    @jakarta.persistence.JoinColumn(name = "parent_room_id")
+    private BookableResourceModel parentRoom;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "floor_plan_id", nullable = false)
+    private FloorPlanModel floorPlan;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "resource_type_id", nullable = false)
+    private ResourceTypeModel resourceType;
+
+    /** VD: A-01, Phòng Sao Mai. */
+    @Column(nullable = false, length = 50)
+    private String label;
+
+    /** Display name is separate from the stable, floor-unique resource code. */
+    @Column(length = 150)
+    private String name;
+
+    @Column(name = "zone_name", length = 100)
+    private String zoneName;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(name = "noise_level", length = 20)
+    private NoiseLevel noiseLevel;
+
+    /** NULL = lấy resourceType.capacity. */
+    @Column(name = "capacity_override")
+    private Integer capacityOverride;
+
+    @Column(name = "price_per_hour", precision = 18, scale = 2)
+    private BigDecimal pricePerHour;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(name = "pos_x", precision = 10, scale = 2)
+    private BigDecimal posX;
+
+    @Column(name = "pos_y", precision = 10, scale = 2)
+    private BigDecimal posY;
+
+    @Column(precision = 8, scale = 2)
+    private BigDecimal width;
+
+    @Column(precision = 8, scale = 2)
+    private BigDecimal height;
+
+    @Column(nullable = false, precision = 6, scale = 2)
+    private BigDecimal rotation = BigDecimal.ZERO;
+
+    @Enumerated(EnumType.STRING)
+    @JdbcTypeCode(SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 20)
+    private BookableResourceStatus status = BookableResourceStatus.DRAFT;
+}

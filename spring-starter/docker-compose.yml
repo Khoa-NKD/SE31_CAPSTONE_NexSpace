@@ -1,0 +1,20 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runtime
+    image: spring-starter:local
+    container_name: spring-starter
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    # Put DB_URL, DB_USERNAME, DB_PASSWORD, JWT_SECRET, ... in a .env file next to this compose file.
+    env_file:
+      - .env
+    environment:
+      SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-prod}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL

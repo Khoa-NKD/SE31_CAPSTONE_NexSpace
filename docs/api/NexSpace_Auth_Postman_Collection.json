@@ -1,0 +1,368 @@
+{
+  "info": {
+    "_postman_id": "nexspace-auth-collection-v1",
+    "name": "NexSpace - Auth & Security API Test Collection",
+    "description": "Bộ Collection kiểm thử toàn diện 8 chức năng Authentication & Authorization của hệ thống NexSpace (Spring Boot 3.5).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "accessToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "adminToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "resetToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "verifyToken",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "testUserId",
+      "value": "2",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "0. Admin Login (Setup Token)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var jsonData = pm.response.json();",
+              "if (jsonData.success && jsonData.data && jsonData.data.accessToken) {",
+              "    pm.collectionVariables.set(\"adminToken\", jsonData.data.accessToken);",
+              "    console.log(\"Saved adminToken:\", jsonData.data.accessToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "1. Đăng ký tài khoản (Register)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 201 Created\", function () {",
+              "    pm.response.to.have.status(201);",
+              "});",
+              "var jsonData = pm.response.json();",
+              "if (jsonData.data && jsonData.data.id) {",
+              "    pm.collectionVariables.set(\"testUserId\", jsonData.data.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"userName\": \"testuser_{{$timestamp}}\",\n  \"email\": \"testuser_{{$timestamp}}@example.com\",\n  \"password\": \"Password@123\",\n  \"firstName\": \"Nguyen\",\n  \"lastName\": \"Van A\",\n  \"phone\": \"0912345678\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/register",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "register"]
+        }
+      }
+    },
+    {
+      "name": "2.1 Đăng nhập thành công (Login Success)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "pm.test(\"Status code is 200\", function () {",
+              "    pm.response.to.have.status(200);",
+              "});",
+              "var jsonData = pm.response.json();",
+              "if (jsonData.data && jsonData.data.accessToken) {",
+              "    pm.collectionVariables.set(\"accessToken\", jsonData.data.accessToken);",
+              "    console.log(\"Saved accessToken:\", jsonData.data.accessToken);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"Admin@123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "2.2 Đăng nhập sai pass (BR-03 Brute-force Test)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"WrongPassword123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/login",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "login"]
+        }
+      }
+    },
+    {
+      "name": "3.1 Lấy thông tin user hiện tại (/me)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "3.2 Đăng xuất (Logout & Revoke Token)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/logout",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "logout"]
+        }
+      }
+    },
+    {
+      "name": "3.3 Kiểm tra Token sau Logout (Kỳ vọng 401 Blacklist)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/me",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "me"]
+        }
+      }
+    },
+    {
+      "name": "4.1 Quên mật khẩu - Gửi yêu cầu (Initiate)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contactInfo\": \"admin@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/forgot-password/initiate",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "forgot-password", "initiate"]
+        }
+      }
+    },
+    {
+      "name": "4.2 Kiểm tra Reset Token hợp lệ (Verify Token)",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/forgot-password/verify-token?token={{resetToken}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "forgot-password", "verify-token"],
+          "query": [
+            { "key": "token", "value": "{{resetToken}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "5. Đặt lại mật khẩu (Complete Forgot Password)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"resetToken\": \"{{resetToken}}\",\n  \"newPassword\": \"Admin@123\",\n  \"confirmNewPassword\": \"Admin@123\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/forgot-password/complete",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "forgot-password", "complete"]
+        }
+      }
+    },
+    {
+      "name": "6. Đổi mật khẩu (Change Password)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"oldPassword\": \"Admin@123\",\n  \"newPassword\": \"Admin@456\",\n  \"confirmNewPassword\": \"Admin@456\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/change-password",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "change-password"]
+        }
+      }
+    },
+    {
+      "name": "7.1 Gửi lại email xác minh (Resend Verification)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"contactInfo\": \"admin@example.com\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/resend-verification",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "resend-verification"]
+        }
+      }
+    },
+    {
+      "name": "7.2 Xác minh email qua JSON API (SPA Direct)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"token\": \"{{verifyToken}}\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/verify-email",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "verify-email"]
+        }
+      }
+    },
+    {
+      "name": "7.3 Xác minh email qua Web Redirect 302",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/api/auth/verify-email?token={{verifyToken}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "auth", "verify-email"],
+          "query": [
+            { "key": "token", "value": "{{verifyToken}}" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "8.1 Khóa tài khoản (Admin Lock User - BR-31)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"LOCKED\",\n  \"reason\": \"Nghi vấn hành vi gian lận và vi phạm điều khoản dịch vụ\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "users", "{{testUserId}}", "status"]
+        }
+      }
+    },
+    {
+      "name": "8.2 Mở khóa tài khoản (Admin Unlock User)",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"status\": \"ACTIVE\",\n  \"reason\": \"Xác minh thông tin tài khoản hợp lệ, mở khóa phục hồi quyền truy cập\"\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/api/admin/users/{{testUserId}}/status",
+          "host": ["{{baseUrl}}"],
+          "path": ["api", "admin", "users", "{{testUserId}}", "status"]
+        }
+      }
+    }
+  ]
+}

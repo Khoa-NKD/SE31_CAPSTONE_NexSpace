@@ -1,0 +1,7 @@
+# Optional Python packages for direct MySQL connection and native crypto.
+# Note: All scripts in scripts/db/ also work with zero third-party packages
+# by automatically falling back to the local `mysql` CLI or `docker exec nexspace-mysql`.
+PyMySQL>=1.1.0
+cryptography>=42.0.0
+bcrypt>=4.1.0
+

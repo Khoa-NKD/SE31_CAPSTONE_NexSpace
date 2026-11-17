@@ -1,0 +1,218 @@
+{
+  "info": {
+    "name": "NexSpace - Submit Organizer Application",
+    "description": "Manual API tests for the current Spring backend. Set baseUrl, username and password in collection variables or a local Postman environment. Use an existing active, email-verified USER or ORGANIZER account. Login saves accessToken automatically. For each submission request, select a local JPG/PNG/PDF file (1 byte to 5 MiB) for businessLicense. Keep the application part Content-Type as application/json. Do not manually set the overall multipart Content-Type; Postman generates its boundary. A successful submission writes a real profile and private document. Run write requests only against a database you are authorized to use for testing. Initial submission does not change the account role. A user with any existing organizer profile receives 409. INDIVIDUAL is unsupported. This collection contains no real credentials and does not register accounts or implement administrator review. Do not share exports containing populated credentials or tokens.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://127.0.0.1:8080", "type": "string" },
+    { "key": "username", "value": "", "type": "string" },
+    { "key": "password", "value": "", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" },
+    { "key": "applicationId", "value": "", "type": "string" },
+    { "key": "legalName", "value": "Example Test Company", "type": "string" },
+    { "key": "businessType", "value": "LIMITED_LIABILITY", "type": "string" },
+    { "key": "taxId", "value": "TEST-TAX-001", "type": "string" },
+    { "key": "representativeName", "value": "Test Representative", "type": "string" },
+    { "key": "address", "value": "123 Test Street", "type": "string" },
+    { "key": "contactPhone", "value": "+84901234567", "type": "string" },
+    { "key": "contactEmail", "value": "organizer@example.test", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1 - Authentication",
+      "item": [
+        {
+          "name": "Login - save Bearer token",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.collectionVariables.unset('accessToken');",
+                  "if (!pm.variables.get('username') || !pm.variables.get('password')) {",
+                  "  throw new Error('Set username and password in collection variables or a local environment before login.');",
+                  "}",
+                  "pm.variables.set('loginBody', JSON.stringify({ username: pm.variables.get('username'), password: pm.variables.get('password') }));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const body = pm.response.json();",
+                  "  pm.test('Successful login with Bearer token', () => {",
+                  "    pm.expect(body.success).to.eql(true);",
+                  "    pm.expect(body.data.tokenType).to.eql('Bearer');",
+                  "    pm.expect(body.data.accessToken).to.be.a('string').and.not.empty;",
+                  "  });",
+                  "  if (body.success && body.data && body.data.accessToken) pm.collectionVariables.set('accessToken', body.data.accessToken);",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{{loginBody}}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/login",
+            "description": "Public endpoint. Enter your own existing account credentials in local Postman variable values. The password is JSON-escaped in the pre-request script. A successful response saves accessToken at collection scope. Leave the accessToken environment variable unset so it does not shadow the automatically saved collection token."
+          },
+          "response": []
+        },
+        {
+          "name": "Current account - inspect eligibility",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+            "if (pm.response.code === 200) {",
+            "  const account = pm.response.json().data;",
+            "  pm.test('Account is eligible to apply', () => {",
+            "    pm.expect(account.status).to.eql('ACTIVE');",
+            "    pm.expect(account.verified).to.eql(true);",
+            "    pm.expect(['USER', 'ORGANIZER']).to.include(account.role);",
+            "  });",
+            "}"
+          ] } }],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Uses the token saved by Login. Eligibility also depends on the absence of an existing organizer profile; this endpoint does not expose that profile."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "2 - Initial submission (writes real data)",
+      "item": [
+        {
+          "name": "Submit application - expected 201",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "const keys = ['legalName', 'businessType', 'taxId', 'representativeName', 'address', 'contactPhone', 'contactEmail'];",
+              "const application = Object.fromEntries(keys.map(key => [key, pm.variables.get(key)]));",
+              "pm.variables.set('applicationJson', JSON.stringify(application));"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('HTTP 201', () => pm.response.to.have.status(201));",
+              "if (pm.response.code === 201) {",
+              "  const body = pm.response.json();",
+              "  pm.test('Pending review receipt without private file paths', () => {",
+              "    pm.expect(body.success).to.eql(true);",
+              "    pm.expect(body.statusCode).to.eql(201);",
+              "    pm.expect(body.data.id).to.be.a('number');",
+              "    pm.expect(body.data.status).to.eql('PENDING_REVIEW');",
+              "    pm.expect(body.data.submittedAt).to.be.a('string');",
+              "    pm.expect(body.data).not.to.have.property('fileUrl');",
+              "  });",
+              "  pm.collectionVariables.set('applicationId', String(body.data.id));",
+              "}"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "application", "value": "{{applicationJson}}", "type": "text", "contentType": "application/json", "description": "Required JSON part. Keep its part Content-Type as application/json." },
+              { "key": "businessLicense", "type": "file", "src": "", "description": "Select a local business license file: JPG, JPEG, PNG or PDF, nonempty, maximum 5 MiB." }
+            ] },
+            "url": "{{baseUrl}}/api/organizer/applications",
+            "description": "Run once for an account without an organizer profile. Select businessLicense in Body > form-data before Send. This writes a profile and document, using identity from the token. Valid types: JOINT_STOCK, LIMITED_LIABILITY, SOLE_PROPRIETOR, HOUSEHOLD_BUSINESS, OTHER. All listed information and the business license are required. Repeating this request after success returns 409 instead of 201."
+          },
+          "response": []
+        },
+        {
+          "name": "Repeat submission - expected 409",
+          "event": [
+            { "listen": "prerequest", "script": { "type": "text/javascript", "exec": [
+              "const keys = ['legalName', 'businessType', 'taxId', 'representativeName', 'address', 'contactPhone', 'contactEmail'];",
+              "pm.variables.set('applicationJson', JSON.stringify(Object.fromEntries(keys.map(key => [key, pm.variables.get(key)]))));"
+            ] } },
+            { "listen": "test", "script": { "type": "text/javascript", "exec": [
+              "pm.test('Duplicate rejected with HTTP 409', () => pm.response.to.have.status(409));",
+              "pm.test('Failure envelope', () => pm.expect(pm.response.json().success).to.eql(false));"
+            ] } }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "application", "value": "{{applicationJson}}", "type": "text", "contentType": "application/json" },
+              { "key": "businessLicense", "type": "file", "src": "", "description": "Select the file again for this request." }
+            ] },
+            "url": "{{baseUrl}}/api/organizer/applications",
+            "description": "Use only after an application already exists for the same authenticated account. Select a file for this request as well. This is not a resubmission API."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3 - Rejection cases",
+      "item": [
+        {
+          "name": "Missing business license - expected 400",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Missing file rejected with HTTP 400', () => pm.response.to.have.status(400));",
+            "pm.test('Failure envelope', () => pm.expect(pm.response.json().success).to.eql(false));"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": { "mode": "formdata", "formdata": [
+              { "key": "application", "type": "text", "contentType": "application/json", "value": "{\"legalName\":\"Example Test Company\",\"businessType\":\"LIMITED_LIABILITY\",\"taxId\":\"TEST-TAX-001\",\"representativeName\":\"Test Representative\",\"address\":\"123 Test Street\",\"contactPhone\":\"+84901234567\",\"contactEmail\":\"organizer@example.test\"}" }
+            ] },
+            "url": "{{baseUrl}}/api/organizer/applications",
+            "description": "The businessLicense part is deliberately absent. Requires a valid login token."
+          },
+          "response": []
+        },
+        {
+          "name": "Anonymous account - expected 401",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('Anonymous access rejected with HTTP 401', () => pm.response.to.have.status(401));"
+          ] } }],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/me",
+            "description": "Explicitly disables inherited Bearer authentication. Does not create or modify data."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "4 - End session",
+      "item": [
+        {
+          "name": "Logout - revoke current token",
+          "event": [{ "listen": "test", "script": { "type": "text/javascript", "exec": [
+            "pm.test('HTTP 200', () => pm.response.to.have.status(200));",
+            "if (pm.response.code === 200) pm.collectionVariables.unset('accessToken');"
+          ] } }],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{baseUrl}}/api/auth/logout",
+            "description": "Revokes the current JWT on the backend and clears the saved collection token. This is an explicit write operation; run it manually when testing is finished."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

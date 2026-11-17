@@ -1,0 +1,357 @@
+package base.api.feature.booking.repository;
+
+import base.api.shared.entity.booking.BookingModel;
+import base.api.shared.enums.BookingStatus;
+import jakarta.persistence.LockModeType;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.time.LocalDateTime;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
+    long countByWorkspaceOrganizerIdAndStatusInAndEndTimeAfter(
+            Long organizerId, Collection<BookingStatus> statuses, LocalDateTime now);
+
+    Optional<BookingModel> findByBookingCode(String bookingCode);
+
+    Optional<BookingModel> findByBookingCodeAndCustomerId(String bookingCode, Long customerId);
+
+    Page<BookingModel> findByCustomerIdOrderByCreatedAtDesc(Long customerId, Pageable pageable);
+
+    Page<BookingModel> findByCustomerIdAndStatusOrderByCreatedAtDesc(Long customerId, BookingStatus status, Pageable pageable);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT b FROM BookingModel b WHERE b.id = :id")
+    Optional<BookingModel> findByIdForUpdate(@Param("id") Long id);
+
+    Page<BookingModel> findByCustomerId(Long customerId, Pageable pageable);
+
+    @Query(value = """
+            SELECT b FROM BookingModel b
+            LEFT JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE b.customer.id = :customerId
+              AND (:status IS NULL OR b.status = :status)
+            """,
+            countQuery = """
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND (:status IS NULL OR b.status = :status)
+            """)
+    Page<BookingModel> findCustomerBookingsWithDetails(
+            @Param("customerId") Long customerId,
+            @Param("status") BookingStatus status,
+            Pageable pageable
+    );
+
+    List<BookingModel> findByCustomerIdAndStatus(Long customerId, BookingStatus status);
+
+    @Query(value = """
+            SELECT b FROM BookingModel b
+            LEFT JOIN FETCH b.customer
+            LEFT JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.workspace.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.workspace.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findAdminBookings(
+            @Param("status") BookingStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    @Query(value = """
+            SELECT b FROM BookingModel b
+            LEFT JOIN FETCH b.customer
+            LEFT JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE b.workspace.organizer.id = :organizerId
+              AND (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """,
+            countQuery = """
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE b.workspace.organizer.id = :organizerId
+              AND (:status IS NULL OR b.status = :status)
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findOrganizerBookings(
+            @Param("organizerId") Long organizerId,
+            @Param("status") BookingStatus status,
+            @Param("search") String search,
+            Pageable pageable
+    );
+
+    long countByStatus(BookingStatus status);
+
+    long countByWorkspaceOrganizerIdAndStatus(Long organizerId, BookingStatus status);
+
+    long countByWorkspaceOrganizerId(Long organizerId);
+
+    Page<BookingModel> findByWorkspaceId(Long workspaceId, Pageable pageable);
+
+    long countByWorkspaceId(Long workspaceId);
+
+    @Query("""
+            SELECT b.workspace.id, COUNT(b.id)
+            FROM BookingModel b
+            WHERE b.workspace.id IN :workspaceIds
+            GROUP BY b.workspace.id
+            """)
+    List<Object[]> countBookingsByWorkspaceIds(@Param("workspaceIds") Collection<Long> workspaceIds);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.workspace.organizer.id = :organizerId
+              AND (:workspaceId IS NULL OR b.workspace.id = :workspaceId)
+              AND (:status IS NULL OR b.status = :status)
+              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.label) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findOrganizerBookings(
+            @Param("organizerId") Long organizerId,
+            @Param("workspaceId") Long workspaceId,
+            @Param("status") BookingStatus status,
+            @Param("startTimeFrom") LocalDateTime startTimeFrom,
+            @Param("startTimeTo") LocalDateTime startTimeTo,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE (:workspaceId IS NULL OR b.workspace.id = :workspaceId)
+              AND (:status IS NULL OR b.status = :status)
+              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
+              AND (:search IS NULL OR LOWER(b.bookingCode) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.email) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.firstName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.customer.lastName) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.label) LIKE LOWER(CONCAT('%', :search, '%'))
+                   OR LOWER(b.resource.name) LIKE LOWER(CONCAT('%', :search, '%')))
+            """)
+    Page<BookingModel> findAllBookingsAdmin(
+            @Param("workspaceId") Long workspaceId,
+            @Param("status") BookingStatus status,
+            @Param("startTimeFrom") LocalDateTime startTimeFrom,
+            @Param("startTimeTo") LocalDateTime startTimeTo,
+            @Param("search") String search,
+            Pageable pageable);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            JOIN FETCH b.workspace w
+            JOIN FETCH b.customer c
+            JOIN FETCH b.resource r
+            WHERE w.organizer.id = :organizerId
+              AND (:workspaceId IS NULL OR w.id = :workspaceId)
+              AND (:status IS NULL OR b.status = :status)
+              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
+            ORDER BY b.startTime ASC
+            """)
+    List<BookingModel> findOrganizerCalendarBookings(
+            @Param("organizerId") Long organizerId,
+            @Param("workspaceId") Long workspaceId,
+            @Param("status") BookingStatus status,
+            @Param("startTimeFrom") LocalDateTime startTimeFrom,
+            @Param("startTimeTo") LocalDateTime startTimeTo);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            JOIN FETCH b.workspace w
+            JOIN FETCH b.customer c
+            JOIN FETCH b.resource r
+            WHERE (:workspaceId IS NULL OR w.id = :workspaceId)
+              AND (:status IS NULL OR b.status = :status)
+              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
+            ORDER BY b.startTime ASC
+            """)
+    List<BookingModel> findAllCalendarBookingsAdmin(
+            @Param("workspaceId") Long workspaceId,
+            @Param("status") BookingStatus status,
+            @Param("startTimeFrom") LocalDateTime startTimeFrom,
+            @Param("startTimeTo") LocalDateTime startTimeTo);
+
+    List<BookingModel> findByStatusAndHoldExpiresAtBefore(BookingStatus status, LocalDateTime now);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.resource.id = :resourceId
+              AND b.status IN :activeStatuses
+              AND (b.status != base.api.shared.enums.BookingStatus.PENDING_PAYMENT OR b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now)
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    List<BookingModel> findConflictingBookingsWithHold(
+            @Param("resourceId") Long resourceId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("activeStatuses") List<BookingStatus> activeStatuses,
+            @Param("now") LocalDateTime now);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.resource.id = :resourceId
+              AND b.status IN :activeStatuses
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    List<BookingModel> findConflictingBookings(
+            @Param("resourceId") Long resourceId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("activeStatuses") List<BookingStatus> activeStatuses);
+
+    boolean existsByBookingCode(String bookingCode);
+
+    @Query("SELECT b FROM BookingModel b WHERE b.status = :status AND b.holdExpiresAt < :now")
+    List<BookingModel> findExpiredHoldBookings(
+            @Param("status") BookingStatus status,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND b.holdExpiresAt > :now)
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    List<BookingModel> findOverlappingBookingsByResourceIds(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime
+    );
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now))
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    boolean existsOverlappingBooking(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeBookingId") Long excludeBookingId
+    );
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
+            WHERE b.resource.id = :resourceId
+              AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now))
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    boolean existsOverlappingBooking(
+            @Param("resourceId") Long resourceId,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeBookingId") Long excludeBookingId
+    );
+
+    default boolean existsOverlappingBooking(
+            Long resourceId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Collection<BookingStatus> confirmedStatuses,
+            LocalDateTime now
+    ) {
+        return existsOverlappingBooking(
+                resourceId,
+                confirmedStatuses,
+                BookingStatus.PENDING_PAYMENT,
+                now,
+                startTime,
+                endTime,
+                null
+        );
+    }
+
+    @Query("""
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status = base.api.shared.enums.BookingStatus.PENDING_PAYMENT
+              AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now)
+            """)
+    long countActiveHoldsByCustomer(
+            @Param("customerId") Long customerId,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.resource.id = :resourceId
+              AND b.startTime = :startTime
+              AND b.endTime = :endTime
+              AND b.status = base.api.shared.enums.BookingStatus.PENDING_PAYMENT
+              AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now)
+            """)
+    Optional<BookingModel> findActiveHoldByCustomerAndResource(
+            @Param("customerId") Long customerId,
+            @Param("resourceId") Long resourceId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("now") LocalDateTime now
+    );
+}

@@ -1,0 +1,194 @@
+package base.api.feature.workspace.controller;
+
+import base.api.feature.workspace.dto.request.CreateWorkspaceDto;
+import base.api.feature.workspace.dto.request.UpdateWorkspaceDto;
+import base.api.feature.workspace.dto.request.WorkspaceLifecycleDto;
+import base.api.feature.workspace.dto.response.WorkspaceDetailDto;
+import base.api.feature.workspace.dto.response.WorkspaceDto;
+import base.api.feature.workspace.service.IWorkspaceService;
+import base.api.shared.base.BaseAPIController;
+import base.api.shared.dto.ApiResponse;
+import base.api.shared.dto.PageRequestDTO;
+import base.api.shared.dto.PageResponseDTO;
+import base.api.shared.enums.WorkspaceStatus;
+import base.api.shared.exception.BadRequestException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping({"/api/v1/workspaces", "/api/workspaces"})
+@RequiredArgsConstructor
+@Tag(name = "Organizer - Workspaces", description = "Quản lý không gian làm việc của Organizer")
+public class WorkspaceController extends BaseAPIController {
+
+    private final IWorkspaceService workspaceService;
+
+    @Operation(summary = "Lấy danh sách không gian của Organizer", description = "Lấy danh sách không gian làm việc của Organizer hiện tại có phân trang, lọc theo trạng thái và tìm kiếm")
+    @GetMapping
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getMyWorkspaces(
+            @RequestParam(required = false) WorkspaceStatus status,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        Long organizerId = getCurrentUserId();
+        Page<WorkspaceDto> page = workspaceService.getMyWorkspaces(organizerId, status, pageRequest);
+        return successPage(page);
+    }
+
+    @Operation(summary = "Lấy danh sách không gian của Organizer (alias /mine)")
+    @GetMapping("/mine")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<PageResponseDTO<WorkspaceDto>>> getMyWorkspacesMine(
+            @RequestParam(required = false) WorkspaceStatus status,
+            @ModelAttribute PageRequestDTO pageRequest) {
+        return getMyWorkspaces(status, pageRequest);
+    }
+
+    @Operation(summary = "Xem chi tiết không gian làm việc (Organizer/Admin)", description = "Lấy thông tin chi tiết đầy đủ của không gian làm việc theo ID")
+    @GetMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> getWorkspaceDetail(@PathVariable String id) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto detail = workspaceService.getWorkspaceDetail(organizerId, workspaceId);
+        return success(detail);
+    }
+
+    @Operation(summary = "Tạo không gian làm việc mới", description = "Tạo không gian làm việc mới ở trạng thái DRAFT cho Organizer hiện tại")
+    @PostMapping
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> createWorkspace(
+            @Valid @RequestBody CreateWorkspaceDto dto) {
+        Long organizerId = getCurrentUserId();
+        WorkspaceDetailDto created = workspaceService.createWorkspace(organizerId, dto);
+        return created(created, "Tạo không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Cập nhật không gian làm việc (PATCH)", description = "Cập nhật từng phần thông tin không gian làm việc của Organizer")
+    @PatchMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> updateWorkspace(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateWorkspaceDto dto) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, workspaceId, dto);
+        return success(updated, "Cập nhật không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Cập nhật không gian làm việc (PUT)", description = "Cập nhật thông tin không gian làm việc của Organizer")
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> putWorkspace(
+            @PathVariable String id,
+            @Valid @RequestBody UpdateWorkspaceDto dto) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto updated = workspaceService.updateWorkspace(organizerId, workspaceId, dto);
+        return success(updated, "Cập nhật không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Xóa mềm không gian làm việc (DELETE)", description = "Lưu trữ / ẩn không gian làm việc mà không xóa dữ liệu lịch sử")
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> deleteWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto archived = workspaceService.archiveWorkspace(organizerId, workspaceId);
+        return success(archived, "Lưu trữ không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Lưu trữ không gian làm việc (POST /archive)", description = "Lưu trữ / xóa mềm không gian làm việc")
+    @PostMapping("/{id}/archive")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> postArchiveWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto archived = workspaceService.archiveWorkspace(organizerId, workspaceId);
+        return success(archived, "Lưu trữ không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Quản lý vòng đời vận hành (PATCH /lifecycle)", description = "Chuyển đổi trạng thái vận hành: draft, pending, activate, pause, resume, maintenance, archive")
+    @PatchMapping("/{id}/lifecycle")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> updateLifecycle(
+            @PathVariable String id,
+            @Valid @RequestBody WorkspaceLifecycleDto dto) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto result = workspaceService.updateLifecycle(organizerId, workspaceId, dto);
+        return success(result, "Cập nhật vòng đời không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Đăng và tự động kích hoạt không gian làm việc (POST /submit)", description = "Organizer đăng không gian làm việc lên hệ thống (mặc định tự động duyệt sang ACTIVE)")
+    @PostMapping("/{id}/submit")
+    @PreAuthorize("hasRole('ORGANIZER')")
+    public ResponseEntity<ApiResponse<WorkspaceDetailDto>> submitWorkspace(
+            @PathVariable String id) {
+        Long organizerId = getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        WorkspaceDetailDto result = workspaceService.submitWorkspace(organizerId, workspaceId);
+        return success(result, "Đăng và kích hoạt không gian làm việc thành công");
+    }
+
+    @Operation(summary = "Lấy giờ hoạt động của workspace", description = "Xem cấu hình 7 ngày trong tuần của workspace")
+    @GetMapping("/{id}/operating-hours")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto>>> getOperatingHours(
+            @PathVariable String id) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> hours = workspaceService.getOperatingHours(organizerId, workspaceId);
+        return success(hours);
+    }
+
+    @Operation(summary = "Cập nhật giờ hoạt động của workspace", description = "Lưu cấu hình 7 ngày trong tuần của workspace")
+    @PutMapping("/{id}/operating-hours")
+    @PreAuthorize("hasRole('ORGANIZER') or hasRole('ADMIN')")
+    public ResponseEntity<ApiResponse<java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto>>> updateOperatingHours(
+            @PathVariable String id,
+            @Valid @RequestBody java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> dtos) {
+        Long organizerId = isAdmin() ? null : getCurrentUserId();
+        Long workspaceId = parseWorkspaceId(id);
+        java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> updated = workspaceService.updateOperatingHours(organizerId, workspaceId, dtos);
+        return success(updated, "Cập nhật giờ hoạt động thành công");
+    }
+
+    private boolean isAdmin() {
+        return currentUserProvider.getCurrentUser()
+                .map(u -> u.getAuthorities().stream().anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority())))
+                .orElse(false);
+    }
+
+    private Long parseWorkspaceId(String id) {
+        if (id == null || id.isBlank()) {
+            throw new BadRequestException("ID không gian không hợp lệ");
+        }
+        String cleaned = id.trim();
+        if (cleaned.toUpperCase().startsWith("WS-")) {
+            cleaned = cleaned.substring(3);
+        }
+        try {
+            return Long.parseLong(cleaned);
+        } catch (NumberFormatException e) {
+            throw new BadRequestException("ID không gian không hợp lệ: " + id);
+        }
+    }
+}

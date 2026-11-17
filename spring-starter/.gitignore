@@ -1,0 +1,60 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### Local config / secrets ###
+application-local.properties
+.env
+
+### STS ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+.idea
+*.iws
+*.iml
+*.ipr
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+### Claude Code ###
+.claude/
+
+### Logs ###
+*.log
+
+### Uploads ###
+uploads/
+
+### Agent Skills & Rules ###
+.agent/
+.agents/
+AGENTS.md
+**/AGENTS.md
+skills-lock.json
+
+### Python Scripts Cache ###
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
