@@ -1,0 +1,364 @@
+// NexSpace DBML for dbdiagram.io
+// Generated from the NexSpace Database Design workbook and aligned with the latest ERD decisions.
+// Important: polymorphic fields in Dispute_Report and Audit_Log are logical references only; no Ref is created for them.
+// Source gap: User.Avatar URL has no physical column name in the workbook; `avatar_url` below is an explicit inference.
+
+Table User {
+  id uuid [pk]
+  email varchar(255) [not null, unique]
+  password_hash varchar(255) [not null]
+  full_name nvarchar(100) [not null]
+  phone varchar(20)
+  role varchar(20) [note: 'Allowed values: Customer, Organizer, Administrator']
+  status varchar(20) [note: 'Allowed values: Active, Locked, Unverified']
+  avatar_url varchar(500) [note: 'Physical name inferred as avatar_url because the source workbook leaves it blank.']
+  created_at datetime
+  updated_at datetime
+}
+
+Table User_Session {
+  id uuid [pk]
+  user_id uuid
+  refresh_token varchar(500) [not null]
+  ip_address varchar(50)
+  device_info nvarchar(255)
+  expires_at datetime [not null]
+  is_revoked boolean [default: 0, note: 'Allowed values: false, true']
+}
+
+Table Customer_Workspace_Preference {
+  id uuid [pk]
+  customer_id uuid [not null, unique]
+  target_districts nvarchar(max) [note: 'Stored as JSON in the source design.']
+  budget_min decimal(18,2)
+  budget_max decimal(18,2)
+  preferred_amenities nvarchar(max) [note: 'Stored as JSON in the source design.']
+  acoustic_tolerance varchar(50) [note: 'Allowed values: Quiet, Moderate, Flexible']
+}
+
+Table Organizer_Application {
+  id uuid [pk]
+  organizer_id uuid
+  enterprise_legal_name nvarchar(255) [not null]
+  tax_id varchar(50) [not null]
+  representative_name nvarchar(100) [not null]
+  headquarters_address nvarchar(500) [not null]
+  status varchar(50) [note: 'Allowed values: Draft, Pending_Workspace_Review, Approved, Rejected, Revision_Requested']
+}
+
+Table Organizer_Verification_Document {
+  id uuid [pk]
+  application_id uuid
+  document_type varchar(50) [note: 'Allowed values: Business_Registration, ID_Card, Fire_Safety, Other']
+  file_url varchar(500) [not null]
+  ocr_match_percent decimal(5,2)
+  status varchar(30) [note: 'Allowed values: Pending, Verified, Rejected, Revision_Required']
+  admin_feedback nvarchar(500)
+}
+
+Table Workspace {
+  id uuid [pk]
+  organizer_id uuid
+  name nvarchar(255) [not null]
+  description nvarchar(max)
+  address nvarchar(500) [not null]
+  latitude decimal(10,8)
+  longitude decimal(11,8)
+  total_area decimal(10,2)
+  status varchar(30) [note: 'Allowed values: Draft, Pending, Active, Suspended, Archived']
+}
+
+Table Workspace_Operating_Hour {
+  id uuid [pk]
+  workspace_id uuid
+  day_of_week int [note: 'Allowed values: 1, 2, 3, 4, 5, 6, 7 Allowed range: 1–7']
+  open_time time
+  close_time time
+  is_closed boolean [default: 0, note: 'Allowed values: false, true']
+}
+
+Table Workspace_Amenity_Type {
+  id uuid [pk]
+  name nvarchar(100) [not null]
+  category varchar(50) [note: 'Allowed values: Tech, Comfort, Space']
+  icon varchar(255)
+  is_active boolean [default: 1, note: 'Allowed values: false, true']
+}
+
+Table Workspace_Amenity {
+  workspace_id uuid [not null, note: 'Composite primary key component']
+  amenity_id uuid [not null, note: 'Composite primary key component']
+
+  indexes {
+    (workspace_id, amenity_id) [pk]
+  }
+}
+
+Table Workspace_Media {
+  id uuid [pk]
+  workspace_id uuid
+  media_url varchar(500) [not null]
+  media_type varchar(50) [note: 'Allowed values: Image, 360_Degree, Blueprint']
+  is_cover boolean [default: 0, note: 'Allowed values: false, true']
+  display_order int [default: 0]
+}
+
+Table Floor_Plan {
+  id uuid [pk]
+  workspace_id uuid
+  name nvarchar(100) [not null]
+  level int [not null]
+  blueprint_image_url varchar(500)
+}
+
+Table Floor_Section {
+  id uuid [pk]
+  floor_id uuid
+  name nvarchar(100) [not null]
+}
+
+Table Workspace_Seat_Type {
+  id uuid [pk]
+  organizer_id uuid
+  name nvarchar(100) [not null, note: 'Allowed values: Hot_Desk, Dedicated_Desk, Meeting_Room, Other']
+  capacity int [default: 1]
+}
+
+Table Bookable_Resource {
+  id uuid [pk]
+  floor_id uuid
+  section_id uuid
+  resource_type_id uuid
+  label varchar(50) [not null]
+  pos_x decimal(10,2)
+  pos_y decimal(10,2)
+  status varchar(20) [note: 'Allowed values: Active, Disabled, Maintenance']
+}
+
+Table Resource_Blocked_Time_Slot {
+  id uuid [pk]
+  resource_id uuid
+  start_time datetime [not null]
+  end_time datetime [not null]
+  reason nvarchar(255)
+}
+
+Table Resource_Pricing_Rule {
+  id uuid [pk]
+  resource_id uuid
+  price_type varchar(20) [note: 'Allowed values: Hourly, Daily, Monthly']
+  base_price decimal(18,2) [not null]
+  is_active boolean [default: 1, note: 'Allowed values: false, true']
+}
+
+Table Pricing_Rule_Modifier {
+  id uuid [pk]
+  workspace_id uuid
+  modifier_type varchar(50) [note: 'Allowed values: Peak_Hour, Weekend, Holiday']
+  start_time time
+  end_time time
+  multiplier decimal(5,2) [not null]
+  is_active boolean [default: 1, note: 'Allowed values: false, true']
+}
+
+Table Membership_Plan {
+  id uuid [pk]
+  organizer_id uuid
+  name nvarchar(100) [not null]
+  price decimal(18,2) [not null]
+  validity_days int [not null]
+  benefits_desc nvarchar(max)
+}
+
+Table Membership_Subscription {
+  id uuid [pk]
+  customer_id uuid
+  plan_id uuid
+  start_date datetime [not null]
+  end_date datetime [not null]
+  status varchar(20) [note: 'Allowed values: Active, Expired, Cancelled']
+}
+
+Table Subscription_Quota {
+  id uuid [pk]
+  subscription_id uuid
+  benefit_type varchar(50) [not null]
+  total_allocated decimal(10,2) [not null]
+  used_amount decimal(10,2) [default: 0]
+  version int [default: 1]
+}
+
+Table Booking {
+  id uuid [pk]
+  customer_id uuid
+  resource_id uuid
+  workspace_id uuid
+  start_time datetime [not null]
+  end_time datetime [not null]
+  base_price decimal(18,2) [not null]
+  discount_amount decimal(18,2) [default: 0]
+  final_price decimal(18,2) [not null]
+  status varchar(30) [note: 'Allowed values: Pending_Payment, Confirmed, Checked_In, Completed, Cancelled']
+  created_at datetime
+}
+
+Table Subscription_Quota_Transaction {
+  id uuid [pk]
+  quota_id uuid
+  booking_id uuid
+  amount_deducted decimal(10,2) [not null]
+  created_at datetime
+}
+
+Table Booking_Check_In_Out {
+  id uuid [pk]
+  booking_id uuid
+  action_type varchar(20) [note: 'Allowed values: Check_In, Check_Out']
+  scanned_at datetime
+  scanned_by uuid
+}
+
+Table Payment_Transaction {
+  id uuid [pk]
+  booking_id uuid
+  customer_id uuid
+  expected_amount decimal(18,2) [not null]
+  payment_gateway varchar(20) [note: 'Allowed values: PayOS, VNPay, Other']
+  gateway_transaction_id varchar(100)
+  status varchar(20) [note: 'Allowed values: Pending, Success, Failed, Discrepancy']
+  webhook_signature varchar(255)
+  created_at datetime
+}
+
+Table Payment_Discrepancy {
+  id uuid [pk]
+  transaction_id uuid
+  expected_amount decimal(18,2) [not null]
+  actual_amount decimal(18,2) [not null]
+  status varchar(30) [note: 'Allowed values: Pending_Workspace_Review, Refunded, Resolved_As_Paid']
+  admin_note nvarchar(500)
+  created_at datetime
+  resolved_at datetime
+}
+
+Table Refund_Request {
+  id uuid [pk]
+  booking_id uuid
+  requested_amount decimal(18,2) [not null]
+  approved_amount decimal(18,2)
+  reason nvarchar(500)
+  status varchar(30) [note: 'Allowed values: Pending, Approved, Rejected, Processed']
+  admin_id uuid
+}
+
+Table Platform_Fee_Rule {
+  id uuid [pk]
+  fee_percentage decimal(5,2) [not null]
+  effective_date datetime [not null]
+  status varchar(20) [note: 'Allowed values: Active, Inactive']
+}
+
+Table Workspace_Review {
+  id uuid [pk]
+  booking_id uuid
+  customer_id uuid
+  workspace_id uuid
+  rating int [note: 'Allowed values: 1, 2, 3, 4, 5 Allowed range: 1–5']
+  content nvarchar(max)
+  organizer_reply nvarchar(max)
+  status varchar(20) [note: 'Allowed values: Published, Reported, Hidden']
+  created_at datetime
+}
+
+Table Customer_Favorite_Workspace {
+  customer_id uuid [not null, note: 'Composite primary key component']
+  workspace_id uuid [not null, note: 'Composite primary key component']
+  group_name nvarchar(100) [default: 'General']
+
+  indexes {
+    (customer_id, workspace_id) [pk]
+  }
+}
+
+Table User_Notification {
+  id uuid [pk]
+  user_id uuid
+  title nvarchar(255) [not null]
+  content nvarchar(max) [not null]
+  type varchar(50) [note: 'Allowed values: System, Promotion, Booking_Alert, Verification, Payment']
+  is_read boolean [default: 0, note: 'Allowed values: false, true']
+  created_at datetime
+}
+
+Table Dispute_Report {
+  id uuid [pk]
+  reporter_id uuid
+  target_entity varchar(50) [note: 'Allowed values: Workspace, Workspace_Review, User']
+  target_id uuid [note: 'Logical polymorphic reference only; intentionally no database Ref.']
+  reason nvarchar(max) [not null]
+  evidence_url varchar(500)
+  status varchar(20) [note: 'Allowed values: Pending, Investigating, Resolved, Dismissed']
+  resolution_note nvarchar(max)
+  created_at datetime
+}
+
+Table Audit_Log {
+  id uuid [pk]
+  user_id uuid
+  action varchar(100) [not null]
+  entity_type varchar(50) [not null]
+  entity_id uuid [not null]
+  old_value nvarchar(max) [note: 'Stored as JSON in the source design.']
+  new_value nvarchar(max) [note: 'Stored as JSON in the source design.']
+  ip_address varchar(50)
+  timestamp datetime
+}
+
+// Relationships
+Ref FK_User_Session_user_id: User_Session.user_id > User.id
+Ref FK_Customer_Workspace_Preference_customer_id: Customer_Workspace_Preference.customer_id - User.id
+Ref FK_Organizer_Application_organizer_id: Organizer_Application.organizer_id > User.id
+Ref FK_Organizer_Verification_Document_application_id: Organizer_Verification_Document.application_id > Organizer_Application.id
+Ref FK_Workspace_organizer_id: Workspace.organizer_id > User.id
+Ref FK_Workspace_Operating_Hour_workspace_id: Workspace_Operating_Hour.workspace_id > Workspace.id
+Ref FK_Workspace_Amenity_workspace_id: Workspace_Amenity.workspace_id > Workspace.id
+Ref FK_Workspace_Amenity_amenity_id: Workspace_Amenity.amenity_id > Workspace_Amenity_Type.id
+Ref FK_Workspace_Media_workspace_id: Workspace_Media.workspace_id > Workspace.id
+Ref FK_Floor_Plan_workspace_id: Floor_Plan.workspace_id > Workspace.id
+Ref FK_Floor_Section_floor_id: Floor_Section.floor_id > Floor_Plan.id
+Ref FK_Workspace_Seat_Type_organizer_id: Workspace_Seat_Type.organizer_id > User.id
+Ref FK_Bookable_Resource_floor_id: Bookable_Resource.floor_id > Floor_Plan.id
+Ref FK_Bookable_Resource_section_id: Bookable_Resource.section_id > Floor_Section.id
+Ref FK_Bookable_Resource_resource_type_id: Bookable_Resource.resource_type_id > Workspace_Seat_Type.id
+Ref FK_Resource_Blocked_Time_Slot_resource_id: Resource_Blocked_Time_Slot.resource_id > Bookable_Resource.id
+Ref FK_Resource_Pricing_Rule_resource_id: Resource_Pricing_Rule.resource_id > Bookable_Resource.id
+Ref FK_Pricing_Rule_Modifier_workspace_id: Pricing_Rule_Modifier.workspace_id > Workspace.id
+Ref FK_Membership_Plan_organizer_id: Membership_Plan.organizer_id > User.id
+Ref FK_Membership_Subscription_customer_id: Membership_Subscription.customer_id > User.id
+Ref FK_Membership_Subscription_plan_id: Membership_Subscription.plan_id > Membership_Plan.id
+Ref FK_Subscription_Quota_subscription_id: Subscription_Quota.subscription_id > Membership_Subscription.id
+Ref FK_Booking_customer_id: Booking.customer_id > User.id
+Ref FK_Booking_resource_id: Booking.resource_id > Bookable_Resource.id
+Ref FK_Booking_workspace_id: Booking.workspace_id > Workspace.id
+Ref FK_Subscription_Quota_Transaction_quota_id: Subscription_Quota_Transaction.quota_id > Subscription_Quota.id
+Ref FK_Subscription_Quota_Transaction_booking_id: Subscription_Quota_Transaction.booking_id > Booking.id
+Ref FK_Booking_Check_In_Out_booking_id: Booking_Check_In_Out.booking_id > Booking.id
+Ref FK_Booking_Check_In_Out_scanned_by: Booking_Check_In_Out.scanned_by > User.id
+Ref FK_Payment_Transaction_booking_id: Payment_Transaction.booking_id > Booking.id
+Ref FK_Payment_Transaction_customer_id: Payment_Transaction.customer_id > User.id
+Ref FK_Payment_Discrepancy_transaction_id: Payment_Discrepancy.transaction_id > Payment_Transaction.id
+Ref FK_Refund_Request_booking_id: Refund_Request.booking_id > Booking.id
+Ref FK_Refund_Request_admin_id: Refund_Request.admin_id > User.id
+Ref FK_Workspace_Review_booking_id: Workspace_Review.booking_id > Booking.id
+Ref FK_Workspace_Review_customer_id: Workspace_Review.customer_id > User.id
+Ref FK_Workspace_Review_workspace_id: Workspace_Review.workspace_id > Workspace.id
+Ref FK_Customer_Favorite_Workspace_customer_id: Customer_Favorite_Workspace.customer_id > User.id
+Ref FK_Customer_Favorite_Workspace_workspace_id: Customer_Favorite_Workspace.workspace_id > Workspace.id
+Ref FK_User_Notification_user_id: User_Notification.user_id > User.id
+Ref FK_Dispute_Report_reporter_id: Dispute_Report.reporter_id > User.id
+Ref FK_Audit_Log_user_id: Audit_Log.user_id > User.id
+
+// Polymorphic logical references (not physical foreign keys):
+// Dispute_Report.target_entity + target_id -> Workspace / Workspace_Review / User
+// Audit_Log.entity_type + entity_id -> affected business object
+// These tables may be placed in a separate schema/database; the DBML intentionally does not create cross-target Refs.

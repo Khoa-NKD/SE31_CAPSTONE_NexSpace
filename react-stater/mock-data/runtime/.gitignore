@@ -1,0 +1,3 @@
+# Ignore all writable runtime JSON files generated during local dev
+*
+!.gitignore
