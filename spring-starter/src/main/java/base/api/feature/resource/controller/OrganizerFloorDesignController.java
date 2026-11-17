@@ -7,11 +7,14 @@ import base.api.shared.dto.ApiResponse;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.*;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 @RestController
 @RequestMapping("/api/organizer")
@@ -60,10 +63,19 @@ public class OrganizerFloorDesignController extends BaseAPIController {
             @Valid @RequestBody FloorDesign.Propose input) {
         return success(ai.propose(getCurrentUserId(), workspaceId, floorId, input));
     }
-    @PostMapping(FLOOR + "/ai/apply")
+    @PostMapping(value = FLOOR + "/ai/apply", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<ResourceResponses.FloorLayout>> apply(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId,
             @Valid @RequestBody FloorDesign.Apply input) {
         return success(ai.apply(getCurrentUserId(), workspaceId, floorId, input), "AI proposal saved; bookings and pricing are unchanged");
+    }
+    @PostMapping(value = FLOOR + "/ai/apply", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<ResourceResponses.FloorLayout>> applyWithPhotos(
+            @PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId,
+            @Valid @RequestPart("input") FloorDesign.Apply input,
+            @RequestPart("photoOrder") Map<Long, List<String>> photoOrder,
+            @RequestPart("photos") List<MultipartFile> photos) {
+        return success(ai.apply(getCurrentUserId(), workspaceId, floorId, input, photoOrder, photos),
+                "AI proposal saved; bookings and pricing are unchanged");
     }
     @GetMapping(FLOOR + "/ai/draft")
     public ResponseEntity<ApiResponse<FloorDesign.SavedDraft>> savedDraft(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId) {

@@ -837,6 +837,11 @@ class OrganizerResourceDatabaseTest {
     @TestConfiguration
     static class TestClock {
         @Bean
+        base.api.feature.resource.service.ResourceTypePhotos resourceTypePhotos() {
+            return org.mockito.Mockito.mock(base.api.feature.resource.service.ResourceTypePhotos.class);
+        }
+
+        @Bean
         Clock organizerApplicationClock() {
             return Clock.fixed(Instant.parse("2026-11-06T00:00:00Z"), ZoneOffset.UTC);
         }

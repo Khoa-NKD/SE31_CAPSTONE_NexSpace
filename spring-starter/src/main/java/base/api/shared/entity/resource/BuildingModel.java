@@ -2,19 +2,24 @@ package base.api.shared.entity.resource;
 
 import base.api.shared.entity.BaseModel;
 import base.api.shared.entity.UserModel;
+import base.api.shared.entity.workspace.WorkspaceModel;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
-/** A physical building operated by one organizer; workspace ownership remains independent. */
+/** Workspace location. Older shared buildings retain their original ownership for compatibility. */
 @Entity
 @Table(name = "building", uniqueConstraints = @UniqueConstraint(name = "ux_building_owner_name", columnNames = {"organizer_id", "name"}))
 @Getter
 @Setter
 public class BuildingModel extends BaseModel {
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "organizer_id", nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "organizer_id")
     private UserModel organizer;
+
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "workspace_id")
+    private WorkspaceModel workspace;
 
     @Column(nullable = false, length = 150)
     private String name;

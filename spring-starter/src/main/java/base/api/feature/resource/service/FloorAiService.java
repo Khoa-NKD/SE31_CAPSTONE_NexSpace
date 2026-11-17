@@ -1,15 +1,19 @@
 package base.api.feature.resource.service;
+import base.api.shared.entity.resource.MetricGeometry;
 
 import base.api.feature.resource.dto.*;
 import base.api.shared.exception.*;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.*;
 import java.util.*;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.support.TransactionTemplate;
+import org.springframework.web.multipart.MultipartFile;
 
 /** Proposals are short-lived server-held drafts. A restart expires them, never recreates resources. */
 @Service
@@ -35,6 +39,8 @@ public class FloorAiService {
         Boolean savedTemplates;
         boolean confirmedTypes;
         FloorDesign.Design appliedDesign;
+        Map<Long, List<String>> appliedPhotoOrder;
+        List<String> appliedPhotoHashes;
         Draft(Long actor, Long workspace, Long floor, Snapshot before, FloorDesign.Propose request, FloorDesign.Proposal proposal, boolean estimatedScale) {
             this.actor=actor; this.workspace=workspace; this.floor=floor; this.before=before; this.request=request; this.proposal=proposal;
             this.estimatedScale = estimatedScale;
@@ -80,6 +86,9 @@ public class FloorAiService {
             context.put("prompt", request.prompt()); context.put("language", request.language() == null ? "vi" : request.language());
             context.put("scope", request.scope()); context.put("selectedKey", request.selectedKey());
             context.put("canvas", Map.of("width", before.layout().width(), "height", before.layout().height()));
+            var location = before.layout().floor().location();
+            if (location != null && location.outline() == base.api.shared.entity.resource.BuildingFloorModel.Outline.ROUNDED)
+                context.put("floorOutline", "Rounded rectangle; corner radius is " + location.cornerRadiusM() + " metres (" + MetricGeometry.pixels(location.cornerRadiusM()) + " canvas pixels). Keep every object inside the curved boundary.");
             context.put("metrics", proposalMetrics); context.put("resources", before.resources());
             context.put("estimatedScale", estimatedScale);
             context.put("decorations", before.layout().decorations());
@@ -107,8 +116,16 @@ public class FloorAiService {
                 if (saved != null) context.put("savedMetricDraft", saved);
             }
             if (!previousIssues.isEmpty()) context.put("previousDraftIssues", previousIssues);
-            var result = request.model() != null ? gemini.design(context, image, request.model())
-                    : image == null ? gemini.design(context) : gemini.design(context, image);
+            var result = gemini.design(context, image, request.model(), candidate -> {
+                if (candidate.question() != null && !candidate.question().isBlank()) return List.of();
+                try {
+                    var normalized = FloorAiValidation.normalizeProposal(candidate, before.options(), proposalMetrics, before.layout());
+                    FloorAiValidation.validate(normalized, before.layout(), before.resources(), before.options(), request, proposalMetrics);
+                    return List.of();
+                } catch (BadRequestException | ConflictException failure) {
+                    return List.of(failure.getMessage());
+                }
+            });
             result = FloorAiValidation.normalizeProposal(result, before.options(), proposalMetrics, before.layout());
             if (deletionOnlyWithoutMeasurements && !FloorAiValidation.onlyRemoves(result, before.layout()))
                 throw new ConflictException("Confirm the physical floor dimensions in meters before using AI to change geometry");
@@ -140,15 +157,28 @@ public class FloorAiService {
     }
 
     public ResourceResponses.FloorLayout apply(Long actor, Long workspace, Long floorId, FloorDesign.Apply input) {
+        return apply(actor, workspace, floorId, input, Map.of(), List.of());
+    }
+
+    public ResourceResponses.FloorLayout apply(Long actor, Long workspace, Long floorId, FloorDesign.Apply input,
+            Map<Long, List<String>> photoOrder, List<MultipartFile> photos) {
         var draft = lookup(actor, workspace, floorId, input.proposalId());
         synchronized (draft) {
             var submitted = input.design() == null ? draft.proposal.design() : input.design();
             // Recheck authorization even for an idempotent replay.
             transaction.execute(s -> design.owned(actor, workspace, floorId, true));
+            var photoHashes = photos.stream().map(FloorAiService::photoHash).toList();
             if (draft.applied != null) {
-                if (!Objects.equals(draft.savedTemplates, input.saveTemplates()) || draft.confirmedTypes != input.confirmNewTypes() || !Objects.equals(draft.appliedDesign, submitted)) throw new ConflictException("This proposal was already applied with different options");
+                if (!Objects.equals(draft.savedTemplates, input.saveTemplates())
+                        || draft.confirmedTypes != input.confirmNewTypes()
+                        || !Objects.equals(draft.appliedDesign, submitted)
+                        || !draft.appliedPhotoOrder.equals(photoOrder) || !draft.appliedPhotoHashes.equals(photoHashes))
+                    throw new ConflictException("This proposal was already applied with different options");
                 return draft.applied;
             }
+            var newTypeIds = submitted.newTypes().stream().map(FloorDesign.NewType::tempId).toList();
+            if (!newTypeIds.containsAll(photoOrder.keySet()) || photoOrder.values().stream().anyMatch(Objects::isNull))
+                throw new BadRequestException("Photos can only be added to new resource types in the proposal");
             if (!draft.proposal.applicable() && input.design() == null) throw new ConflictException("Resolve the proposal issues before applying it");
             if (draft.estimatedScale && (!submitted.newTypes().isEmpty() || submitted.resources().stream().anyMatch(r -> r.id() == null)))
                 throw new ConflictException("Set the real floor dimensions and generate a new proposal before saving new seats or rooms");
@@ -166,7 +196,10 @@ public class FloorAiService {
                     for (var type : plan.newTypes()) {
                         if (type.pricePerHour() == null && type.pricePerDay() == null && type.pricePerMonth() == null)
                             throw new BadRequestException("Enter at least one base price for every new resource type");
-                        var created = resources.createType(actor, workspace, new ResourceRequests.Type(type.name(), type.category(), type.currency(), type.capacity(), type.pricePerHour(), type.pricePerDay(), type.pricePerMonth(), null, false, type.usageKind(), type.standardWidthM(), type.standardLengthM()));
+                        var request = new ResourceRequests.Type(type.name(), type.category(), type.currency(),
+                                type.capacity(), type.pricePerHour(), type.pricePerDay(), type.pricePerMonth(),
+                                null, false, type.usageKind(), type.standardWidthM(), type.standardLengthM());
+                        var created = resources.createType(actor, workspace, request, photoOrder.get(type.tempId()), photos);
                         typeIds.put(type.tempId(), created.id());
                     }
                     plan = new FloorDesign.Design(plan.message(), plan.question(), plan.resources().stream().map(r ->
@@ -178,7 +211,23 @@ public class FloorAiService {
                 // Return the persisted snapshot, including database IDs for all AI-created resources.
                 return resources.floorLayout(actor, workspace, floorId);
             });
-            draft.savedTemplates = input.saveTemplates(); draft.confirmedTypes = input.confirmNewTypes(); draft.appliedDesign = submitted; draft.applied = result; return result;
+            draft.savedTemplates = input.saveTemplates();
+            draft.confirmedTypes = input.confirmNewTypes();
+            draft.appliedDesign = submitted;
+            draft.appliedPhotoOrder = photoOrder;
+            draft.appliedPhotoHashes = photoHashes;
+            draft.applied = result;
+            return result;
+        }
+    }
+
+    private static String photoHash(MultipartFile file) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(file.getBytes()));
+        } catch (IOException failure) {
+            throw new BadRequestException("Could not read the resource type photo");
+        } catch (NoSuchAlgorithmException failure) {
+            throw new IllegalStateException("SHA-256 unavailable", failure);
         }
     }
     private Draft lookup(Long actor, Long workspace, Long floor, String id) {

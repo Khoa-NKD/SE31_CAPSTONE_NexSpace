@@ -10,4 +10,5 @@ public interface IBuildingFloorRepository extends JpaRepository<BuildingFloorMod
     List<BuildingFloorModel> findByBuildingOrganizerIdOrderByFloorNumberAsc(Long organizerId);
     boolean existsByBuildingIdAndFloorNumber(Long buildingId, int floorNumber);
     boolean existsByBuildingId(Long buildingId);
+    List<BuildingFloorModel> findByBuildingIdOrderByFloorNumberAsc(Long buildingId);
 }

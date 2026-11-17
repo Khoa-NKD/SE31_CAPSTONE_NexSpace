@@ -6,6 +6,27 @@ import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
 class MetricGeometryTest {
+    @Test void floorAreaUsesTheActualCircularCornerCuts() {
+        assertThat(MetricGeometry.floorArea(new BigDecimal("20"), BigDecimal.TEN, BigDecimal.ZERO))
+                .isEqualByComparingTo("200");
+        assertThat(MetricGeometry.floorArea(new BigDecimal("20"), BigDecimal.TEN, new BigDecimal("2")))
+                .isEqualByComparingTo("196.56637061");
+        assertThat(MetricGeometry.floorArea(BigDecimal.TEN, BigDecimal.TEN, new BigDecimal("5")))
+                .isEqualByComparingTo("78.53981634");
+    }
+
+    @Test void placementUsesTheSavedRadiusInsteadOfTheOldFixedPercentage() {
+        var seat = shape(new FloorPlanModel(), new ResourceTypeModel(), "Corner seat", "40", "40", "20", "20");
+        var width = new BigDecimal("600");
+        assertThatCode(() -> ResourceCanvas.fits(seat, new ResourceCanvas.Bounds(width, width, true), false))
+                .doesNotThrowAnyException();
+        var circularFloor = new ResourceCanvas.Bounds(width, width, new BigDecimal("300"));
+        assertThatThrownBy(() -> ResourceCanvas.fits(seat, circularFloor, false))
+                .isInstanceOf(base.api.shared.exception.ConflictException.class).hasMessageContaining("rounded floor corner");
+        seat.setPosX(new BigDecimal("280")); seat.setPosY(new BigDecimal("280"));
+        assertThatCode(() -> ResourceCanvas.fits(seat, circularFloor, false)).doesNotThrowAnyException();
+    }
+
     @Test void metricCoordinatesRemainStableWhenFloorDimensionsChange() {
         var physical = new BuildingFloorModel(); physical.setGeometryVersion(2);
         var floor = new FloorPlanModel(); floor.setBuildingFloor(physical);
