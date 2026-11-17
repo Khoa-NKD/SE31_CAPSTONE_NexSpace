@@ -20,6 +20,7 @@ export interface BookingHoldResponse {
   workspaceName: string;
   holdExpiresAt: string;
   remainingSeconds: number;
+  serverTime?: string;
 }
 
 export interface CustomerBookingItemResponse {
