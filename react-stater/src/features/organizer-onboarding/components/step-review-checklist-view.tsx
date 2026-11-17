@@ -133,16 +133,8 @@ function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolea
 export function StepReviewChecklistView() {
   const c = useOrganizerCopy();
   const router = useRouter();
-  const {
-    basicInfo,
-    location,
-    operatingHours,
-    amenities,
-    media,
-    canonicalWorkspaceId,
-    saveDraft,
-    setSubmissionStatus
-  } = useWizardStore();
+  const { basicInfo, location, operatingHours, amenities, media, saveDraft, setSubmissionStatus } =
+    useWizardStore();
 
   const { isSaving, saveDraftToServer } = useWizardDraftSync();
 
@@ -190,6 +182,7 @@ export function StepReviewChecklistView() {
     setIsSubmitting(true);
     try {
       const saved = await saveDraftToServer({ silent: true });
+      if (!saved) return;
       setSubmissionStatus('draft');
       saveDraft();
       toast.success(c('Workspace Saved as Draft', 'Đã lưu bản nháp không gian'), {
@@ -208,12 +201,11 @@ export function StepReviewChecklistView() {
     setIsSubmitting(true);
     try {
       const saved = await saveDraftToServer({ silent: true });
+      if (!saved) return;
       setSubmissionStatus('draft');
       saveDraft();
 
-      const rawId = saved?.id || canonicalWorkspaceId;
-      const numericMatch = rawId ? String(rawId).match(/\d+/) : null;
-      const numericWorkspaceId = numericMatch ? Number(numericMatch[0]) : undefined;
+      const numericWorkspaceId = Number(saved.id);
 
       toast.success(c('Workspace Draft Saved', 'Đã lưu bản nháp không gian'), {
         description: 'Redirecting to Floor Plan & Zones setup...'

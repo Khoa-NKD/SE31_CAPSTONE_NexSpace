@@ -92,7 +92,14 @@ export function StepBasicInfoView({
       contactPhone,
       contactEmail
     });
-    await saveDraftToServer();
+    const saved = await saveDraftToServer();
+    if (saved) {
+      void router.navigate({
+        to: '/dashboard/organizer/workspaces/create',
+        search: (prev) => ({ ...prev, id: String(saved.id) }),
+        replace: true
+      });
+    }
   };
 
   const handleContinue = async (e: React.FormEvent) => {
@@ -127,8 +134,12 @@ export function StepBasicInfoView({
 
     setErrors({});
     setBasicInfo(values);
-    await saveDraftToServer({ silent: true });
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/hours', search: (prev) => prev });
+    const saved = await saveDraftToServer({ silent: true });
+    if (!saved) return;
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/hours',
+      search: (prev) => ({ ...prev, id: String(saved.id) })
+    });
   };
 
   return (

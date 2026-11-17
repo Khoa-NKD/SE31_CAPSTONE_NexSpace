@@ -267,7 +267,8 @@ export function StepOperatingHoursView() {
 
     setValidationError(null);
     saveDraft();
-    await saveDraftToServer({ silent: true });
+    const saved = await saveDraftToServer({ silent: true });
+    if (!saved) return;
 
     toast.success(c('Operating Hours Saved', 'Đã lưu giờ hoạt động'), {
       description: c('Proceeding to Amenities configuration.', 'Tiếp tục thiết lập tiện ích.')
@@ -275,7 +276,7 @@ export function StepOperatingHoursView() {
 
     router.navigate({
       to: '/dashboard/organizer/workspaces/create/amenities',
-      search: (prev) => prev
+      search: (prev) => ({ ...prev, id: String(saved.id) })
     });
   };
 

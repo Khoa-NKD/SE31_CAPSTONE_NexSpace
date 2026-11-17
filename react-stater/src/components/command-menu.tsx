@@ -15,6 +15,7 @@ import { navGroups, organizerNavGroups } from '@/config/nav-config';
 import { useFilteredNavGroups } from '@/hooks/use-nav';
 import { useWorkspacesStore } from '@/features/organizer-workspaces/store/workspaces-store';
 import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useWizardStore } from '@/features/organizer-onboarding/store/wizard-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 
 type CommandMenuContextValue = {
@@ -199,6 +200,7 @@ export default function CommandMenu({ children }: { children: React.ReactNode })
 
   const navigateTo = React.useCallback(
     (url: string) => {
+      if (url === '/dashboard/organizer/workspaces/create') useWizardStore.getState().resetDraft();
       runAndClose(() => router.navigate({ to: url }));
     },
     [router, runAndClose]
@@ -246,9 +248,7 @@ export default function CommandMenu({ children }: { children: React.ReactNode })
       >
         <CommandInput
           placeholder={
-            isOrganizer
-              ? 'Type a workspace, resource or command...'
-              : 'Type a command or search...'
+            isOrganizer ? 'Type a workspace, resource or command...' : 'Type a command or search...'
           }
         />
         <CommandList>
@@ -265,7 +265,7 @@ export default function CommandMenu({ children }: { children: React.ReactNode })
                   onSelect={() =>
                     navigateTo(
                       ws.status === 'DRAFT'
-                        ? '/dashboard/organizer/workspaces/create'
+                        ? `/dashboard/organizer/workspaces/create?id=${encodeURIComponent(ws.id)}`
                         : `/dashboard/organizer/workspaces/lifecycle?id=${ws.id}`
                     )
                   }
@@ -294,7 +294,9 @@ export default function CommandMenu({ children }: { children: React.ReactNode })
                   key={action.id}
                   value={getSearchString(action.name, action.shortcut, action.keywords)}
                   keywords={[
-                    ...(action.shortcut ? [action.shortcut.join(''), action.shortcut.join(' ')] : []),
+                    ...(action.shortcut
+                      ? [action.shortcut.join(''), action.shortcut.join(' ')]
+                      : []),
                     ...(action.keywords || [])
                   ]}
                   onSelect={() => navigateTo(action.url)}

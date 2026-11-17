@@ -306,7 +306,8 @@ export function StepAmenitiesView() {
     setValidationError(null);
     saveDraft();
     const updated = await saveDraftToServer({ silent: true });
-    const targetId = updated?.id || canonicalWorkspaceId;
+    if (!updated) return;
+    const targetId = updated.id;
     if (targetId) {
       await syncAmenitiesToBackend(targetId);
     }

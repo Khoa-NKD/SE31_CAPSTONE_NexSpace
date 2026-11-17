@@ -8,6 +8,10 @@ import { mapWizardStateToCreateDto, mapWizardStateToUpdateDto } from '../utils/w
 import { workspaceService, workspaceQueryKeys } from '@/features/workspaces/api';
 import type { CanonicalWorkspace } from '@/features/workspaces/api/types';
 import { ApiError } from '@/lib/api-client';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+
+// The wizard can have more than one mounted save caller for the same draft.
+const inFlightSaves = new Map<string, Promise<CanonicalWorkspace | null>>();
 
 export function useWizardDraftSync() {
   const c = useOrganizerCopy();
@@ -16,7 +20,6 @@ export function useWizardDraftSync() {
   const store = useWizardStore();
   const [isSaving, setIsSaving] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string | null>(store.lastSavedAt);
-  const inFlightPromiseRef = useRef<Promise<CanonicalWorkspace | null> | null>(null);
 
   const search = (location.search as Record<string, unknown>) || {};
   const rawId = search.id ?? search.workspaceId;
@@ -28,6 +31,11 @@ export function useWizardDraftSync() {
       : undefined;
 
   const fetchedIdRef = useRef<string | null>(null);
+  const loadSequenceRef = useRef(0);
+  const cancelPendingLoad = useCallback(() => {
+    loadSequenceRef.current++;
+    fetchedIdRef.current = null;
+  }, []);
 
   /**
    * Saves the current wizard form state to the REST API.
@@ -37,34 +45,62 @@ export function useWizardDraftSync() {
    */
   const saveDraftToServer = useCallback(
     async (options?: { silent?: boolean }): Promise<CanonicalWorkspace | null> => {
-      // Guard against concurrent double-saving or StrictMode double mounts
-      if (inFlightPromiseRef.current) {
-        return inFlightPromiseRef.current;
-      }
-
       const currentState = useWizardStore.getState();
+      if (!currentState.canonicalWorkspaceId && !currentState.basicInfo.name.trim()) {
+        toast.error(
+          c(
+            'Enter the workspace name before saving or setting up floors.',
+            'Nhập tên không gian trước khi lưu hoặc thiết lập sơ đồ tầng.'
+          )
+        );
+        return null;
+      }
+      if (routeWorkspaceId && currentState.canonicalWorkspaceId !== routeWorkspaceId) {
+        toast.error(
+          c(
+            'Wait for the workspace to finish loading before saving.',
+            'Chờ tải xong thông tin không gian trước khi lưu.'
+          )
+        );
+        return null;
+      }
+      const actorId = useAuthStore.getState().user?.id;
+      let draftKey = currentState.clientDraftKey;
+      if (!currentState.canonicalWorkspaceId && !draftKey) {
+        draftKey = `client-draft-${crypto.randomUUID()}`;
+        currentState.setClientDraftKey(draftKey);
+        currentState.saveDraft();
+      }
+      const saveKey = `${actorId}:${currentState.canonicalWorkspaceId ? `workspace:${currentState.canonicalWorkspaceId}` : `draft:${draftKey}`}`;
+      const existingSave = inFlightSaves.get(saveKey);
+      if (existingSave) return existingSave;
+      const isCurrentDraft = () => {
+        const latest = useWizardStore.getState();
+        return (
+          useAuthStore.getState().user?.id === actorId &&
+          (currentState.canonicalWorkspaceId
+            ? latest.canonicalWorkspaceId === currentState.canonicalWorkspaceId
+            : latest.clientDraftKey === draftKey)
+        );
+      };
       setIsSaving(true);
       currentState.setIsSavingToServer(true);
 
-      const savePromise = (async (): Promise<CanonicalWorkspace | null> => {
+      const savePromise = Promise.resolve().then(async (): Promise<CanonicalWorkspace | null> => {
         try {
           let updatedRecord: CanonicalWorkspace;
 
           if (!currentState.canonicalWorkspaceId) {
-            // Ensure stable client draft key is generated and persisted before the first POST
-            let draftKey = currentState.clientDraftKey;
-            if (!draftKey) {
-              draftKey = `client-draft-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-              currentState.setClientDraftKey(draftKey);
-              currentState.saveDraft();
-            }
-
-            // Initial Draft Creation on Server with Idempotency Key
+            // All local callers share this creation request; later saves use the returned ID.
             const createDto = mapWizardStateToCreateDto({
               ...currentState,
               clientDraftKey: draftKey
             });
             updatedRecord = await workspaceService.createWorkspace(createDto);
+            if (!isCurrentDraft()) {
+              void queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
+              return null;
+            }
 
             currentState.setCanonicalWorkspace(
               String(updatedRecord.id),
@@ -90,6 +126,7 @@ export function useWizardDraftSync() {
               String(currentState.canonicalWorkspaceId),
               updateDto
             );
+            if (!isCurrentDraft()) return null;
 
             currentState.setServerVersion(updatedRecord.version);
             currentState.saveDraft();
@@ -109,6 +146,7 @@ export function useWizardDraftSync() {
 
           return updatedRecord;
         } catch (err: unknown) {
+          if (!isCurrentDraft()) return null;
           if (err instanceof ApiError) {
             if (err.status === 409) {
               currentState.setSyncError('Conflict: Modified by another session');
@@ -138,15 +176,15 @@ export function useWizardDraftSync() {
           return null;
         } finally {
           setIsSaving(false);
-          currentState.setIsSavingToServer(false);
-          inFlightPromiseRef.current = null;
+          if (isCurrentDraft()) currentState.setIsSavingToServer(false);
+          inFlightSaves.delete(saveKey);
         }
-      })();
+      });
 
-      inFlightPromiseRef.current = savePromise;
+      inFlightSaves.set(saveKey, savePromise);
       return savePromise;
     },
-    [queryClient, c]
+    [queryClient, c, routeWorkspaceId]
   );
 
   /**
@@ -155,8 +193,10 @@ export function useWizardDraftSync() {
    */
   const loadWorkspaceFromServer = useCallback(
     async (workspaceId: string) => {
+      const sequence = ++loadSequenceRef.current;
       try {
         const canonical = await workspaceService.getWorkspaceById(workspaceId);
+        if (sequence !== loadSequenceRef.current) return;
         useWizardStore.getState().hydrateFromServer(canonical);
         setLastSavedTime(canonical.updatedAt);
         toast.info(c('Workspace Hydrated from Server', 'Đã tải thông tin không gian'), {
@@ -166,6 +206,7 @@ export function useWizardDraftSync() {
           )
         });
       } catch (err: unknown) {
+        if (sequence !== loadSequenceRef.current) return;
         const msg =
           err instanceof Error
             ? err.message
@@ -179,15 +220,8 @@ export function useWizardDraftSync() {
     [c]
   );
 
-  // When navigating to Create Workspace fresh (no id, not edit mode), reset previous canonical workspace
-  useEffect(() => {
-    if (location.pathname === '/dashboard/organizer/workspaces/create') {
-      const isEdit = search.mode === 'edit' || Boolean(routeWorkspaceId);
-      if (!isEdit && store.canonicalWorkspaceId) {
-        store.resetDraft();
-      }
-    }
-  }, [location.pathname, routeWorkspaceId, search.mode, store]);
+  // New-workspace entry actions reset the draft explicitly. Saving or revisiting step 1
+  // must retain the canonical ID so later steps and floor setup update the same workspace.
 
   // Automatically hydrate workspace if route parameter id differs from store
   useEffect(() => {
@@ -200,7 +234,8 @@ export function useWizardDraftSync() {
       // oxlint-disable-next-line react/set-state-in-effect
       loadWorkspaceFromServer(routeWorkspaceId);
     }
-  }, [routeWorkspaceId, store.canonicalWorkspaceId, loadWorkspaceFromServer]);
+    return cancelPendingLoad;
+  }, [routeWorkspaceId, store.canonicalWorkspaceId, loadWorkspaceFromServer, cancelPendingLoad]);
 
   // Automatically record current wizard step route for this workspace without triggering infinite re-renders
   useEffect(() => {
@@ -219,7 +254,7 @@ export function useWizardDraftSync() {
     canonicalWorkspaceId: store.canonicalWorkspaceId,
     serverVersion: store.serverVersion,
     isDraftSynced: store.isDraftSynced,
-    isSaving,
+    isSaving: isSaving || store.isSavingToServer,
     lastSavedTime,
     syncError: store.syncError,
     saveDraftToServer,
