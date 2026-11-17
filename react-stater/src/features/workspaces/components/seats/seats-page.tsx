@@ -1,5 +1,7 @@
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
+import { backendRequest } from '@/features/auth/api/session';
 import {
   Building2,
   Calendar,
@@ -12,7 +14,10 @@ import {
   Building,
   Sparkles,
   MousePointerClick,
-  Loader2
+  Loader2,
+  Map as MapIcon,
+  LayoutList,
+  Eye
 } from 'lucide-react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -28,6 +33,7 @@ import {
   type SpaceFilterType,
   isResourceOffice
 } from '../detail/public-floor-map';
+import { SeatsListView } from './seats-list-view';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
@@ -40,17 +46,50 @@ export interface SeatsPageProps {
   endTime?: string;
   floorId?: number;
   resourceId?: number;
+  view?: 'map' | 'list' | '3d';
+}
+
+function computeDurationHours(startIso?: string, endIso?: string, fallback = 4): number {
+  if (!startIso || !endIso) return fallback;
+  try {
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    if (!isNaN(s) && !isNaN(e) && e > s) {
+      const diffHours = (e - s) / (1000 * 60 * 60);
+      return Math.round(diffHours * 10) / 10;
+    }
+  } catch {
+    // fallback
+  }
+  return fallback;
+}
+
+function formatTimeSlot(timeStr?: string): string {
+  if (!timeStr) return '';
+  if (timeStr.includes('T')) {
+    const timePart = timeStr.split('T')[1];
+    const [h, m] = timePart.split(':');
+    if (h !== undefined && m !== undefined) {
+      return `${h}:${m}`;
+    }
+  }
+  return timeStr;
 }
 
 function getDefaultSchedule() {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const year = tomorrow.getFullYear();
-  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+  ];
+  const monthStr = monthNames[tomorrow.getMonth()];
+  const monthNum = String(tomorrow.getMonth() + 1).padStart(2, '0');
   const day = String(tomorrow.getDate()).padStart(2, '0');
-  const isoDate = `${year}-${month}-${day}`;
+  const isoDate = `${year}-${monthNum}-${day}`;
   return {
-    date: `Jan ${day}, ${year}`,
+    date: `${monthStr} ${day}, ${year}`,
     startTimeStr: '09:00 AM',
     endTimeStr: '01:00 PM',
     isoStartTime: `${isoDate}T09:00:00`,
@@ -65,7 +104,8 @@ export function SeatsPage({
   startTime,
   endTime,
   floorId: initialFloorId,
-  resourceId: initialResourceId
+  resourceId: initialResourceId,
+  view: initialView
 }: SeatsPageProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -74,18 +114,86 @@ export function SeatsPage({
 
   const defaults = useMemo(() => getDefaultSchedule(), []);
 
+  const [viewMode, setViewMode] = useState<'map' | 'list'>(
+    initialView === 'list' ? 'list' : 'map'
+  );
+  const initialDuration = useMemo(() => {
+    return computeDurationHours(startTime, endTime, 4);
+  }, [startTime, endTime]);
+
   const [currentStartTime, setCurrentStartTime] = useState<string>(startTime || defaults.isoStartTime);
   const [currentEndTime, setCurrentEndTime] = useState<string>(endTime || defaults.isoEndTime);
   const [currentDateLabel, setCurrentDateLabel] = useState<string>(date || defaults.date);
-  const [durationHours, setDurationHours] = useState<number>(4);
+  const [durationHours, setDurationHours] = useState<number>(initialDuration);
 
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>(initialFloorId);
   const [selectedResource, setSelectedResource] = useState<MapResource | null>(null);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<SpaceFilterType>('ALL');
-  const [loadedFloors, setLoadedFloors] = useState<CustomerFloor[]>([]);
+
+  // Sync date/time from props if changed
+  useEffect(() => {
+    if (startTime) setCurrentStartTime(startTime);
+    if (endTime) setCurrentEndTime(endTime);
+    if (date) setCurrentDateLabel(date);
+    if (startTime && endTime) {
+      setDurationHours(computeDurationHours(startTime, endTime, 4));
+    }
+  }, [startTime, endTime, date]);
+
+  const timeRangeLabel = useMemo(() => {
+    const start = formatTimeSlot(currentStartTime);
+    const end = formatTimeSlot(currentEndTime);
+    if (start && end) {
+      return `${start} - ${end}`;
+    }
+    return '';
+  }, [currentStartTime, currentEndTime]);
 
   // 1. Fetch Workspace Details
   const { data: workspace } = usePublicWorkspaceDetailQuery(workspaceId ? String(workspaceId) : null);
+
+  // 1.5. Fetch Floor Maps directly so both Map and List views always have full floor and resource data
+  const { data: apiFloors = [] } = useQuery<CustomerFloor[]>({
+    queryKey: ['public-floor-maps', workspaceId],
+    enabled: Number.isSafeInteger(workspaceId) && Number(workspaceId) > 0,
+    queryFn: ({ signal }) =>
+      backendRequest<CustomerFloor[]>(
+        `/public/workspaces/${workspaceId}/floor-maps`,
+        'GET',
+        undefined,
+        false,
+        signal
+      ),
+    retry: false,
+    refetchOnWindowFocus: false
+  });
+
+  const loadedFloors = useMemo(() => {
+    return apiFloors.length > 0 ? apiFloors : [];
+  }, [apiFloors]);
+
+  // Ensure activeFloorId is initialized or synced
+  useEffect(() => {
+    if (initialFloorId) {
+      setActiveFloorId(initialFloorId);
+    } else if (apiFloors.length > 0 && !activeFloorId) {
+      setActiveFloorId(apiFloors[0].id);
+    }
+  }, [initialFloorId, apiFloors, activeFloorId]);
+
+  // If initialResourceId is provided, auto-select it once floors are loaded
+  useEffect(() => {
+    if (initialResourceId && loadedFloors.length > 0 && !selectedResource) {
+      for (const fl of loadedFloors) {
+        const found = fl.resources?.find((r) => r.id === initialResourceId);
+        if (found) {
+          setSelectedResource(found);
+          if (!activeFloorId) setActiveFloorId(fl.id);
+          break;
+        }
+      }
+    }
+  }, [initialResourceId, loadedFloors, selectedResource, activeFloorId]);
 
   // 2. Fetch Real-time Resource Availability
   const { data: availabilityList } = useWorkspaceAvailabilityQuery(
@@ -160,10 +268,25 @@ export function SeatsPage({
     }
   };
 
-  const handleProceedToReview = async () => {
-    if (!workspaceId || !selectedResource) return;
+  const handleViewDetail = (res: MapResource) => {
+    navigate({
+      to: '/workspaces/seat-detail',
+      search: {
+        workspaceId,
+        resourceId: res.id,
+        floorId: activeFloorId ?? currentFloor?.id,
+        date: currentDateLabel,
+        startTime: currentStartTime,
+        endTime: currentEndTime
+      }
+    });
+  };
 
-    const currentAvail = availabilityMap.get(selectedResource.id);
+  const handleProceedToReview = async (targetResource?: MapResource) => {
+    const res = targetResource || selectedResource;
+    if (!workspaceId || !res) return;
+
+    const currentAvail = availabilityMap.get(res.id);
     if (currentAvail?.state === 'BOOKED' || currentAvail?.state === 'LOCKED' || currentAvail?.state === 'MAINTENANCE') {
       toast.error(
         c(
@@ -187,17 +310,17 @@ export function SeatsPage({
       // Hold seat/room right here with a 10-minute hold window
       const booking = await createBookingMutation.mutateAsync({
         workspaceId,
-        resourceId: selectedResource.id,
+        resourceId: res.id,
         startTime: currentStartTime,
         endTime: currentEndTime,
         priceType: 'HOURLY',
-        partySize: selectedResource.capacity || 1
+        partySize: res.capacity || 1
       });
 
       toast.success(
         c(
-          `Held ${selectedResource.name || selectedResource.code} for 10 minutes!`,
-          `Đã giữ chỗ ${selectedResource.name || selectedResource.code} trong 10 phút!`
+          `Held ${res.name || res.code} for 10 minutes!`,
+          `Đã giữ chỗ ${res.name || res.code} trong 10 phút!`
         )
       );
 
@@ -205,7 +328,7 @@ export function SeatsPage({
         to: '/workspaces/review',
         search: {
           workspaceId,
-          resourceId: selectedResource.id,
+          resourceId: res.id,
           bookingId: booking.id,
           bookingCode: booking.bookingCode,
           startTime: currentStartTime,
@@ -300,14 +423,17 @@ export function SeatsPage({
                     <span>{currentDateLabel}</span>
                     <span className='text-muted-foreground'>•</span>
                     <Clock className='size-3.5 text-primary' />
-                    <span>{durationHours} hrs</span>
+                    <span>
+                      {timeRangeLabel ? `${timeRangeLabel} • ` : ''}
+                      {durationHours} {c('hrs', 'giờ')}
+                    </span>
                     <ChevronDown className='size-3.5 text-muted-foreground' />
                   </button>
                 </DateTimePickerModal>
               </div>
             </div>
 
-            {/* Category Filter Tabs & Availability Strip */}
+            {/* Category Filter Tabs & 2 View Modes (Xem sơ đồ & Xem theo List) */}
             <div className='flex flex-wrap items-center justify-between gap-3'>
               {/* Category Filter Buttons */}
               <div className='flex flex-wrap items-center gap-2'>
@@ -341,69 +467,109 @@ export function SeatsPage({
                 })}
               </div>
 
-              {/* Status Legend */}
-              <div className='flex flex-wrap items-center gap-3 text-xs bg-muted/40 border border-border/80 rounded-xl px-3 py-1.5'>
-                <div className='flex items-center gap-1.5'>
-                  <span className='size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20' />
-                  <span className='text-foreground font-medium'>{c('Available', 'Còn trống')}</span>
+              {/* View Modes Toggle: Xem sơ đồ & Xem theo List */}
+              <div className='flex items-center gap-2.5'>
+                <div className='flex items-center gap-1 rounded-xl border border-border bg-card p-1 shadow-xs'>
+                  <button
+                    type='button'
+                    onClick={() => setViewMode('map')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      viewMode === 'map'
+                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                    }`}
+                  >
+                    <MapIcon className='size-3.5' />
+                    <span>{c('Floor Map', 'Xem sơ đồ')}</span>
+                  </button>
+                  <button
+                    type='button'
+                    onClick={() => setViewMode('list')}
+                    className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                      viewMode === 'list'
+                        ? 'bg-primary text-primary-foreground shadow-2xs'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-muted/60'
+                    }`}
+                  >
+                    <LayoutList className='size-3.5' />
+                    <span>{c('List View', 'Xem theo List')}</span>
+                  </button>
                 </div>
-                <div className='flex items-center gap-1.5'>
-                  <span className='size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20' />
-                  <span className='text-amber-700 dark:text-amber-400 font-medium'>{c('Holding', 'Đang giữ chỗ')}</span>
-                </div>
-                <div className='flex items-center gap-1.5'>
-                  <span className='size-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/20' />
-                  <span className='text-rose-700 dark:text-rose-400 font-medium'>{c('Booked', 'Đã có người đặt')}</span>
-                </div>
-                <div className='flex items-center gap-1.5'>
-                  <span className='size-2.5 rounded-full bg-muted-foreground/40' />
-                  <span className='text-muted-foreground'>{c('Maintenance', 'Bảo trì')}</span>
+
+                {/* Status Legend */}
+                <div className='hidden xl:flex flex-wrap items-center gap-3 text-xs bg-muted/40 border border-border/80 rounded-xl px-3 py-1.5'>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20' />
+                    <span className='text-foreground font-medium'>{c('Available', 'Còn trống')}</span>
+                  </div>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20' />
+                    <span className='text-amber-700 dark:text-amber-400 font-medium'>{c('Holding', 'Đang giữ chỗ')}</span>
+                  </div>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='size-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/20' />
+                    <span className='text-rose-700 dark:text-rose-400 font-medium'>{c('Booked', 'Đã có người đặt')}</span>
+                  </div>
+                  <div className='flex items-center gap-1.5'>
+                    <span className='size-2.5 rounded-full bg-muted-foreground/40' />
+                    <span className='text-muted-foreground'>{c('Maintenance', 'Bảo trì')}</span>
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Interactive SVG Floor Map */}
-            <PublicFloorMap
-              workspaceId={workspaceId}
-              onSelect={(res) => setSelectedResource(res)}
-              selectedResourceId={selectedResource?.id ?? initialResourceId}
-              availabilityMap={availabilityMap}
-              activeFloorId={activeFloorId}
-              onFloorChange={(floorId) => setActiveFloorId(floorId)}
-              filterCategory={activeCategoryFilter}
-              showResourceInspector={false}
-              onFloorListLoaded={(floors) => {
-                setLoadedFloors(floors);
-                if (initialResourceId && !selectedResource) {
-                  for (const fl of floors) {
-                    const found = fl.resources?.find((r) => r.id === initialResourceId);
-                    if (found) {
-                      setSelectedResource(found);
-                      setActiveFloorId(fl.id);
-                      break;
-                    }
-                  }
-                }
-              }}
-            />
+            {/* Map Mode vs List Mode Viewports */}
+            {viewMode === 'map' ? (
+              <>
+                {/* Interactive SVG Floor Map */}
+                <PublicFloorMap
+                  workspaceId={workspaceId}
+                  onSelect={(res) => setSelectedResource(res)}
+                  onViewDetail={handleViewDetail}
+                  selectedResourceId={selectedResource?.id ?? initialResourceId}
+                  availabilityMap={availabilityMap}
+                  activeFloorId={activeFloorId}
+                  onFloorChange={(floorId) => setActiveFloorId(floorId)}
+                  filterCategory={activeCategoryFilter}
+                  showResourceInspector={false}
+                />
 
-            {/* Interactive Guidance when No Resource is Selected */}
-            {!selectedResource && (
-              <div className='flex items-center justify-between rounded-xl border border-dashed border-border bg-card/60 p-4 text-xs text-muted-foreground'>
-                <div className='flex items-center gap-2.5'>
-                  <MousePointerClick className='size-4 text-primary animate-bounce' />
-                  <span>
-                    {c(
-                      'Click on any green desk, meeting room, or private office above to inspect details and reserve.',
-                      'Nhấp vào bất kỳ bàn làm việc, phòng họp hoặc văn phòng riêng màu xanh trên sơ đồ để xem thông tin và giữ chỗ.'
-                    )}
-                  </span>
-                </div>
-                <div className='flex items-center gap-1.5 text-muted-foreground/80 font-medium'>
-                  <ShieldCheck className='size-3.5 text-emerald-600' />
-                  <span>{c('Zero commitment at this step', 'Chưa trừ tiền ở bước này')}</span>
-                </div>
-              </div>
+                {/* Interactive Guidance when No Resource is Selected */}
+                {!selectedResource && (
+                  <div className='flex items-center justify-between rounded-xl border border-dashed border-border bg-card/60 p-4 text-xs text-muted-foreground'>
+                    <div className='flex items-center gap-2.5'>
+                      <MousePointerClick className='size-4 text-primary animate-bounce' />
+                      <span>
+                        {c(
+                          'Click on any green desk, meeting room, or private office above to inspect details and reserve.',
+                          'Nhấp vào bất kỳ bàn làm việc, phòng họp hoặc văn phòng riêng màu xanh trên sơ đồ để xem thông tin và giữ chỗ.'
+                        )}
+                      </span>
+                    </div>
+                    <div className='flex items-center gap-1.5 text-muted-foreground/80 font-medium'>
+                      <ShieldCheck className='size-3.5 text-emerald-600' />
+                      <span>{c('Zero commitment at this step', 'Chưa trừ tiền ở bước này')}</span>
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <SeatsListView
+                resources={currentFloor?.resources || []}
+                availabilityMap={availabilityMap}
+                workspaceId={workspaceId}
+                floor={currentFloor}
+                currentDateLabel={currentDateLabel}
+                currentStartTime={currentStartTime}
+                currentEndTime={currentEndTime}
+                durationHours={durationHours}
+                filterCategory={activeCategoryFilter}
+                selectedResourceId={selectedResource?.id ?? initialResourceId}
+                onSelectResource={(res) => setSelectedResource(res)}
+                onViewDetail={handleViewDetail}
+                onHoldAndReview={(res) => handleProceedToReview(res)}
+                isHolding={createBookingMutation.isPending}
+              />
             )}
 
             {/* Floating / Sticky Selected Resource Drawer & CTA */}
@@ -476,23 +642,35 @@ export function SeatsPage({
                       </div>
                     </div>
 
-                    <Button
-                      onClick={handleProceedToReview}
-                      disabled={createBookingMutation.isPending}
-                      className='h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer'
-                    >
-                      {createBookingMutation.isPending ? (
-                        <>
-                          <Loader2 className='size-4 animate-spin' />
-                          <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
-                        </>
-                      ) : (
-                        <>
-                          <span>{c('Review & Hold Seat', 'Xem lại & Giữ chỗ')}</span>
-                          <ArrowRight className='size-4' />
-                        </>
-                      )}
-                    </Button>
+                    <div className='flex items-center gap-2'>
+                      <Button
+                        type='button'
+                        variant='outline'
+                        onClick={() => handleViewDetail(selectedResource)}
+                        className='h-11 px-4 rounded-xl font-semibold text-xs sm:text-sm border-primary/40 text-primary hover:bg-primary/10 active:scale-95 transition-all flex items-center gap-1.5 cursor-pointer shadow-2xs'
+                      >
+                        <Eye className='size-4' />
+                        <span>{c('View Details', 'Xem chi tiết vị trí')}</span>
+                      </Button>
+
+                      <Button
+                        onClick={() => handleProceedToReview()}
+                        disabled={createBookingMutation.isPending}
+                        className='h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer'
+                      >
+                        {createBookingMutation.isPending ? (
+                          <>
+                            <Loader2 className='size-4 animate-spin' />
+                            <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>{c('Review & Hold Seat', 'Xem lại & Giữ chỗ')}</span>
+                            <ArrowRight className='size-4' />
+                          </>
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 </div>
               </div>

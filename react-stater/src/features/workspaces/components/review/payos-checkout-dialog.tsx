@@ -58,7 +58,7 @@ export function PayOSCheckoutDialog({
   onCancelCheckoutSuccess
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
-  const { formatPrice } = useCurrency();
+  const { formatPrice, currency } = useCurrency();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isManualSuccess, setIsManualSuccess] = useState(false);
   const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
@@ -254,7 +254,7 @@ export function PayOSCheckoutDialog({
                 <CheckCircle2 className='h-8 w-8' />
               </div>
 
-              <div className='space-y-1'>
+              <div className='space-y-1 pb-2'>
                 <DialogHeader className='p-0 text-center'>
                   <DialogTitle className='text-foreground text-lg font-bold tracking-tight'>
                     Thanh Toán Đã Được Xác Nhận!
@@ -265,44 +265,7 @@ export function PayOSCheckoutDialog({
                 </DialogHeader>
               </div>
 
-              {/* Turnstile Pass Preview */}
-              <div className='bg-muted/50 border-border/80 rounded-xl border p-3.5 text-left space-y-3'>
-                <div className='flex items-center justify-between border-b border-border/60 pb-2.5'>
-                  <div>
-                    <span className='text-[10px] font-bold uppercase tracking-wider text-muted-foreground'>
-                      Vé Vào Cửa Kỹ Thuật Số
-                    </span>
-                    <h4 className='text-foreground font-sans text-xs sm:text-sm font-bold'>
-                      {seatCode} • Không gian làm việc NexSpace
-                    </h4>
-                  </div>
-                  <div className='bg-primary/10 text-primary border-primary/20 flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-xs font-bold'>
-                    <KeyRound className='h-3 w-3' />
-                    <span>PIN #{statusData?.pinCode || '8821'}</span>
-                  </div>
-                </div>
-
-                <div className='flex items-center gap-3'>
-                  <div className='bg-card border-border flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border shadow-xs'>
-                    {statusData?.qrTokenHash ? (
-                      <QRCodeSVG value={statusData.qrTokenHash} size={36} />
-                    ) : (
-                      <NexSpaceMark className='h-7 w-7' />
-                    )}
-                  </div>
-                  <div className='text-xs space-y-0.5'>
-                    <div className='text-foreground font-semibold'>
-                      Mã vé đã sẵn sàng cho cổng check-in
-                    </div>
-                    <div className='text-muted-foreground text-[11px] flex items-center gap-1.5'>
-                      <ShieldCheck className='h-3.5 w-3.5 text-emerald-600' />
-                      <span>Hóa đơn điện tử đang được xử lý gửi về email</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className='flex items-center gap-2'>
+              <div className='flex items-center gap-2 pt-2'>
                 <Button
                   type='button'
                   variant='outline'
@@ -328,7 +291,7 @@ export function PayOSCheckoutDialog({
                   }}
                   className='w-1/2 cursor-pointer h-10 text-xs font-semibold shadow-md'
                 >
-                  Xem Vé Điện Tử
+                  Xem Chi Tiết Đặt Chỗ
                 </Button>
               </div>
             </div>
@@ -392,9 +355,11 @@ export function PayOSCheckoutDialog({
                     <span className='text-foreground font-sans text-base sm:text-lg font-bold tracking-tight text-primary'>
                       {displayVndAmount}
                     </span>
-                    <div className='text-muted-foreground text-[10px] font-mono'>
-                      ≈ {formatPrice(totalAmountUsd)}
-                    </div>
+                    {currency !== 'VND' && (
+                      <div className='text-muted-foreground text-[10px] font-mono'>
+                        ≈ {formatPrice(totalAmountUsd)}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
