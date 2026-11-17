@@ -107,7 +107,7 @@ function cleanMapClutter(map: MapLibreGL.Map) {
         }
       }
     });
-  } catch (_err) {
+  } catch {
     // ignore
   }
 }
@@ -383,18 +383,106 @@ export function WorkspaceMap({
     if (!userLocationMarkerRef.current) {
       const container = document.createElement('div');
       container.className = 'user-gps-beacon-wrapper';
-      container.style.cssText = 'cursor: pointer; user-select: none; pointer-events: auto;';
+      container.style.cssText =
+        'position: relative; width: 32px; height: 32px; cursor: pointer; user-select: none; pointer-events: auto; z-index: 60;';
 
       const inner = document.createElement('div');
       inner.className = 'user-gps-beacon-inner';
-      inner.style.cssText = 'position: relative; width: 22px; height: 22px; display: flex; align-items: center; justify-content: center;';
+      inner.style.cssText =
+        'position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center;';
 
       inner.innerHTML = `
-        <div style="position: absolute; inset: 0; border-radius: 9999px; background-color: #4F46E5; opacity: 0.25; animation: ping 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-        <div style="position: relative; width: 14px; height: 14px; border-radius: 9999px; background-color: #4F46E5; border: 2.5px solid #FFFFFF; box-shadow: 0 2px 6px rgba(0,0,0,0.3);"></div>
+        <!-- Floating prominent badge pinned above beacon -->
+        <div class="user-gps-tag" style="
+          position: absolute;
+          bottom: 34px;
+          left: 50%;
+          transform: translateX(-50%);
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          pointer-events: none;
+          z-index: 70;
+        ">
+          <div style="
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 4px 10px 4px 8px;
+            border-radius: 9999px;
+            background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+            color: #FFFFFF;
+            font-size: 11px;
+            font-weight: 800;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            letter-spacing: -0.01em;
+            white-space: nowrap;
+            border: 2px solid #FFFFFF;
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.5), 0 2px 4px rgba(0, 0, 0, 0.25);
+          ">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="flex-shrink: 0;">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
+            </svg>
+            <span>Vị trí của bạn</span>
+          </div>
+          <div style="
+            width: 0;
+            height: 0;
+            border-left: 4.5px solid transparent;
+            border-right: 4.5px solid transparent;
+            border-top: 5.5px solid #0369A1;
+            margin-top: -1px;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.25));
+          "></div>
+        </div>
+
+        <!-- Outer animated radar wave -->
+        <div style="
+          position: absolute;
+          inset: -12px;
+          border-radius: 9999px;
+          background: rgba(14, 165, 233, 0.35);
+          animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
+        "></div>
+
+        <!-- Middle halo ring -->
+        <div style="
+          position: absolute;
+          inset: -4px;
+          border-radius: 9999px;
+          background: rgba(2, 132, 199, 0.25);
+        "></div>
+
+        <!-- Middle pin ring with bright white rim -->
+        <div style="
+          position: relative;
+          width: 22px;
+          height: 22px;
+          border-radius: 9999px;
+          background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
+          border: 3px solid #FFFFFF;
+          box-shadow: 0 3px 10px rgba(2, 132, 199, 0.6), 0 1px 3px rgba(0, 0, 0, 0.3);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        ">
+          <!-- Inner solid white core dot -->
+          <div style="
+            width: 7px;
+            height: 7px;
+            border-radius: 9999px;
+            background-color: #FFFFFF;
+            box-shadow: 0 0 6px rgba(255, 255, 255, 0.95);
+          "></div>
+        </div>
       `;
 
       container.appendChild(inner);
+
+      container.addEventListener('click', (e) => {
+        e.stopPropagation();
+        map.easeTo({ center: [userLocation.lng, userLocation.lat], zoom: 15, duration: 500 });
+      });
 
       userLocationMarkerRef.current = new maplibregl.Marker({ element: container, anchor: 'center' })
         .setLngLat([userLocation.lng, userLocation.lat])
@@ -436,9 +524,9 @@ export function WorkspaceMap({
       const container = document.createElement('div');
       container.className = `nexspace-workspace-marker-wrapper ${isSelected ? 'is-selected' : ''}`;
       container.dataset.wsId = wsIdStr;
-      container.style.cssText = `cursor: pointer; user-select: none; pointer-events: auto; z-index: ${isSelected ? 60 : 10};`;
+      container.style.cssText = `cursor: pointer; user-select: none; pointer-events: auto; z-index: ${isSelected ? 100 : 15};`;
 
-      // Inner compact pill: clean, bold, brand-accented
+      // Inner compact pill: clean, bold, high-contrast against any map canvas
       const inner = document.createElement('div');
       inner.className = 'nexspace-workspace-marker-inner';
       inner.style.cssText = [
@@ -446,27 +534,32 @@ export function WorkspaceMap({
         'flex-direction: column',
         'align-items: center',
         'width: max-content',
-        'filter: drop-shadow(0 3px 6px rgba(15, 23, 42, 0.22))',
-        'transition: transform 0.16s cubic-bezier(0.34, 1.56, 0.64, 1)',
-        isSelected ? 'transform: scale(1.18);' : 'transform: scale(1);'
+        'filter: drop-shadow(0 4px 8px rgba(15, 23, 42, 0.3))',
+        'transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1)',
+        isSelected ? 'transform: scale(1.22);' : 'transform: scale(1);'
       ].join('; ');
 
-      const bgColor = isSelected ? '#4F46E5' : '#FFFFFF';
-      const textColor = isSelected ? '#FFFFFF' : '#0F172A';
-      const borderColor = isSelected ? '#3730A3' : '#CBD5E1';
-      const dotColor = isSelected ? '#FFFFFF' : '#4F46E5';
-      const dotGlow = isSelected
-        ? '0 0 6px rgba(255, 255, 255, 0.95)'
-        : '0 0 5px rgba(79, 70, 229, 0.55)';
+      const bgStyle = isSelected
+        ? 'background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%);'
+        : 'background: #0F172A;';
+      const borderStyle = isSelected
+        ? 'border: 2px solid #FFFFFF;'
+        : 'border: 1.5px solid rgba(255, 255, 255, 0.35);';
+      const arrowColor = isSelected ? '#4F46E5' : '#0F172A';
+      const iconColor = isSelected ? '#FDE047' : '#818CF8';
       const shadowStyle = isSelected
-        ? '0 10px 25px -3px rgba(79, 70, 229, 0.55), 0 4px 10px rgba(0,0,0,0.18)'
-        : '0 4px 12px -1px rgba(15, 23, 42, 0.22), 0 2px 4px -1px rgba(15, 23, 42, 0.12)';
+        ? '0 12px 28px -2px rgba(79, 70, 229, 0.75), 0 4px 12px rgba(0, 0, 0, 0.3)'
+        : '0 4px 14px rgba(15, 23, 42, 0.45), 0 2px 4px rgba(0, 0, 0, 0.25)';
+
+      const iconSvg = isSelected
+        ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="#FDE047" stroke="#EAB308" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+        : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/><path d="M14 9h1"/><path d="M14 13h1"/><path d="M14 17h1"/></svg>`;
 
       inner.innerHTML = `
         <div class="nexspace-marker-pill" style="
           display: inline-flex;
           align-items: center;
-          gap: 5.5px;
+          gap: 5px;
           padding: 5px 10px 5px 8px;
           border-radius: 9999px;
           font-size: 11.5px;
@@ -475,33 +568,32 @@ export function WorkspaceMap({
           letter-spacing: -0.01em;
           white-space: nowrap;
           width: max-content;
-          background-color: ${bgColor};
-          color: ${textColor};
-          border: 1.5px solid ${borderColor};
+          ${bgStyle}
+          color: #FFFFFF;
+          ${borderStyle}
           box-shadow: ${shadowStyle};
-          transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+          transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
         ">
-          <span class="nexspace-marker-dot" style="
-            display: inline-block;
-            width: 6.5px;
-            height: 6.5px;
-            border-radius: 9999px;
-            background-color: ${dotColor};
-            box-shadow: ${dotGlow};
-            flex-shrink: 0;
-            transition: background-color 0.15s ease, box-shadow 0.15s ease;
-          "></span>
-          <span>${priceText}</span>
+          <span class="nexspace-marker-icon" style="
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: ${iconColor};
+            transition: color 0.18s ease;
+          ">
+            ${iconSvg}
+          </span>
+          <span class="nexspace-marker-text">${priceText}</span>
         </div>
         <div class="nexspace-marker-arrow" style="
           width: 0;
           height: 0;
           border-left: 4.5px solid transparent;
           border-right: 4.5px solid transparent;
-          border-top: 5px solid ${borderColor};
+          border-top: 5px solid ${arrowColor};
           margin-top: -1px;
-          filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.2));
-          transition: border-top-color 0.15s ease;
+          filter: drop-shadow(0 2px 2px rgba(15, 23, 42, 0.25));
+          transition: border-top-color 0.18s ease;
         "></div>
       `;
 
@@ -555,29 +647,33 @@ export function WorkspaceMap({
       const inner = container.querySelector('.nexspace-workspace-marker-inner') as HTMLElement | null;
       const pill = container.querySelector('.nexspace-marker-pill') as HTMLElement | null;
       const arrow = container.querySelector('.nexspace-marker-arrow') as HTMLElement | null;
-      const dot = container.querySelector('.nexspace-marker-dot') as HTMLElement | null;
+      const iconSpan = container.querySelector('.nexspace-marker-icon') as HTMLElement | null;
 
       if (inner) {
-        inner.style.transform = isSelected ? 'scale(1.18)' : 'scale(1)';
+        inner.style.transform = isSelected ? 'scale(1.22)' : 'scale(1)';
       }
       if (pill) {
-        pill.style.backgroundColor = isSelected ? '#4F46E5' : '#FFFFFF';
-        pill.style.color = isSelected ? '#FFFFFF' : '#0F172A';
-        pill.style.borderColor = isSelected ? '#3730A3' : '#CBD5E1';
+        pill.style.background = isSelected
+          ? 'linear-gradient(135deg, #4F46E5 0%, #7C3AED 100%)'
+          : '#0F172A';
+        pill.style.color = '#FFFFFF';
+        pill.style.border = isSelected
+          ? '2px solid #FFFFFF'
+          : '1.5px solid rgba(255, 255, 255, 0.35)';
         pill.style.boxShadow = isSelected
-          ? '0 10px 25px -3px rgba(79, 70, 229, 0.55), 0 4px 10px rgba(0,0,0,0.18)'
-          : '0 4px 12px -1px rgba(15, 23, 42, 0.22), 0 2px 4px -1px rgba(15, 23, 42, 0.12)';
+          ? '0 12px 28px -2px rgba(79, 70, 229, 0.75), 0 4px 12px rgba(0, 0, 0, 0.3)'
+          : '0 4px 14px rgba(15, 23, 42, 0.45), 0 2px 4px rgba(0, 0, 0, 0.25)';
       }
-      if (dot) {
-        dot.style.backgroundColor = isSelected ? '#FFFFFF' : '#4F46E5';
-        dot.style.boxShadow = isSelected
-          ? '0 0 6px rgba(255, 255, 255, 0.95)'
-          : '0 0 5px rgba(79, 70, 229, 0.55)';
+      if (iconSpan) {
+        iconSpan.style.color = isSelected ? '#FDE047' : '#818CF8';
+        iconSpan.innerHTML = isSelected
+          ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="#FDE047" stroke="#EAB308" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
+          : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/><path d="M14 9h1"/><path d="M14 13h1"/><path d="M14 17h1"/></svg>`;
       }
       if (arrow) {
-        arrow.style.borderTopColor = isSelected ? '#3730A3' : '#CBD5E1';
+        arrow.style.borderTopColor = isSelected ? '#4F46E5' : '#0F172A';
       }
-      container.style.zIndex = isSelected ? '60' : '10';
+      container.style.zIndex = isSelected ? '100' : '15';
     });
   }, [effectiveActiveId]);
 
