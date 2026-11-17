@@ -74,4 +74,38 @@ export interface RoomAvailabilityParams {
   minCapacity?: number;
 }
 
+/**
+ * Yêu cầu giữ chỗ tạm thời (Temporary Hold Engine).
+ */
+export interface HoldResourceRequestDto {
+  resourceId: number;
+  startTime: string; // ISO 8601
+  endTime: string;   // ISO 8601
+  partySize?: number;
+  priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  notes?: string;
+}
+
+/**
+ * Thông tin phản hồi giữ chỗ tạm thời kèm countdown serverTime và cờ Idempotent Reuse.
+ */
+export interface HoldResourceResponseDto {
+  bookingId: number;
+  bookingCode: string;
+  resourceId: number;
+  resourceName: string;
+  workspaceId: number;
+  workspaceName: string;
+  startTime: string;
+  endTime: string;
+  holdExpiresAt: string;
+  serverTime: string;
+  ttlSeconds: number;
+  isReused: boolean;
+  baseAmount: number;
+  finalPrice: number;
+  currency: string;
+}
+
+
 

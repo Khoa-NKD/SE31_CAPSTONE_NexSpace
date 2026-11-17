@@ -6,15 +6,18 @@ interface HoldUrgencyBannerProps {
   expiresAt?: string;
   initialSeconds?: number;
   holdExpiresAt?: string | null;
+  serverTime?: string | null;
 }
 
 export function HoldUrgencyBanner({
   seatCode = 'Selected Station',
   expiresAt,
   initialSeconds = 600,
-  holdExpiresAt
+  holdExpiresAt,
+  serverTime
 }: HoldUrgencyBannerProps) {
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+  const [serverOffset] = useState(() => (serverTime ? new Date(serverTime).getTime() - Date.now() : 0));
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
 
   useEffect(() => {
@@ -27,7 +30,7 @@ export function HoldUrgencyBanner({
 
   const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
   const secondsRemaining = expiryTimestamp > 0
-    ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
+    ? Math.max(0, Math.floor((expiryTimestamp - (currentTimestamp + serverOffset)) / 1000))
     : initialSeconds;
 
   const minutes = Math.floor(secondsRemaining / 60);
