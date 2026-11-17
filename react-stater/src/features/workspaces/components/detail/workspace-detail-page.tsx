@@ -302,6 +302,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                 activeFloorId={activeFloorId}
                 schedule={schedule}
                 onScheduleChange={setSchedule}
+                availabilityMap={availabilityMap}
               />
             </div>
           </div>

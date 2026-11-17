@@ -1,3 +1,4 @@
+import React, { useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   Calendar,
@@ -10,42 +11,99 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
-import { DateTimePickerModal } from '../detail/date-time-picker-modal';
+import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
+import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
+import type { PublicWorkspaceDetail } from '../../api/types';
 
-interface SeatReservationWidgetProps {
+function computeHours(startIso?: string, endIso?: string, fallback = 2): number {
+  if (!startIso || !endIso) return fallback;
+  try {
+    const s = new Date(startIso).getTime();
+    const e = new Date(endIso).getTime();
+    if (!isNaN(s) && !isNaN(e) && e > s) {
+      const diffHours = (e - s) / (1000 * 60 * 60);
+      return Math.round(diffHours * 10) / 10;
+    }
+  } catch {
+    // ignore
+  }
+  return fallback;
+}
+
+function formatDisplayTime(timeStr?: string): string {
+  if (!timeStr) return '';
+  if (timeStr.includes('T')) {
+    const timePart = timeStr.split('T')[1];
+    const [hStr, mStr] = timePart.split(':');
+    if (hStr !== undefined && mStr !== undefined) {
+      return `${hStr}:${mStr}`;
+    }
+  }
+  return timeStr;
+}
+
+export interface SeatReservationWidgetProps {
+  workspaceId?: number;
+  floorId?: number;
   monitorAddonSelected?: boolean;
+  resource?: MapResource | null;
+  workspace?: PublicWorkspaceDetail | null;
+  floor?: CustomerFloor | null;
+  date?: string;
+  startTime?: string;
+  endTime?: string;
+  onScheduleChange?: (schedule: ScheduleSelection) => void;
 }
 
 export function SeatReservationWidget({
-  monitorAddonSelected = false
+  workspaceId,
+  floorId,
+  monitorAddonSelected = false,
+  resource,
+  workspace,
+  floor,
+  date,
+  startTime,
+  endTime,
+  onScheduleChange
 }: SeatReservationWidgetProps) {
-  const { formatPrice, currency } = useCurrency();
+  const { formatPrice } = useCurrency();
 
-  const hourlyRate = 2.50;
-  const hours = 4;
-  const monitorHourlyRate = 1.50;
+  const effectiveWorkspaceId =
+    workspaceId ?? (workspace?.id ? Number(workspace.id) : 1);
+  const effectiveFloorId = floorId ?? floor?.id ?? 1;
+
+  const hourlyRate = resource?.pricePerHour || workspace?.pricePerHour || 35000;
+  const hours = useMemo(() => computeHours(startTime, endTime, 2), [startTime, endTime]);
+  const monitorHourlyRate = 25000;
   const monitorTotal = monitorAddonSelected ? monitorHourlyRate * hours : 0;
   const standardTotal = hourlyRate * hours;
   const subtotal = standardTotal + monitorTotal;
   const vatAmount = subtotal * 0.08;
   const totalDue = subtotal + vatAmount;
 
+  const displayDate = date || 'Nov 19, 2026';
+  const displayStartTime = formatDisplayTime(startTime) || '09:00';
+  const displayEndTime = formatDisplayTime(endTime) || '11:00';
+  const displaySeat = resource ? `${resource.name} (${resource.code})` : 'Desk A-04 (Executive Hot Desk)';
+  const dayPassPrice = hourlyRate * 6;
+
   return (
-    <aside className='sticky top-24'>
+    <aside className='w-full'>
       <div className='bg-card border-border shadow-md space-y-5 rounded-xl border p-6'>
         {/* Pricing Header */}
         <div className='border-border/60 flex items-baseline justify-between border-b pb-4'>
           <div>
-            <span className='font-sans text-2xl font-bold tracking-tight text-foreground sm:text-3xl'>
+            <span className='font-sans text-2xl font-bold tracking-tight text-primary sm:text-3xl'>
               {formatPrice(hourlyRate)}
             </span>
-            <span className='text-muted-foreground text-xs font-medium'> / hour</span>
+            <span className='text-muted-foreground text-xs font-medium'> / giờ</span>
           </div>
           <div className='text-right'>
             <span className='rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400'>
-              $18.00 / Day Pass
+              {formatPrice(dayPassPrice)} / ngày
             </span>
-            <p className='text-muted-foreground mt-0.5 text-[11px]'>Save 25% on full day</p>
+            <p className='text-muted-foreground mt-0.5 text-[11px]'>Tiết kiệm 25% trọn ngày</p>
           </div>
         </div>
 
@@ -56,7 +114,7 @@ export function SeatReservationWidget({
             <span className='relative inline-flex h-2.5 w-2.5 rounded-full bg-emerald-600' />
           </span>
           <span className='text-xs font-semibold text-emerald-900 dark:text-emerald-300'>
-            Instant Confirmation • 10-min Free Hold
+            Xác nhận tức thì • Miễn phí giữ chỗ 10 phút
           </span>
         </div>
 
@@ -64,14 +122,23 @@ export function SeatReservationWidget({
         <div className='border-border/80 bg-muted/30 rounded-xl border p-4'>
           <div className='mb-2 flex items-center justify-between'>
             <span className='text-muted-foreground text-[10px] font-bold tracking-wider uppercase'>
-              Selected Slot
+              Khung giờ đã chọn
             </span>
-            <DateTimePickerModal>
+            <DateTimePickerModal
+              workspaceId={effectiveWorkspaceId}
+              workspaceName={workspace?.name}
+              operatingHours={workspace?.operatingHours}
+              pricePerHour={hourlyRate}
+              initialDate={startTime ? startTime.split('T')[0] : date}
+              initialStartTime={startTime ? startTime.split('T')[1] : undefined}
+              initialEndTime={endTime ? endTime.split('T')[1] : undefined}
+              onConfirm={onScheduleChange}
+            >
               <button
                 type='button'
                 className='text-primary hover:text-primary/80 cursor-pointer text-xs font-semibold underline underline-offset-2'
               >
-                Change
+                Thay đổi
               </button>
             </DateTimePickerModal>
           </div>
@@ -79,8 +146,10 @@ export function SeatReservationWidget({
           <div className='flex items-center gap-2.5'>
             <Calendar className='text-primary h-5 w-5 shrink-0' />
             <div className='text-xs'>
-              <p className='text-foreground font-semibold'>Today, Jan 25, 2026</p>
-              <p className='text-muted-foreground text-[11px]'>09:00 AM – 01:00 PM (4 hours duration)</p>
+              <p className='text-foreground font-semibold'>{displayDate}</p>
+              <p className='text-muted-foreground text-[11px]'>
+                {displayStartTime} – {displayEndTime} ({hours} giờ sử dụng)
+              </p>
             </div>
           </div>
         </div>
@@ -89,15 +158,17 @@ export function SeatReservationWidget({
         <div className='border-border/70 bg-muted/40 flex items-center justify-between rounded-lg border border-dashed p-3 text-xs'>
           <div className='flex items-center gap-2'>
             <CheckCircle2 className='text-primary h-4 w-4 shrink-0' />
-            <span className='text-foreground font-medium'>Desk A-04 (Executive Hot Desk)</span>
+            <span className='text-foreground font-medium truncate max-w-[200px]'>
+              {displaySeat}
+            </span>
           </div>
-          <span className='text-emerald-600 dark:text-emerald-400 font-bold'>Selected</span>
+          <span className='text-emerald-600 dark:text-emerald-400 font-bold'>Đang chọn</span>
         </div>
 
         {/* Monitor Add-on Item if Selected */}
         {monitorAddonSelected && (
           <div className='border-border/70 bg-primary/5 flex items-center justify-between rounded-lg border p-2.5 text-xs'>
-            <span className='text-foreground font-medium'>Dell 27" 4K Monitor (4 hrs)</span>
+            <span className='text-foreground font-medium'>Màn hình phụ 4K 27" ({hours}h)</span>
             <span className='text-primary font-semibold'>{formatPrice(monitorTotal)}</span>
           </div>
         )}
@@ -105,37 +176,38 @@ export function SeatReservationWidget({
         {/* Cost Breakdown List */}
         <div className='border-border/60 space-y-2 border-b pb-4 text-xs'>
           <div className='flex justify-between text-muted-foreground'>
-            <span>Standard Rate ({hours} hrs × {formatPrice(hourlyRate)})</span>
+            <span>
+              Đơn giá tiêu chuẩn ({hours}h × {formatPrice(hourlyRate)})
+            </span>
             <span className='text-foreground font-medium'>{formatPrice(standardTotal)}</span>
           </div>
 
           {monitorAddonSelected && (
             <div className='flex justify-between text-muted-foreground'>
-              <span>Monitor Add-on ({hours} hrs × $1.50)</span>
+              <span>Phụ phí màn hình 4K</span>
               <span className='text-foreground font-medium'>{formatPrice(monitorTotal)}</span>
             </div>
           )}
 
           <div className='flex justify-between text-muted-foreground'>
-            <span className='flex items-center gap-1'>
-              Platform fee &amp; 1Gbps WiFi
-              <Info className='h-3 w-3 text-muted-foreground/60' />
-            </span>
-            <span className='text-emerald-600 dark:text-emerald-400 font-medium'>Free ($0.00)</span>
+            <span>Phí dịch vụ &amp; Quản trị (2.5%)</span>
+            <span className='text-emerald-600 dark:text-emerald-400 font-medium'>Miễn phí</span>
           </div>
 
           <div className='flex justify-between text-muted-foreground'>
-            <span>VAT &amp; Facilities Surcharge (8%)</span>
+            <span className='flex items-center gap-1'>
+              <span>Thuế GTGT / VAT (8%)</span>
+              <Info className='h-3 w-3' />
+            </span>
             <span className='text-foreground font-medium'>{formatPrice(vatAmount)}</span>
           </div>
 
           <div className='border-border/60 flex items-baseline justify-between border-t pt-3'>
-            <span className='text-foreground text-sm font-bold'>Total Due</span>
+            <span className='text-foreground text-sm font-bold'>Tổng thanh toán</span>
             <div className='text-right'>
               <span className='text-primary font-sans text-xl font-bold tracking-tight'>
                 {formatPrice(totalDue)}
               </span>
-              <span className='text-muted-foreground text-[11px] font-medium'> {currency}</span>
             </div>
           </div>
         </div>
@@ -145,8 +217,18 @@ export function SeatReservationWidget({
           asChild
           className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
         >
-          <Link to='/workspaces/review'>
-            <span>Select This Seat &amp; Continue</span>
+          <Link
+            to='/workspaces/review'
+            search={{
+              workspaceId: effectiveWorkspaceId,
+              resourceId: resource?.id || 1,
+              startTime: startTime || '2026-11-18T09:00:00',
+              endTime: endTime || '2026-11-18T13:00:00',
+              date: displayDate,
+              priceType: 'HOURLY'
+            }}
+          >
+            <span>Xác nhận vị trí &amp; Tiếp tục</span>
             <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
           </Link>
         </Button>
@@ -158,14 +240,39 @@ export function SeatReservationWidget({
             variant='outline'
             className='cursor-pointer text-xs font-medium h-9'
           >
-            <Link to='/workspaces/seats'>Compare Adjacent</Link>
+            <Link
+              to='/workspaces/seats'
+              search={{
+                workspaceId: effectiveWorkspaceId,
+                floorId: effectiveFloorId,
+                date: date,
+                startTime: startTime,
+                endTime: endTime,
+                view: 'list'
+              }}
+            >
+              Xem các vị trí khác
+            </Link>
           </Button>
           <Button
             asChild
             variant='outline'
             className='cursor-pointer text-xs font-medium h-9'
           >
-            <Link to='/workspaces/seats'>View on 2D Plan</Link>
+            <Link
+              to='/workspaces/seats'
+              search={{
+                workspaceId: effectiveWorkspaceId,
+                floorId: effectiveFloorId,
+                resourceId: resource?.id,
+                date: date,
+                startTime: startTime,
+                endTime: endTime,
+                view: 'map'
+              }}
+            >
+              Xem trên sơ đồ
+            </Link>
           </Button>
         </div>
 
@@ -173,19 +280,18 @@ export function SeatReservationWidget({
         <div className='border-border/60 space-y-2 border-t pt-4 text-xs text-muted-foreground'>
           <div className='flex items-center gap-2'>
             <ShieldCheck className='text-primary h-4 w-4 shrink-0' />
-            <span>PayOS 256-bit encrypted checkout</span>
+            <span>Thanh toán bảo mật chuẩn VietQR PayOS</span>
           </div>
           <div className='flex items-center gap-2'>
             <CalendarCheck className='text-primary h-4 w-4 shrink-0' />
-            <span>Free cancellation up to 1 hr before start</span>
+            <span>Miễn phí hủy trong 10 phút giữ chỗ</span>
           </div>
           <div className='flex items-center gap-2'>
             <QrCode className='text-primary h-4 w-4 shrink-0' />
-            <span>Instant mobile QR key access generated</span>
+            <span>Nhận mã QR Check-in tức thì</span>
           </div>
         </div>
       </div>
     </aside>
   );
 }
-

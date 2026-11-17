@@ -774,22 +774,29 @@ export function WorkspaceInfo({
                     <div>
                       <div className='flex items-start justify-between gap-2'>
                         <div>
-                          <span
-                            className={cn(
-                              'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider mb-1.5',
-                              group.category === 'ROOM'
-                                ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                                : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                          <div className='flex items-center gap-1.5 mb-1.5'>
+                            <span
+                              className={cn(
+                                'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider',
+                                group.category === 'ROOM'
+                                  ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                              )}
+                            >
+                              {group.category === 'ROOM'
+                                ? language === 'vi'
+                                  ? 'Phòng khép kín'
+                                  : 'Private Space'
+                                : language === 'vi'
+                                  ? 'Bàn làm việc'
+                                  : 'Desk Space'}
+                            </span>
+                            {group.availableCount === 0 && (
+                              <span className='inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'>
+                                {language === 'vi' ? 'Hết chỗ' : 'Sold out'}
+                              </span>
                             )}
-                          >
-                            {group.category === 'ROOM'
-                              ? language === 'vi'
-                                ? 'Phòng khép kín'
-                                : 'Private Space'
-                              : language === 'vi'
-                                ? 'Bàn làm việc'
-                                : 'Desk Space'}
-                          </span>
+                          </div>
                           <h3 className='text-sm font-bold text-slate-900 dark:text-white'>
                             {group.label}
                           </h3>
@@ -826,9 +833,21 @@ export function WorkspaceInfo({
                               }`}
                         </span>
                         <span>•</span>
-                        <span className='font-medium text-emerald-600 dark:text-emerald-400'>
-                          {group.availableCount}/{group.unitCount}{' '}
-                          {language === 'vi' ? 'vị trí sẵn sàng' : 'units available'}
+                        <span
+                          className={cn(
+                            'font-semibold',
+                            group.availableCount > 0
+                              ? 'text-emerald-600 dark:text-emerald-400'
+                              : 'text-rose-600 dark:text-rose-400'
+                          )}
+                        >
+                          {group.availableCount > 0
+                            ? `${group.availableCount}/${group.unitCount} ${
+                                language === 'vi' ? 'vị trí sẵn sàng' : 'units available'
+                              }`
+                            : `${group.availableCount}/${group.unitCount} ${
+                                language === 'vi' ? 'vị trí (Đã kín chỗ)' : 'units (Fully booked)'
+                              }`}
                         </span>
                       </div>
 
@@ -851,20 +870,35 @@ export function WorkspaceInfo({
                         </span>
                       </button>
 
-                      <button
-                        type='button'
-                        onClick={() => {
-                          if (group.floorId && group.floorId !== activeFloorId) {
-                            onFloorChange?.(group.floorId);
+                      {group.availableCount > 0 ? (
+                        <button
+                          type='button'
+                          onClick={() => {
+                            if (group.floorId && group.floorId !== activeFloorId) {
+                              onFloorChange?.(group.floorId);
+                            }
+                            onSelectResource?.(group.sampleResource);
+                            onContinueWithResource?.(group.sampleResource, group.floorId);
+                          }}
+                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer active:scale-95'
+                        >
+                          <span>{language === 'vi' ? 'Chọn đặt' : 'Select'}</span>
+                          <ArrowUpRight className='size-3.5' />
+                        </button>
+                      ) : (
+                        <button
+                          type='button'
+                          disabled
+                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
+                          title={
+                            language === 'vi'
+                              ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
+                              : 'This space is fully booked in this time slot'
                           }
-                          onSelectResource?.(group.sampleResource);
-                          onContinueWithResource?.(group.sampleResource, group.floorId);
-                        }}
-                        className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer'
-                      >
-                        <span>{language === 'vi' ? 'Chọn đặt' : 'Select'}</span>
-                        <ArrowUpRight className='size-3.5' />
-                      </button>
+                        >
+                          <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

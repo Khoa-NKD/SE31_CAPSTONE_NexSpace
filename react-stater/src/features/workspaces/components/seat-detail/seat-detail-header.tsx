@@ -1,8 +1,16 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { ChevronRight, Share2, Bookmark, Check } from 'lucide-react';
+import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
+import type { PublicWorkspaceDetail } from '../../api/types';
 
-export function SeatDetailHeader() {
+export interface SeatDetailHeaderProps {
+  resource?: MapResource | null;
+  workspace?: PublicWorkspaceDetail | null;
+  floor?: CustomerFloor | null;
+}
+
+export function SeatDetailHeader({ resource, workspace, floor }: SeatDetailHeaderProps) {
   const [copied, setCopied] = useState(false);
   const [saved, setSaved] = useState(false);
 
@@ -13,6 +21,11 @@ export function SeatDetailHeader() {
       setTimeout(() => setCopied(false), 2000);
     }
   };
+
+  const workspaceName = workspace?.name || 'Enouvo Space 1 - Dragon Bridge Hub';
+  const floorName = floor?.name || 'Tầng 2 - Co-working & Hot Desks';
+  const resourceCode = resource?.code || 'Desk A-04';
+  const resourceName = resource?.name ? `${resource.name} (${resource.code})` : 'Desk A-04';
 
   return (
     <div className='w-full border-b border-border/60 bg-card py-3'>
@@ -33,25 +46,28 @@ export function SeatDetailHeader() {
             to='/workspaces'
             className='hover:text-primary transition-colors duration-150'
           >
-            District 1, HCMC
+            {workspace?.city || 'Đà Nẵng'}
           </Link>
           <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
           <Link
             to='/workspaces/$workspaceId'
-            params={{ workspaceId: '1' }}
+            params={{ workspaceId: String(workspace?.id || 1) }}
             className='hover:text-primary transition-colors duration-150'
           >
-            NexSpace Central Tower
+            {workspaceName}
           </Link>
           <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
           <Link
             to='/workspaces/seats'
+            search={{ workspaceId: workspace ? Number(workspace.id) : undefined, floorId: floor?.id }}
             className='hover:text-primary transition-colors duration-150'
           >
-            Level 14 (Quiet Zone)
+            {floorName}
           </Link>
           <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
-          <span className='text-foreground font-semibold'>Desk A-04</span>
+          <span className='text-foreground font-semibold' title={resourceName}>
+            {resourceCode}
+          </span>
         </nav>
 
         {/* Action buttons: Share & Save */}
@@ -66,7 +82,7 @@ export function SeatDetailHeader() {
             ) : (
               <Share2 className='h-3.5 w-3.5' />
             )}
-            <span>{copied ? 'Copied Link' : 'Share'}</span>
+            <span>{copied ? 'Đã sao chép' : 'Chia sẻ'}</span>
           </button>
           <button
             type='button'
@@ -78,7 +94,7 @@ export function SeatDetailHeader() {
             }`}
           >
             <Bookmark className={`h-3.5 w-3.5 ${saved ? 'fill-primary' : ''}`} />
-            <span>{saved ? 'Saved' : 'Save'}</span>
+            <span>{saved ? 'Đã lưu' : 'Lưu'}</span>
           </button>
         </div>
       </div>
