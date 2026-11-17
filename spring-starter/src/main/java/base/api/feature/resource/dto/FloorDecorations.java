@@ -44,8 +44,8 @@ public final class FloorDecorations {
 
     public record Save(
             @NotBlank @Size(max = 100) String expectedRevision,
-            @NotNull @DecimalMin("1") @Digits(integer = 8, fraction = 2) BigDecimal width,
-            @NotNull @DecimalMin("1") @Digits(integer = 8, fraction = 2) BigDecimal height,
+            @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2) BigDecimal width,
+            @NotNull @DecimalMin("0.01") @Digits(integer = 8, fraction = 2) BigDecimal height,
             @NotNull @Size(max = 500) List<@NotNull @Valid Item> decorations) {
         public Save {
             decorations = decorations == null ? null : List.copyOf(decorations);

@@ -35,17 +35,24 @@ public final class BuildingRequests {
     }
     public record PhysicalFloor(@NotBlank @Size(max = 100) String name,
                                 @NotNull @Min(-20) @Max(500) Integer floorNumber,
-                                @NotNull @DecimalMin("1") @DecimalMax("100000") @Digits(integer = 6, fraction = 2) BigDecimal width,
-                                @NotNull @DecimalMin("1") @DecimalMax("100000") @Digits(integer = 6, fraction = 2) BigDecimal height,
-                                @Size(max = 100) String expectedRevision) {
+                                @NotNull @DecimalMin("0.01") @DecimalMax("600000") @Digits(integer = 6, fraction = 2) BigDecimal width,
+                                @NotNull @DecimalMin("0.01") @DecimalMax("600000") @Digits(integer = 6, fraction = 2) BigDecimal height,
+                                @Size(max = 100) String expectedRevision,
+                                @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal widthM,
+                                @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal lengthM) {
         public PhysicalFloor { name = trim(name); }
+        public PhysicalFloor(String name, Integer floorNumber, BigDecimal width, BigDecimal height, String expectedRevision) {
+            this(name, floorNumber, width, height, expectedRevision, null, null);
+        }
+        @AssertTrue(message = "Supply both real dimensions together")
+        public boolean isRealSizePairValid() { return (widthM == null) == (lengthM == null); }
         @JsonAnySetter public void unsupported(String key, Object value) { reject(); }
     }
     public record Allocation(@NotNull @Positive Long buildingFloorId,
                              @NotNull @DecimalMin("0") @Digits(integer = 6, fraction = 2) BigDecimal x,
                              @NotNull @DecimalMin("0") @Digits(integer = 6, fraction = 2) BigDecimal y,
-                             @NotNull @DecimalMin("1") @DecimalMax("100000") @Digits(integer = 6, fraction = 2) BigDecimal width,
-                             @NotNull @DecimalMin("1") @DecimalMax("100000") @Digits(integer = 6, fraction = 2) BigDecimal height,
+                             @NotNull @DecimalMin("0.01") @DecimalMax("600000") @Digits(integer = 6, fraction = 2) BigDecimal width,
+                             @NotNull @DecimalMin("0.01") @DecimalMax("600000") @Digits(integer = 6, fraction = 2) BigDecimal height,
                              @NotBlank @Size(max = 100) String name,
                              @Size(max = 100) String expectedRevision) {
         public Allocation { name = trim(name); }

@@ -32,6 +32,11 @@ public class OrganizerFloorDesignController extends BaseAPIController {
             @Valid @RequestBody FloorDesign.MetricsInput input) {
         return success(design.saveMetrics(getCurrentUserId(), workspaceId, floorId, input));
     }
+    @PostMapping(FLOOR + "/design-metrics/preview")
+    public ResponseEntity<ApiResponse<MetricFloorGeometry.Review>> previewMetrics(@PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long floorId, @Valid @RequestBody FloorDesign.MetricsInput input) {
+        return success(design.previewMetrics(getCurrentUserId(), workspaceId, floorId, input));
+    }
     @GetMapping("/layout-templates")
     public ResponseEntity<ApiResponse<List<FloorDesign.Template>>> library() { return success(design.library(getCurrentUserId())); }
     @PostMapping("/layout-templates")
@@ -59,5 +64,14 @@ public class OrganizerFloorDesignController extends BaseAPIController {
     public ResponseEntity<ApiResponse<ResourceResponses.FloorLayout>> apply(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId,
             @Valid @RequestBody FloorDesign.Apply input) {
         return success(ai.apply(getCurrentUserId(), workspaceId, floorId, input), "AI proposal saved; bookings and pricing are unchanged");
+    }
+    @GetMapping(FLOOR + "/ai/draft")
+    public ResponseEntity<ApiResponse<FloorDesign.SavedDraft>> savedDraft(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId) {
+        return success(ai.savedDraft(getCurrentUserId(), workspaceId, floorId));
+    }
+    @PutMapping(FLOOR + "/ai/draft")
+    public ResponseEntity<ApiResponse<FloorDesign.SavedDraft>> saveDraft(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long floorId,
+            @Valid @RequestBody FloorDesign.Apply input) {
+        return success(ai.saveDraft(getCurrentUserId(), workspaceId, floorId, input), "AI draft retained without changing published resources");
     }
 }

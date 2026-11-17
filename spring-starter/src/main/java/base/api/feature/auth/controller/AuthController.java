@@ -3,13 +3,16 @@ package base.api.feature.auth.controller;
 import base.api.feature.auth.dto.request.AuthRequest;
 import base.api.feature.auth.dto.request.ChangePasswordDto;
 import base.api.feature.auth.dto.request.CompleteForgotPasswordDto;
+import base.api.feature.auth.dto.request.GoogleAuthRequestDto;
 import base.api.feature.auth.dto.request.InitiateForgotPasswordDto;
 import base.api.feature.auth.dto.request.RegisterDto;
 import base.api.feature.auth.dto.request.UpdateProfileDto;
 import base.api.feature.auth.dto.request.VerifyTokenRequestDto;
 import base.api.feature.auth.dto.response.AuthResponse;
+import base.api.feature.auth.dto.response.GoogleAuthResponseDto;
 import base.api.feature.auth.dto.response.TokenValidationResponseDto;
 import base.api.feature.auth.dto.response.UserDto;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import base.api.feature.auth.service.IAuthService;
 import base.api.feature.auth.service.IUserService;
 import base.api.shared.base.BaseAPIController;
@@ -47,6 +50,7 @@ public class AuthController extends BaseAPIController {
     private final IAuthService authService;
     private final IUserService userService;
     private final TrustedClockService trustedClockService;
+    private final ObjectMapper objectMapper;
 
     @Value("${app.client-url}")
     private String clientUrl;
@@ -56,6 +60,17 @@ public class AuthController extends BaseAPIController {
     @PostMapping("/login")
     public ResponseEntity<ApiResponse<AuthResponse>> login(@Valid @RequestBody AuthRequest dto) {
         return success(authService.login(dto), "Đăng nhập thành công");
+    }
+
+    @Operation(summary = "Đăng nhập bằng Google", description = "**Public.** Nhận Google ID Token từ Google Identity Services để đăng nhập hoặc khởi tạo tài khoản.")
+    @SecurityRequirements
+    @PostMapping("/google")
+    public ResponseEntity<ApiResponse<GoogleAuthResponseDto>> loginWithGoogle(@Valid @RequestBody GoogleAuthRequestDto dto) {
+        GoogleAuthResponseDto response = authService.loginWithGoogle(dto);
+        String message = response.isRequiresVerification()
+                ? "Tài khoản cần xác thực email trước khi đăng nhập"
+                : "Đăng nhập bằng Google thành công";
+        return success(response, message);
     }
 
     @Operation(summary = "Đăng xuất", description = "Thu hồi JWT hiện tại (token bị đưa vào blacklist tới khi hết hạn).")
@@ -83,24 +98,28 @@ public class AuthController extends BaseAPIController {
     public ResponseEntity<String> verifyEmail(@Parameter(description = "Token trong email") @RequestParam String token) {
         boolean success;
         String email = "";
+        String jwtToken = "";
+        String userJson = "null";
         try {
-            email = authService.verifyEmail(token);
+            AuthResponse authRes = authService.verifyEmailAndIssueToken(token);
+            email = authRes.getUser().getEmail();
+            jwtToken = authRes.getAccessToken();
+            userJson = objectMapper.writeValueAsString(authRes.getUser());
             success = true;
-        } catch (RuntimeException ex) {
+        } catch (Exception ex) {
             success = false;
         }
 
         String encodedEmail = (email != null && !email.isBlank())
                 ? java.net.URLEncoder.encode(email, java.nio.charset.StandardCharsets.UTF_8)
                 : "";
-        String targetUrl = clientUrl + (success
+        String targetSignInUrl = clientUrl + (success
                 ? "/auth/sign-in?verified=true" + (encodedEmail.isEmpty() ? "" : "&email=" + encodedEmail)
                 : "/auth/sign-in?verified=false");
 
         String html = "<!DOCTYPE html><html lang='vi'><head><meta charset='UTF-8'>"
                 + "<title>Xác thực tài khoản - NexSpace</title>"
                 + "<meta name='viewport' content='width=device-width, initial-scale=1.0'>"
-                + (success ? "<meta http-equiv='refresh' content='1;url=" + targetUrl + "'>" : "")
                 + "<style>"
                 + "body{background:#0b0f19;color:#fff;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;"
                 + "display:flex;align-items:center;justify-content:center;height:100vh;margin:0;padding:16px;box-sizing:border-box}"
@@ -109,22 +128,29 @@ public class AuthController extends BaseAPIController {
                 + (success ? "background:rgba(16,185,129,0.15);color:#10b981;border:1px solid rgba(16,185,129,0.3)" : "background:rgba(239,68,68,0.15);color:#ef4444;border:1px solid rgba(239,68,68,0.3)")
                 + "}"
                 + "h2{font-size:20px;margin:0 0 12px;font-weight:600}"
-                + "p{font-size:14px;color:#94a3b8;line-height:1.6;margin:0 0 24px}"
-                + ".btn{display:inline-block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:500;font-size:14px;transition:background 0.2s}"
+                + "p{font-size:14px;color:#94a3b8;line-height:1.6;margin:0 0 20px}"
+                + ".btn{display:block;background:#4f46e5;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:500;font-size:14px;cursor:pointer;border:none;width:100%;box-sizing:border-box;transition:background 0.2s}"
                 + ".btn:hover{background:#4338ca}"
+                + ".hint{font-size:12px;color:#64748b;margin-top:14px}"
                 + "</style></head><body>"
                 + "<div class='card'>"
                 + "<div class='icon'>" + (success ? "✓" : "✕") + "</div>"
                 + "<h2>" + (success ? "Xác thực email thành công!" : "Xác thực không thành công") + "</h2>"
-                + "<p>" + (success ? "Tài khoản của bạn đã được kích hoạt thành công (ACTIVE). Đang tự động chuyển hướng đến trang đăng nhập..." : "Liên kết xác thực không hợp lệ hoặc đã hết hạn.") + "</p>"
-                + "<a class='btn' href='" + targetUrl + "'>Tiếp tục đến Đăng nhập</a>"
+                + "<p>" + (success ? "Tài khoản của bạn đã được kích hoạt thành công (ACTIVE). Tab này đang tự động đóng để bạn tiếp tục trên tab đang mở." : "Liên kết xác thực không hợp lệ hoặc đã hết hạn.") + "</p>"
+                + "<button class='btn' onclick='closeAndReturn()'>" + (success ? "Đóng tab này" : "Đến trang Đăng nhập") + "</button>"
+                + "<p class='hint'>" + (success ? "Nếu tab không tự đóng, bạn có thể bấm nút trên hoặc đóng cửa sổ này." : "") + "</p>"
                 + "</div>"
                 + "<script>"
+                + "function closeAndReturn(){"
+                + "try{window.open('','_self','');window.close();}catch(e){}"
+                + "window.location.replace('" + targetSignInUrl + "');"
+                + "}"
                 + (success
-                   ? "try{var bc=new BroadcastChannel('nexspace_auth_sync');bc.postMessage({type:'EMAIL_VERIFIED_SUCCESS'});}catch(e){}"
-                     + "try{localStorage.setItem('nexspace_auth_sync_event',JSON.stringify({type:'EMAIL_VERIFIED_SUCCESS',timestamp:Date.now()}));}catch(e){}"
-                     + "setTimeout(function(){window.location.replace('" + targetUrl + "');},1000);"
-                   : "setTimeout(function(){window.location.replace('" + targetUrl + "');},3000);")
+                   ? "try{var bc=new BroadcastChannel('nexspace_auth_sync');bc.postMessage({type:'EMAIL_VERIFIED_SUCCESS',email:'" + email + "',accessToken:'" + jwtToken + "'});}catch(e){}"
+                     + "try{localStorage.setItem('nexspace_auth_sync_event',JSON.stringify({type:'EMAIL_VERIFIED_SUCCESS',email:'" + email + "',accessToken:'" + jwtToken + "',timestamp:Date.now()}));}catch(e){}"
+                     + "try{window.open('','_self','');window.close();}catch(e){}"
+                     + "setTimeout(function(){try{window.close();}catch(e){}window.location.replace('" + targetSignInUrl + "');},1200);"
+                   : "setTimeout(function(){window.location.replace('" + targetSignInUrl + "');},3000);")
                 + "</script></body></html>";
 
         return ResponseEntity.ok()

@@ -12,6 +12,8 @@ import java.net.http.*;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.*;
+import java.util.concurrent.*;
+import java.nio.ByteBuffer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -26,6 +28,8 @@ public class GeminiFloorDesigner {
     private final HttpClient http;
     private final GeminiModelCatalog catalog;
     private volatile String lastAutomaticModel;
+    private static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(90);
+    private static final Duration AUTOMATIC_ATTEMPT_TIMEOUT = Duration.ofSeconds(50);
 
     @org.springframework.beans.factory.annotation.Autowired
     public GeminiFloorDesigner(ObjectMapper mapper, Validator validator,
@@ -58,8 +62,9 @@ public class GeminiFloorDesigner {
             boolean automatic) {
         if (apiKey.isBlank()) throw new ConflictException("Gemini is not configured. Add GEMINI_API_KEY to the backend Local configuration");
         if (!model.matches("[A-Za-z0-9._-]{1,100}")) throw new ConflictException("Invalid configured Gemini model");
+        long started = System.nanoTime();
         try {
-            String contextJson = mapper.writeValueAsString(context);
+            String contextJson = mapper.writeValueAsString(compactContext(context));
             if (contextJson.getBytes(StandardCharsets.UTF_8).length > 256000)
                 throw new BadRequestException("The floor is too large for one AI request. Reduce its object count first");
             var parts = new ArrayList<Map<String,Object>>();
@@ -72,7 +77,7 @@ public class GeminiFloorDesigner {
             String json = mapper.writeValueAsString(payload);
             if (json.getBytes(StandardCharsets.UTF_8).length > 8000000)
                 throw new BadRequestException("The floor is too large for one AI request. Reduce its object count first");
-            var response = sendWithFallback(json, model);
+            var response = sendWithFallback(json, model, automatic);
                 var root = mapper.readTree(new String(response.body(), StandardCharsets.UTF_8));
                 var candidate = root.path("candidates").path(0);
                 if (!"STOP".equals(candidate.path("finishReason").asText()))
@@ -85,6 +90,11 @@ public class GeminiFloorDesigner {
                 var result = strict.readValue(text.toString(), FloorDesign.Design.class);
                 if (result == null || !validator.validate(result).isEmpty())
                     throw new BadRequestException("AI returned an invalid design. Ask it to simplify the proposal");
+                var usage = root.path("usageMetadata");
+                log.info("Floor AI completed: elapsedMs={}, contextBytes={}, outputTokens={}, thinkingTokens={}",
+                        Duration.ofNanos(System.nanoTime() - started).toMillis(),
+                        contextJson.getBytes(StandardCharsets.UTF_8).length,
+                        usage.path("candidatesTokenCount").asLong(0), usage.path("thoughtsTokenCount").asLong(0));
                 if (automatic) lastAutomaticModel = response.model();
                 return result;
         } catch (InterruptedException e) {
@@ -97,7 +107,7 @@ public class GeminiFloorDesigner {
         } catch (com.fasterxml.jackson.core.JsonProcessingException e) {
             throw new ConflictException("Gemini returned incomplete or invalid JSON. Simplify the request and try again");
         } catch (java.net.http.HttpTimeoutException e) {
-            throw new ConflictException("Gemini took too long to respond. Try a smaller scope or fewer changes");
+            throw new ConflictException("Gemini is taking too long to respond. Your layout is unchanged; retry shortly or choose another model");
         } catch (java.io.IOException e) {
             throw new ConflictException("Could not connect to Gemini or read its response. Check the network and try again");
         }
@@ -106,30 +116,63 @@ public class GeminiFloorDesigner {
 
     private record GenerationResponse(String model, byte[] body) {}
 
-    private GenerationResponse sendWithFallback(String json, String preferred)
+    /** Omit repeated transport/pricing fields; geometry, identity and the reusable catalog stay intact. */
+    private JsonNode compactContext(Object context) {
+        JsonNode compact = mapper.valueToTree(context);
+        for (var resource : compact.path("resources")) {
+            if (resource instanceof ObjectNode object) object.remove(List.of("workspaceId", "floorPlanId",
+                    "floorName", "pricePerHour", "effectivePricePerHour", "pricePerDay", "pricePerMonth"));
+        }
+        return compact;
+    }
+
+    private String payloadForModel(String json, String candidate) throws java.io.IOException {
+        ObjectNode payload = (ObjectNode) mapper.readTree(json);
+        var config = (ObjectNode) payload.path("generationConfig");
+        if (candidate.startsWith("gemini-3.") || candidate.startsWith("gemini-3-")
+                || candidate.startsWith("gemini-4")) {
+            config.putObject("thinkingConfig").put("thinkingLevel", "low");
+        } else if (candidate.startsWith("gemini-2.5-")) {
+            config.putObject("thinkingConfig").put("thinkingBudget", 1024);
+        }
+        return mapper.writeValueAsString(payload);
+    }
+
+    private GenerationResponse sendWithFallback(String json, String preferred, boolean automatic)
             throws java.io.IOException, InterruptedException {
-        long deadline = System.nanoTime() + Duration.ofSeconds(65).toNanos();
+        long deadline = System.nanoTime() + TOTAL_TIMEOUT.toNanos();
         var candidates = new ArrayDeque<String>();
         if (!catalog.isRetired(preferred)) candidates.add(preferred);
         boolean discovered = false;
         boolean quotaReached = false;
         int transientStatus = 0;
+        boolean timedOut = false;
         while (true) {
+            if (deadline - System.nanoTime() <= 0) throw new HttpTimeoutException("Gemini request deadline exceeded");
             if (candidates.isEmpty()) {
                 if (discovered) {
+                    if (timedOut) throw new HttpTimeoutException("Available Gemini models timed out");
                     if (transientStatus != 0) throw providerFailure(transientStatus, "UNAVAILABLE");
                     throw new ConflictException(quotaReached
                             ? "All available Gemini models are at their quota or unavailable. Try again later"
                             : "No Gemini model is currently available for floor design");
                 }
                 catalog.options().stream().map(FloorDesign.ModelOption::id)
-                        .filter(id -> !id.equals(preferred)).forEach(candidates::add);
+                        .filter(id -> !id.equals(preferred))
+                        .sorted(Comparator.comparingInt((String id) -> id.contains("flash") ? 0 : 1)
+                                .thenComparing(Comparator.naturalOrder()))
+                        .limit(2).forEach(candidates::add);
                 discovered = true;
                 continue;
             }
             String candidate = candidates.removeFirst();
             try {
-                return new GenerationResponse(candidate, send(json, candidate, deadline));
+                return new GenerationResponse(candidate, send(payloadForModel(json, candidate), candidate,
+                        deadline, automatic));
+            } catch (HttpTimeoutException e) {
+                if (!automatic) throw e;
+                timedOut = true;
+                log.warn("Gemini generation timed out; trying another available model within the request deadline");
             } catch (ModelUnavailable e) {
                 quotaReached |= e.status == 429;
                 if (e.status >= 500) transientStatus = e.status;
@@ -146,17 +189,34 @@ public class GeminiFloorDesigner {
     }
 
     /** Retry explicit transient server errors within the shared request deadline. */
-    private byte[] send(String json, String model, long deadline) throws java.io.IOException, InterruptedException {
+    private byte[] send(String json, String model, long deadline, boolean automatic) throws java.io.IOException, InterruptedException {
+        long modelDeadline = automatic ? Math.min(deadline, System.nanoTime() + AUTOMATIC_ATTEMPT_TIMEOUT.toNanos()) : deadline;
         for (int attempt = 0; attempt < 2; attempt++) {
-            long remaining = deadline - System.nanoTime();
+            long remaining = modelDeadline - System.nanoTime();
             if (remaining <= 0) throw new HttpTimeoutException("Gemini request deadline exceeded");
+            long attemptNanos = remaining;
             var request = HttpRequest.newBuilder(URI.create("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent"))
-                    .timeout(Duration.ofNanos(remaining)).header("Content-Type", "application/json")
+                    .timeout(Duration.ofNanos(attemptNanos)).header("Content-Type", "application/json")
                     .header("x-goog-api-key", apiKey).POST(HttpRequest.BodyPublishers.ofString(json)).build();
-            var response = http.send(request, HttpResponse.BodyHandlers.ofInputStream());
+            var pending = http.sendAsync(request, info -> new BoundedBodySubscriber(info.statusCode() == 200 ? 512000 : 16384));
+            HttpResponse<byte[]> response;
+            try {
+                // HttpRequest.timeout alone does not bound reading an InputStream after response headers.
+                response = pending.get(attemptNanos, TimeUnit.NANOSECONDS);
+            } catch (TimeoutException e) {
+                pending.cancel(true);
+                throw new HttpTimeoutException("Gemini response deadline exceeded");
+            } catch (InterruptedException e) {
+                pending.cancel(true);
+                throw e;
+            } catch (ExecutionException e) {
+                if (e.getCause() instanceof java.io.IOException io) throw io;
+                if (e.getCause() instanceof BadRequestException invalid) throw invalid;
+                throw new java.io.IOException("Gemini response failed", e.getCause());
+            }
             int status = response.statusCode();
-            try (var body = response.body()) {
-                byte[] bytes = body.readNBytes(status == 200 ? 512001 : 16385);
+            {
+                byte[] bytes = response.body();
                 if (status == 200) {
                     if (bytes.length > 512000) throw new BadRequestException("AI response exceeded the safe size limit");
                     return bytes;
@@ -170,7 +230,7 @@ public class GeminiFloorDesigner {
                 boolean transientFailure = status == 500 || status == 502 || status == 503 || status == 504;
                 var retryAfter = response.headers().firstValue("Retry-After").orElse("0");
                 if (attempt == 0 && transientFailure && retryAfter.matches("[01]")
-                        && deadline - System.nanoTime() > Duration.ofSeconds(2).toNanos()) {
+                        && modelDeadline - System.nanoTime() > Duration.ofSeconds(2).toNanos()) {
                     Thread.sleep("1".equals(retryAfter) ? 1000 : 250);
                     continue;
                 }
@@ -180,6 +240,37 @@ public class GeminiFloorDesigner {
             }
         }
         throw new ConflictException("Gemini is busy. Try again shortly; your layout has not been changed");
+    }
+
+    /** Enforce the response size while streaming, before buffering an untrusted provider body. */
+    static final class BoundedBodySubscriber implements HttpResponse.BodySubscriber<byte[]> {
+        private final HttpResponse.BodySubscriber<byte[]> delegate = HttpResponse.BodySubscribers.ofByteArray();
+        private final int limit;
+        private java.util.concurrent.Flow.Subscription subscription;
+        private long received;
+        private boolean finished;
+
+        BoundedBodySubscriber(int limit) { this.limit = limit; }
+        public CompletionStage<byte[]> getBody() { return delegate.getBody(); }
+        public void onSubscribe(java.util.concurrent.Flow.Subscription subscription) {
+            this.subscription = subscription;
+            delegate.onSubscribe(subscription);
+        }
+        public void onNext(List<ByteBuffer> buffers) {
+            if (finished) return;
+            for (var buffer : buffers) received += buffer.remaining();
+            if (received > limit) {
+                finished = true;
+                subscription.cancel();
+                delegate.onError(new BadRequestException("AI response exceeded the safe size limit"));
+            } else delegate.onNext(buffers);
+        }
+        public void onError(Throwable failure) {
+            if (!finished) { finished = true; delegate.onError(failure); }
+        }
+        public void onComplete() {
+            if (!finished) { finished = true; delegate.onComplete(); }
+        }
     }
 
     private String providerCategory(byte[] bytes) {
@@ -241,6 +332,9 @@ public class GeminiFloorDesigner {
         positions, orientation and visible counts. Ignore the screenshot's margins and surrounding interface.
         Use explicit dimensions and the supplied metrics when available. When estimatedScale is true, metrics are
         provisional and must not be described as real measurements. Do not ask for scale before drafting.
+        If savedMetricDraft is provided, continue from that retained draft instead of discarding its arrangement.
+        After measurement confirmation, recompute positions from the retained proportions but keep every existing
+        catalog type's real footprint unchanged. Report conflicts rather than stretching catalog resources.
         Ask a focused question only if the image is unreadable or no usable top-down layout can be inferred.
         When an object is uncertain but the plan is readable, draft the identifiable portions and mention the uncertainty.
         Prefer matching workspace resource types and active library templates where they fit the drawn footprint.

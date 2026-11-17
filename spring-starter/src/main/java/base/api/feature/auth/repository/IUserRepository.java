@@ -25,6 +25,8 @@ public interface IUserRepository extends JpaRepository<UserModel, Long> {
 
     Optional<UserModel> findByEmailIgnoreCase(String email);
 
+    Optional<UserModel> findByGoogleId(String googleId);
+
     /** Tìm theo username hoặc email (có '@' thì coi là email). */
     default Optional<UserModel> findByLogin(String login) {
         if (login == null || login.isBlank()) {

@@ -69,8 +69,11 @@ public class PublicFloorMapService {
                         f -> {
                             var bounds = ResourceCanvas.read(f);
                             var all = resources.findByFloorPlanId(f.getId());
+                            var published = PublishedGeometry.read(f);
+                            boolean locationCurrent = published == null || PublishedGeometry.matchesLocation(f);
                             var activeParents =
                                     all.stream()
+                                            .filter(r -> published == null || published.containsKey(r.getId()))
                                             .filter(
                                                     r ->
                                                             r.getStatus()
@@ -81,6 +84,7 @@ public class PublicFloorMapService {
                                             .collect(java.util.stream.Collectors.toSet());
                             var objects =
                                     all.stream()
+                                            .filter(r -> published == null || published.containsKey(r.getId()))
                                             .filter(
                                                     r ->
                                                             r.getStatus()
@@ -103,6 +107,8 @@ public class PublicFloorMapService {
                                                                 && r.getResourceType() != null
                                                                 && r.getResourceType().isActive()
                                                                 && r.getParentRoom() == null;
+                                                        var placement = published == null ? PublishedGeometry.placement(r) : published.get(r.getId());
+                                                        selectable = selectable && locationCurrent && (published == null || PublishedGeometry.matches(placement, r));
 
                                                         Integer capacity = r.getCapacityOverride() != null
                                                                 ? r.getCapacityOverride()
@@ -119,11 +125,11 @@ public class PublicFloorMapService {
                                                                 r.getLabel(),
                                                                 r.getName() == null ? r.getLabel() : r.getName(),
                                                                 r.getResourceType() != null ? r.getResourceType().getCategory() : null,
-                                                                r.getPosX(),
-                                                                r.getPosY(),
-                                                                r.getWidth(),
-                                                                r.getHeight(),
-                                                                r.getRotation(),
+                                                                placement.posX(),
+                                                                placement.posY(),
+                                                                placement.width(),
+                                                                placement.height(),
+                                                                placement.rotation(),
                                                                 selectable,
                                                                 capacity,
                                                                 typeName,
@@ -138,7 +144,7 @@ public class PublicFloorMapService {
                                      bounds.height(),
                                      objects,
                                      ResourceCanvas.decorations(f, false),
-                                     base.api.feature.resource.dto.ResourceResponses.floorOption(f).location());
+                                     PublishedGeometry.location(f));
                         })
                 .toList();
     }

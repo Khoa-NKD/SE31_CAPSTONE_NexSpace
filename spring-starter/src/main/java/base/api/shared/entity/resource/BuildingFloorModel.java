@@ -12,6 +12,9 @@ import lombok.Setter;
 @Getter
 @Setter
 public class BuildingFloorModel extends BaseModel {
+    @Column(name = "geometry_version", nullable = false)
+    private int geometryVersion = 1;
+
     @Column(name = "real_width_m", precision = 10, scale = 2)
     private BigDecimal realWidthM;
 

@@ -12,16 +12,32 @@ import base.api.shared.enums.ResourceUsageKind;
 /** AI output is an untrusted proposal, never a command to bypass resource business rules. */
 public final class FloorDesign {
     private FloorDesign() {}
+    public enum MeasurementMode { CALIBRATE, RESIZE }
     public record MetricsInput(
             @NotBlank @Size(max = 100) String expectedRevision,
             @NotNull @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal widthM,
             @NotNull @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal lengthM,
             @Min(1) @Max(100000) Integer maxOccupancy,
-            @Min(1) @Max(100000) Integer occupancyLimit) {}
+            @Min(1) @Max(100000) Integer occupancyLimit, boolean confirmGeometryConversion, MeasurementMode measurementMode) {
+        public MetricsInput(String expectedRevision, BigDecimal widthM, BigDecimal lengthM, Integer maxOccupancy, Integer occupancyLimit) {
+            this(expectedRevision, widthM, lengthM, maxOccupancy, occupancyLimit, false, MeasurementMode.RESIZE);
+        }
+        public MetricsInput(String expectedRevision, BigDecimal widthM, BigDecimal lengthM, Integer maxOccupancy, Integer occupancyLimit, boolean confirmGeometryConversion) {
+            this(expectedRevision, widthM, lengthM, maxOccupancy, occupancyLimit, confirmGeometryConversion, MeasurementMode.RESIZE);
+        }
+    }
     public record Metrics(String revision, BigDecimal physicalWidthM, BigDecimal physicalLengthM,
             BigDecimal widthM, BigDecimal lengthM, BigDecimal areaSqm, Integer maxOccupancy,
             Integer occupancyLimit, int designOccupancy, BigDecimal workspaceDeclaredAreaSqm,
-            BigDecimal workspaceMappedAreaSqm, boolean allAreasMeasured) {}
+            BigDecimal workspaceMappedAreaSqm, boolean allAreasMeasured, int geometryVersion) {
+        public Metrics(String revision, BigDecimal physicalWidthM, BigDecimal physicalLengthM,
+                BigDecimal widthM, BigDecimal lengthM, BigDecimal areaSqm, Integer maxOccupancy,
+                Integer occupancyLimit, int designOccupancy, BigDecimal workspaceDeclaredAreaSqm,
+                BigDecimal workspaceMappedAreaSqm, boolean allAreasMeasured) {
+            this(revision, physicalWidthM, physicalLengthM, widthM, lengthM, areaSqm, maxOccupancy,
+                    occupancyLimit, designOccupancy, workspaceDeclaredAreaSqm, workspaceMappedAreaSqm, allAreasMeasured, 1);
+        }
+    }
     public record TemplateInput(
             @NotBlank @Size(max = 100) String name, @NotNull FloorDecorations.Kind kind,
             @NotNull @DecimalMin("0.01") @DecimalMax("1000") @Digits(integer = 4, fraction = 2) BigDecimal widthM,
@@ -112,6 +128,8 @@ public final class FloorDesign {
     }
     public record Proposal(String proposalId, String expiresAt, String expectedRevision, Scope scope,
             Design design, List<String> issues, boolean applicable) {}
+    public record SavedDraft(int version, Design design, boolean estimatedScale, BigDecimal widthM,
+            BigDecimal lengthM, String savedAt) {}
     public enum ModelAvailability { AVAILABLE, RETIRED, UNAVAILABLE }
     public record ModelOption(String id, String displayName, ModelAvailability availability, String shutdownDate) {}
     public record Status(boolean configured, String model, List<ModelOption> models) {

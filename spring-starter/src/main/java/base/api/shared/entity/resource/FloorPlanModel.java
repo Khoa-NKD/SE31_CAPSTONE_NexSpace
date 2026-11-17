@@ -30,6 +30,33 @@ import java.time.LocalDateTime;
         @UniqueConstraint(name = "ux_floor_plan_workspace_physical", columnNames = {"workspace_id", "building_floor_id"})
 })
 public class FloorPlanModel extends BaseModel {
+    @Column(name = "usage_x_m", precision = 16, scale = 6)
+    private java.math.BigDecimal usageXM;
+    @Column(name = "usage_y_m", precision = 16, scale = 6)
+    private java.math.BigDecimal usageYM;
+    @Column(name = "usage_width_m", precision = 16, scale = 6)
+    private java.math.BigDecimal usageWidthM;
+    @Column(name = "usage_length_m", precision = 16, scale = 6)
+    private java.math.BigDecimal usageLengthM;
+    @Column(name = "published_geometry_json", columnDefinition = "LONGTEXT")
+    private String publishedGeometryJson;
+    @Column(name = "published_location_json", columnDefinition = "LONGTEXT")
+    private String publishedLocationJson;
+    @Column(name = "legacy_geometry_json", columnDefinition = "LONGTEXT")
+    private String legacyGeometryJson;
+    @Column(name = "ai_draft_json", columnDefinition = "LONGTEXT")
+    private String aiDraftJson;
+
+    private boolean metric() { return buildingFloor != null && buildingFloor.getGeometryVersion() >= 2; }
+    public java.math.BigDecimal getUsageX() { return metric() && usageXM != null ? MetricGeometry.pixels(usageXM) : usageX; }
+    public java.math.BigDecimal getUsageY() { return metric() && usageYM != null ? MetricGeometry.pixels(usageYM) : usageY; }
+    public java.math.BigDecimal getUsageWidth() { return metric() && usageWidthM != null ? MetricGeometry.pixels(usageWidthM) : usageWidth; }
+    public java.math.BigDecimal getUsageHeight() { return metric() && usageLengthM != null ? MetricGeometry.pixels(usageLengthM) : usageHeight; }
+    public void setUsageX(java.math.BigDecimal value) { usageX = value; if (metric()) usageXM = MetricGeometry.metres(value); }
+    public void setUsageY(java.math.BigDecimal value) { usageY = value; if (metric()) usageYM = MetricGeometry.metres(value); }
+    public void setUsageWidth(java.math.BigDecimal value) { usageWidth = value; if (metric()) usageWidthM = MetricGeometry.metres(value); }
+    public void setUsageHeight(java.math.BigDecimal value) { usageHeight = value; if (metric()) usageLengthM = MetricGeometry.metres(value); }
+
     @Column(name = "occupancy_limit")
     private Integer occupancyLimit;
 
