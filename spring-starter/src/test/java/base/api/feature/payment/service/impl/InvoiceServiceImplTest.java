@@ -3,6 +3,7 @@ package base.api.feature.payment.service.impl;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.InvoiceResponseDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.shared.config.EmailService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -37,6 +38,9 @@ class InvoiceServiceImplTest {
     @Mock
     private IPaymentTransactionRepository paymentTransactionRepository;
 
+    @Mock
+    private EmailService emailService;
+
     private InvoiceServiceImpl invoiceService;
 
     private UserModel customer;
@@ -47,7 +51,7 @@ class InvoiceServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        invoiceService = new InvoiceServiceImpl(bookingRepository, paymentTransactionRepository);
+        invoiceService = new InvoiceServiceImpl(bookingRepository, paymentTransactionRepository, emailService);
         ReflectionTestUtils.setField(invoiceService, "invoiceRootFolder", "nexspace/invoices");
 
         customer = new UserModel();

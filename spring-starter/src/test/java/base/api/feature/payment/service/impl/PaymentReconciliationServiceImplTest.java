@@ -6,6 +6,7 @@ import base.api.feature.payment.dto.response.BatchReconciliationResponseDTO;
 import base.api.feature.payment.dto.response.ReconciliationResultDTO;
 import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.service.IInvoiceService;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.enums.AuditActorType;
@@ -52,6 +53,9 @@ class PaymentReconciliationServiceImplTest {
     @Mock
     private PaymentRequestsService paymentRequestsService;
 
+    @Mock
+    private IInvoiceService invoiceService;
+
     private PaymentReconciliationServiceImpl reconciliationService;
 
     private PaymentTransactionModel transaction;
@@ -63,7 +67,8 @@ class PaymentReconciliationServiceImplTest {
                 paymentTransactionRepository,
                 bookingRepository,
                 auditService,
-                payOS
+                payOS,
+                invoiceService
         );
 
         booking = new BookingModel();
