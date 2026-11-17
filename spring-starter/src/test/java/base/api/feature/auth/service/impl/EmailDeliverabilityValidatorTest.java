@@ -5,8 +5,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.net.ConnectException;
+
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@DisplayName("Kiểm thử Trình Xác thực Tính Khả dụng của Email (EmailDeliverabilityValidatorTest)")
 class EmailDeliverabilityValidatorTest {
 
     private EmailDeliverabilityValidator validator;
@@ -53,10 +57,39 @@ class EmailDeliverabilityValidatorTest {
     }
 
     @Test
-    @DisplayName("Email Gmail không tồn tại thực tế: ném BadRequestException")
+    @DisplayName("Email Gmail không tồn tại thực tế (máy chủ SMTP trả về 550): ném BadRequestException")
     void nonExistentGmail_ThrowsBadRequest() {
-        assertThatThrownBy(() -> validator.validateEmailDeliverability("khoankdde180292@gmail.com"))
-                .isInstanceOf(BadRequestException.class);
+        EmailDeliverabilityValidator mockValidator = new EmailDeliverabilityValidator(
+                (address, email) -> new EmailDeliverabilityValidator.SmtpResult(
+                        550, "550 5.1.1 The email account that you tried to reach does not exist.")
+        );
+
+        assertThatThrownBy(() -> mockValidator.validateEmailDeliverability("khoankdde180292@gmail.com"))
+                .isInstanceOf(BadRequestException.class)
+                .hasMessageContaining("Địa chỉ email không tồn tại trong hệ thống Gmail: 550 5.1.1");
+    }
+
+    @Test
+    @DisplayName("Email Gmail tồn tại thực tế (máy chủ SMTP trả về 250): xác thực thành công")
+    void validGmail_Success() {
+        EmailDeliverabilityValidator mockValidator = new EmailDeliverabilityValidator(
+                (address, email) -> new EmailDeliverabilityValidator.SmtpResult(250, "250 2.1.5 OK")
+        );
+
+        assertThatCode(() -> mockValidator.validateEmailDeliverability("valid.user123@gmail.com"))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("Máy chủ SMTP không thể kết nối (tường lửa CI chặn cổng 25): kích hoạt fail-open an toàn")
+    void smtpUnavailable_FailsOpenGracefully() {
+        EmailDeliverabilityValidator mockValidator = new EmailDeliverabilityValidator(
+                (address, email) -> {
+                    throw new ConnectException("Connection timed out: port 25 blocked by firewall");
+                }
+        );
+
+        assertThatCode(() -> mockValidator.validateEmailDeliverability("user.name12@gmail.com"))
+                .doesNotThrowAnyException();
     }
 }
-

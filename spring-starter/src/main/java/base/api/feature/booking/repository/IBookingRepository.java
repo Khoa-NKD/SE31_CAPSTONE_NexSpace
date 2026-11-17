@@ -266,4 +266,64 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime
     );
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now))
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    boolean existsOverlappingBooking(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeBookingId") Long excludeBookingId
+    );
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
+            WHERE b.resource.id = :resourceId
+              AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now))
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    boolean existsOverlappingBooking(
+            @Param("resourceId") Long resourceId,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeBookingId") Long excludeBookingId
+    );
+
+    default boolean existsOverlappingBooking(
+            Long resourceId,
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            Collection<BookingStatus> confirmedStatuses,
+            LocalDateTime now
+    ) {
+        return existsOverlappingBooking(
+                resourceId,
+                confirmedStatuses,
+                BookingStatus.PENDING_PAYMENT,
+                now,
+                startTime,
+                endTime,
+                null
+        );
+    }
 }

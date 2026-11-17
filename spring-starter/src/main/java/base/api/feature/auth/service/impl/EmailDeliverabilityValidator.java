@@ -57,8 +57,23 @@ public class EmailDeliverabilityValidator {
             "alt4.gmail-smtp-in.l.google.com"
     );
 
+    public record SmtpResult(int code, String message) {}
     private record MxRecord(int priority, String host) {}
-    private record SmtpResult(int code, String message) {}
+
+    @FunctionalInterface
+    public interface SmtpProber {
+        SmtpResult probe(InetAddress address, String email) throws Exception;
+    }
+
+    private final SmtpProber smtpProber;
+
+    public EmailDeliverabilityValidator() {
+        this(null);
+    }
+
+    public EmailDeliverabilityValidator(SmtpProber smtpProber) {
+        this.smtpProber = smtpProber != null ? smtpProber : this::defaultProbeMailbox;
+    }
 
     /**
      * Xác thực tính khả dụng và tồn tại của địa chỉ email:
@@ -196,7 +211,7 @@ public class EmailDeliverabilityValidator {
 
                 for (InetAddress address : sortedAddresses) {
                     try {
-                        SmtpResult result = probeMailbox(address, email);
+                        SmtpResult result = smtpProber.probe(address, email);
                         if (result != null) {
                             connectionEstablished = true;
                             if (result.code() >= 500 && result.code() < 600) {
@@ -234,7 +249,7 @@ public class EmailDeliverabilityValidator {
         }
     }
 
-    private SmtpResult probeMailbox(InetAddress address, String email) throws Exception {
+    private SmtpResult defaultProbeMailbox(InetAddress address, String email) throws Exception {
         try (Socket socket = new Socket()) {
             socket.connect(new InetSocketAddress(address, SMTP_PORT), TIMEOUT_MS);
             socket.setSoTimeout(TIMEOUT_MS);
