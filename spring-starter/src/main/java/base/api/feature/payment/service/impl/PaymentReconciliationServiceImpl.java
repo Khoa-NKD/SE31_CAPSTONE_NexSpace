@@ -6,6 +6,7 @@ import base.api.feature.payment.dto.response.BatchReconciliationResponseDTO;
 import base.api.feature.payment.dto.response.ReconciliationResultDTO;
 import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPaymentReconciliationService;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -38,6 +39,7 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
     private final IBookingRepository bookingRepository;
     private final IAuditService auditService;
     private final PayOS payOS;
+    private final IInvoiceService invoiceService;
 
     @Override
     @Transactional
@@ -124,6 +126,9 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                         booking.setHoldExpiresAt(null);
                         booking.setQrTokenHash("NXQR-" + booking.getBookingCode() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase());
                         bookingRepository.save(booking);
+
+                        // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
+                        invoiceService.sendInvoiceEmail(booking.getId());
                     }
                 }
             } else {

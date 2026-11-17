@@ -21,5 +21,12 @@ public interface IInvoiceService {
      * @return Thông tin hóa đơn kèm URL Cloudinary
      */
     InvoiceResponseDTO getOrCreateInvoice(Long bookingId, Long actorId);
+
+    /**
+     * Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng sau khi thanh toán thành công.
+     *
+     * @param bookingId ID đơn đặt chỗ
+     */
+    void sendInvoiceEmail(Long bookingId);
 }
 

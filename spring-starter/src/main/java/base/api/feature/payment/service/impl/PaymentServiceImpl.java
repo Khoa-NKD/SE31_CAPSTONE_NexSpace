@@ -354,59 +354,17 @@ public class PaymentServiceImpl implements IPaymentService {
 
         LocalDateTime now = LocalDateTime.now();
 
-        // Kiểm tra xem khách hàng đã có đơn đặt chỗ nào đang chờ thanh toán hay chưa
+        // Kiểm tra xem khách hàng đã có đơn đặt chỗ nào đang chờ thanh toán hay chưa (chỉ lấy phiên còn hạn)
         List<BookingModel> pendings = bookingRepository.findByCustomerIdAndStatus(actorId, BookingStatus.PENDING_PAYMENT);
-        BookingModel booking;
-        if (!pendings.isEmpty()) {
-            booking = pendings.get(0);
-            booking.setBaseAmount(BigDecimal.valueOf(2000));
-            booking.setFinalPrice(BigDecimal.valueOf(2000));
-            if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
-                requireOrganizerAcceptingHolds(booking.getWorkspace());
-                booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-            }
-            booking = bookingRepository.save(booking);
-        } else {
-            // Tự động tạo một phiên đặt chỗ hợp lệ cho khách hàng để giữ chỗ và thanh toán (2.000 VNĐ cho test ck thực tế)
-            WorkspaceModel workspace = workspaceRepository.findById(1L)
-                    .orElseGet(() -> workspaceRepository.findAll().stream().findFirst()
-                            .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc")));
-            requireOrganizerAcceptingHolds(workspace);
-            BookableResourceModel resource = bookableResourceRepository.findById(1L)
-                    .orElseGet(() -> bookableResourceRepository.findAll().stream().findFirst()
-                            .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên chỗ ngồi")));
-            if (resource.getFloorPlan() != null && resource.getFloorPlan().getWorkspace() != null
-                    && !workspace.getId().equals(resource.getFloorPlan().getWorkspace().getId())) {
-                requireOrganizerAcceptingHolds(resource.getFloorPlan().getWorkspace());
-            }
+        BookingModel booking = pendings.stream()
+                .filter(b -> b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now))
+                .findFirst()
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy phiên đặt chỗ nào đang chờ thanh toán"));
 
-            String bookingCode = "NXB-" + (System.currentTimeMillis() % 10000000);
-
-            booking = new BookingModel();
-            booking.setBookingCode(bookingCode);
-            booking.setCustomer(customer);
-            booking.setWorkspace(workspace);
-            booking.setResource(resource);
-            booking.setStatus(BookingStatus.PENDING_PAYMENT);
-            booking.setSource(BookingSource.SEARCH);
-            booking.setPriceType(PriceType.HOURLY);
-            booking.setStartTime(now.plusDays(1).withHour(9).withMinute(0));
-            booking.setEndTime(now.plusDays(1).withHour(17).withMinute(0));
-            booking.setPartySize(1);
-            booking.setBaseAmount(BigDecimal.valueOf(2000));
-            booking.setDiscountAmount(BigDecimal.ZERO);
-            booking.setTaxAmount(BigDecimal.ZERO);
-            booking.setServiceFeeAmount(BigDecimal.ZERO);
-            booking.setPlatformFeeAmount(BigDecimal.ZERO);
-            booking.setSurchargeAmount(BigDecimal.ZERO);
-            booking.setAddonAmount(BigDecimal.ZERO);
-            booking.setQuotaUsedAmount(BigDecimal.ZERO);
-            booking.setFinalPrice(BigDecimal.valueOf(2000));
+        if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
+            requireOrganizerAcceptingHolds(booking.getWorkspace());
             booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-            booking.setPricingSnapshot("{\"currency\":\"VND\"}");
-
             booking = bookingRepository.save(booking);
-            log.info("Created pending booking id={} code={} for customer id={}", booking.getId(), booking.getBookingCode(), actorId);
         }
 
         LocalDateTime holdExpiresAt = booking.getHoldExpiresAt();

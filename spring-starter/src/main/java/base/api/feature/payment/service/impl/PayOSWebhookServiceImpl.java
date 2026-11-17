@@ -4,6 +4,7 @@ import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.payment.dto.response.WebhookProcessResultDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPayOSWebhookService;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -37,6 +38,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
     private final IBookingRepository bookingRepository;
     private final IAuditService auditService;
     private final PayOS payOS;
+    private final IInvoiceService invoiceService;
 
     @Override
     @Transactional
@@ -263,6 +265,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                             "Thanh toán thành công qua PayOS (orderCode=" + orderCode + ")",
                             null
                     );
+
+                    // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
+                    invoiceService.sendInvoiceEmail(booking.getId());
                 } else {
                     // Late payment after cancellation/expiration
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
