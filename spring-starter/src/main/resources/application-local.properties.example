@@ -49,3 +49,8 @@ app.organizer.contract.demo-enabled=true
 # Floor design assistant. Keep the real API key in the ignored Local file only.
 nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}
 nexspace.floor-ai.model=${GEMINI_MODEL:gemini-3.6-flash}
+
+# Booking & Temporary Hold limit configuration
+# BOOKING_MAX_ACTIVE_HOLDS=3
+# BOOKING_HOLD_DURATION_MINUTES=10
+
