@@ -1,23 +1,28 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { amenityService } from './service';
 import { amenityQueries } from './queries';
-import type { CreateAmenityPayload, UpdateAmenityPayload, AssignWorkspaceAmenitiesPayload } from './types';
+import type {
+  CreateAmenityPayload,
+  UpdateAmenityPayload,
+  AssignWorkspaceAmenitiesPayload
+} from './types';
 
 export function useCreateAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateAmenityPayload) =>
-      amenityService.createAmenity(payload),
+    mutationFn: (payload: CreateAmenityPayload) => amenityService.createAmenity(payload),
     onSuccess: (data) => {
-      toast.success('Amenity created successfully', {
+      toast.success(c('Amenity created successfully', 'Tạo tiện ích thành công'), {
         description: `Amenity "${data.name}" has been added to the catalog.`
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Failed to create amenity', {
+      toast.error(c('Failed to create amenity', 'Không thể tạo tiện ích'), {
         description: error.message || 'An error occurred while creating the amenity.'
       });
     }
@@ -25,19 +30,20 @@ export function useCreateAmenityMutation() {
 }
 
 export function useUpdateAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateAmenityPayload }) =>
       amenityService.updateAmenity(id, payload),
     onSuccess: (data) => {
-      toast.success('Amenity updated successfully', {
+      toast.success(c('Amenity updated successfully', 'Cập nhật tiện ích thành công'), {
         description: `Amenity "${data.name}" has been updated.`
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Failed to update amenity', {
+      toast.error(c('Failed to update amenity', 'Không thể cập nhật tiện ích'), {
         description: error.message || 'Unable to update the amenity.'
       });
     }
@@ -45,13 +51,16 @@ export function useUpdateAmenityMutation() {
 }
 
 export function useToggleAmenityStatusMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, active }: { id: number; active: boolean }) =>
       amenityService.toggleAmenityStatus(id, active),
     onSuccess: (_, variables) => {
-      const msg = variables.active ? 'Amenity activated' : 'Amenity deactivated';
+      const msg = variables.active
+        ? c('Amenity activated', 'Đã kích hoạt tiện ích')
+        : c('Amenity deactivated', 'Đã vô hiệu hóa tiện ích');
       toast.success(msg);
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
@@ -64,18 +73,19 @@ export function useToggleAmenityStatusMutation() {
 }
 
 export function useDeleteAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: number) => amenityService.deleteAmenity(id),
     onSuccess: () => {
-      toast.success('Amenity deleted successfully', {
+      toast.success(c('Amenity deleted successfully', 'Xóa tiện ích thành công'), {
         description: 'The amenity has been removed from the platform catalog.'
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Failed to delete amenity', {
+      toast.error(c('Failed to delete amenity', 'Không thể xóa tiện ích'), {
         description: error.message || 'Unable to delete the amenity.'
       });
     }
@@ -102,46 +112,64 @@ export function useSyncWorkspaceAmenitiesMutation() {
 }
 
 export function useCreateOrganizerAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (payload: CreateAmenityPayload) =>
-      amenityService.createOrganizerAmenity(payload),
+    mutationFn: (payload: CreateAmenityPayload) => amenityService.createOrganizerAmenity(payload),
     onSuccess: (data) => {
-      toast.success('Tạo tiện ích thành công', {
-        description: `Tiện ích riêng "${data.name}" đã được thêm vào danh sách của tổ chức.`
+      toast.success(c('Amenity created successfully', 'Tạo tiện ích thành công'), {
+        description: c(
+          `Custom amenity "${data.name}" has been added to your organization's list.`,
+          `Tiện ích riêng "${data.name}" đã được thêm vào danh sách của tổ chức.`
+        )
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Không thể tạo tiện ích', {
-        description: error.message || 'Đã có lỗi xảy ra khi tạo tiện ích riêng.'
+      toast.error(c('Failed to create amenity', 'Không thể tạo tiện ích'), {
+        description:
+          error.message ||
+          c(
+            'An error occurred while creating the custom amenity.',
+            'Đã có lỗi xảy ra khi tạo tiện ích riêng.'
+          )
       });
     }
   });
 }
 
 export function useUpdateOrganizerAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: ({ id, payload }: { id: number; payload: UpdateAmenityPayload }) =>
       amenityService.updateOrganizerAmenity(id, payload),
     onSuccess: (data) => {
-      toast.success('Cập nhật tiện ích thành công', {
-        description: `Tiện ích "${data.name}" đã được cập nhật.`
+      toast.success(c('Amenity updated successfully', 'Cập nhật tiện ích thành công'), {
+        description: c(
+          `Amenity "${data.name}" has been updated.`,
+          `Tiện ích "${data.name}" đã được cập nhật.`
+        )
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Không thể cập nhật tiện ích', {
-        description: error.message || 'Đã có lỗi xảy ra khi cập nhật tiện ích.'
+      toast.error(c('Failed to update amenity', 'Không thể cập nhật tiện ích'), {
+        description:
+          error.message ||
+          c(
+            'An error occurred while updating the amenity.',
+            'Đã có lỗi xảy ra khi cập nhật tiện ích.'
+          )
       });
     }
   });
 }
 
 export function useToggleOrganizerAmenityStatusMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
@@ -149,35 +177,43 @@ export function useToggleOrganizerAmenityStatusMutation() {
       amenityService.toggleOrganizerAmenityStatus(id, active),
     onSuccess: (_, variables) => {
       const msg = variables.active
-        ? 'Đã kích hoạt tiện ích'
-        : 'Đã vô hiệu hóa tiện ích';
+        ? c('Amenity activated', 'Đã kích hoạt tiện ích')
+        : c('Amenity deactivated', 'Đã vô hiệu hóa tiện ích');
       toast.success(msg);
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Không thể đổi trạng thái', {
-        description: error.message || 'Đã có lỗi xảy ra.'
+      toast.error(c('Unable to change status', 'Không thể đổi trạng thái'), {
+        description: error.message || c('An error occurred.', 'Đã có lỗi xảy ra.')
       });
     }
   });
 }
 
 export function useDeleteOrganizerAmenityMutation() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: (id: number) => amenityService.deleteOrganizerAmenity(id),
     onSuccess: () => {
-      toast.success('Xóa tiện ích thành công', {
-        description: 'Tiện ích riêng đã được gỡ khỏi danh sách tổ chức.'
+      toast.success(c('Amenity deleted successfully', 'Xóa tiện ích thành công'), {
+        description: c(
+          "The custom amenity has been removed from your organization's list.",
+          'Tiện ích riêng đã được gỡ khỏi danh sách tổ chức.'
+        )
       });
       queryClient.invalidateQueries({ queryKey: amenityQueries.all });
     },
     onError: (error: Error) => {
-      toast.error('Không thể xóa tiện ích', {
-        description: error.message || 'Không thể xóa tiện ích (có thể tiện ích đang được gắn vào không gian).'
+      toast.error(c('Failed to delete amenity', 'Không thể xóa tiện ích'), {
+        description:
+          error.message ||
+          c(
+            'Unable to delete the amenity; it may still be assigned to a workspace.',
+            'Không thể xóa tiện ích (có thể tiện ích đang được gắn vào không gian).'
+          )
       });
     }
   });
 }
-

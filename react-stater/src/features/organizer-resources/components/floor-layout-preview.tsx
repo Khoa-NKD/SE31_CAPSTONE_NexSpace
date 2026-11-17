@@ -73,7 +73,9 @@ export function FloorLayoutPreview({
   previewChanges,
   collisionKeys,
   onObjectDrag,
-  actions
+  actions,
+  onToggleFullscreen,
+  fullscreenActive = false
 }: {
   layout: FloorLayout;
   width: number;
@@ -85,6 +87,8 @@ export function FloorLayoutPreview({
   previewChanges?: Record<string, 'ADD' | 'UPDATE'>;
   collisionKeys?: ReadonlySet<string>;
   actions?: ReactNode;
+  onToggleFullscreen?: () => void;
+  fullscreenActive?: boolean;
   onObjectDrag?: (
     key: string,
     fields: PlacementFields,
@@ -137,6 +141,10 @@ export function FloorLayoutPreview({
   }, [expanded]);
   async function toggleFullscreen() {
     shared.clearHover();
+    if (onToggleFullscreen) {
+      onToggleFullscreen();
+      return;
+    }
     if (expanded) {
       try {
         if (document.fullscreenElement === container.current) await document.exitFullscreen();
@@ -469,19 +477,23 @@ export function FloorLayoutPreview({
             variant='ghost'
             className='size-8 rounded-lg'
             aria-label={
-              expanded
+              expanded || fullscreenActive
                 ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
                 : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
             }
             title={
-              expanded
+              expanded || fullscreenActive
                 ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
                 : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
             }
-            aria-pressed={expanded}
+            aria-pressed={expanded || fullscreenActive}
             onClick={() => void toggleFullscreen()}
           >
-            {expanded ? <Minimize2 className='size-4' /> : <Maximize2 className='size-4' />}
+            {expanded || fullscreenActive ? (
+              <Minimize2 className='size-4' />
+            ) : (
+              <Maximize2 className='size-4' />
+            )}
           </Button>
           {expanded && (
             <span className='px-2 text-xs text-muted-foreground'>

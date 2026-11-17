@@ -124,7 +124,9 @@ export function ResourcePlacementEditor({
   draftLayout,
   actions,
   onCopy,
-  onPaste
+  onPaste,
+  onToggleFullscreen,
+  fullscreenActive = false
 }: {
   decoration?: FloorDecoration;
   workspaceId: number;
@@ -148,6 +150,8 @@ export function ResourcePlacementEditor({
   actions?: ReactNode;
   onCopy?: () => void;
   onPaste?: () => void;
+  onToggleFullscreen?: () => void;
+  fullscreenActive?: boolean;
 }) {
   const { language } = useLanguage();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
@@ -191,6 +195,10 @@ export function ResourcePlacementEditor({
   }, [expanded]);
   async function toggleFullscreen() {
     shared.clearHover();
+    if (onToggleFullscreen) {
+      onToggleFullscreen();
+      return;
+    }
     if (expanded) {
       try {
         if (document.fullscreenElement === containerRef.current) await document.exitFullscreen();
@@ -661,11 +669,13 @@ export function ResourcePlacementEditor({
               disabled={locked}
               onChange={(event) => setGrid(Number(event.target.value))}
             >
-              {(query.data?.geometryVersion === 2 ? [0.6, 3, 6, 30, 60] : [1, 5, 10, 20]).map((size) => (
-                <option key={size} value={size}>
-                  {query.data?.geometryVersion === 2 ? `${pixelsToMetres(size)} m` : `${size} px`}
-                </option>
-              ))}
+              {(query.data?.geometryVersion === 2 ? [0.6, 3, 6, 30, 60] : [1, 5, 10, 20]).map(
+                (size) => (
+                  <option key={size} value={size}>
+                    {query.data?.geometryVersion === 2 ? `${pixelsToMetres(size)} m` : `${size} px`}
+                  </option>
+                )
+              )}
             </select>
             <Tool
               label={c('Rotate left 15°', 'Xoay trái 15°')}
@@ -736,15 +746,19 @@ export function ResourcePlacementEditor({
             </Button>
             <Tool
               label={
-                expanded
+                expanded || fullscreenActive
                   ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
                   : c('Fullscreen design', 'Thiết kế toàn màn hình')
               }
-              pressed={expanded}
+              pressed={expanded || fullscreenActive}
               disabled={locked}
               onClick={() => void toggleFullscreen()}
             >
-              {expanded ? <Minimize2 className='size-4' /> : <Maximize2 className='size-4' />}
+              {expanded || fullscreenActive ? (
+                <Minimize2 className='size-4' />
+              ) : (
+                <Maximize2 className='size-4' />
+              )}
             </Tool>
             {expanded && (
               <span className='px-2 text-xs text-muted-foreground'>
@@ -840,15 +854,39 @@ export function ResourcePlacementEditor({
               strokeWidth='1'
             />
             {query.data?.geometryVersion === 2 && (
-              <g pointerEvents='none' className='fill-muted-foreground stroke-muted-foreground/50' aria-hidden='true'>
-                {Array.from({ length: Math.min(20, Math.floor(canvas.width / 60) + 1) }, (_, index) => {
-                  const x = index * Math.max(60, Math.ceil(canvas.width / 60 / 19) * 60);
-                  return x <= canvas.width ? <g key={`x:${x}`}><path d={`M ${x} 0 v 6`} strokeWidth='0.5' /><text x={x + 3} y={14} stroke='none' fontSize='10'>{pixelsToMetres(x)} m</text></g> : null;
-                })}
-                {Array.from({ length: Math.min(20, Math.floor(canvas.height / 60) + 1) }, (_, index) => {
-                  const y = index * Math.max(60, Math.ceil(canvas.height / 60 / 19) * 60);
-                  return y > 0 && y <= canvas.height ? <g key={`y:${y}`}><path d={`M 0 ${y} h 6`} strokeWidth='0.5' /><text x={8} y={y - 3} stroke='none' fontSize='10'>{pixelsToMetres(y)} m</text></g> : null;
-                })}
+              <g
+                pointerEvents='none'
+                className='fill-muted-foreground stroke-muted-foreground/50'
+                aria-hidden='true'
+              >
+                {Array.from(
+                  { length: Math.min(20, Math.floor(canvas.width / 60) + 1) },
+                  (_, index) => {
+                    const x = index * Math.max(60, Math.ceil(canvas.width / 60 / 19) * 60);
+                    return x <= canvas.width ? (
+                      <g key={`x:${x}`}>
+                        <path d={`M ${x} 0 v 6`} strokeWidth='0.5' />
+                        <text x={x + 3} y={14} stroke='none' fontSize='10'>
+                          {pixelsToMetres(x)} m
+                        </text>
+                      </g>
+                    ) : null;
+                  }
+                )}
+                {Array.from(
+                  { length: Math.min(20, Math.floor(canvas.height / 60) + 1) },
+                  (_, index) => {
+                    const y = index * Math.max(60, Math.ceil(canvas.height / 60 / 19) * 60);
+                    return y > 0 && y <= canvas.height ? (
+                      <g key={`y:${y}`}>
+                        <path d={`M 0 ${y} h 6`} strokeWidth='0.5' />
+                        <text x={8} y={y - 3} stroke='none' fontSize='10'>
+                          {pixelsToMetres(y)} m
+                        </text>
+                      </g>
+                    ) : null;
+                  }
+                )}
               </g>
             )}
             {staticPeers.filter((entry) => entry.peer.category === 'ROOM').map(drawPeer)}

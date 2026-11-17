@@ -1,3 +1,4 @@
+import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo } from 'react';
 import {
@@ -34,19 +35,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger
-} from '@/components/ui/tabs';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Select,
   SelectContent,
@@ -109,7 +99,7 @@ function renderAmenityIcon(iconName?: string) {
   }
 }
 
-function getCategoryBadge(category: AmenityCategory) {
+function getCategoryBadge(category: AmenityCategory, c: OrganizerCopy) {
   switch (category) {
     case 'TECH':
       return (
@@ -118,7 +108,8 @@ function getCategoryBadge(category: AmenityCategory) {
           className='bg-blue-50 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border-blue-200 dark:border-blue-800 text-[11px] font-medium gap-1'
         >
           <Cpu className='size-3' />
-          Công nghệ (TECH)
+
+          {c('Technology (TECH)', 'Công nghệ (TECH)')}
         </Badge>
       );
     case 'SPACE':
@@ -128,7 +119,8 @@ function getCategoryBadge(category: AmenityCategory) {
           className='bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[11px] font-medium gap-1'
         >
           <Building2 className='size-3' />
-          Không gian & Tiện ích (SPACE)
+
+          {c('Space & Facility (SPACE)', 'Không gian & Tiện ích (SPACE)')}
         </Badge>
       );
     case 'COMFORT':
@@ -138,7 +130,8 @@ function getCategoryBadge(category: AmenityCategory) {
           className='bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[11px] font-medium gap-1'
         >
           <Coffee className='size-3' />
-          Dịch vụ & Đời sống (COMFORT)
+
+          {c('Services & Wellbeing (COMFORT)', 'Dịch vụ & Đời sống (COMFORT)')}
         </Badge>
       );
     default:
@@ -147,6 +140,7 @@ function getCategoryBadge(category: AmenityCategory) {
 }
 
 export function OrganizerAmenitiesView() {
+  const c = useOrganizerCopy();
   const [activeTab, setActiveTab] = useState<'custom' | 'standard'>('custom');
 
   // Filters for Custom Amenities
@@ -184,10 +178,9 @@ export function OrganizerAmenitiesView() {
   } = useQuery(amenityQueries.organizerList(filterParams));
 
   // Query standard platform amenities for reference tab & stats
-  const {
-    data: standardAmenities,
-    isLoading: isLoadingStandard
-  } = useQuery(amenityQueries.available());
+  const { data: standardAmenities, isLoading: isLoadingStandard } = useQuery(
+    amenityQueries.available()
+  );
 
   // Mutations
   const toggleMutation = useToggleOrganizerAmenityStatusMutation();
@@ -227,7 +220,8 @@ export function OrganizerAmenitiesView() {
   const filteredStandardAmenities = useMemo(() => {
     if (!standardAmenities) return [];
     return standardAmenities.filter((item) => {
-      const matchSearch = standardSearch.trim() === '' ||
+      const matchSearch =
+        standardSearch.trim() === '' ||
         item.name.toLowerCase().includes(standardSearch.toLowerCase()) ||
         (item.description && item.description.toLowerCase().includes(standardSearch.toLowerCase()));
       const matchCat = standardCategory === 'ALL' || item.category === standardCategory;
@@ -238,8 +232,11 @@ export function OrganizerAmenitiesView() {
   return (
     <div className='flex flex-col gap-6 p-1 md:p-2'>
       <OrganizerPageHeader
-        title="Quản lý tiện ích không gian"
-        description="Quản lý tiện ích của bạn và tra cứu danh mục NexSpace."
+        title={c('Manage workspace amenities', 'Quản lý tiện ích không gian')}
+        description={c(
+          'Manage your amenities and browse the NexSpace catalog.',
+          'Quản lý tiện ích của bạn và tra cứu danh mục NexSpace.'
+        )}
       >
         <div className='flex items-center gap-2'>
           <Button
@@ -250,15 +247,13 @@ export function OrganizerAmenitiesView() {
             className='gap-1.5'
           >
             <RefreshCw className={`size-3.5 ${isFetchingCustom ? 'animate-spin' : ''}`} />
-            Làm mới
+
+            {c('Refresh', 'Làm mới')}
           </Button>
-          <Button
-            size='sm'
-            onClick={handleOpenCreate}
-            className='gap-1.5 shadow-sm'
-          >
+          <Button size='sm' onClick={handleOpenCreate} className='gap-1.5 shadow-sm'>
             <Plus className='size-4' />
-            Tạo tiện ích riêng
+
+            {c('Create custom amenity', 'Tạo tiện ích riêng')}
           </Button>
         </div>
       </OrganizerPageHeader>
@@ -269,7 +264,7 @@ export function OrganizerAmenitiesView() {
           <CardHeader className='pb-2'>
             <div className='flex items-center justify-between'>
               <CardDescription className='text-xs font-medium uppercase text-muted-foreground'>
-                Tiện ích riêng đã tạo
+                {c('Custom amenities created', 'Tiện ích riêng đã tạo')}
               </CardDescription>
               <div className='size-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center'>
                 <Sparkles className='size-4' />
@@ -279,7 +274,10 @@ export function OrganizerAmenitiesView() {
           </CardHeader>
           <CardContent className='pt-0'>
             <p className='text-xs text-muted-foreground'>
-              Bộ tiện ích độc quyền của tổ chức bạn
+              {c(
+                "Your organization's exclusive amenities",
+                'Bộ tiện ích độc quyền của tổ chức bạn'
+              )}
             </p>
           </CardContent>
         </Card>
@@ -288,7 +286,7 @@ export function OrganizerAmenitiesView() {
           <CardHeader className='pb-2'>
             <div className='flex items-center justify-between'>
               <CardDescription className='text-xs font-medium uppercase text-muted-foreground'>
-                Đang kích hoạt
+                {c('Active', 'Đang kích hoạt')}
               </CardDescription>
               <div className='size-8 rounded-lg bg-emerald-500/10 text-emerald-600 flex items-center justify-center'>
                 <CheckCircle2 className='size-4' />
@@ -298,7 +296,10 @@ export function OrganizerAmenitiesView() {
           </CardHeader>
           <CardContent className='pt-0'>
             <p className='text-xs text-muted-foreground'>
-              Sẵn sàng để gắn vào các không gian làm việc
+              {c(
+                'Ready to assign to your workspaces',
+                'Sẵn sàng để gắn vào các không gian làm việc'
+              )}
             </p>
           </CardContent>
         </Card>
@@ -307,7 +308,7 @@ export function OrganizerAmenitiesView() {
           <CardHeader className='pb-2'>
             <div className='flex items-center justify-between'>
               <CardDescription className='text-xs font-medium uppercase text-muted-foreground'>
-                Tiện ích chuẩn NexSpace
+                {c('NexSpace standard amenities', 'Tiện ích chuẩn NexSpace')}
               </CardDescription>
               <div className='size-8 rounded-lg bg-blue-500/10 text-blue-600 flex items-center justify-center'>
                 <ShieldCheck className='size-4' />
@@ -319,7 +320,7 @@ export function OrganizerAmenitiesView() {
           </CardHeader>
           <CardContent className='pt-0'>
             <p className='text-xs text-muted-foreground'>
-              Tiện ích toàn hệ thống có thể sử dụng ngay
+              {c('Platform amenities ready to use', 'Tiện ích toàn hệ thống có thể sử dụng ngay')}
             </p>
           </CardContent>
         </Card>
@@ -330,11 +331,13 @@ export function OrganizerAmenitiesView() {
         <TabsList className='grid w-full max-w-md grid-cols-2'>
           <TabsTrigger value='custom' className='gap-2'>
             <Sparkles className='size-4' />
-            Tiện ích riêng ({totalCustomElements})
+            {c('Custom amenities (', 'Tiện ích riêng (')}
+            {totalCustomElements})
           </TabsTrigger>
           <TabsTrigger value='standard' className='gap-2'>
             <ShieldCheck className='size-4' />
-            Tiện ích chuẩn hệ thống ({standardAmenities?.length || 0})
+            {c('Platform amenities (', 'Tiện ích chuẩn hệ thống (')}
+            {standardAmenities?.length || 0})
           </TabsTrigger>
         </TabsList>
 
@@ -345,7 +348,7 @@ export function OrganizerAmenitiesView() {
             <div className='relative w-full sm:w-72'>
               <Search className='absolute left-2.5 top-2.5 size-4 text-muted-foreground' />
               <Input
-                placeholder='Tìm theo tên hoặc mô tả...'
+                placeholder={c('Search by name or description...', 'Tìm theo tên hoặc mô tả...')}
                 value={searchTerm}
                 onChange={(e) => {
                   setSearchTerm(e.target.value);
@@ -366,13 +369,19 @@ export function OrganizerAmenitiesView() {
                   }}
                 >
                   <SelectTrigger className='h-9 text-xs w-[150px] bg-background'>
-                    <SelectValue placeholder='Nhóm tiện ích' />
+                    <SelectValue placeholder={c('Amenity category', 'Nhóm tiện ích')} />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value='ALL'>Tất cả phân loại</SelectItem>
-                    <SelectItem value='TECH'>Công nghệ (TECH)</SelectItem>
-                    <SelectItem value='SPACE'>Không gian (SPACE)</SelectItem>
-                    <SelectItem value='COMFORT'>Dịch vụ (COMFORT)</SelectItem>
+                    <SelectItem value='ALL'>{c('All categories', 'Tất cả phân loại')}</SelectItem>
+                    <SelectItem value='TECH'>
+                      {c('Technology (TECH)', 'Công nghệ (TECH)')}
+                    </SelectItem>
+                    <SelectItem value='SPACE'>
+                      {c('Space (SPACE)', 'Không gian (SPACE)')}
+                    </SelectItem>
+                    <SelectItem value='COMFORT'>
+                      {c('Hospitality (COMFORT)', 'Dịch vụ (COMFORT)')}
+                    </SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -385,12 +394,12 @@ export function OrganizerAmenitiesView() {
                 }}
               >
                 <SelectTrigger className='h-9 text-xs w-[130px] bg-background'>
-                  <SelectValue placeholder='Trạng thái' />
+                  <SelectValue placeholder={c('Status', 'Trạng thái')} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value='ALL'>Tất cả trạng thái</SelectItem>
-                  <SelectItem value='ACTIVE'>Đang bật</SelectItem>
-                  <SelectItem value='INACTIVE'>Đang tắt</SelectItem>
+                  <SelectItem value='ALL'>{c('All statuses', 'Tất cả trạng thái')}</SelectItem>
+                  <SelectItem value='ACTIVE'>{c('Enabled', 'Đang bật')}</SelectItem>
+                  <SelectItem value='INACTIVE'>{c('Disabled', 'Đang tắt')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -401,12 +410,18 @@ export function OrganizerAmenitiesView() {
             <Table>
               <TableHeader className='bg-muted/50'>
                 <TableRow>
-                  <TableHead className='w-[60px] text-center'>Icon</TableHead>
-                  <TableHead className='min-w-[180px]'>Tên tiện ích</TableHead>
-                  <TableHead className='w-[170px]'>Phân loại</TableHead>
-                  <TableHead className='min-w-[220px]'>Mô tả chi tiết</TableHead>
-                  <TableHead className='w-[120px] text-center'>Trạng thái</TableHead>
-                  <TableHead className='w-[100px] text-right'>Thao tác</TableHead>
+                  <TableHead className='w-[60px] text-center'>{c('Icon', 'Biểu tượng')}</TableHead>
+                  <TableHead className='min-w-[180px]'>
+                    {c('Amenity Name', 'Tên tiện ích')}
+                  </TableHead>
+                  <TableHead className='w-[170px]'>{c('Category', 'Phân loại')}</TableHead>
+                  <TableHead className='min-w-[220px]'>
+                    {c('Detailed description', 'Mô tả chi tiết')}
+                  </TableHead>
+                  <TableHead className='w-[120px] text-center'>
+                    {c('Status', 'Trạng thái')}
+                  </TableHead>
+                  <TableHead className='w-[100px] text-right'>{c('Actions', 'Thao tác')}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -415,7 +430,9 @@ export function OrganizerAmenitiesView() {
                     <TableCell colSpan={6} className='h-48 text-center'>
                       <div className='flex flex-col items-center justify-center gap-2 text-muted-foreground'>
                         <Loader2 className='size-6 animate-spin text-primary' />
-                        <span className='text-xs'>Đang tải danh sách tiện ích riêng...</span>
+                        <span className='text-xs'>
+                          {c('Loading custom amenities...', 'Đang tải danh sách tiện ích riêng...')}
+                        </span>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -427,18 +444,18 @@ export function OrganizerAmenitiesView() {
                           <Sparkles className='size-6' />
                         </div>
                         <p className='font-semibold text-foreground text-sm'>
-                          Chưa có tiện ích riêng nào
+                          {c('No custom amenities yet', 'Chưa có tiện ích riêng nào')}
                         </p>
                         <p className='text-xs leading-relaxed'>
-                          Tổ chức của bạn có thể tạo các tiện ích độc quyền (ví dụ: máy pha specialty coffee, phòng live stream riêng, thiết bị VR) để bổ sung vào không gian.
+                          {c(
+                            'Create exclusive amenities, such as specialty coffee machines, private streaming rooms or VR equipment, for your workspaces.',
+                            'Tổ chức của bạn có thể tạo các tiện ích độc quyền (ví dụ: máy pha specialty coffee, phòng live stream riêng, thiết bị VR) để bổ sung vào không gian.'
+                          )}
                         </p>
-                        <Button
-                          size='sm'
-                          onClick={handleOpenCreate}
-                          className='mt-2 gap-1.5'
-                        >
+                        <Button size='sm' onClick={handleOpenCreate} className='mt-2 gap-1.5'>
                           <Plus className='size-4' />
-                          Tạo tiện ích đầu tiên
+
+                          {c('Create your first amenity', 'Tạo tiện ích đầu tiên')}
                         </Button>
                       </div>
                     </TableCell>
@@ -461,10 +478,11 @@ export function OrganizerAmenitiesView() {
                           </span>
                         </div>
                       </TableCell>
-                      <TableCell>{getCategoryBadge(amenity.category)}</TableCell>
+                      <TableCell>{getCategoryBadge(amenity.category, c)}</TableCell>
                       <TableCell>
                         <p className='text-xs text-muted-foreground line-clamp-2 max-w-md'>
-                          {amenity.description || 'Không có mô tả chi tiết'}
+                          {amenity.description ||
+                            c('No detailed description', 'Không có mô tả chi tiết')}
                         </p>
                       </TableCell>
                       <TableCell className='text-center'>
@@ -474,8 +492,10 @@ export function OrganizerAmenitiesView() {
                             onCheckedChange={(checked) => handleToggleStatus(amenity, checked)}
                             disabled={toggleMutation.isPending}
                           />
-                          <span className={`text-[11px] font-medium ${amenity.active ? 'text-emerald-600' : 'text-muted-foreground'}`}>
-                            {amenity.active ? 'Bật' : 'Tắt'}
+                          <span
+                            className={`text-[11px] font-medium ${amenity.active ? 'text-emerald-600' : 'text-muted-foreground'}`}
+                          >
+                            {amenity.active ? c('On', 'Bật') : c('Off', 'Tắt')}
                           </span>
                         </div>
                       </TableCell>
@@ -486,7 +506,7 @@ export function OrganizerAmenitiesView() {
                             size='icon'
                             onClick={() => handleOpenEdit(amenity)}
                             className='size-8 text-muted-foreground hover:text-foreground'
-                            title='Chỉnh sửa'
+                            title={c('Edit', 'Chỉnh sửa')}
                           >
                             <Pencil className='size-3.5' />
                           </Button>
@@ -495,7 +515,7 @@ export function OrganizerAmenitiesView() {
                             size='icon'
                             onClick={() => handleOpenDelete(amenity)}
                             className='size-8 text-destructive/80 hover:text-destructive hover:bg-destructive/10'
-                            title='Xóa'
+                            title={c('Delete', 'Xóa')}
                           >
                             <Trash2 className='size-3.5' />
                           </Button>
@@ -511,7 +531,8 @@ export function OrganizerAmenitiesView() {
             {totalCustomPages > 1 && (
               <div className='flex items-center justify-between p-3 border-t bg-muted/20 text-xs'>
                 <span className='text-muted-foreground'>
-                  Trang {page} / {totalCustomPages} (Tổng {totalCustomElements} tiện ích)
+                  {c('Page', 'Trang')} {page} / {totalCustomPages} (Tổng {totalCustomElements}{' '}
+                  {c('amenities)', 'tiện ích)')}
                 </span>
                 <div className='flex items-center gap-1.5'>
                   <Button
@@ -521,7 +542,7 @@ export function OrganizerAmenitiesView() {
                     onClick={() => setPage((p) => Math.max(1, p - 1))}
                     className='h-7 px-2.5 text-xs'
                   >
-                    Trước
+                    {c('Previous', 'Trước')}
                   </Button>
                   <Button
                     variant='outline'
@@ -530,7 +551,7 @@ export function OrganizerAmenitiesView() {
                     onClick={() => setPage((p) => Math.min(totalCustomPages, p + 1))}
                     className='h-7 px-2.5 text-xs'
                   >
-                    Sau
+                    {c('Next', 'Sau')}
                   </Button>
                 </div>
               </div>
@@ -545,10 +566,13 @@ export function OrganizerAmenitiesView() {
             <ShieldCheck className='size-5 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0' />
             <div className='text-xs leading-relaxed'>
               <p className='font-semibold text-blue-900 dark:text-blue-200'>
-                Danh mục tiện ích chuẩn của NexSpace
+                {c('NexSpace standard amenity catalog', 'Danh mục tiện ích chuẩn của NexSpace')}
               </p>
               <p className='text-blue-700 dark:text-blue-300 mt-0.5'>
-                Các tiện ích này do ban quản trị NexSpace chuẩn hóa và cấp phép toàn nền tảng. Tổ chức của bạn có thể gắn bất kỳ tiện ích chuẩn nào vào không gian khi tạo hoặc cập nhật hồ sơ không gian.
+                {c(
+                  'These amenities are maintained by NexSpace and available across the platform. Assign them when creating or editing a workspace.',
+                  'Các tiện ích này do ban quản trị NexSpace chuẩn hóa và cấp phép toàn nền tảng. Tổ chức của bạn có thể gắn bất kỳ tiện ích chuẩn nào vào không gian khi tạo hoặc cập nhật hồ sơ không gian.'
+                )}
               </p>
             </div>
           </div>
@@ -558,25 +582,24 @@ export function OrganizerAmenitiesView() {
             <div className='relative w-full sm:w-72'>
               <Search className='absolute left-2.5 top-2.5 size-4 text-muted-foreground' />
               <Input
-                placeholder='Tìm tiện ích chuẩn...'
+                placeholder={c('Search standard amenities...', 'Tìm tiện ích chuẩn...')}
                 value={standardSearch}
                 onChange={(e) => setStandardSearch(e.target.value)}
                 className='pl-8 bg-background h-9 text-xs'
               />
             </div>
 
-            <Select
-              value={standardCategory}
-              onValueChange={setStandardCategory}
-            >
+            <Select value={standardCategory} onValueChange={setStandardCategory}>
               <SelectTrigger className='h-9 text-xs w-[170px] bg-background'>
-                <SelectValue placeholder='Phân loại tiện ích' />
+                <SelectValue placeholder={c('Amenity classification', 'Phân loại tiện ích')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value='ALL'>Tất cả phân loại</SelectItem>
-                <SelectItem value='TECH'>Công nghệ (TECH)</SelectItem>
-                <SelectItem value='SPACE'>Không gian (SPACE)</SelectItem>
-                <SelectItem value='COMFORT'>Dịch vụ (COMFORT)</SelectItem>
+                <SelectItem value='ALL'>{c('All categories', 'Tất cả phân loại')}</SelectItem>
+                <SelectItem value='TECH'>{c('Technology (TECH)', 'Công nghệ (TECH)')}</SelectItem>
+                <SelectItem value='SPACE'>{c('Space (SPACE)', 'Không gian (SPACE)')}</SelectItem>
+                <SelectItem value='COMFORT'>
+                  {c('Hospitality (COMFORT)', 'Dịch vụ (COMFORT)')}
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -586,15 +609,23 @@ export function OrganizerAmenitiesView() {
             {isLoadingStandard ? (
               <div className='col-span-full h-40 flex items-center justify-center text-muted-foreground gap-2'>
                 <Loader2 className='size-5 animate-spin text-primary' />
-                <span className='text-xs'>Đang tải danh mục tiện ích chuẩn...</span>
+                <span className='text-xs'>
+                  {c('Loading standard amenities...', 'Đang tải danh mục tiện ích chuẩn...')}
+                </span>
               </div>
             ) : filteredStandardAmenities.length === 0 ? (
               <div className='col-span-full h-40 flex items-center justify-center text-muted-foreground text-xs'>
-                Không tìm thấy tiện ích chuẩn phù hợp.
+                {c(
+                  'No matching standard amenities found.',
+                  'Không tìm thấy tiện ích chuẩn phù hợp.'
+                )}
               </div>
             ) : (
               filteredStandardAmenities.map((item) => (
-                <Card key={item.id} className='border shadow-sm hover:border-primary/40 transition-colors'>
+                <Card
+                  key={item.id}
+                  className='border shadow-sm hover:border-primary/40 transition-colors'
+                >
                   <CardHeader className='p-3.5 pb-2'>
                     <div className='flex items-start justify-between gap-2'>
                       <div className='flex items-center gap-2.5'>
@@ -606,15 +637,20 @@ export function OrganizerAmenitiesView() {
                             {item.name}
                           </CardTitle>
                           <span className='text-[10px] text-muted-foreground'>
-                            Chuẩn hệ thống • ID: #{item.id}
+                            {c('Platform standard • ID: #', 'Chuẩn hệ thống • ID: #')}
+                            {item.id}
                           </span>
                         </div>
                       </div>
-                      {getCategoryBadge(item.category)}
+                      {getCategoryBadge(item.category, c)}
                     </div>
                   </CardHeader>
                   <CardContent className='p-3.5 pt-1 text-xs text-muted-foreground leading-relaxed'>
-                    {item.description || 'Tiện ích chuẩn phục vụ khách hàng trên nền tảng.'}
+                    {item.description ||
+                      c(
+                        'Standard amenity for platform customers.',
+                        'Tiện ích chuẩn phục vụ khách hàng trên nền tảng.'
+                      )}
                   </CardContent>
                 </Card>
               ))

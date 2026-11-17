@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -37,6 +38,7 @@ import {
   parseTimeToMinutes,
   isOperatingTimeRangeValid
 } from '../schemas/wizard-schemas';
+import { getWizardDayLabel, getWizardValidationMessage } from '../utils/wizard-copy';
 import type { DayOfWeek, DaySchedule } from '../types/wizard';
 
 export const TIME_SLOTS = [
@@ -107,7 +109,8 @@ export const VIETNAM_STATUTORY_HOLIDAYS: StatutoryHolidayItem[] = [
     dateSolar: 'Thường rơi vào Tháng 1 hoặc Tháng 2 Dương lịch',
     dateLunar: '29 Tháng Chạp đến hết Mùng 5 Tháng Giêng',
     duration: '5 - 9 ngày (theo lịch Chính phủ công bố)',
-    description: 'Nghỉ liền kề 5 ngày theo Luật Lao động (thực tế 7-9 ngày bao gồm hoán đổi ngày làm việc & nghỉ bù).',
+    description:
+      'Nghỉ liền kề 5 ngày theo Luật Lao động (thực tế 7-9 ngày bao gồm hoán đổi ngày làm việc & nghỉ bù).',
     badge: 'Âm lịch (Tết)'
   },
   {
@@ -123,7 +126,7 @@ export const VIETNAM_STATUTORY_HOLIDAYS: StatutoryHolidayItem[] = [
   {
     id: 'giai-phong-mien-nam',
     nameVi: 'Ngày Chiến thắng & Quốc tế Lao động',
-    nameEn: 'Reunification & International Workers\' Day',
+    nameEn: "Reunification & International Workers' Day",
     dateSolar: '30/04 - 01/05 hàng năm',
     duration: '2 ngày liên tiếp',
     description: 'Nghỉ 2 ngày chính thức ngày 30/04 và 01/05.',
@@ -135,7 +138,8 @@ export const VIETNAM_STATUTORY_HOLIDAYS: StatutoryHolidayItem[] = [
     nameEn: 'National Day of Vietnam',
     dateSolar: '02/09 & 1 ngày liền kề (01/09 hoặc 03/09)',
     duration: '2 ngày',
-    description: 'Nghỉ 2 ngày: ngày 02/09 và 1 ngày liền kề trước hoặc sau theo thông báo hàng năm của Bộ LĐ-TB&XH.',
+    description:
+      'Nghỉ 2 ngày: ngày 02/09 và 1 ngày liền kề trước hoặc sau theo thông báo hàng năm của Bộ LĐ-TB&XH.',
     badge: '01 - 03/09'
   }
 ];
@@ -150,6 +154,7 @@ function calculateDurationHours(openTime: string, closeTime: string): number {
 }
 
 export function StepOperatingHoursView() {
+  const c = useOrganizerCopy();
   const router = useRouter();
   const {
     operatingHours,
@@ -175,19 +180,18 @@ export function StepOperatingHoursView() {
     setValidationError(null);
   };
 
-  const handleTimeChange = (
-    day: DayOfWeek,
-    field: 'openTime' | 'closeTime',
-    val: string
-  ) => {
+  const handleTimeChange = (day: DayOfWeek, field: 'openTime' | 'closeTime', val: string) => {
     updateDaySchedule(day, { [field]: val });
     setValidationError(null);
   };
 
   const handleApplyMonday = () => {
     applyMondayToWeekdays();
-    toast.success('Hours Replicated', {
-      description: "Monday's operating hours applied to Tuesday through Friday."
+    toast.success(c('Hours Replicated', 'Đã sao chép giờ hoạt động'), {
+      description: c(
+        "Monday's operating hours applied to Tuesday through Friday.",
+        'Đã áp dụng lịch thứ Hai cho thứ Ba đến thứ Sáu.'
+      )
     });
   };
 
@@ -210,8 +214,11 @@ export function StepOperatingHoursView() {
         });
       }
     });
-    toast.success('Schedule Replicated', {
-      description: `${sourceDay.label}'s hours copied to all 7 days.`
+    toast.success(c('Schedule Replicated', 'Đã sao chép lịch hoạt động'), {
+      description: c(
+        `${getWizardDayLabel(sourceDay.day, c)}'s hours copied to all 7 days.`,
+        `Đã sao chép lịch ${getWizardDayLabel(sourceDay.day, c)} cho cả 7 ngày.`
+      )
     });
   };
 
@@ -233,11 +240,14 @@ export function StepOperatingHoursView() {
         (d) => d.isOpen && !isOperatingTimeRangeValid(d.openTime, d.closeTime)
       );
       if (invalidDays.length > 0) {
-        const dayNames = invalidDays.map((d) => d.label).join(', ');
-        const err = `Giờ hoạt động không hợp lệ: Giờ đóng cửa phải sau giờ mở cửa đối với các ngày (${dayNames}).`;
+        const dayNames = invalidDays.map((d) => getWizardDayLabel(d.day, c)).join(', ');
+        const err = c(
+          `Closing time must be after opening time (${dayNames}).`,
+          `Giờ đóng cửa phải sau giờ mở cửa (${dayNames}).`
+        );
         setValidationError(err);
-        toast.error('Lỗi cấu hình giờ hoạt động', {
-          description: err
+        toast.error(c('Invalid operating hours', 'Giờ hoạt động chưa hợp lệ'), {
+          description: getWizardValidationMessage(err, c)
         });
         return;
       }
@@ -249,8 +259,8 @@ export function StepOperatingHoursView() {
         result.error.issues[0]?.message ||
         'Please configure at least one open day or enable 24/7 Access.';
       setValidationError(err);
-      toast.error('Schedule Validation Error', {
-        description: err
+      toast.error(c('Schedule Validation Error', 'Lịch hoạt động chưa hợp lệ'), {
+        description: getWizardValidationMessage(err, c)
       });
       return;
     }
@@ -259,11 +269,14 @@ export function StepOperatingHoursView() {
     saveDraft();
     await saveDraftToServer({ silent: true });
 
-    toast.success('Operating Hours Saved', {
-      description: 'Proceeding to Amenities configuration.'
+    toast.success(c('Operating Hours Saved', 'Đã lưu giờ hoạt động'), {
+      description: c('Proceeding to Amenities configuration.', 'Tiếp tục thiết lập tiện ích.')
     });
 
-    router.navigate({ to: '/dashboard/organizer/workspaces/create/amenities', search: (prev) => prev });
+    router.navigate({
+      to: '/dashboard/organizer/workspaces/create/amenities',
+      search: (prev) => prev
+    });
   };
 
   return (
@@ -279,15 +292,18 @@ export function StepOperatingHoursView() {
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
           <div>
             <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground'>
-              Create Workspace Wizard: Operating Hours
+              {c('Create Workspace Wizard: Operating Hours', 'Tạo không gian: Giờ hoạt động')}
             </h1>
             <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              Configure open access schedules for public reservations and dedicated member access.
+              {c(
+                'Configure open access schedules for public reservations and dedicated member access.',
+                'Thiết lập lịch mở cửa cho khách đặt chỗ và thành viên.'
+              )}
             </p>
           </div>
           <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
             <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
-            <span>Draft automatically synced</span>
+            <span>{c('Draft automatically synced', 'Bản nháp được đồng bộ tự động')}</span>
           </div>
         </div>
 
@@ -296,8 +312,12 @@ export function StepOperatingHoursView() {
           <div className='mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-3 text-xs sm:text-sm'>
             <AlertCircle className='size-5 shrink-0 mt-0.5' />
             <div>
-              <p className='font-semibold'>Operating Hours Incomplete</p>
-              <p className='mt-0.5 text-xs opacity-90'>{validationError}</p>
+              <p className='font-semibold'>
+                {c('Operating Hours Incomplete', 'Giờ hoạt động chưa đầy đủ')}
+              </p>
+              <p className='mt-0.5 text-xs opacity-90'>
+                {getWizardValidationMessage(validationError, c)}
+              </p>
             </div>
           </div>
         )}
@@ -312,15 +332,18 @@ export function StepOperatingHoursView() {
                 </div>
                 <div>
                   <h3 className='text-sm sm:text-base font-semibold text-foreground flex items-center gap-2'>
-                    <span>Open 24/7 Access</span>
+                    <span>{c('Open 24/7 Access', 'Mở cửa 24/7')}</span>
                     {operatingHours.is247 && (
                       <Badge className='bg-indigo-600 hover:bg-indigo-600 text-white text-[10px] font-bold'>
-                        Active
+                        {c('Active', 'Đang kích hoạt')}
                       </Badge>
                     )}
                   </h3>
                   <p className='text-xs text-muted-foreground mt-0.5'>
-                    Allow round-the-clock booking for all 7 days with no closed intervals. Ideal for smart lock venues.
+                    {c(
+                      'Allow round-the-clock booking for all 7 days with no closed intervals. Ideal for smart lock venues.',
+                      'Cho phép đặt chỗ liên tục cả 7 ngày trong tuần, phù hợp với không gian dùng khóa thông minh.'
+                    )}
                   </p>
                 </div>
               </div>
@@ -329,7 +352,7 @@ export function StepOperatingHoursView() {
                 id='switch-24-7'
                 checked={operatingHours.is247}
                 onCheckedChange={handleToggle247}
-                aria-label='Toggle 24/7 Access'
+                aria-label={c('Toggle 24/7 Access', 'Bật/tắt hoạt động 24/7')}
               />
             </div>
           </div>
@@ -341,7 +364,7 @@ export function StepOperatingHoursView() {
               <div>
                 <h3 className='text-sm sm:text-base font-bold text-foreground flex items-center gap-2'>
                   <Clock className='size-4 text-indigo-600 dark:text-indigo-400' />
-                  <span>Weekly Schedule Configuration</span>
+                  <span>{c('Weekly Schedule Configuration', 'Lịch hoạt động trong tuần')}</span>
                 </h3>
                 <p className='text-xs text-muted-foreground mt-0.5'>
                   {operatingHours.is247
@@ -359,7 +382,12 @@ export function StepOperatingHoursView() {
                 className='text-xs gap-1.5 border-border hover:bg-muted self-start sm:self-center'
               >
                 <Copy className='size-3.5 text-muted-foreground' />
-                <span>Apply Monday to Weekdays (Tue-Fri)</span>
+                <span>
+                  {c(
+                    'Apply Monday to Weekdays (Tue-Fri)',
+                    'Áp dụng lịch thứ Hai cho thứ Ba đến thứ Sáu'
+                  )}
+                </span>
               </Button>
             </div>
 
@@ -370,10 +398,7 @@ export function StepOperatingHoursView() {
                   dayItem.isOpen &&
                   !operatingHours.is247 &&
                   !isOperatingTimeRangeValid(dayItem.openTime, dayItem.closeTime);
-                const duration = calculateDurationHours(
-                  dayItem.openTime,
-                  dayItem.closeTime
-                );
+                const duration = calculateDurationHours(dayItem.openTime, dayItem.closeTime);
 
                 return (
                   <div
@@ -389,16 +414,14 @@ export function StepOperatingHoursView() {
                           id={`switch-day-${dayItem.day}`}
                           checked={operatingHours.is247 || dayItem.isOpen}
                           disabled={operatingHours.is247}
-                          onCheckedChange={(checked) =>
-                            handleDayToggle(dayItem.day, checked)
-                          }
-                          aria-label={`Toggle ${dayItem.label}`}
+                          onCheckedChange={(checked) => handleDayToggle(dayItem.day, checked)}
+                          aria-label={`Toggle ${getWizardDayLabel(dayItem.day, c)}`}
                         />
                         <label
                           htmlFor={`switch-day-${dayItem.day}`}
                           className='text-xs sm:text-sm font-semibold text-foreground cursor-pointer select-none'
                         >
-                          {dayItem.label}
+                          {getWizardDayLabel(dayItem.day, c)}
                         </label>
                       </div>
 
@@ -415,11 +438,13 @@ export function StepOperatingHoursView() {
                             >
                               <SelectTrigger
                                 className={`h-9 text-xs ${
-                                  isTimeInvalid ? 'border-destructive text-destructive focus:ring-destructive' : ''
+                                  isTimeInvalid
+                                    ? 'border-destructive text-destructive focus:ring-destructive'
+                                    : ''
                                 }`}
-                                aria-label={`${dayItem.label} opening time`}
+                                aria-label={`${getWizardDayLabel(dayItem.day, c)} opening time`}
                               >
-                                <SelectValue placeholder='Open Time' />
+                                <SelectValue placeholder={c('Open Time', 'Giờ mở cửa')} />
                               </SelectTrigger>
                               <SelectContent className='max-h-56'>
                                 {TIME_SLOTS.slice(0, -1).map((slot) => (
@@ -432,7 +457,7 @@ export function StepOperatingHoursView() {
                           </div>
 
                           <span className='text-xs text-muted-foreground font-medium'>
-                            to
+                            {c('to', 'đến')}
                           </span>
 
                           <div className='w-32 sm:w-36'>
@@ -445,11 +470,13 @@ export function StepOperatingHoursView() {
                             >
                               <SelectTrigger
                                 className={`h-9 text-xs ${
-                                  isTimeInvalid ? 'border-destructive text-destructive focus:ring-destructive' : ''
+                                  isTimeInvalid
+                                    ? 'border-destructive text-destructive focus:ring-destructive'
+                                    : ''
                                 }`}
-                                aria-label={`${dayItem.label} closing time`}
+                                aria-label={`${getWizardDayLabel(dayItem.day, c)} closing time`}
                               >
-                                <SelectValue placeholder='Close Time' />
+                                <SelectValue placeholder={c('Close Time', 'Giờ đóng cửa')} />
                               </SelectTrigger>
                               <SelectContent className='max-h-56'>
                                 {TIME_SLOTS.map((slot) => (
@@ -467,16 +494,19 @@ export function StepOperatingHoursView() {
                               className='bg-destructive/15 text-destructive border border-destructive/30 text-[11px] font-semibold flex items-center gap-1 shrink-0'
                             >
                               <AlertCircle className='size-3 shrink-0' />
-                              <span>Giờ đóng cửa phải sau giờ mở cửa</span>
+                              <span>
+                                {c(
+                                  'Closing time must be after opening time',
+                                  'Giờ đóng cửa phải sau giờ mở cửa'
+                                )}
+                              </span>
                             </Badge>
                           ) : (
                             <Badge
                               variant='secondary'
                               className='bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800 text-[11px] font-semibold'
                             >
-                              {operatingHours.is247
-                                ? 'Open (24 hrs)'
-                                : `Open (${duration} hrs)`}
+                              {operatingHours.is247 ? 'Open (24 hrs)' : `Open (${duration} hrs)`}
                             </Badge>
                           )}
                         </div>
@@ -486,10 +516,10 @@ export function StepOperatingHoursView() {
                             variant='outline'
                             className='bg-muted text-muted-foreground border-border text-[11px] font-medium'
                           >
-                            Closed
+                            {c('Closed', 'Đóng cửa')}
                           </Badge>
                           <span className='text-xs text-muted-foreground italic'>
-                            No public reservations scheduled
+                            {c('No public reservations scheduled', 'Không nhận đặt chỗ')}
                           </span>
                         </div>
                       )}
@@ -502,10 +532,10 @@ export function StepOperatingHoursView() {
                         onClick={() => handleCopyDayToAll(dayItem)}
                         disabled={operatingHours.is247}
                         className='text-[11px] text-muted-foreground hover:text-foreground h-8 px-2 self-start sm:self-center shrink-0'
-                        title={`Copy ${dayItem.label}'s hours to all other days`}
+                        title={`Copy ${getWizardDayLabel(dayItem.day, c)}'s hours to all other days`}
                       >
                         <Copy className='size-3 mr-1' />
-                        <span>Copy to all</span>
+                        <span>{c('Copy to all', 'Sao chép cho tất cả')}</span>
                       </Button>
                     </div>
 
@@ -514,7 +544,8 @@ export function StepOperatingHoursView() {
                       <div className='flex items-center gap-1.5 text-[11px] text-destructive font-medium pl-1'>
                         <AlertCircle className='size-3.5 shrink-0' />
                         <span>
-                          Khung giờ không hợp lệ: Giờ đóng cửa ({dayItem.closeTime}) phải muộn hơn giờ mở cửa ({dayItem.openTime}).
+                          Khung giờ không hợp lệ: Giờ đóng cửa ({dayItem.closeTime}) phải muộn hơn
+                          giờ mở cửa ({dayItem.openTime}).
                         </span>
                       </div>
                     )}
@@ -528,7 +559,9 @@ export function StepOperatingHoursView() {
           <div className='rounded-xl border border-border bg-card p-5 sm:p-6 shadow-2xs'>
             <h3 className='text-sm sm:text-base font-bold text-foreground flex items-center gap-2 mb-4'>
               <ShieldCheck className='size-4 text-indigo-600 dark:text-indigo-400' />
-              <span>Operating Policies &amp; Exceptions</span>
+              <span>
+                {c('Operating Policies & Exceptions', 'Chính sách hoạt động và ngoại lệ')}
+              </span>
             </h3>
 
             <div className='space-y-4'>
@@ -539,9 +572,7 @@ export function StepOperatingHoursView() {
                     <Checkbox
                       id='checkbox-block-holidays'
                       checked={operatingHours.blockHolidays}
-                      onCheckedChange={(checked) =>
-                        setOperatingHours({ blockHolidays: !!checked })
-                      }
+                      onCheckedChange={(checked) => setOperatingHours({ blockHolidays: !!checked })}
                       className='mt-1'
                     />
                     <div className='grid gap-1'>
@@ -549,19 +580,38 @@ export function StepOperatingHoursView() {
                         htmlFor='checkbox-block-holidays'
                         className='text-xs sm:text-sm font-semibold text-foreground cursor-pointer flex flex-wrap items-center gap-2'
                       >
-                        <span>Tự động khóa đặt chỗ vào các ngày nghỉ Lễ Quốc gia (National Public Holidays)</span>
+                        <span>
+                          {c(
+                            'Automatically block bookings on national public holidays',
+                            'Tự động khóa đặt chỗ vào các ngày nghỉ Lễ Quốc gia (National Public Holidays)'
+                          )}
+                        </span>
                         {operatingHours.blockHolidays ? (
                           <Badge className='bg-emerald-600 hover:bg-emerald-600 text-white text-[10px] h-5 px-1.5'>
-                            Đang kích hoạt
+                            {c('Active', 'Đang kích hoạt')}
                           </Badge>
                         ) : (
-                          <Badge variant='outline' className='text-[10px] h-5 px-1.5 text-muted-foreground'>
-                            Tắt
+                          <Badge
+                            variant='outline'
+                            className='text-[10px] h-5 px-1.5 text-muted-foreground'
+                          >
+                            {c('Off', 'Tắt')}
                           </Badge>
                         )}
                       </label>
                       <p className='text-xs text-muted-foreground leading-relaxed'>
-                        Hệ thống tự động đồng bộ lịch nghỉ lễ chính thức theo <strong>Điều 112 Bộ luật Lao động Việt Nam</strong> (Tết Dương lịch, Tết Nguyên Đán, Giỗ Tổ Hùng Vương, 30/04 - 01/05, Quốc khánh 02/09) và tự động tính ngày nghỉ bù nếu trùng cuối tuần.
+                        {c(
+                          'The system synchronizes official public holidays under',
+                          'Hệ thống tự động đồng bộ lịch nghỉ lễ chính thức theo'
+                        )}{' '}
+                        <strong>
+                          {c(
+                            "Article 112 of Vietnam's Labor Code",
+                            'Điều 112 Bộ luật Lao động Việt Nam'
+                          )}
+                        </strong>{' '}
+                        (Tết Dương lịch, Tết Nguyên Đán, Giỗ Tổ Hùng Vương, 30/04 - 01/05, Quốc
+                        khánh 02/09) và tự động tính ngày nghỉ bù nếu trùng cuối tuần.
                       </p>
                     </div>
                   </div>
@@ -575,8 +625,14 @@ export function StepOperatingHoursView() {
                     className='text-xs shrink-0 h-8 gap-1.5 text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 self-start sm:self-auto'
                   >
                     <CalendarDays className='size-3.5' />
-                    <span>{showHolidayDetails ? 'Thu gọn lịch lễ' : 'Xem lịch nghỉ lễ cụ thể'}</span>
-                    {showHolidayDetails ? <ChevronUp className='size-3.5' /> : <ChevronDown className='size-3.5' />}
+                    <span>
+                      {showHolidayDetails ? 'Thu gọn lịch lễ' : 'Xem lịch nghỉ lễ cụ thể'}
+                    </span>
+                    {showHolidayDetails ? (
+                      <ChevronUp className='size-3.5' />
+                    ) : (
+                      <ChevronDown className='size-3.5' />
+                    )}
                   </Button>
                 </div>
 
@@ -586,10 +642,18 @@ export function StepOperatingHoursView() {
                     <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3'>
                       <div className='flex items-center gap-1.5 text-xs font-semibold text-foreground'>
                         <CalendarCheck2 className='size-4 text-indigo-500' />
-                        <span>Danh mục chi tiết 5 kỳ nghỉ lễ Quốc gia trong năm:</span>
+                        <span>
+                          {c(
+                            'National public holiday details:',
+                            'Danh mục chi tiết 5 kỳ nghỉ lễ Quốc gia trong năm:'
+                          )}
+                        </span>
                       </div>
                       <span className='text-[11px] text-muted-foreground italic'>
-                        Tổng cộng 11 ngày nghỉ chính thức + ngày nghỉ bù theo luật
+                        {c(
+                          '11 official days plus compensatory days as prescribed',
+                          'Tổng cộng 11 ngày nghỉ chính thức + ngày nghỉ bù theo luật'
+                        )}
                       </span>
                     </div>
 
@@ -602,29 +666,44 @@ export function StepOperatingHoursView() {
                           <div>
                             <div className='flex items-start justify-between gap-1 mb-1.5'>
                               <h4 className='text-xs font-bold text-foreground leading-tight'>
-                                {holiday.nameVi}
+                                {c(holiday.nameEn, holiday.nameVi)}
                               </h4>
-                              <Badge variant='outline' className='bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 text-[10px] shrink-0 font-medium'>
+                              <Badge
+                                variant='outline'
+                                className='bg-indigo-50/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 text-[10px] shrink-0 font-medium'
+                              >
                                 {holiday.badge}
                               </Badge>
                             </div>
                             <p className='text-[11px] text-muted-foreground font-medium mb-1'>
-                              {holiday.nameEn}
+                              {c('', holiday.nameEn)}
                             </p>
                             <div className='space-y-0.5 text-[11px] text-foreground/80'>
                               <div>
-                                <span className='text-muted-foreground'>Thời gian: </span>
-                                <span className='font-semibold text-foreground'>{holiday.dateSolar}</span>
+                                <span className='text-muted-foreground'>
+                                  {c('Dates:', 'Thời gian:')}{' '}
+                                </span>
+                                <span className='font-semibold text-foreground'>
+                                  {holiday.dateSolar}
+                                </span>
                               </div>
                               {holiday.dateLunar && (
                                 <div>
-                                  <span className='text-muted-foreground'>Âm lịch: </span>
-                                  <span className='font-medium text-amber-600 dark:text-amber-400'>{holiday.dateLunar}</span>
+                                  <span className='text-muted-foreground'>
+                                    {c('Lunar dates:', 'Âm lịch:')}{' '}
+                                  </span>
+                                  <span className='font-medium text-amber-600 dark:text-amber-400'>
+                                    {holiday.dateLunar}
+                                  </span>
                                 </div>
                               )}
                               <div>
-                                <span className='text-muted-foreground'>Thời lượng: </span>
-                                <span className='font-medium text-emerald-600 dark:text-emerald-400'>{holiday.duration}</span>
+                                <span className='text-muted-foreground'>
+                                  {c('Duration:', 'Thời lượng:')}{' '}
+                                </span>
+                                <span className='font-medium text-emerald-600 dark:text-emerald-400'>
+                                  {holiday.duration}
+                                </span>
                               </div>
                             </div>
                           </div>
@@ -640,11 +719,36 @@ export function StepOperatingHoursView() {
                     <div className='mt-3 p-3 rounded-lg bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/60 flex items-start gap-2.5 text-[11px] text-indigo-900 dark:text-indigo-200'>
                       <Info className='size-4 shrink-0 mt-0.5 text-indigo-600 dark:text-indigo-400' />
                       <div className='space-y-0.5 leading-relaxed'>
-                        <p className='font-semibold'>Chính sách khóa lịch tự động (Booking Suspension Rules):</p>
+                        <p className='font-semibold'>
+                          {c(
+                            'Automatic booking suspension rules:',
+                            'Chính sách khóa lịch tự động (Booking Suspension Rules):'
+                          )}
+                        </p>
                         <ul className='list-disc list-inside space-y-0.5 text-indigo-800/90 dark:text-indigo-300'>
-                          <li>Tất cả các khung giờ công khai trên cổng đặt phòng/bàn sẽ chuyển sang trạng thái <strong>Đóng cửa (Closed)</strong> trong toàn bộ các ngày lễ nêu trên.</li>
-                          <li>Nếu ngày nghỉ lễ rơi vào thứ Bảy hoặc Chủ Nhật, hệ thống sẽ tự động khóa thêm ngày thứ Hai (hoặc ngày làm việc kế tiếp) để nghỉ bù theo luật.</li>
-                          <li>Thành viên có gói Dedicated Desk / Văn phòng riêng vẫn có thể vào không gian bằng khóa thông minh (nếu bật chế độ Smart Lock 24/7).</li>
+                          <li>
+                            {c(
+                              'All public booking slots will be marked',
+                              'Tất cả các khung giờ công khai trên cổng đặt phòng/bàn sẽ chuyển sang trạng thái'
+                            )}{' '}
+                            <strong>{c('Closed for bookings', 'Đóng cửa (Closed)')}</strong>{' '}
+                            {c(
+                              'throughout the holidays listed above.',
+                              'trong toàn bộ các ngày lễ nêu trên.'
+                            )}
+                          </li>
+                          <li>
+                            {c(
+                              'If a holiday falls on a weekend, the system also blocks Monday or the next working day for compensatory leave.',
+                              'Nếu ngày nghỉ lễ rơi vào thứ Bảy hoặc Chủ Nhật, hệ thống sẽ tự động khóa thêm ngày thứ Hai (hoặc ngày làm việc kế tiếp) để nghỉ bù theo luật.'
+                            )}
+                          </li>
+                          <li>
+                            {c(
+                              'Dedicated desk and private office members may still enter using smart locks when 24/7 access is enabled.',
+                              'Thành viên có gói Dedicated Desk / Văn phòng riêng vẫn có thể vào không gian bằng khóa thông minh (nếu bật chế độ Smart Lock 24/7).'
+                            )}
+                          </li>
                         </ul>
                       </div>
                     </div>
@@ -657,9 +761,7 @@ export function StepOperatingHoursView() {
                 <Checkbox
                   id='checkbox-grace-period'
                   checked={operatingHours.allowGracePeriod}
-                  onCheckedChange={(checked) =>
-                    setOperatingHours({ allowGracePeriod: !!checked })
-                  }
+                  onCheckedChange={(checked) => setOperatingHours({ allowGracePeriod: !!checked })}
                   className='mt-0.5'
                 />
                 <div className='grid gap-0.5 leading-none'>
@@ -667,10 +769,16 @@ export function StepOperatingHoursView() {
                     htmlFor='checkbox-grace-period'
                     className='text-xs sm:text-sm font-semibold text-foreground cursor-pointer'
                   >
-                    Allow 15-minute grace period before official opening time
+                    {c(
+                      'Allow 15-minute grace period before official opening time',
+                      'Cho phép nhận chỗ sớm 15 phút'
+                    )}
                   </label>
                   <p className='text-xs text-muted-foreground leading-relaxed mt-0.5'>
-                    Permits registered check-in up to 15 minutes prior to scheduled booking start for workstation prep.
+                    {c(
+                      'Permits registered check-in up to 15 minutes prior to scheduled booking start for workstation prep.',
+                      'Cho phép khách nhận chỗ trước tối đa 15 phút để chuẩn bị làm việc.'
+                    )}
                   </p>
                 </div>
               </div>
@@ -680,9 +788,23 @@ export function StepOperatingHoursView() {
       </div>
 
       <section className='mt-6 rounded-xl border bg-card p-6'>
-        <label htmlFor='workspace-entry-notes' className='mb-2 block text-sm font-semibold'>Entry instructions</label>
-        <p className='text-muted-foreground mb-3 text-xs'>Optional directions for entering the building or reaching your workspace. The address is inherited when you link its floor.</p>
-        <textarea id='workspace-entry-notes' className='border-input bg-background w-full rounded-lg border p-3 text-sm' maxLength={1000} rows={3} value={location.entryNotes} onChange={event => setLocation({ entryNotes: event.target.value })} />
+        <label htmlFor='workspace-entry-notes' className='mb-2 block text-sm font-semibold'>
+          {c('Entry instructions', 'Hướng dẫn vào không gian')}
+        </label>
+        <p className='text-muted-foreground mb-3 text-xs'>
+          {c(
+            'Optional directions for entering the building or reaching your workspace. The address is inherited when you link its floor.',
+            'Hướng dẫn vào tòa nhà hoặc đến không gian (tùy chọn). Địa chỉ được lấy từ tầng liên kết.'
+          )}
+        </p>
+        <textarea
+          id='workspace-entry-notes'
+          className='border-input bg-background w-full rounded-lg border p-3 text-sm'
+          maxLength={1000}
+          rows={3}
+          value={location.entryNotes}
+          onChange={(event) => setLocation({ entryNotes: event.target.value })}
+        />
       </section>
       {/* Sticky Action Footer Bar */}
       <footer className='mt-8 bg-card/95 backdrop-blur border border-border px-6 py-4 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3'>
@@ -694,7 +816,7 @@ export function StepOperatingHoursView() {
           className='gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground'
         >
           <ArrowLeft className='size-4' />
-          <span>Back to Basic Info</span>
+          <span>{c('Back to Basic Info', 'Quay lại thông tin cơ bản')}</span>
         </Button>
 
         {/* Right: Save Draft & Continue */}
@@ -707,7 +829,9 @@ export function StepOperatingHoursView() {
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
             {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
+            <span>
+              {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
+            </span>
           </Button>
 
           <Button
@@ -716,8 +840,12 @@ export function StepOperatingHoursView() {
             onClick={handleContinue}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
-            <span>Continue to Amenities</span>
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+            <span>{c('Continue to Amenities', 'Tiếp tục đến tiện ích')}</span>
+            {isSaving ? (
+              <Loader2 className='size-4 animate-spin' />
+            ) : (
+              <ArrowRight className='size-4' />
+            )}
           </Button>
         </div>
       </footer>

@@ -35,6 +35,7 @@ import {
 import { workspaceState } from './workspace-floor-gallery';
 import { BuildingStorey } from './building-storey';
 import { FloorActions } from './floor-actions';
+import { workspaceBuildingFloors } from '../utils/workspace-building-floors';
 import './workspace-building.css';
 
 export function WorkspaceBuildingView({
@@ -60,39 +61,10 @@ export function WorkspaceBuildingView({
   const vi = language === 'vi';
   const c = (en: string, local: string) => (vi ? local : en);
   // Sort a copy to preserve query data and the project's pre-ES2023 browser target.
-  const physicalEntries: Array<FloorOption & { workspaceId?: number; displayName?: string }> =
-    building
-      ? building.floors.map((f) => {
-          const occupant =
-            f.occupants.find((o) => o.workspaceId === workspace.id) ?? f.occupants[0];
-          const own = floors.find((l) => l.location?.buildingFloorId === f.id);
-          const linkedNames = [
-            ...new Set(
-              f.occupants
-                .map((o) =>
-                  o.layoutName.trim().replace(new RegExp(` – (?:Tầng|Floor) ${f.floorNumber}$`), '')
-                )
-                .filter(Boolean)
-            )
-          ];
-          return {
-            ...(own ?? {
-              id: occupant?.floorPlanId ?? -f.id,
-              name: f.name,
-              floorNumber: f.floorNumber,
-              status: occupant?.status ?? 'DRAFT',
-              revision: ''
-            }),
-            workspaceId: occupant?.workspaceId,
-            name: f.name,
-            displayName: linkedNames.length ? `${f.name} (${linkedNames.join(', ')})` : f.name
-          };
-        })
-      : floors;
+  const physicalEntries = workspaceBuildingFloors(building, floors, workspace.id);
   const openFloor = (id: number) => {
     const f = physicalEntries.find((v) => v.id === id);
-    if (id > 0) onOpenFloor(id, f?.workspaceId);
-    else onAddFloor();
+    if (f?.linked && id > 0) onOpenFloor(id, workspace.id);
   };
   // oxlint-disable-next-line unicorn/no-array-sort
   const ordered = [...physicalEntries].sort((a, b) => a.floorNumber - b.floorNumber || a.id - b.id);
@@ -111,15 +83,21 @@ export function WorkspaceBuildingView({
   const pointer = useRef<{ id: number; x: number; y: number; angle: number; tilt: number } | null>(
     null
   );
-  const selected = ordered.find((floor) => floor.id === selectedId);
-  const active = selected ?? ordered.find((floor) => floor.id === hovered) ?? ordered.at(-1);
+  const linkedFloors = ordered.filter((floor) => floor.linked);
+  const selected = linkedFloors.find((floor) => floor.id === selectedId);
+  const active =
+    selected ?? linkedFloors.find((floor) => floor.id === hovered) ?? linkedFloors.at(-1);
   const detail = useQuery({
     ...floorLayoutOptions(actorId, selected?.workspaceId ?? workspace.id, selected?.id ?? 0),
     enabled: !!selected && selected.id > 0
   });
   const writable = canConfigureWorkspaceResources(workspace.status);
   const gap = Math.max(4, Math.min(exploded ? 72 : 34, 260 / Math.max(1, ordered.length)));
+  const hoverFloor = (id: number | null) => {
+    setHovered(id !== null && linkedFloors.some((floor) => floor.id === id) ? id : null);
+  };
   const selectFloor = (id: number) => {
+    if (!linkedFloors.some((floor) => floor.id === id)) return;
     setSelectedId(id);
     setHovered(id);
   };
@@ -324,11 +302,12 @@ export function WorkspaceBuildingView({
                     index={index}
                     gap={gap}
                     camera={camera}
-                    hovered={hovered === floor.id && selectedId !== floor.id}
-                    picked={selectedId === floor.id}
-                    layout={selectedId === floor.id ? detail.data : undefined}
-                    loading={selectedId === floor.id && floor.id > 0 && detail.isPending}
-                    onHover={setHovered}
+                    disabled={!floor.linked}
+                    hovered={hovered === floor.id && selected?.id !== floor.id}
+                    picked={selected?.id === floor.id}
+                    layout={selected?.id === floor.id ? detail.data : undefined}
+                    loading={selected?.id === floor.id && floor.id > 0 && detail.isPending}
+                    onHover={hoverFloor}
                     onPick={() => selectFloor(floor.id)}
                     onReturn={() => setSelectedId(null)}
                     onOpen={() => openFloor(floor.id)}
@@ -515,7 +494,8 @@ export function WorkspaceBuildingView({
                       <div className='mt-3 space-y-2'>
                         {building.floors
                           .find((f) => f.floorNumber === active.floorNumber)
-                          ?.occupants.map((o) => (
+                          ?.occupants.filter((o) => o.workspaceId === workspace.id)
+                          .map((o) => (
                             <button
                               key={o.floorPlanId}
                               type='button'
@@ -620,12 +600,13 @@ export function WorkspaceBuildingView({
                 <div key={floor.id} className='flex items-center gap-1'>
                   <button
                     type='button'
-                    onMouseEnter={() => setHovered(floor.id)}
+                    disabled={!floor.linked}
+                    onMouseEnter={() => hoverFloor(floor.id)}
                     onMouseLeave={() => setHovered(null)}
-                    onFocus={() => setHovered(floor.id)}
+                    onFocus={() => hoverFloor(floor.id)}
                     aria-pressed={selected?.id === floor.id}
                     onClick={() => selectFloor(floor.id)}
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
+                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${!floor.linked ? 'cursor-default border-transparent bg-muted/40 opacity-45' : active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
                   >
                     <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold tabular-nums text-primary'>
                       {floor.floorNumber.toString().padStart(2, '0')}
@@ -638,14 +619,16 @@ export function WorkspaceBuildingView({
                         {floor.displayName ?? floor.name}
                       </span>
                       <span className='mt-1 block text-[10px] text-muted-foreground'>
-                        {floor.status === 'PUBLISHED'
-                          ? c('Published', 'Đã xuất bản')
-                          : c('Draft', 'Bản nháp')}
+                        {!floor.linked
+                          ? c('Not linked to this workspace', 'Không thuộc workspace này')
+                          : floor.status === 'PUBLISHED'
+                            ? c('Published', 'Đã xuất bản')
+                            : c('Draft', 'Bản nháp')}
                       </span>
                     </span>
                     <ArrowRight className='size-3.5 text-muted-foreground' />
                   </button>
-                  {floor.id > 0 && (
+                  {floor.linked && floor.id > 0 && (
                     <Button variant='ghost' size='sm' onClick={() => openFloor(floor.id)}>
                       {c('Open layout', 'Mở sơ đồ')}
                     </Button>

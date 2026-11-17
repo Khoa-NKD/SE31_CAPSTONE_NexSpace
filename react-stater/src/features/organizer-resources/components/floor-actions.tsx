@@ -5,6 +5,7 @@ import { FloorAllocationDialog } from './floor-allocation-dialog';
 import { buildingsOptions, allocationError, type AllocationInput } from '../api/buildings';
 import { floorLayoutOptions } from '../api/resources';
 import { useState } from 'react';
+import { copyDisplayName } from '../utils/copy-names';
 import { MoreHorizontal, Pencil, Copy, Trash2, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
@@ -61,7 +62,14 @@ export function FloorActions({
     setAction(value);
     setError('');
     setName(
-      value === 'copy' ? `${floor.name} (${c('copy', 'bản sao')})`.slice(0, 100) : floor.name
+      value === 'copy'
+        ? copyDisplayName(
+            floor.name,
+            floors.map((item) => item.name),
+            language === 'vi' ? 'vi' : 'en',
+            100
+          )
+        : floor.name
     );
   };
   const actor = useAuthStore((s) => s.user?.id ?? 0);
@@ -74,7 +82,12 @@ export function FloorActions({
   const physical = locations.data
     ?.flatMap((b) => b.floors)
     .find((f) => f.id === area?.buildingFloorId);
-  const duplicate = !!area && !!physical && (physical.realWidthM == null || physical.realLengthM == null || !!allocationError(area, physical, workspaceId));
+  const duplicate =
+    !!area &&
+    !!physical &&
+    (physical.realWidthM == null ||
+      physical.realLengthM == null ||
+      !!allocationError(area, physical, workspaceId));
 
   async function save() {
     if (!action || action === 'map' || busy || measuring || disabled) return;
@@ -121,8 +134,13 @@ export function FloorActions({
     } catch (failure) {
       setError(
         failure instanceof Error
-          ? failure.message.startsWith('The draft is empty, but the published layout still contains ')
-            ? c('The draft is empty, but the published layout still has objects. Cancel, publish the empty draft, then remove the area again.', 'Bản nháp đang trống nhưng bản đã xuất bản vẫn còn đồ bố trí. Bấm Hủy, xuất bản bản nháp trống rồi gỡ khu vực lại.')
+          ? failure.message.startsWith(
+              'The draft is empty, but the published layout still contains '
+            )
+            ? c(
+                'The draft is empty, but the published layout still has objects. Cancel, publish the empty draft, then remove the area again.',
+                'Bản nháp đang trống nhưng bản đã xuất bản vẫn còn đồ bố trí. Bấm Hủy, xuất bản bản nháp trống rồi gỡ khu vực lại.'
+              )
             : failure.message
           : c('Cannot complete this action.', 'Không thể thực hiện thao tác.')
       );
@@ -280,7 +298,10 @@ export function FloorActions({
                 type='submit'
                 variant={action === 'delete' ? 'destructive' : 'default'}
                 disabled={
-                  busy || measuring || duplicate || (action === 'copy' && (!area || !physical || !source.data))
+                  busy ||
+                  measuring ||
+                  duplicate ||
+                  (action === 'copy' && (!area || !physical || !source.data))
                 }
               >
                 {busy && <LoaderCircle className='size-4 animate-spin' />}

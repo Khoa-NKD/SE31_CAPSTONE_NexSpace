@@ -54,6 +54,7 @@ const organizerMenuVietnamese: Record<string, string> = {
   Buildings: 'Quản lý tòa nhà',
   'Floor Plan & Zones': 'Sơ đồ tầng & khu vực',
   'Seats & Rooms': 'Quản lý ghế & phòng',
+  Amenities: 'Tiện ích',
   'Create Seat/Room': 'Tạo ghế/phòng',
   'Pricing Matrix': 'Bảng giá',
   'Blockout Hours': 'Lịch ngừng nhận đặt',
@@ -78,12 +79,21 @@ export default function AppSidebar() {
   const displayName = user
     ? `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.userName
     : 'User';
-  const initial = (user?.firstName?.[0] || user?.lastName?.[0] || user?.userName?.[0] || 'U').toUpperCase();
+  const initial = (
+    user?.firstName?.[0] ||
+    user?.lastName?.[0] ||
+    user?.userName?.[0] ||
+    'U'
+  ).toUpperCase();
   const displayRole = isAdmin
     ? 'CPTO • Super Admin'
     : isOrganizer
-      ? (language === 'vi' ? 'Đối tác đã xác minh' : 'Verified Partner')
-      : (language === 'vi' ? 'Khách hàng' : 'Customer');
+      ? language === 'vi'
+        ? 'Đối tác đã xác minh'
+        : 'Verified Partner'
+      : language === 'vi'
+        ? 'Khách hàng'
+        : 'Customer';
 
   const activeNavGroups = React.useMemo(() => {
     if (isAdmin) {
@@ -296,7 +306,11 @@ export default function AppSidebar() {
                     <div className='relative size-8 rounded-full shrink-0'>
                       <Avatar className='size-8 rounded-full border border-sidebar-border'>
                         {userAvatar && (
-                          <AvatarImage src={userAvatar} alt={displayName} className='object-cover' />
+                          <AvatarImage
+                            src={userAvatar}
+                            alt={displayName}
+                            className='object-cover'
+                          />
                         )}
                         <AvatarFallback className='bg-sidebar-accent text-sidebar-foreground text-xs font-semibold select-none'>
                           {initial}
@@ -358,7 +372,9 @@ export default function AppSidebar() {
                         // ignore network errors
                       }
                       useAuthStore.getState().clearAuth();
-                      toast.success(language === 'vi' ? 'Đã đăng xuất thành công' : 'Signed out successfully');
+                      toast.success(
+                        language === 'vi' ? 'Đã đăng xuất thành công' : 'Signed out successfully'
+                      );
                       router.navigate({ to: '/auth/sign-in' });
                     }}
                   >

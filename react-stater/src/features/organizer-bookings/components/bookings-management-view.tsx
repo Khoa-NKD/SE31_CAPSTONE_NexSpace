@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { ShieldCheck, RefreshCw, Loader2 } from 'lucide-react';
@@ -9,10 +10,7 @@ import {
   BookingsKpiSummary,
   CheckInState
 } from '../types';
-import {
-  MOCK_BOOKINGS_KPI,
-  MOCK_BOOKINGS_LEDGER
-} from '../data/mock-bookings';
+import { MOCK_BOOKINGS_KPI, MOCK_BOOKINGS_LEDGER } from '../data/mock-bookings';
 import { BookingsHeaderBar } from './bookings-header-bar';
 import { BookingsKpiRibbon } from './bookings-kpi-ribbon';
 import { BookingsFilterBar, WorkspaceOption } from './bookings-filter-bar';
@@ -147,7 +145,7 @@ function mapBookingDtoToItem(dto: BookingDto): BookingItem {
     paymentGateway: 'PAYOS_QR',
     paymentGatewayLabel: 'PayOS QR',
     status: dto.status as BookingStatus,
-    statusReason: dto.status === 'CANCELLED' ? (dto.cancelReason || 'Đã hủy') : undefined,
+    statusReason: dto.status === 'CANCELLED' ? dto.cancelReason || 'Đã hủy' : undefined,
     cancelReason: dto.cancelReason,
     cancelSource: dto.cancelSource,
     refundPercent: dto.refundPercent,
@@ -156,10 +154,10 @@ function mapBookingDtoToItem(dto: BookingDto): BookingItem {
       dto.status === 'CONFIRMED'
         ? 'UPCOMING'
         : dto.status === 'PENDING_APPROVAL'
-        ? 'AWAITING_PAYMENT'
-        : dto.status === 'PENDING_PAYMENT'
-        ? 'AWAITING_PAYMENT'
-        : 'RELEASED',
+          ? 'AWAITING_PAYMENT'
+          : dto.status === 'PENDING_PAYMENT'
+            ? 'AWAITING_PAYMENT'
+            : 'RELEASED',
     createdAt: dto.createdAt
   };
 }
@@ -207,6 +205,7 @@ function handleCheckInToggle(id: string) {
 }
 
 export function BookingsManagementView() {
+  const c = useOrganizerCopy();
   // Filters & Search
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
   const [searchQuery, setSearchQuery] = useState('');
@@ -312,11 +311,14 @@ export function BookingsManagementView() {
         totalReservations: kpiData.totalCount,
         growthMoM: 14.5,
         confirmedCount: kpiData.confirmedCount,
-        confirmedVolume: kpiData.totalRevenue || (kpiData.confirmedCount * 2000),
+        confirmedVolume: kpiData.totalRevenue || kpiData.confirmedCount * 2000,
         pendingCount: kpiData.pendingCount,
         pendingVolume: kpiData.pendingCount * 2000,
         cancelledCount: kpiData.cancelledCount,
-        cancellationRatePercent: kpiData.totalCount > 0 ? Math.round((kpiData.cancelledCount / kpiData.totalCount) * 100) : 0
+        cancellationRatePercent:
+          kpiData.totalCount > 0
+            ? Math.round((kpiData.cancelledCount / kpiData.totalCount) * 100)
+            : 0
       };
     }
     const confirmedVol = bookings
@@ -361,9 +363,11 @@ export function BookingsManagementView() {
   };
 
   const handleOpenCancelDialog = (bookingOrId: BookingItem | string) => {
-    const item = typeof bookingOrId === 'string'
-      ? bookings.find((b) => b.id === bookingOrId) || ({ id: bookingOrId, bookingCode: `#${bookingOrId}` } as BookingItem)
-      : bookingOrId;
+    const item =
+      typeof bookingOrId === 'string'
+        ? bookings.find((b) => b.id === bookingOrId) ||
+          ({ id: bookingOrId, bookingCode: `#${bookingOrId}` } as BookingItem)
+        : bookingOrId;
     setCancellingBooking(item);
     setCancelBookingReason('');
     setIsCancelDialogOpen(true);
@@ -483,7 +487,7 @@ export function BookingsManagementView() {
   };
 
   return (
-    <div className="space-y-6 pb-12">
+    <div className='space-y-6 pb-12'>
       {/* 1. Header Bar with Actions */}
       <BookingsHeaderBar
         lastSyncTime={lastSyncTime}
@@ -496,7 +500,7 @@ export function BookingsManagementView() {
       <BookingsKpiRibbon kpis={kpis} />
 
       {/* 3. Filter Bar & Search */}
-      <div className="space-y-4">
+      <div className='space-y-4'>
         <BookingsFilterBar
           workspaces={workspaceOptions}
           selectedWorkspaceId={selectedWorkspaceId}
@@ -540,9 +544,11 @@ export function BookingsManagementView() {
 
         {/* Loading Spinner Indicator */}
         {isLoading && (
-          <div className="flex items-center justify-center p-8 text-muted-foreground gap-2">
-            <Loader2 className="w-5 h-5 animate-spin text-primary" />
-            <span className="text-xs">Loading organizer reservations...</span>
+          <div className='flex items-center justify-center p-8 text-muted-foreground gap-2'>
+            <Loader2 className='w-5 h-5 animate-spin text-primary' />
+            <span className='text-xs'>
+              {c('Loading organizer reservations...', 'Đang tải danh sách đặt chỗ...')}
+            </span>
           </div>
         )}
 
@@ -576,29 +582,33 @@ export function BookingsManagementView() {
       </div>
 
       {/* 6. PayOS Gateway & IoT Turnstile Security Ribbon */}
-      <footer className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-muted/30 border border-border/80 rounded-xl text-xs text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+      <footer className='flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-3 bg-muted/30 border border-border/80 rounded-xl text-xs text-muted-foreground'>
+        <div className='flex items-center gap-2'>
+          <ShieldCheck className='w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0' />
           <span>
-            PayOS Webhook Gateway status: <strong className="text-foreground">Live &amp; Connected</strong> • Encrypted PCI-DSS Level 1 compliant
+            PayOS Webhook Gateway status:{' '}
+            <strong className='text-foreground'>Live &amp; Connected</strong> • Encrypted PCI-DSS
+            Level 1 compliant
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1.5">
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+        <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-1.5'>
+            <span className='relative flex h-2 w-2'>
+              <span className='animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75'></span>
+              <span className='relative inline-flex rounded-full h-2 w-2 bg-emerald-500'></span>
             </span>
-            <span className="text-[11px] font-medium text-foreground">Turnstile IoT Nodes Active</span>
+            <span className='text-[11px] font-medium text-foreground'>
+              Turnstile IoT Nodes Active
+            </span>
           </div>
 
-          <div className="h-3 w-px bg-border" />
+          <div className='h-3 w-px bg-border' />
 
           <button
             onClick={handleSync}
             disabled={isFetching}
-            className="flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer"
+            className='flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer'
           >
             <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
             {isFetching ? 'Syncing...' : 'Ping Gateway'}
@@ -626,39 +636,53 @@ export function BookingsManagementView() {
 
       {/* 8. Rejection Dialog */}
       <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className='max-w-md'>
           <DialogHeader>
-            <DialogTitle>Reject Booking Request</DialogTitle>
+            <DialogTitle>{c('Reject Booking Request', 'Từ chối yêu cầu đặt chỗ')}</DialogTitle>
             <DialogDescription>
-              Provide a reason for declining booking {rejectingBooking?.bookingCode}. The customer will be notified and the reserved slot will be released immediately.
+              {c('Provide a reason for declining booking', 'Nhập lý do từ chối đặt chỗ')}{' '}
+              {rejectingBooking?.bookingCode}
+              {c(
+                '. The customer will be notified and the reserved slot will be released immediately.',
+                '. Khách hàng sẽ được thông báo và chỗ đặt sẽ được giải phóng ngay.'
+              )}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2">
-            <label htmlFor="rejection-reason-textarea" className="text-xs font-semibold text-foreground">
-              Rejection Reason <span className="text-muted-foreground font-normal">(Optional)</span>
+          <div className='space-y-3 py-2'>
+            <label
+              htmlFor='rejection-reason-textarea'
+              className='text-xs font-semibold text-foreground'
+            >
+              {c('Rejection Reason', 'Lý do từ chối')}{' '}
+              <span className='text-muted-foreground font-normal'>
+                {c('(Optional)', '(Tùy chọn)')}
+              </span>
             </label>
             <textarea
-              id="rejection-reason-textarea"
-              className="w-full rounded-md border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[90px]"
-              placeholder="e.g. Workspace is undergoing maintenance or private event during this time window."
+              id='rejection-reason-textarea'
+              className='w-full rounded-md border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[90px]'
+              placeholder={c(
+                'e.g. Workspace is undergoing maintenance or private event during this time window.',
+                'VD: Không gian đang bảo trì hoặc có sự kiện riêng trong thời gian này.'
+              )}
               value={rejectionReason}
               onChange={(e) => setRejectionReason(e.target.value)}
             />
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className='gap-2'>
             <Button
-              variant="outline"
-              size="sm"
+              variant='outline'
+              size='sm'
               onClick={() => {
                 setIsRejectDialogOpen(false);
                 setRejectingBooking(null);
               }}
             >
-              Cancel
+              {c('Cancel', 'Hủy')}
             </Button>
             <Button
-              variant="destructive"
-              size="sm"
+              variant='destructive'
+              size='sm'
               disabled={rejectMutation.isPending}
               onClick={handleConfirmReject}
             >
@@ -670,47 +694,75 @@ export function BookingsManagementView() {
 
       {/* 9. Organizer Cancellation Dialog */}
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className='max-w-md'>
           <DialogHeader>
-            <DialogTitle>Cancel Reservation & Initiate Refund</DialogTitle>
+            <DialogTitle>
+              {c('Cancel Reservation & Initiate Refund', 'Hủy đặt chỗ và hoàn tiền')}
+            </DialogTitle>
             <DialogDescription>
-              Are you sure you want to cancel reservation {cancellingBooking?.bookingCode}?
+              {c(
+                'Are you sure you want to cancel reservation',
+                'Bạn có chắc chắn muốn hủy đặt chỗ'
+              )}{' '}
+              {cancellingBooking?.bookingCode}?
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-3 py-2 text-xs">
-            <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400 space-y-1">
-              <span className="font-semibold">Chính sách hủy của Organizer (Host Cancellation):</span>
-              <p className="text-[11px] leading-relaxed">
-                Khi Organizer chủ động hủy đơn đặt chỗ đã xác nhận, hệ thống sẽ tự động kích hoạt chính sách <strong>hoàn tiền 100%</strong> cho khách hàng và giải phóng chỗ trên sơ đồ tầng ngay lập tức.
+          <div className='space-y-3 py-2 text-xs'>
+            <div className='rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-amber-700 dark:text-amber-400 space-y-1'>
+              <span className='font-semibold'>
+                {c(
+                  'Organizer cancellation policy:',
+                  'Chính sách hủy của Organizer (Host Cancellation):'
+                )}
+              </span>
+              <p className='text-[11px] leading-relaxed'>
+                {c(
+                  'When the organizer cancels a confirmed booking, the system automatically applies a',
+                  'Khi Organizer chủ động hủy đơn đặt chỗ đã xác nhận, hệ thống sẽ tự động kích hoạt chính sách'
+                )}{' '}
+                <strong>{c('100% refund', 'hoàn tiền 100%')}</strong>{' '}
+                {c(
+                  'for the customer and immediately releases the reserved space.',
+                  'cho khách hàng và giải phóng chỗ trên sơ đồ tầng ngay lập tức.'
+                )}
               </p>
             </div>
-            <div className="space-y-1.5">
-              <label htmlFor="organizer-cancel-reason-textarea" className="font-semibold text-foreground">
-                Lý do hủy đơn <span className="text-muted-foreground font-normal">(Gửi thông báo tới khách hàng)</span>
+            <div className='space-y-1.5'>
+              <label
+                htmlFor='organizer-cancel-reason-textarea'
+                className='font-semibold text-foreground'
+              >
+                {c('Cancellation reason', 'Lý do hủy đơn')}{' '}
+                <span className='text-muted-foreground font-normal'>
+                  {c('(Sent to the customer)', '(Gửi thông báo tới khách hàng)')}
+                </span>
               </label>
               <textarea
-                id="organizer-cancel-reason-textarea"
-                className="w-full rounded-md border border-input bg-background p-2.5 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px]"
-                placeholder="e.g. Không gian cần bảo trì hệ thống điều hòa đột xuất."
+                id='organizer-cancel-reason-textarea'
+                className='w-full rounded-md border border-input bg-background p-2.5 text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[80px]'
+                placeholder={c(
+                  'e.g. Unexpected air conditioning maintenance.',
+                  'e.g. Không gian cần bảo trì hệ thống điều hòa đột xuất.'
+                )}
                 value={cancelBookingReason}
                 onChange={(e) => setCancelBookingReason(e.target.value)}
               />
             </div>
           </div>
-          <DialogFooter className="gap-2">
+          <DialogFooter className='gap-2'>
             <Button
-              variant="outline"
-              size="sm"
+              variant='outline'
+              size='sm'
               onClick={() => {
                 setIsCancelDialogOpen(false);
                 setCancellingBooking(null);
               }}
             >
-              Giữ lại
+              {c('Keep reservation', 'Giữ lại')}
             </Button>
             <Button
-              variant="destructive"
-              size="sm"
+              variant='destructive'
+              size='sm'
               disabled={cancelMutation.isPending}
               onClick={handleConfirmCancelReservation}
             >

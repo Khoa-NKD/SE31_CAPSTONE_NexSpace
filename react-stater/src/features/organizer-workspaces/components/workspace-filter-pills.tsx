@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import type { WorkspaceFilter } from '../types';
 
@@ -18,10 +19,11 @@ export function WorkspaceFilterPills({
   onFilterChange,
   counts
 }: WorkspaceFilterPillsProps) {
+  const c = useOrganizerCopy();
   return (
     <div
       role='tablist'
-      aria-label='Filter workspaces by status'
+      aria-label={c('Filter workspaces by status', 'Lọc không gian theo trạng thái')}
       className='flex flex-wrap items-center gap-1.5 bg-card p-1 rounded-full border border-border shadow-2xs'
     >
       <button
@@ -35,7 +37,8 @@ export function WorkspaceFilterPills({
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
         }`}
       >
-        All ({counts.all})
+        {c('All (', 'Tất cả (')}
+        {counts.all})
       </button>
 
       <button
@@ -49,7 +52,8 @@ export function WorkspaceFilterPills({
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
         }`}
       >
-        Active ({counts.active})
+        {c('Active (', 'Hoạt động (')}
+        {counts.active})
       </button>
 
       <button
@@ -63,7 +67,8 @@ export function WorkspaceFilterPills({
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
         }`}
       >
-        Pending ({counts.pending})
+        {c('Pending (', 'Đang xử lý (')}
+        {counts.pending})
       </button>
 
       <button
@@ -77,7 +82,8 @@ export function WorkspaceFilterPills({
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
         }`}
       >
-        Maintenance ({counts.maintenance})
+        {c('Maintenance (', 'Bảo trì (')}
+        {counts.maintenance})
       </button>
 
       <button
@@ -91,7 +97,8 @@ export function WorkspaceFilterPills({
             : 'text-muted-foreground hover:text-foreground hover:bg-muted/60 border border-transparent'
         }`}
       >
-        Draft ({counts.draft})
+        {c('Draft (', 'Bản nháp (')}
+        {counts.draft})
       </button>
     </div>
   );

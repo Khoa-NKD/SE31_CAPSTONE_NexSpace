@@ -414,6 +414,15 @@ section:fullscreen > .nexspace-building-scene {
 .nexspace-building-storey.is-hovered {
   transition-duration: 260ms;
 }
+/* Dim individual faces so the disabled storey retains its architectural 3D depth. */
+.nexspace-building-storey.is-muted .nexspace-building-floor-top,
+.nexspace-building-storey.is-muted .nexspace-building-floor-front,
+.nexspace-building-storey.is-muted .nexspace-building-floor-side {
+  filter: grayscale(1) brightness(0.48);
+}
+.nexspace-building-storey.is-muted .nexspace-storey-pick {
+  cursor: default;
+}
 .nexspace-storey-pick {
   position: absolute;
   inset: 0;

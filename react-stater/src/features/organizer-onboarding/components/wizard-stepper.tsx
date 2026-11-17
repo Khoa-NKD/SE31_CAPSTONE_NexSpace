@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
@@ -6,21 +7,39 @@ export interface WizardStepperProps {
   currentStep: 1 | 2 | 3 | 4 | 5;
 }
 
-const STEPS = [
-  { number: 1, title: 'Basic Info', route: '/dashboard/organizer/workspaces/create' },
+const getSteps = (c: (en: string, vi: string) => string) =>
+  [
+    {
+      number: 1,
+      title: c('Basic Info', 'Thông tin cơ bản'),
+      route: '/dashboard/organizer/workspaces/create'
+    },
 
-  { number: 2, title: 'Operating Hours', route: '/dashboard/organizer/workspaces/create/hours' },
-  { number: 3, title: 'Amenities', route: '/dashboard/organizer/workspaces/create/amenities' },
-  { number: 4, title: 'Photos & Media', route: '/dashboard/organizer/workspaces/create/media' }
-] as const;
+    {
+      number: 2,
+      title: c('Operating Hours', 'Giờ hoạt động'),
+      route: '/dashboard/organizer/workspaces/create/hours'
+    },
+    {
+      number: 3,
+      title: c('Amenities', 'Tiện ích'),
+      route: '/dashboard/organizer/workspaces/create/amenities'
+    },
+    {
+      number: 4,
+      title: c('Photos & Media', 'Thư viện ảnh'),
+      route: '/dashboard/organizer/workspaces/create/media'
+    }
+  ] as const;
 
 export function WizardStepper({ currentStep }: WizardStepperProps) {
+  const c = useOrganizerCopy();
   // Compute progress line width
   const progressPercent = ((Math.min(currentStep, 4) - 1) / 3) * 100;
 
   return (
     <div className='max-w-4xl mx-auto mb-6 sm:mb-8 px-2'>
-      <nav aria-label='Wizard Progress'>
+      <nav aria-label={c('Wizard Progress', 'Tiến độ thiết lập')}>
         <ol className='flex items-center justify-between w-full relative'>
           {/* Background Connecting Line */}
           <div className='absolute left-4 right-4 top-4 h-0.5 bg-border -z-0'>
@@ -31,7 +50,7 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
             />
           </div>
 
-          {STEPS.map((step) => {
+          {getSteps(c).map((step) => {
             const isCompleted = step.number < currentStep;
             const isCurrent = step.number === currentStep;
 

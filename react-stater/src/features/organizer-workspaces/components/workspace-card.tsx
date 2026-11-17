@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
 import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from 'lucide-react';
@@ -11,6 +12,7 @@ interface WorkspaceCardProps {
 }
 
 export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
+  const c = useOrganizerCopy();
   const { language } = useLanguage();
   const workspaceId = Number(workspace.id);
   const isDraft = workspace.status === 'DRAFT';
@@ -37,13 +39,15 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
                 <Layers className='size-6' />
               </div>
               <span className='text-[10px] uppercase font-mono tracking-widest text-slate-400 font-semibold'>
-                Blueprint Staging
+                {c('Blueprint Staging', 'Bản thiết kế nháp')}
               </span>
             </div>
             {/* Status Overlay Badge */}
             <div className='absolute top-3 right-3 bg-amber-500/15 text-amber-500 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
               <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
-              <span>DRAFT {workspace.draftProgress}%</span>
+              <span>
+                {c('DRAFT', 'Bản nháp')} {workspace.draftProgress}%
+              </span>
             </div>
           </div>
         ) : (
@@ -58,25 +62,25 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             {workspace.status === 'ACTIVE' && (
               <div className='absolute top-3 right-3 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-emerald-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
                 <span className='size-1.5 rounded-full bg-emerald-500' />
-                <span>ACTIVE</span>
+                <span>{c('ACTIVE', 'Đang hoạt động')}</span>
               </div>
             )}
             {workspace.status === 'PENDING' && (
               <div className='absolute top-3 right-3 bg-amber-500/15 text-amber-600 dark:text-amber-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
                 <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
-                <span>PENDING</span>
+                <span>{c('PENDING', 'Đang xử lý')}</span>
               </div>
             )}
             {workspace.status === 'MAINTENANCE' && (
               <div className='absolute top-3 right-3 bg-purple-500/15 text-purple-600 dark:text-purple-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-purple-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
                 <span className='size-1.5 rounded-full bg-purple-500' />
-                <span>MAINTENANCE</span>
+                <span>{c('MAINTENANCE', 'Đang bảo trì')}</span>
               </div>
             )}
             {workspace.status === 'ARCHIVED' && (
               <div className='absolute top-3 right-3 bg-slate-500/20 text-slate-400 text-xs font-semibold px-2.5 py-1 rounded-full border border-slate-500/30 flex items-center gap-1.5 shadow-2xs backdrop-blur-sm'>
                 <span className='size-1.5 rounded-full bg-slate-400' />
-                <span>ARCHIVED</span>
+                <span>{c('ARCHIVED', 'Đã lưu trữ')}</span>
               </div>
             )}
           </>
@@ -108,7 +112,9 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             {/* Setup Progress Bar */}
             <div className='flex flex-col gap-1.5 pt-1'>
               <div className='flex items-center justify-between text-xs'>
-                <span className='text-muted-foreground'>Setup completion</span>
+                <span className='text-muted-foreground'>
+                  {c('Setup completion', 'Tiến độ thiết lập')}
+                </span>
                 <span className='text-amber-600 dark:text-amber-400 font-bold'>
                   {workspace.draftProgress}%
                 </span>
@@ -129,7 +135,7 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             >
               <Link to={resumeRoute} search={{ id: workspace.id, mode: 'edit' }}>
                 <Edit className='size-3.5' />
-                <span>Resume Setup</span>
+                <span>{c('Resume Setup', 'Tiếp tục thiết lập')}</span>
               </Link>
             </Button>
           </>
@@ -141,13 +147,13 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
                 <span className='text-sm sm:text-base font-bold text-foreground'>
                   {workspace.desksCount}
                 </span>
-                <span className='text-[11px] text-muted-foreground'>Desks</span>
+                <span className='text-[11px] text-muted-foreground'>{c('Desks', 'Ghế')}</span>
               </div>
               <div className='flex flex-col'>
                 <span className='text-sm sm:text-base font-bold text-foreground'>
                   {workspace.meetingRoomsCount}
                 </span>
-                <span className='text-[11px] text-muted-foreground'>Rooms</span>
+                <span className='text-[11px] text-muted-foreground'>{c('Rooms', 'Phòng')}</span>
               </div>
               <div className='flex flex-col'>
                 <span className='text-sm sm:text-base font-bold text-foreground flex items-center justify-center gap-0.5'>
@@ -155,7 +161,9 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
                   <span>{workspace.rating}</span>
                 </span>
                 <span className='text-[11px] text-muted-foreground'>
-                  {workspace.reviewsCount ? `${workspace.reviewsCount} reviews` : 'Rating'}
+                  {workspace.reviewsCount
+                    ? c(`${workspace.reviewsCount} reviews`, `${workspace.reviewsCount} đánh giá`)
+                    : c('Rating', 'Đánh giá')}
                 </span>
               </div>
             </div>
@@ -163,7 +171,9 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             {/* Occupancy Progress Bar */}
             <div className='flex flex-col gap-1.5 pt-1'>
               <div className='flex items-center justify-between text-xs'>
-                <span className='text-muted-foreground'>Current Occupancy</span>
+                <span className='text-muted-foreground'>
+                  {c('Current Occupancy', 'Tỷ lệ sử dụng hiện tại')}
+                </span>
                 <span className='text-emerald-600 dark:text-emerald-400 font-bold'>
                   {workspace.occupancyRate}%
                 </span>
@@ -183,7 +193,7 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
               className='w-full font-medium py-2 rounded-lg transition-colors flex items-center justify-center gap-2 text-xs sm:text-sm border-border hover:bg-muted text-foreground'
             >
               <Link to='/dashboard/organizer/workspaces/lifecycle' search={{ id: workspace.id }}>
-                <span>Manage Workspace</span>
+                <span>{c('Manage Workspace', 'Quản lý không gian')}</span>
                 <ArrowRight className='size-3.5' />
               </Link>
             </Button>

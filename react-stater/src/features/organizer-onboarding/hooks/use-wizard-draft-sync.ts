@@ -1,17 +1,16 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { useWizardStore } from '../store/wizard-store';
-import {
-  mapWizardStateToCreateDto,
-  mapWizardStateToUpdateDto
-} from '../utils/wizard-api-mapper';
+import { mapWizardStateToCreateDto, mapWizardStateToUpdateDto } from '../utils/wizard-api-mapper';
 import { workspaceService, workspaceQueryKeys } from '@/features/workspaces/api';
 import type { CanonicalWorkspace } from '@/features/workspaces/api/types';
 import { ApiError } from '@/lib/api-client';
 
 export function useWizardDraftSync() {
+  const c = useOrganizerCopy();
   const queryClient = useQueryClient();
   const location = useLocation();
   const store = useWizardStore();
@@ -23,7 +22,9 @@ export function useWizardDraftSync() {
   const rawId = search.id ?? search.workspaceId;
   const routeWorkspaceId =
     typeof rawId === 'string' || typeof rawId === 'number'
-      ? String(rawId).replace(/^["']|["']$/g, '').trim()
+      ? String(rawId)
+          .replace(/^["']|["']$/g, '')
+          .trim()
       : undefined;
 
   const fetchedIdRef = useRef<string | null>(null);
@@ -65,23 +66,26 @@ export function useWizardDraftSync() {
             });
             updatedRecord = await workspaceService.createWorkspace(createDto);
 
-            currentState.setCanonicalWorkspace(String(updatedRecord.id), updatedRecord.version ?? 1);
+            currentState.setCanonicalWorkspace(
+              String(updatedRecord.id),
+              updatedRecord.version ?? 1
+            );
             currentState.saveDraft();
             setLastSavedTime(updatedRecord.updatedAt);
 
             queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
 
             if (!options?.silent) {
-              toast.success('Workspace Draft Initialized', {
-                description: `Created canonical record "${updatedRecord.name}" (${updatedRecord.id}).`
+              toast.success(c('Workspace Draft Initialized', 'Đã tạo bản nháp không gian'), {
+                description: c(
+                  `Created draft "${updatedRecord.name}" (#${updatedRecord.id}).`,
+                  `Đã tạo bản nháp "${updatedRecord.name}" (#${updatedRecord.id}).`
+                )
               });
             }
           } else {
             // Incremental Draft Update via PATCH with optimistic concurrency
-            const updateDto = mapWizardStateToUpdateDto(
-              currentState,
-              currentState.serverVersion
-            );
+            const updateDto = mapWizardStateToUpdateDto(currentState, currentState.serverVersion);
             updatedRecord = await workspaceService.updateWorkspace(
               String(currentState.canonicalWorkspaceId),
               updateDto
@@ -94,8 +98,11 @@ export function useWizardDraftSync() {
             queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
 
             if (!options?.silent) {
-              toast.success('Draft Saved to Server', {
-                description: `Saved at ${new Date(updatedRecord.updatedAt).toLocaleTimeString()} (v${updatedRecord.version}).`
+              toast.success(c('Draft Saved to Server', 'Đã lưu bản nháp'), {
+                description: c(
+                  `Saved at ${new Date(updatedRecord.updatedAt).toLocaleTimeString('en-US')} (v${updatedRecord.version}).`,
+                  `Đã lưu lúc ${new Date(updatedRecord.updatedAt).toLocaleTimeString('vi-VN')} (v${updatedRecord.version}).`
+                )
               });
             }
           }
@@ -105,23 +112,28 @@ export function useWizardDraftSync() {
           if (err instanceof ApiError) {
             if (err.status === 409) {
               currentState.setSyncError('Conflict: Modified by another session');
-              toast.error('Version Conflict Detected', {
-                description:
-                  'This workspace was modified in another session. Please reload the latest server draft.'
+              toast.error(c('Version Conflict Detected', 'Dữ liệu đã thay đổi'), {
+                description: c(
+                  'This workspace was modified in another session. Please reload the latest server draft.',
+                  'Không gian đã được sửa ở phiên khác. Vui lòng tải lại bản nháp mới nhất.'
+                )
               });
             } else if (err.status === 400 && err.validationErrors) {
               const firstErr = Object.values(err.validationErrors)[0];
-              toast.error('Draft Validation Warning', {
+              toast.error(c('Draft Validation Warning', 'Bản nháp chưa hợp lệ'), {
                 description: firstErr || err.message
               });
             } else {
-              toast.error('Save Draft Failed', {
+              toast.error(c('Save Draft Failed', 'Không thể lưu bản nháp'), {
                 description: err.message
               });
             }
           } else {
-            const msg = err instanceof Error ? err.message : 'Unknown network failure';
-            toast.error('Network Error', { description: msg });
+            const msg =
+              err instanceof Error
+                ? err.message
+                : c('Unknown network failure', 'Lỗi kết nối không xác định');
+            toast.error(c('Network Error', 'Lỗi kết nối'), { description: msg });
           }
           return null;
         } finally {
@@ -134,7 +146,7 @@ export function useWizardDraftSync() {
       inFlightPromiseRef.current = savePromise;
       return savePromise;
     },
-    [queryClient]
+    [queryClient, c]
   );
 
   /**
@@ -147,15 +159,24 @@ export function useWizardDraftSync() {
         const canonical = await workspaceService.getWorkspaceById(workspaceId);
         useWizardStore.getState().hydrateFromServer(canonical);
         setLastSavedTime(canonical.updatedAt);
-        toast.info('Workspace Hydrated from Server', {
-          description: `Loaded "${canonical.name}" (${canonical.id}) v${canonical.version}.`
+        toast.info(c('Workspace Hydrated from Server', 'Đã tải thông tin không gian'), {
+          description: c(
+            `Loaded "${canonical.name}" (#${canonical.id}) v${canonical.version}.`,
+            `Đã tải "${canonical.name}" (#${canonical.id}) v${canonical.version}.`
+          )
         });
       } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : 'Failed to retrieve workspace';
-        toast.error('Could not load workspace from server', { description: msg });
+        const msg =
+          err instanceof Error
+            ? err.message
+            : c('Failed to retrieve workspace', 'Không thể tải thông tin không gian');
+        toast.error(
+          c('Could not load workspace from server', 'Không thể tải thông tin không gian'),
+          { description: msg }
+        );
       }
     },
-    []
+    [c]
   );
 
   // When navigating to Create Workspace fresh (no id, not edit mode), reset previous canonical workspace

@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -45,24 +46,25 @@ import type { AmenityItem } from '../types/wizard';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { amenityQueries, amenityService, AmenityFormDialog } from '@/features/amenities';
 
-const CATEGORY_METADATA = {
-  technology: {
-    label: 'Technology & Connectivity',
-    badge: 'Digital Infra'
-  },
-  facilities: {
-    label: 'Facilities & Ergonomics',
-    badge: 'Workplace Ergonomics'
-  },
-  hospitality: {
-    label: 'Hospitality & Refreshments',
-    badge: 'Food & Beverage'
-  },
-  security: {
-    label: 'Access, Security & Services',
-    badge: 'Safety & Management'
-  }
-} as const;
+const getCategoryMetadata = (c: (en: string, vi: string) => string) =>
+  ({
+    technology: {
+      label: c('Technology & Connectivity', 'Công nghệ và kết nối'),
+      badge: c('Digital Infra', 'Hạ tầng số')
+    },
+    facilities: {
+      label: c('Facilities & Ergonomics', 'Cơ sở vật chất và công thái học'),
+      badge: c('Workplace Ergonomics', 'Tiện nghi làm việc')
+    },
+    hospitality: {
+      label: c('Hospitality & Refreshments', 'Dịch vụ và giải khát'),
+      badge: c('Food & Beverage', 'Ăn uống')
+    },
+    security: {
+      label: c('Access, Security & Services', 'Ra vào, an ninh và dịch vụ'),
+      badge: c('Safety & Management', 'An toàn và quản lý')
+    }
+  }) as const;
 
 function renderAmenityIcon(iconName: string) {
   const props = { className: 'size-5' };
@@ -113,6 +115,7 @@ function renderAmenityIcon(iconName: string) {
 }
 
 export function StepAmenitiesView() {
+  const c = useOrganizerCopy();
   const router = useRouter();
   const queryClient = useQueryClient();
 
@@ -226,15 +229,18 @@ export function StepAmenitiesView() {
     const commonIds = activeCatalog.filter((a) => a.isCommon).map((a) => a.id);
     selectCommonAmenities(commonIds);
     setValidationError(null);
-    toast.success('Common Amenities Added', {
-      description: 'Standard enterprise essentials selected.'
+    toast.success(c('Common Amenities Added', 'Đã chọn các tiện ích chung'), {
+      description: c(
+        'Standard enterprise essentials selected.',
+        'Đã chọn các tiện ích cơ bản cho không gian.'
+      )
     });
   };
 
   const handleClearAll = () => {
     clearAmenities();
-    toast.info('Selections Cleared', {
-      description: 'All amenities have been unselected.'
+    toast.info(c('Selections Cleared', 'Đã bỏ chọn tiện ích'), {
+      description: c('All amenities have been unselected.', 'Đã bỏ chọn tất cả tiện ích.')
     });
   };
 
@@ -259,8 +265,11 @@ export function StepAmenitiesView() {
       queryClient.invalidateQueries({
         queryKey: [...amenityQueries.all, 'workspace', String(wsId)]
       });
-      toast.success('Workspace Amenities Synced', {
-        description: `Successfully synchronized ${validAmenities.length} amenities to workspace #${wsId}.`
+      toast.success(c('Workspace Amenities Synced', 'Đã đồng bộ tiện ích'), {
+        description: c(
+          `Successfully synchronized ${validAmenities.length} amenities to workspace #${wsId}.`,
+          `Đã đồng bộ ${validAmenities.length} tiện ích cho không gian #${wsId}.`
+        )
       });
     } catch (err: unknown) {
       console.warn('Could not sync workspace amenities to backend:', err);
@@ -286,11 +295,9 @@ export function StepAmenitiesView() {
 
     const result = amenitiesSchema.safeParse(amenities);
     if (!result.success) {
-      const err =
-        result.error.issues[0]?.message ||
-        'Lựa chọn tiện ích không hợp lệ.';
+      const err = result.error.issues[0]?.message || 'Lựa chọn tiện ích không hợp lệ.';
       setValidationError(err);
-      toast.error('Lỗi tiện ích', {
+      toast.error(c('Invalid amenities', 'Thông tin tiện ích chưa hợp lệ'), {
         description: err
       });
       return;
@@ -304,8 +311,11 @@ export function StepAmenitiesView() {
       await syncAmenitiesToBackend(targetId);
     }
 
-    toast.success('Amenities Saved', {
-      description: 'Proceeding to Media Gallery & Cover Photo.'
+    toast.success(c('Amenities Saved', 'Đã lưu tiện ích'), {
+      description: c(
+        'Proceeding to Media Gallery & Cover Photo.',
+        'Tiếp tục thiết lập thư viện ảnh và ảnh bìa.'
+      )
     });
 
     router.navigate({
@@ -327,15 +337,18 @@ export function StepAmenitiesView() {
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
           <div>
             <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground'>
-              Workspace Amenities &amp; Facilities
+              {c('Workspace Amenities & Facilities', 'Tiện ích và cơ sở vật chất')}
             </h1>
             <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              Select all features available in your workspace. Configure optional hourly add-on rates if applicable.
+              {c(
+                'Select all features available in your workspace. Configure optional hourly add-on rates if applicable.',
+                'Chọn các tiện ích sẵn có và phụ thu theo giờ nếu có.'
+              )}
             </p>
           </div>
           <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
             <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
-            <span>Draft automatically synced</span>
+            <span>{c('Draft automatically synced', 'Bản nháp được đồng bộ tự động')}</span>
           </div>
         </div>
 
@@ -344,7 +357,7 @@ export function StepAmenitiesView() {
           <div className='mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-3 text-xs sm:text-sm'>
             <AlertCircle className='size-5 shrink-0 mt-0.5' />
             <div>
-              <p className='font-semibold'>Selection Incomplete</p>
+              <p className='font-semibold'>{c('Selection Incomplete', 'Chưa chọn đủ tiện ích')}</p>
               <p className='mt-0.5 text-xs opacity-90'>{validationError}</p>
             </div>
           </div>
@@ -359,7 +372,10 @@ export function StepAmenitiesView() {
               type='text'
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder='Search amenities (e.g. WiFi, Ergonomic chair, Phone booth, Coffee)...'
+              placeholder={c(
+                'Search amenities (e.g. WiFi, Ergonomic chair, Phone booth, Coffee)...',
+                'Tìm tiện ích (Wi-Fi, ghế công thái học, buồng điện thoại, cà phê)...'
+              )}
               className='pl-9 h-10 text-xs sm:text-sm'
             />
             {searchQuery && (
@@ -367,7 +383,7 @@ export function StepAmenitiesView() {
                 type='button'
                 onClick={() => setSearchQuery('')}
                 className='absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground'
-                aria-label='Clear search query'
+                aria-label={c('Clear search query', 'Xóa từ khóa tìm kiếm')}
               >
                 <X className='size-4' />
               </button>
@@ -380,7 +396,7 @@ export function StepAmenitiesView() {
               variant='secondary'
               className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold px-2.5 py-1'
             >
-              {amenities.length} of {activeCatalog.length} selected
+              {amenities.length} {c('of', 'trên')} {activeCatalog.length} {c('selected', 'đã chọn')}
             </Badge>
 
             <Button
@@ -391,7 +407,8 @@ export function StepAmenitiesView() {
               className='text-xs h-9 gap-1.5 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40'
             >
               <Plus className='size-3.5' />
-              Tạo tiện ích riêng
+
+              {c('Create custom amenity', 'Tạo tiện ích riêng')}
             </Button>
 
             <Button
@@ -401,7 +418,7 @@ export function StepAmenitiesView() {
               onClick={handleSelectCommon}
               className='text-xs h-9 border-border hover:bg-muted'
             >
-              Select All Common
+              {c('Select All Common', 'Chọn tất cả tiện ích chung')}
             </Button>
 
             <Button
@@ -412,7 +429,7 @@ export function StepAmenitiesView() {
               disabled={amenities.length === 0}
               className='text-xs h-9 text-muted-foreground hover:text-foreground'
             >
-              Clear All
+              {c('Clear All', 'Bỏ chọn tất cả')}
             </Button>
           </div>
         </div>
@@ -421,7 +438,9 @@ export function StepAmenitiesView() {
         {isLoading && (
           <div className='flex items-center justify-center py-16 gap-3 text-muted-foreground'>
             <Loader2 className='size-5 animate-spin' />
-            <span className='text-sm'>Đang tải danh mục tiện ích từ hệ thống...</span>
+            <span className='text-sm'>
+              {c('Loading available amenities...', 'Đang tải danh mục tiện ích từ hệ thống...')}
+            </span>
           </div>
         )}
 
@@ -431,7 +450,12 @@ export function StepAmenitiesView() {
             <div className='size-12 rounded-full bg-primary/10 text-primary flex items-center justify-center mx-auto mb-2'>
               <Sparkles className='size-6' />
             </div>
-            <p className='text-sm font-semibold text-foreground'>Chưa có tiện ích nào cho không gian này</p>
+            <p className='text-sm font-semibold text-foreground'>
+              {c(
+                'No amenities available for this workspace yet',
+                'Chưa có tiện ích nào cho không gian này'
+              )}
+            </p>
             <p className='text-xs text-muted-foreground mt-1 max-w-md mx-auto'>
               {searchQuery
                 ? 'Thử tìm kiếm với từ khóa khác'
@@ -445,7 +469,8 @@ export function StepAmenitiesView() {
                 className='mt-4 gap-1.5'
               >
                 <Plus className='size-4' />
-                Tạo tiện ích đầu tiên
+
+                {c('Create your first amenity', 'Tạo tiện ích đầu tiên')}
               </Button>
             )}
           </div>
@@ -454,183 +479,183 @@ export function StepAmenitiesView() {
         {/* Amenities Categories */}
         {!isLoading && (
           <div className='space-y-8'>
-            {(['technology', 'facilities', 'hospitality', 'security'] as const).map(
-              (catKey) => {
-                const items = groupedAmenities[catKey];
-                if (!items || items.length === 0) return null;
+            {(['technology', 'facilities', 'hospitality', 'security'] as const).map((catKey) => {
+              const items = groupedAmenities[catKey];
+              if (!items || items.length === 0) return null;
 
-                const meta = CATEGORY_METADATA[catKey];
-                const selectedInCat = items.filter((i) =>
-                  amenities.includes(i.id)
-                ).length;
+              const meta = getCategoryMetadata(c)[catKey];
+              const selectedInCat = items.filter((i) => amenities.includes(i.id)).length;
 
-                return (
-                  <section key={catKey} className='space-y-3.5'>
-                    {/* Category Header */}
-                    <div className='flex items-center justify-between border-b border-border pb-2.5'>
-                      <div className='flex items-center gap-2.5'>
-                        <h2 className='text-sm sm:text-base font-bold text-foreground'>
-                          {meta.label}
-                        </h2>
-                        <span className='text-xs text-muted-foreground'>
-                          ({selectedInCat}/{items.length} selected)
-                        </span>
-                      </div>
-                      <Badge variant='outline' className='text-[10px] text-muted-foreground'>
-                        {meta.badge}
-                      </Badge>
+              return (
+                <section key={catKey} className='space-y-3.5'>
+                  {/* Category Header */}
+                  <div className='flex items-center justify-between border-b border-border pb-2.5'>
+                    <div className='flex items-center gap-2.5'>
+                      <h2 className='text-sm sm:text-base font-bold text-foreground'>
+                        {meta.label}
+                      </h2>
+                      <span className='text-xs text-muted-foreground'>
+                        ({selectedInCat}/{items.length} {c('selected)', 'đã chọn)')}
+                      </span>
                     </div>
+                    <Badge variant='outline' className='text-[10px] text-muted-foreground'>
+                      {meta.badge}
+                    </Badge>
+                  </div>
 
-                    {/* 4-column Responsive Grid */}
-                    <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5'>
-                      {items.map((item) => {
-                        const isSelected = amenities.includes(item.id);
-                        const addonRate = amenityAddonRates?.[item.id] || 0;
+                  {/* 4-column Responsive Grid */}
+                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5'>
+                    {items.map((item) => {
+                      const isSelected = amenities.includes(item.id);
+                      const addonRate = amenityAddonRates?.[item.id] || 0;
 
-                        return (
-                          <div
-                            key={item.id}
-                            role='checkbox'
-                            aria-checked={isSelected}
-                            tabIndex={0}
-                            onClick={() => {
+                      return (
+                        <div
+                          key={item.id}
+                          role='checkbox'
+                          aria-checked={isSelected}
+                          tabIndex={0}
+                          onClick={() => {
+                            toggleAmenity(item.id);
+                            setValidationError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === ' ' || e.key === 'Enter') {
+                              e.preventDefault();
                               toggleAmenity(item.id);
                               setValidationError(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === ' ' || e.key === 'Enter') {
-                                e.preventDefault();
-                                toggleAmenity(item.id);
-                                setValidationError(null);
-                              }
-                            }}
-                            className={`relative group rounded-xl p-4 cursor-pointer transition-all border text-left flex flex-col justify-between select-none ${
-                              isSelected
-                                ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-600 dark:border-indigo-500 shadow-2xs ring-1 ring-indigo-600/30'
-                                : 'bg-card border-border hover:border-slate-400 dark:hover:border-slate-600 hover:bg-muted/40 shadow-2xs'
-                            }`}
-                          >
-                            <div>
-                              {/* Top Row: Icon + Checkbox */}
-                              <div className='flex items-start justify-between gap-2 mb-3'>
-                                <div
-                                  className={`size-10 rounded-lg flex items-center justify-center transition-colors ${
-                                    isSelected
-                                      ? 'bg-indigo-600 text-white shadow-xs'
-                                      : 'bg-muted text-muted-foreground group-hover:text-foreground group-hover:bg-muted/80'
-                                  }`}
-                                >
-                                  {renderAmenityIcon(item.icon)}
-                                </div>
-
-                                <div
-                                  className={`size-5 rounded flex items-center justify-center border transition-all ${
-                                    isSelected
-                                      ? 'bg-indigo-600 border-indigo-600 text-white'
-                                      : 'border-muted-foreground/40 bg-background group-hover:border-foreground/70'
-                                  }`}
-                                >
-                                  {isSelected && (
-                                    <Check className='size-3.5 stroke-[3]' />
-                                  )}
-                                </div>
+                            }
+                          }}
+                          className={`relative group rounded-xl p-4 cursor-pointer transition-all border text-left flex flex-col justify-between select-none ${
+                            isSelected
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-600 dark:border-indigo-500 shadow-2xs ring-1 ring-indigo-600/30'
+                              : 'bg-card border-border hover:border-slate-400 dark:hover:border-slate-600 hover:bg-muted/40 shadow-2xs'
+                          }`}
+                        >
+                          <div>
+                            {/* Top Row: Icon + Checkbox */}
+                            <div className='flex items-start justify-between gap-2 mb-3'>
+                              <div
+                                className={`size-10 rounded-lg flex items-center justify-center transition-colors ${
+                                  isSelected
+                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    : 'bg-muted text-muted-foreground group-hover:text-foreground group-hover:bg-muted/80'
+                                }`}
+                              >
+                                {renderAmenityIcon(item.icon)}
                               </div>
 
-                              {/* Amenity Title & Custom Tag */}
-                              <div className='flex items-center gap-1.5 flex-wrap'>
-                                <h3
-                                  className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
-                                    isSelected
-                                      ? 'text-indigo-950 dark:text-indigo-100 font-bold'
-                                      : 'text-foreground'
-                                  }`}
-                                >
-                                  {item.name}
-                                </h3>
-                                {item.custom && (
-                                  <Badge
-                                    variant='outline'
-                                    className='bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-semibold px-1.5 py-0'
-                                  >
-                                    Tiện ích riêng
-                                  </Badge>
-                                )}
+                              <div
+                                className={`size-5 rounded flex items-center justify-center border transition-all ${
+                                  isSelected
+                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    : 'border-muted-foreground/40 bg-background group-hover:border-foreground/70'
+                                }`}
+                              >
+                                {isSelected && <Check className='size-3.5 stroke-[3]' />}
                               </div>
-
-                              {/* Amenity Description */}
-                              <p className='text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-1'>
-                                {item.description}
-                              </p>
                             </div>
 
-                            {/* Pricing & Addon Config */}
-                            <div className='mt-3 pt-2.5 border-t border-border/40'>
-                              {isSelected ? (
-                                <div className='space-y-1.5'>
-                                  <div className='flex items-center justify-between text-[11px]'>
-                                    <span className='text-muted-foreground font-medium'>Phụ thu</span>
-                                    <span
-                                      className={`font-semibold ${
-                                        addonRate > 0
-                                          ? 'text-emerald-600 dark:text-emerald-400'
-                                          : 'text-indigo-600 dark:text-indigo-400'
-                                      }`}
-                                    >
-                                      {addonRate > 0
-                                        ? `+${addonRate.toLocaleString('vi-VN')} đ/h`
-                                        : 'Miễn phí'}
-                                    </span>
-                                  </div>
-                                  <div className='flex items-center gap-1.5'>
-                                    <Button
-                                      type='button'
-                                      size='sm'
-                                      variant={addonRate === 0 ? 'default' : 'outline'}
-                                      className={`h-7 text-[10px] px-2 py-0 ${
-                                        addonRate === 0
-                                          ? 'bg-indigo-600 text-white hover:bg-indigo-700'
-                                          : 'border-border text-muted-foreground'
-                                      }`}
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAmenityAddonRate(item.id, 0);
-                                      }}
-                                    >
-                                      Miễn phí
-                                    </Button>
-                                    <div className='relative flex-1'>
-                                      <Input
-                                        type='number'
-                                        min='0'
-                                        step='5000'
-                                        placeholder='VND/giờ...'
-                                        value={addonRate > 0 ? addonRate : ''}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onKeyDown={(e) => e.stopPropagation()}
-                                        onChange={(e) => {
-                                          const val = Math.max(0, parseInt(e.target.value, 10) || 0);
-                                          setAmenityAddonRate(item.id, val);
-                                        }}
-                                        className='h-7 text-[11px] px-2 text-right'
-                                      />
-                                    </div>
-                                  </div>
-                                </div>
-                              ) : (
-                                <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
-                                  <span>{item.isCommon ? 'Popular Essential' : 'Tiện ích không gian'}</span>
-                                  <span className='text-indigo-600 dark:text-indigo-400 font-medium'>Chọn để bật</span>
-                                </div>
+                            {/* Amenity Title & Custom Tag */}
+                            <div className='flex items-center gap-1.5 flex-wrap'>
+                              <h3
+                                className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
+                                  isSelected
+                                    ? 'text-indigo-950 dark:text-indigo-100 font-bold'
+                                    : 'text-foreground'
+                                }`}
+                              >
+                                {item.name}
+                              </h3>
+                              {item.custom && (
+                                <Badge
+                                  variant='outline'
+                                  className='bg-amber-50 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-semibold px-1.5 py-0'
+                                >
+                                  {c('Custom amenities', 'Tiện ích riêng')}
+                                </Badge>
                               )}
                             </div>
+
+                            {/* Amenity Description */}
+                            <p className='text-[11px] sm:text-xs text-muted-foreground leading-relaxed mt-1'>
+                              {item.description}
+                            </p>
                           </div>
-                        );
-                      })}
-                    </div>
-                  </section>
-                );
-              }
-            )}
+
+                          {/* Pricing & Addon Config */}
+                          <div className='mt-3 pt-2.5 border-t border-border/40'>
+                            {isSelected ? (
+                              <div className='space-y-1.5'>
+                                <div className='flex items-center justify-between text-[11px]'>
+                                  <span className='text-muted-foreground font-medium'>
+                                    {c('Surcharge', 'Phụ thu')}
+                                  </span>
+                                  <span
+                                    className={`font-semibold ${
+                                      addonRate > 0
+                                        ? 'text-emerald-600 dark:text-emerald-400'
+                                        : 'text-indigo-600 dark:text-indigo-400'
+                                    }`}
+                                  >
+                                    {addonRate > 0
+                                      ? `+${addonRate.toLocaleString('vi-VN')} đ/h`
+                                      : c('Free', 'Miễn phí')}
+                                  </span>
+                                </div>
+                                <div className='flex items-center gap-1.5'>
+                                  <Button
+                                    type='button'
+                                    size='sm'
+                                    variant={addonRate === 0 ? 'default' : 'outline'}
+                                    className={`h-7 text-[10px] px-2 py-0 ${
+                                      addonRate === 0
+                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                        : 'border-border text-muted-foreground'
+                                    }`}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setAmenityAddonRate(item.id, 0);
+                                    }}
+                                  >
+                                    {c('Free', 'Miễn phí')}
+                                  </Button>
+                                  <div className='relative flex-1'>
+                                    <Input
+                                      type='number'
+                                      min='0'
+                                      step='5000'
+                                      placeholder={c('VND/hour...', 'VND/giờ...')}
+                                      value={addonRate > 0 ? addonRate : ''}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onKeyDown={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const val = Math.max(0, parseInt(e.target.value, 10) || 0);
+                                        setAmenityAddonRate(item.id, val);
+                                      }}
+                                      className='h-7 text-[11px] px-2 text-right'
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className='flex items-center justify-between text-[10px] text-muted-foreground'>
+                                <span>
+                                  {item.isCommon ? 'Popular Essential' : 'Tiện ích không gian'}
+                                </span>
+                                <span className='text-indigo-600 dark:text-indigo-400 font-medium'>
+                                  {c('Select to enable', 'Chọn để bật')}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              );
+            })}
           </div>
         )}
       </div>
@@ -645,7 +670,7 @@ export function StepAmenitiesView() {
           className='gap-2 text-xs sm:text-sm text-muted-foreground hover:text-foreground'
         >
           <ArrowLeft className='size-4' />
-          <span>Back to Operating Hours</span>
+          <span>{c('Back to Operating Hours', 'Quay lại giờ hoạt động')}</span>
         </Button>
 
         {/* Right: Save Draft & Continue */}
@@ -658,7 +683,9 @@ export function StepAmenitiesView() {
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
             {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
-            <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
+            <span>
+              {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
+            </span>
           </Button>
 
           <Button
@@ -667,8 +694,12 @@ export function StepAmenitiesView() {
             onClick={handleContinue}
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
-            <span>Continue to Media Gallery</span>
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+            <span>{c('Continue to Media Gallery', 'Tiếp tục đến thư viện ảnh')}</span>
+            {isSaving ? (
+              <Loader2 className='size-4 animate-spin' />
+            ) : (
+              <ArrowRight className='size-4' />
+            )}
           </Button>
         </div>
       </footer>

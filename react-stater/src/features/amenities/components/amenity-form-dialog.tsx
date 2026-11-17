@@ -1,3 +1,4 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -53,24 +54,24 @@ interface AmenityFormDialogProps {
   isOrganizer?: boolean;
 }
 
-const AVAILABLE_ICONS = [
+const getAvailableIcons = (c: (en: string, vi: string) => string) => [
   { name: 'Wifi', label: 'Wi-Fi / Internet', icon: Wifi },
-  { name: 'PhoneCall', label: 'Phone Booth', icon: PhoneCall },
-  { name: 'Cast', label: 'Screen Cast', icon: Cast },
-  { name: 'Monitor', label: 'Dual Monitors', icon: Monitor },
-  { name: 'Printer', label: 'Printer / Scanner', icon: Printer },
-  { name: 'Armchair', label: 'Ergonomic Chair', icon: Armchair },
-  { name: 'MoveVertical', label: 'Standing Desk', icon: MoveVertical },
-  { name: 'Lock', label: 'Personal Locker', icon: Lock },
-  { name: 'ShowerHead', label: 'Shower Suite', icon: ShowerHead },
-  { name: 'Bike', label: 'Bicycle Rack', icon: Bike },
-  { name: 'Presentation', label: 'Meeting / Boardroom', icon: Presentation },
-  { name: 'Coffee', label: 'Espresso Bar', icon: Coffee },
-  { name: 'Droplets', label: 'Filtered Water (RO)', icon: Droplets },
-  { name: 'Utensils', label: 'Pantry & Kitchen', icon: Utensils },
-  { name: 'Heart', label: 'Wellness & Nap Pod', icon: Heart },
-  { name: 'Zap', label: 'EV / Power Station', icon: Zap },
-  { name: 'Sparkles', label: 'Other Amenity', icon: Sparkles }
+  { name: 'PhoneCall', label: c('Phone Booth', 'Buồng điện thoại'), icon: PhoneCall },
+  { name: 'Cast', label: c('Screen Cast', 'Trình chiếu màn hình'), icon: Cast },
+  { name: 'Monitor', label: c('Dual Monitors', 'Hai màn hình'), icon: Monitor },
+  { name: 'Printer', label: c('Printer / Scanner', 'Máy in / Máy quét'), icon: Printer },
+  { name: 'Armchair', label: c('Ergonomic Chair', 'Ghế công thái học'), icon: Armchair },
+  { name: 'MoveVertical', label: c('Standing Desk', 'Bàn đứng'), icon: MoveVertical },
+  { name: 'Lock', label: c('Personal Locker', 'Tủ đồ cá nhân'), icon: Lock },
+  { name: 'ShowerHead', label: c('Shower Suite', 'Phòng tắm'), icon: ShowerHead },
+  { name: 'Bike', label: c('Bicycle Rack', 'Chỗ để xe đạp'), icon: Bike },
+  { name: 'Presentation', label: c('Meeting / Boardroom', 'Phòng họp'), icon: Presentation },
+  { name: 'Coffee', label: c('Espresso Bar', 'Quầy cà phê'), icon: Coffee },
+  { name: 'Droplets', label: c('Filtered Water (RO)', 'Nước lọc (RO)'), icon: Droplets },
+  { name: 'Utensils', label: c('Pantry & Kitchen', 'Khu bếp'), icon: Utensils },
+  { name: 'Heart', label: c('Wellness & Nap Pod', 'Khu nghỉ ngơi'), icon: Heart },
+  { name: 'Zap', label: c('EV / Power Station', 'Trạm sạc / Nguồn điện'), icon: Zap },
+  { name: 'Sparkles', label: c('Other Amenity', 'Tiện ích khác'), icon: Sparkles }
 ];
 
 interface AmenityFormContentProps {
@@ -80,6 +81,7 @@ interface AmenityFormContentProps {
 }
 
 function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormContentProps) {
+  const c = useOrganizerCopy();
   const isEditing = !!amenity;
   const adminCreateMutation = useCreateAmenityMutation();
   const adminUpdateMutation = useUpdateAmenityMutation();
@@ -96,7 +98,7 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError('Tên tiện ích không được để trống.');
+      setError(c('Amenity name is required.', 'Tên tiện ích không được để trống.'));
       return;
     }
 
@@ -153,19 +155,17 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
   return (
     <form onSubmit={handleSubmit} className='space-y-4 py-2'>
       {error && (
-        <div className='p-2.5 rounded-lg bg-destructive/10 text-destructive text-xs'>
-          {error}
-        </div>
+        <div className='p-2.5 rounded-lg bg-destructive/10 text-destructive text-xs'>{error}</div>
       )}
 
       {/* Amenity Name */}
       <div className='space-y-1.5'>
         <Label htmlFor='amenity-name' className='text-xs font-semibold'>
-          Amenity Name <span className='text-destructive'>*</span>
+          {c('Amenity Name', 'Tên tiện ích')} <span className='text-destructive'>*</span>
         </Label>
         <Input
           id='amenity-name'
-          placeholder='e.g. High-speed Wi-Fi (1 Gbps)'
+          placeholder={c('e.g. High-speed Wi-Fi (1 Gbps)', 'VD: Wi-Fi tốc độ cao (1 Gbps)')}
           value={name}
           onChange={(e) => {
             setName(e.target.value);
@@ -179,30 +179,31 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
       {/* Category & Icon */}
       <div className='grid grid-cols-2 gap-3'>
         <div className='space-y-1.5'>
-          <Label className='text-xs font-semibold'>Category</Label>
-          <Select
-            value={category}
-            onValueChange={(val: AmenityCategory) => setCategory(val)}
-          >
+          <Label className='text-xs font-semibold'>{c('Category', 'Phân loại')}</Label>
+          <Select value={category} onValueChange={(val: AmenityCategory) => setCategory(val)}>
             <SelectTrigger>
-              <SelectValue placeholder='Select category' />
+              <SelectValue placeholder={c('Select category', 'Chọn phân loại')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='TECH'>Technology (TECH)</SelectItem>
-              <SelectItem value='SPACE'>Space & Facility (SPACE)</SelectItem>
-              <SelectItem value='COMFORT'>Hospitality (COMFORT)</SelectItem>
+              <SelectItem value='TECH'>{c('Technology (TECH)', 'Công nghệ (TECH)')}</SelectItem>
+              <SelectItem value='SPACE'>
+                {c('Space & Facility (SPACE)', 'Không gian & Tiện ích (SPACE)')}
+              </SelectItem>
+              <SelectItem value='COMFORT'>
+                {c('Hospitality (COMFORT)', 'Dịch vụ (COMFORT)')}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className='space-y-1.5'>
-          <Label className='text-xs font-semibold'>Icon</Label>
+          <Label className='text-xs font-semibold'>{c('Icon', 'Biểu tượng')}</Label>
           <Select value={icon} onValueChange={setIcon}>
             <SelectTrigger>
-              <SelectValue placeholder='Select an icon' />
+              <SelectValue placeholder={c('Select an icon', 'Chọn biểu tượng')} />
             </SelectTrigger>
             <SelectContent className='max-h-56'>
-              {AVAILABLE_ICONS.map((ic) => {
+              {getAvailableIcons(c).map((ic) => {
                 const IconComp = ic.icon;
                 return (
                   <SelectItem key={ic.name} value={ic.name}>
@@ -221,12 +222,15 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
       {/* Detailed Description */}
       <div className='space-y-1.5'>
         <Label htmlFor='amenity-desc' className='text-xs font-semibold'>
-          Description
+          {c('Description', 'Mô tả')}
         </Label>
         <Textarea
           id='amenity-desc'
           rows={3}
-          placeholder='Provide equipment standards, technical specs, or features included...'
+          placeholder={c(
+            'Provide equipment standards, technical specs, or features included...',
+            'Nhập tiêu chuẩn thiết bị, thông số kỹ thuật hoặc tính năng đi kèm...'
+          )}
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           maxLength={500}
@@ -234,17 +238,12 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
       </div>
 
       <DialogFooter className='pt-2'>
-        <Button
-          type='button'
-          variant='outline'
-          onClick={onClose}
-          disabled={isSubmitting}
-        >
-          Cancel
+        <Button type='button' variant='outline' onClick={onClose} disabled={isSubmitting}>
+          {c('Cancel', 'Hủy')}
         </Button>
         <Button type='submit' disabled={isSubmitting} className='gap-2'>
           {isSubmitting && <Loader2 className='size-4 animate-spin' />}
-          {isEditing ? 'Save Changes' : 'Create Amenity'}
+          {isEditing ? c('Save Changes', 'Lưu thay đổi') : c('Create Amenity', 'Tạo tiện ích')}
         </Button>
       </DialogFooter>
     </form>
@@ -257,6 +256,7 @@ export function AmenityFormDialog({
   amenity,
   isOrganizer
 }: AmenityFormDialogProps) {
+  const c = useOrganizerCopy();
   const isEditing = !!amenity;
 
   return (
@@ -266,8 +266,8 @@ export function AmenityFormDialog({
           <DialogTitle>
             {isOrganizer
               ? isEditing
-                ? 'Chỉnh sửa tiện ích riêng'
-                : 'Thêm tiện ích riêng'
+                ? c('Edit custom amenity', 'Chỉnh sửa tiện ích riêng')
+                : c('Add custom amenity', 'Thêm tiện ích riêng')
               : isEditing
                 ? 'Edit Amenity'
                 : 'Add New Amenity'}
@@ -275,8 +275,14 @@ export function AmenityFormDialog({
           <DialogDescription>
             {isOrganizer
               ? isEditing
-                ? 'Cập nhật thông tin tiện ích riêng của tổ chức bạn.'
-                : 'Tạo tiện ích mới dành riêng cho các không gian làm việc của tổ chức bạn.'
+                ? c(
+                    "Update your organization's custom amenity information.",
+                    'Cập nhật thông tin tiện ích riêng của tổ chức bạn.'
+                  )
+                : c(
+                    "Create an amenity exclusively for your organization's workspaces.",
+                    'Tạo tiện ích mới dành riêng cho các không gian làm việc của tổ chức bạn.'
+                  )
               : isEditing
                 ? 'Update amenity information in the global platform catalog.'
                 : 'Create a new amenity available across all NexSpace workspaces.'}

@@ -1,6 +1,9 @@
 import { aiPreviewGeometry } from '../utils/ai-preview-geometry';
+import { copyDisplayName } from '../utils/copy-names';
 import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { FurnishingPalette } from './furnishing-palette';
+import { ResourceEditor, ResourceSetupDialog, FloorDimensionsDialog } from './resource-editor';
+import { designMetricsOptions } from '../api/floor-design';
 import { FloorLocationBanner } from './floor-location-banner';
 import { stageLayoutObject, changedLayoutResources } from '../utils/manual-layout-draft';
 
@@ -8,7 +11,7 @@ import { FloorAiAssistant } from './floor-ai-assistant';
 import { aiDesignPreview, aiPreviewChanges, adjustAiProposal } from '../utils/ai-design-preview';
 import { insideRoom, layoutGeometry } from '../utils/layout-placement';
 import type { AiProposal } from '../api/floor-design';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, useBlocker } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -59,6 +62,7 @@ import {
   type FloorLayout,
   type ResourceDetail,
   type ResourceOptions,
+  type TypeOption,
   type WorkspaceOption,
   type DecorationKind
 } from '../api/resources';
@@ -100,7 +104,6 @@ export function FloorCanvasWorkspace({
   onWorkspaceChange,
   onSaved,
   onAdd,
-  onEditResource,
   initialFloorId,
   onFloorChange,
 
@@ -113,8 +116,7 @@ export function FloorCanvasWorkspace({
   writable: boolean;
   onWorkspaceChange: (id: number) => void;
   onSaved: () => Promise<void>;
-  onAdd: (kind: 'floor' | 'type' | 'resource', floorId: number) => void;
-  onEditResource: (resource: ResourceDetail) => void;
+  onAdd: (kind: 'floor' | 'type', floorId: number) => void;
   initialFloorId: number;
   onFloorChange: (id: number) => void;
 
@@ -137,11 +139,50 @@ export function FloorCanvasWorkspace({
     ...floorLayoutOptions(actorId, workspaceId, floorId),
     enabled: floorId > 0
   });
+  const metrics = useQuery({
+    ...designMetricsOptions(actorId, workspaceId, floorId),
+    enabled: floorId > 0
+  });
+  const [editingFloorDimensions, setEditingFloorDimensions] = useState(false);
   const [pendingObjects, setPendingObjects] = useState<FloorDecoration[]>([]);
   const [sceneDraft, setSceneDraft] = useState<{ base: FloorLayout; layout: FloorLayout } | null>(
     null
   );
   const [aiOpen, setAiOpen] = useState(false);
+  const [aiCollapsed, setAiCollapsed] = useState(false);
+  const [canvasFullscreen, setCanvasFullscreen] = useState(false);
+  useEffect(() => {
+    const sync = () => {
+      if (document.fullscreenElement !== container.current) setCanvasFullscreen(false);
+    };
+    const escape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !document.fullscreenElement) setCanvasFullscreen(false);
+    };
+    document.addEventListener('fullscreenchange', sync);
+    document.addEventListener('keydown', escape);
+    return () => {
+      document.removeEventListener('fullscreenchange', sync);
+      document.removeEventListener('keydown', escape);
+    };
+  }, []);
+  const toggleCanvasFullscreen = async () => {
+    if (canvasFullscreen || document.fullscreenElement === container.current) {
+      try {
+        if (document.fullscreenElement === container.current) await document.exitFullscreen();
+      } catch {
+        toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
+        return;
+      }
+      setCanvasFullscreen(false);
+      return;
+    }
+    setCanvasFullscreen(true);
+    try {
+      await container.current?.requestFullscreen();
+    } catch {
+      // Keep the same studio panes available when native fullscreen is denied.
+    }
+  };
   const [aiPrecisionEdit, setAiPrecisionEdit] = useState(false);
   const aiDrag = useRef<{ key: string; proposal: AiProposal } | null>(null);
   const [aiWorking, setAiWorking] = useState(false);
@@ -180,6 +221,13 @@ export function FloorCanvasWorkspace({
   const [search, setSearch] = useState('');
   const [allObjectsOpen, setAllObjectsOpen] = useState(false);
   const [infoOpen, setInfoOpen] = useState(false);
+  const [resourceEditor, setResourceEditor] = useState<{
+    resource?: ResourceDetail;
+    typeId?: number;
+  } | null>(null);
+  const [editorCanvas, setEditorCanvas] = useState<HTMLDivElement | null>(null);
+  const [catalogOpen, setCatalogOpen] = useState(false);
+  const [catalogType, setCatalogType] = useState<TypeOption | null>(null);
   const [filter, setFilter] = useState<'all' | 'resources' | 'objects'>('all');
   const [settings, setSettings] = useState(false);
   const [dimensions, setDimensions] = useState<{ width: string; height: string } | null>(null);
@@ -422,7 +470,12 @@ export function FloorCanvasWorkspace({
         ? {
             ...copy,
             id: `decor-${crypto.randomUUID()}`,
-            label: `${copy.label} (${c('copy', 'bản sao')})`.slice(0, 100),
+            label: copyDisplayName(
+              copy.label,
+              (layout?.decorations ?? []).map((item) => item.label),
+              language === 'vi' ? 'vi' : 'en',
+              100
+            ),
             posX: copy.posX + 20,
             posY: copy.posY + 20
           }
@@ -574,10 +627,14 @@ export function FloorCanvasWorkspace({
       const layoutKey = floorLayoutOptions(actorId, workspaceId, floorId).queryKey;
       // Cancel older reads so a late response cannot restore the deleted resource on the canvas.
       await queryClient.cancelQueries({ queryKey: layoutKey, exact: true });
-      queryClient.setQueryData<FloorLayout>(layoutKey, current => current ? {
-        ...current,
-        resources: current.resources.filter(resource => resource.id !== deletedId)
-      } : current);
+      queryClient.setQueryData<FloorLayout>(layoutKey, (current) =>
+        current
+          ? {
+              ...current,
+              resources: current.resources.filter((resource) => resource.id !== deletedId)
+            }
+          : current
+      );
       // Deletion is blocked while dirty; this clean staged snapshot must not mask refreshed server data.
       setSceneDraft(null);
       clearSelection();
@@ -816,282 +873,302 @@ export function FloorCanvasWorkspace({
   return (
     <div
       ref={container}
-      className='flex min-h-[720px] flex-col overflow-hidden rounded-2xl border border-border bg-card shadow-sm xl:h-[calc(100dvh-8.5rem)] [&:fullscreen]:h-screen [&:fullscreen]:rounded-none'
+      className={`flex flex-col overflow-hidden border border-border bg-card shadow-sm ${canvasFullscreen ? 'fixed inset-0 z-50 h-dvh min-h-0 rounded-none' : 'min-h-[720px] rounded-2xl xl:h-[calc(100dvh-8.5rem)]'} [&:fullscreen]:h-screen [&:fullscreen]:rounded-none`}
     >
-      <header className='flex flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/[0.07] to-card px-4 py-3'>
-        <div className='flex min-w-0 items-center gap-3'>
-          <Button
-            variant='ghost'
-            size='icon'
-            className='size-8 shrink-0 rounded-xl'
-            aria-label={c('Back to 3D building', 'Về tòa nhà 3D')}
-            title={c('Back to 3D building', 'Về tòa nhà 3D')}
-            disabled={busy || loadingSelection}
-            onClick={() => act(onBack)}
-          >
-            <ChevronLeft className='size-4' />
-          </Button>
-          <span className='flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary'>
-            <Layers3 className='size-5' />
-          </span>
-          <div>
-            <h1 className='text-lg font-semibold tracking-tight'>
-              {c('Floor Studio', 'Thiết kế sơ đồ tầng')}
-            </h1>
-            <p className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
-              <span
-                className={`size-1.5 rounded-full ${dirty ? 'bg-amber-500' : 'bg-emerald-500'}`}
-              />
-              {dirty
-                ? c('Unsaved changes', 'Có thay đổi chưa lưu')
-                : c('Shared with Seats & Rooms', 'Đồng bộ với Quản lý ghế & phòng')}
-            </p>
-          </div>
-        </div>
-        <div className='flex flex-wrap items-center gap-2'>
-          <div className='flex rounded-xl border border-border bg-muted/40 p-1'>
-            {[false, true].map((value) => (
-              <button
-                key={String(value)}
-                type='button'
-                className={`rounded-lg px-2.5 py-1.5 text-[11px] ${availabilityMode === value ? 'bg-background font-semibold text-primary shadow-sm' : 'text-muted-foreground'}`}
-                disabled={busy || loadingSelection}
-                onClick={() =>
-                  act(() => {
-                    clearSelection();
-                    setDimensions(null);
-                    setSettings(false);
-                    setAvailabilityMode(value);
-                  })
-                }
-              >
-                {value ? c('Availability', 'Theo lịch') : c('Design', 'Thiết kế')}
-              </button>
-            ))}
-          </div>
-          {layout && (
+      <div inert={!!resourceEditor} className={canvasFullscreen ? 'hidden' : 'shrink-0'}>
+        <header className='flex flex-wrap items-center justify-between gap-3 border-b border-border bg-gradient-to-r from-primary/[0.07] to-card px-4 py-3'>
+          <div className='flex min-w-0 items-center gap-3'>
             <Button
-              variant={aiOpen ? 'default' : 'outline'}
-              className='rounded-xl'
-              disabled={busy || aiWorking || availabilityMode}
+              variant='ghost'
+              size='icon'
+              className='size-8 shrink-0 rounded-xl'
+              aria-label={c('Back to 3D building', 'Về tòa nhà 3D')}
+              title={c('Back to 3D building', 'Về tòa nhà 3D')}
+              disabled={busy || loadingSelection}
+              onClick={() => act(onBack)}
+            >
+              <ChevronLeft className='size-4' />
+            </Button>
+            <span className='flex size-10 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary'>
+              <Layers3 className='size-5' />
+            </span>
+            <div>
+              <h1 className='text-lg font-semibold tracking-tight'>
+                {c('Floor Studio', 'Thiết kế sơ đồ tầng')}
+              </h1>
+              <p className='flex items-center gap-1.5 text-[11px] text-muted-foreground'>
+                <span
+                  className={`size-1.5 rounded-full ${dirty ? 'bg-amber-500' : 'bg-emerald-500'}`}
+                />
+                {dirty
+                  ? c('Unsaved changes', 'Có thay đổi chưa lưu')
+                  : c('Shared with Seats & Rooms', 'Đồng bộ với Quản lý ghế & phòng')}
+              </p>
+            </div>
+          </div>
+          <div className='flex flex-wrap items-center gap-2'>
+            <div className='flex rounded-xl border border-border bg-muted/40 p-1'>
+              {[false, true].map((value) => (
+                <button
+                  key={String(value)}
+                  type='button'
+                  className={`rounded-lg px-2.5 py-1.5 text-[11px] ${availabilityMode === value ? 'bg-background font-semibold text-primary shadow-sm' : 'text-muted-foreground'}`}
+                  disabled={busy || loadingSelection}
+                  onClick={() =>
+                    act(() => {
+                      clearSelection();
+                      setDimensions(null);
+                      setSettings(false);
+                      setAvailabilityMode(value);
+                    })
+                  }
+                >
+                  {value ? c('Availability', 'Theo lịch') : c('Design', 'Thiết kế')}
+                </button>
+              ))}
+            </div>
+            {layout && (
+              <Button
+                variant={aiOpen ? 'default' : 'outline'}
+                className='rounded-xl'
+                disabled={busy || aiWorking || availabilityMode}
+                onClick={() => {
+                  if (aiOpen && aiCollapsed) {
+                    setAiCollapsed(false);
+                    return;
+                  }
+                  setAiCollapsed(false);
+                  if (aiOpen || aiProposal) setAiOpen(!aiOpen);
+                  else act(() => setAiOpen(true));
+                }}
+              >
+                <Sparkles className='size-4' />
+                {aiProposal && !aiOpen
+                  ? c('Review AI proposal', 'Xem lại đề xuất AI')
+                  : c('AI assistant', 'Trợ lý AI')}
+              </Button>
+            )}
+            {layout && (
+              <FloorActions
+                workspaceId={workspaceId}
+                floor={layout.floor}
+                floors={options.floors}
+                disabled={!writable || dirty || busy || loadingSelection}
+                onSaved={onSaved}
+                onDeleted={onBack}
+                onCopied={(floor) => onFloorChange(floor.id)}
+              />
+            )}
+            <Button
+              size='icon'
+              variant='ghost'
+              title={c('Refresh layout', 'Tải lại sơ đồ')}
+              aria-label={c('Refresh layout', 'Tải lại sơ đồ')}
+              disabled={busy || loadingSelection}
+              onClick={() =>
+                act(() => {
+                  clearSelection();
+                  setDimensions(null);
+                  void onSaved();
+                })
+              }
+            >
+              <RefreshCw className='size-4' />
+            </Button>
+            <Button
+              size='icon'
+              variant='ghost'
+              title={c('Export current view as SVG', 'Xuất vùng xem dạng SVG')}
+              aria-label={c('Export SVG', 'Xuất SVG')}
+              disabled={!layout}
+              onClick={exportSvg}
+            >
+              <Download className='size-4' />
+            </Button>
+            <Button
+              size='icon'
+              variant='ghost'
+              title={c('Fullscreen', 'Toàn màn hình')}
+              aria-label={c('Fullscreen', 'Toàn màn hình')}
               onClick={() => {
-                if (aiOpen || aiProposal) setAiOpen(!aiOpen);
-                else act(() => setAiOpen(true));
+                const operation = document.fullscreenElement
+                  ? document.exitFullscreen()
+                  : container.current?.requestFullscreen();
+                operation?.catch(() =>
+                  toast.error(
+                    c('Fullscreen is unavailable.', 'Trình duyệt không hỗ trợ toàn màn hình.')
+                  )
+                );
               }}
             >
-              <Sparkles className='size-4' />
-              {aiProposal && !aiOpen
-                ? c('Review AI proposal', 'Xem lại đề xuất AI')
-                : c('AI assistant', 'Trợ lý AI')}
+              <Maximize2 className='size-4' />
             </Button>
-          )}
-          {layout && (
-            <FloorActions
-              workspaceId={workspaceId}
-              floor={layout.floor}
-              floors={options.floors}
-              disabled={!writable || dirty || busy || loadingSelection}
-              onSaved={onSaved}
-              onDeleted={onBack}
-              onCopied={(floor) => onFloorChange(floor.id)}
-            />
-          )}
-          <Button
-            size='icon'
-            variant='ghost'
-            title={c('Refresh layout', 'Tải lại sơ đồ')}
-            aria-label={c('Refresh layout', 'Tải lại sơ đồ')}
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={!layout || busy}
+              onClick={() =>
+                act(() => {
+                  clearSelection();
+                  setDimensions(null);
+                  setSettings(!settings);
+                })
+              }
+            >
+              <SlidersHorizontal className='size-4' />
+              {c('Canvas', 'Canvas')}
+            </Button>
+            <Button
+              size='sm'
+              disabled={busy || !editable || dirty || !!missing || loadingSelection}
+              aria-describedby={publishIssue ? 'floor-publish-issue' : undefined}
+              onClick={() => {
+                setConfirmed(false);
+                setPublishing(true);
+              }}
+            >
+              <Upload className='size-4' />
+              {c('Publish', 'Xuất bản')}
+            </Button>
+          </div>
+        </header>
+        {publishIssue && (
+          <p
+            id='floor-publish-issue'
+            className='border-b border-border px-4 py-2 text-xs text-muted-foreground'
+          >
+            {publishIssue}
+          </p>
+        )}
+        {layout && <FloorLocationBanner floor={layout.floor} />}
+        <div className='flex flex-wrap items-center gap-2 border-b border-border/80 bg-muted/20 px-4 py-2.5'>
+          <select
+            aria-label={c('Workspace', 'Không gian')}
+            value={workspaceId}
             disabled={busy || loadingSelection}
-            onClick={() =>
+            className='h-9 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-background px-3 text-xs sm:max-w-[320px]'
+            onChange={(event) => {
+              const id = Number(event.target.value);
+              act(() => onWorkspaceChange(id));
+            }}
+          >
+            {workspaces.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} · {item.status}
+              </option>
+            ))}
+          </select>
+          <span className='hidden h-4 border-l border-border sm:block' />
+          <select
+            aria-label={c('Floor', 'Tầng')}
+            value={floorId}
+            disabled={busy || loadingSelection}
+            className='h-9 min-w-0 max-w-full rounded-lg border border-input bg-background px-3 text-xs'
+            onChange={(event) => {
+              const id = Number(event.target.value);
               act(() => {
                 clearSelection();
                 setDimensions(null);
-                void onSaved();
-              })
-            }
-          >
-            <RefreshCw className='size-4' />
-          </Button>
-          <Button
-            size='icon'
-            variant='ghost'
-            title={c('Export current view as SVG', 'Xuất vùng xem dạng SVG')}
-            aria-label={c('Export SVG', 'Xuất SVG')}
-            disabled={!layout}
-            onClick={exportSvg}
-          >
-            <Download className='size-4' />
-          </Button>
-          <Button
-            size='icon'
-            variant='ghost'
-            title={c('Fullscreen', 'Toàn màn hình')}
-            aria-label={c('Fullscreen', 'Toàn màn hình')}
-            onClick={() => {
-              const operation = document.fullscreenElement
-                ? document.exitFullscreen()
-                : container.current?.requestFullscreen();
-              operation?.catch(() =>
-                toast.error(
-                  c('Fullscreen is unavailable.', 'Trình duyệt không hỗ trợ toàn màn hình.')
-                )
-              );
+                onFloorChange(id);
+                setFocus({ key: null, sequence: 0 });
+              });
             }}
           >
-            <Maximize2 className='size-4' />
-          </Button>
+            {options.floors.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.name} · {item.status}
+              </option>
+            ))}
+          </select>
           <Button
             size='sm'
-            variant='outline'
-            disabled={!layout || busy}
-            onClick={() =>
-              act(() => {
-                clearSelection();
-                setDimensions(null);
-                setSettings(!settings);
-              })
-            }
+            variant='ghost'
+            disabled={!writable || busy}
+            onClick={() => act(() => onAdd('floor', floorId))}
           >
-            <SlidersHorizontal className='size-4' />
-            {c('Canvas', 'Canvas')}
+            <Plus className='size-3.5' />
+            {c('Link floor', 'Liên kết tầng')}
           </Button>
-          <Button
-            size='sm'
-            disabled={busy || !editable || dirty || !!missing || loadingSelection}
-            aria-describedby={publishIssue ? 'floor-publish-issue' : undefined}
-            onClick={() => {
-              setConfirmed(false);
-              setPublishing(true);
-            }}
-          >
-            <Upload className='size-4' />
-            {c('Publish', 'Xuất bản')}
-          </Button>
-        </div>
-      </header>
-      {publishIssue && (
-        <p
-          id='floor-publish-issue'
-          className='border-b border-border px-4 py-2 text-xs text-muted-foreground'
-        >
-          {publishIssue}
-        </p>
-      )}
-      {layout && <FloorLocationBanner floor={layout.floor} />}
-      <div className='flex flex-wrap items-center gap-2 border-b border-border/80 bg-muted/20 px-4 py-2.5'>
-        <select
-          aria-label={c('Workspace', 'Không gian')}
-          value={workspaceId}
-          disabled={busy || loadingSelection}
-          className='h-9 min-w-0 max-w-full flex-1 rounded-lg border border-input bg-background px-3 text-xs sm:max-w-[320px]'
-          onChange={(event) => {
-            const id = Number(event.target.value);
-            act(() => onWorkspaceChange(id));
-          }}
-        >
-          {workspaces.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} · {item.status}
-            </option>
-          ))}
-        </select>
-        <span className='hidden h-4 border-l border-border sm:block' />
-        <select
-          aria-label={c('Floor', 'Tầng')}
-          value={floorId}
-          disabled={busy || loadingSelection}
-          className='h-9 min-w-0 max-w-full rounded-lg border border-input bg-background px-3 text-xs'
-          onChange={(event) => {
-            const id = Number(event.target.value);
-            act(() => {
-              clearSelection();
-              setDimensions(null);
-              onFloorChange(id);
-              setFocus({ key: null, sequence: 0 });
-            });
-          }}
-        >
-          {options.floors.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.name} · {item.status}
-            </option>
-          ))}
-        </select>
-        <Button
-          size='sm'
-          variant='ghost'
-          disabled={!writable || busy}
-          onClick={() => act(() => onAdd('floor', floorId))}
-        >
-          <Plus className='size-3.5' />
-          {c('Link floor', 'Liên kết tầng')}
-        </Button>
-        <div className='ml-auto flex items-center gap-2'>
-          <Badge variant='secondary' className='text-[10px]'>
-            {layout?.draftChanges
-              ? c('Unpublished layout', 'Bố trí chưa xuất bản')
-              : (layout?.floor.status ?? '—')}
-          </Badge>
-          {!writable && (
-            <Badge variant='outline'>
-              <LockKeyhole className='mr-1 size-3' />
-              {c('Read only', 'Chỉ xem')}
+          <div className='ml-auto flex items-center gap-2'>
+            <Badge variant='secondary' className='text-[10px]'>
+              {layout?.draftChanges
+                ? c('Unpublished layout', 'Bố trí chưa xuất bản')
+                : (layout?.floor.status ?? '—')}
             </Badge>
-          )}
+            {!writable && (
+              <Badge variant='outline'>
+                <LockKeyhole className='mr-1 size-3' />
+                {c('Read only', 'Chỉ xem')}
+              </Badge>
+            )}
+          </div>
         </div>
-      </div>
-      {error && (
-        <div
-          role='alert'
-          className='flex items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-xs text-destructive'
-        >
-          <AlertTriangle className='mt-0.5 size-4 shrink-0' />
-          <span className='flex-1'>{error}</span>
-          <button
-            type='button'
-            aria-label={c('Dismiss error', 'Đóng lỗi')}
-            onClick={() => setError('')}
+        {error && (
+          <div
+            role='alert'
+            className='flex items-start gap-2 border-b border-destructive/20 bg-destructive/5 px-4 py-2 text-xs text-destructive'
           >
-            <X className='size-4' />
-          </button>
+            <AlertTriangle className='mt-0.5 size-4 shrink-0' />
+            <span className='flex-1'>{error}</span>
+            <button
+              type='button'
+              aria-label={c('Dismiss error', 'Đóng lỗi')}
+              onClick={() => setError('')}
+            >
+              <X className='size-4' />
+            </button>
+          </div>
+        )}
+        <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/15 px-4 py-2'>
+          <div className='flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground'>
+            <span className='flex items-center gap-1.5'>
+              <DoorOpen className='size-3.5 text-primary' />
+              {resources.filter((item) => item.category === 'ROOM').length} {c('rooms', 'phòng')}
+            </span>
+            <span className='flex items-center gap-1.5'>
+              <Armchair className='size-3.5 text-primary' />
+              {resources.filter((item) => item.category !== 'ROOM').length} {c('seats', 'ghế')}
+            </span>
+            <span>
+              {objects.length} {c('furnishings', 'đồ bố trí')}
+            </span>
+            <span className='hidden tabular-nums sm:inline'>
+              {layout?.geometryVersion === 2
+                ? `${geometryDisplay(String(layout.width ?? 0), true)} × ${geometryDisplay(String(layout.height ?? 0), true)} m`
+                : `${layout?.width ?? 1200} × ${layout?.height ?? 800} px`}
+            </span>
+          </div>
+          <Button
+            size='sm'
+            variant={infoOpen ? 'secondary' : 'ghost'}
+            className='h-7 rounded-lg text-xs'
+            aria-expanded={infoOpen}
+            onClick={() =>
+              act(() => {
+                clearSelection();
+                setSettings(false);
+                setInfoOpen((value) => !value);
+              })
+            }
+          >
+            <SlidersHorizontal className='size-3.5' />
+            {infoOpen
+              ? c('Hide information', 'Thu gọn thông tin')
+              : c('Floor details & shortcuts', 'Thông tin tầng & phím tắt')}
+          </Button>
         </div>
-      )}
-      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-muted/15 px-4 py-2'>
-        <div className='flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground'>
-          <span className='flex items-center gap-1.5'>
-            <DoorOpen className='size-3.5 text-primary' />
-            {resources.filter((item) => item.category === 'ROOM').length} {c('rooms', 'phòng')}
-          </span>
-          <span className='flex items-center gap-1.5'>
-            <Armchair className='size-3.5 text-primary' />
-            {resources.filter((item) => item.category !== 'ROOM').length} {c('seats', 'ghế')}
-          </span>
-          <span>
-            {objects.length} {c('furnishings', 'đồ bố trí')}
-          </span>
-          <span className='hidden tabular-nums sm:inline'>
-            {layout?.geometryVersion === 2
-              ? `${geometryDisplay(String(layout.width ?? 0), true)} × ${geometryDisplay(String(layout.height ?? 0), true)} m`
-              : `${layout?.width ?? 1200} × ${layout?.height ?? 800} px`}
-          </span>
-        </div>
-        <Button
-          size='sm'
-          variant={infoOpen ? 'secondary' : 'ghost'}
-          className='h-7 rounded-lg text-xs'
-          aria-expanded={infoOpen}
-          onClick={() => setInfoOpen((value) => !value)}
-        >
-          <SlidersHorizontal className='size-3.5' />
-          {infoOpen
-            ? c('Hide information', 'Thu gọn thông tin')
-            : c('Information & shortcuts', 'Thông tin & phím tắt')}
-        </Button>
       </div>
       <div
-        className={`grid min-h-0 flex-1 lg:grid-cols-[190px_minmax(0,1fr)] xl:grid-rows-[minmax(0,1fr)] ${aiOpen ? 'xl:grid-cols-[150px_minmax(0,1fr)_440px] 2xl:grid-cols-[170px_minmax(0,1fr)_500px]' : !aiProposal && (selection || settings || availabilityMode || infoOpen) ? 'xl:grid-cols-[210px_minmax(0,1fr)_260px] 2xl:grid-cols-[230px_minmax(0,1fr)_280px]' : 'xl:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)]'}`}
+        className={`grid min-h-0 flex-1 xl:grid-rows-[minmax(0,1fr)] ${canvasFullscreen ? (resourceEditor || (aiOpen && !aiCollapsed) || (!aiOpen && (selection || settings || infoOpen)) ? 'grid-cols-1 md:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_420px]' : 'grid-cols-1') : `lg:grid-cols-[190px_minmax(0,1fr)] ${resourceEditor ? 'xl:grid-cols-[190px_minmax(0,1fr)_340px] 2xl:grid-cols-[210px_minmax(0,1fr)_380px]' : aiOpen && !aiCollapsed ? 'xl:grid-cols-[150px_minmax(0,1fr)_440px] 2xl:grid-cols-[170px_minmax(0,1fr)_500px]' : !aiProposal && !aiOpen && (selection || settings || availabilityMode || infoOpen) ? 'xl:grid-cols-[210px_minmax(0,1fr)_260px] 2xl:grid-cols-[230px_minmax(0,1fr)_280px]' : 'xl:grid-cols-[210px_minmax(0,1fr)] 2xl:grid-cols-[230px_minmax(0,1fr)]'}`}`}
       >
-        <aside className='flex min-h-0 flex-col overflow-hidden border-b border-border bg-muted/10 lg:border-b-0 lg:border-r'>
+        <aside
+          inert={!!resourceEditor}
+          className={
+            canvasFullscreen
+              ? 'hidden'
+              : 'flex min-h-0 flex-col overflow-hidden border-b border-border bg-muted/10 lg:border-b-0 lg:border-r'
+          }
+        >
           <div className='shrink-0 space-y-3 border-b border-border/60 bg-gradient-to-b from-primary/5 to-transparent p-3'>
             <div className='flex items-center justify-between text-xs font-semibold'>
               <span>{c('Layers & objects', 'Lớp & đối tượng')}</span>
@@ -1188,6 +1265,69 @@ export function FloorCanvasWorkspace({
             <Maximize2 className='size-3.5 text-primary' />
           </button>
           <div className='shrink-0 space-y-2 border-t border-border bg-card p-3'>
+            <Button
+              variant={catalogOpen ? 'secondary' : 'outline'}
+              size='sm'
+              className='w-full text-xs'
+              onClick={() => setCatalogOpen((value) => !value)}
+              aria-expanded={catalogOpen}
+            >
+              <SlidersHorizontal className='size-3.5' />
+              {c('Resource types & prices', 'Loại chỗ & giá')}
+            </Button>
+            {catalogOpen && (
+              <div className='max-h-56 space-y-1 overflow-y-auto rounded-lg border p-1'>
+                {options.types.map((type) => (
+                  <div key={type.id} className='flex items-center gap-1'>
+                    <button
+                      type='button'
+                      disabled={!editable}
+                      className='min-w-0 flex-1 rounded-md p-2 text-left text-xs hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+                      onClick={() => act(() => setCatalogType(type))}
+                    >
+                      <span className='block font-medium'>{type.name}</span>
+                      <span className='text-muted-foreground'>
+                        {type.standardWidthM ?? '—'} × {type.standardLengthM ?? '—'} m ·{' '}
+                        {type.currency ?? '—'}
+                      </span>
+                    </button>
+                    <Button
+                      size='icon'
+                      variant='ghost'
+                      className='size-7 shrink-0'
+                      aria-label={c(`Add ${type.name}`, `Thêm ${type.name}`)}
+                      title={c('Place this type on the canvas', 'Đặt loại chỗ này lên sơ đồ')}
+                      disabled={
+                        !editable || !type.active || !type.currency || busy || loadingSelection
+                      }
+                      onClick={() =>
+                        act(() => {
+                          clearSelection();
+                          setResourceEditor({ typeId: type.id });
+                        })
+                      }
+                    >
+                      <Plus className='size-3.5' />
+                    </Button>
+                  </div>
+                ))}
+                {!options.types.length && (
+                  <p className='p-2 text-xs text-muted-foreground'>
+                    {c('No resource types yet.', 'Chưa có loại chỗ.')}
+                  </p>
+                )}
+                <Button
+                  variant='ghost'
+                  size='sm'
+                  className='w-full text-xs'
+                  disabled={!editable}
+                  onClick={() => act(() => onAdd('type', floorId))}
+                >
+                  <Plus className='size-3.5' />
+                  {c('New type', 'Tạo loại chỗ')}
+                </Button>
+              </div>
+            )}
             <p className='text-[10px] font-semibold uppercase tracking-wider text-muted-foreground'>
               {c('Add to floor', 'Thêm vào sơ đồ')}
             </p>
@@ -1220,7 +1360,12 @@ export function FloorCanvasWorkspace({
               size='sm'
               variant='outline'
               disabled={!editable || busy || loadingSelection}
-              onClick={() => act(() => onAdd('resource', floorId))}
+              onClick={() =>
+                act(() => {
+                  clearSelection();
+                  setResourceEditor({});
+                })
+              }
             >
               <Plus className='size-3.5' />
               {c('Seat / room', 'Ghế / phòng')}
@@ -1231,6 +1376,42 @@ export function FloorCanvasWorkspace({
           aria-label={c('Floor canvas', 'Canvas sơ đồ tầng')}
           className='relative flex min-h-[360px] min-w-0 flex-col overflow-hidden bg-muted/20 xl:min-h-0'
         >
+          {(canvasFullscreen || (aiOpen && aiCollapsed)) && (
+            <div className='flex shrink-0 items-center justify-between gap-2 border-b bg-card px-3 py-2 text-xs'>
+              <span className='font-medium'>{c('Floor canvas', 'Canvas sơ đồ tầng')}</span>
+              <div className='flex gap-2'>
+                {!resourceEditor && (
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    className='h-8 text-xs'
+                    onClick={() => {
+                      if (!aiOpen) {
+                        setAiOpen(true);
+                        setAiCollapsed(false);
+                      } else setAiCollapsed((value) => !value);
+                    }}
+                    aria-expanded={aiOpen && !aiCollapsed}
+                  >
+                    <Sparkles className='size-3.5' />
+                    {aiOpen && !aiCollapsed
+                      ? c('Minimize AI', 'Thu gọn AI')
+                      : c('Open AI', 'Mở AI')}
+                  </Button>
+                )}
+                {canvasFullscreen && (
+                  <Button
+                    size='sm'
+                    variant='ghost'
+                    className='h-8 text-xs'
+                    onClick={() => void toggleCanvasFullscreen()}
+                  >
+                    {c('Exit fullscreen', 'Thoát toàn màn hình')}
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
           {loadingSelection && !overviewDragging && (
             <div
               role='status'
@@ -1239,654 +1420,761 @@ export function FloorCanvasWorkspace({
               <LoaderCircle className='size-6 animate-spin text-primary' />
             </div>
           )}
-          {!floorId ? (
-            <div className='m-auto space-y-3 p-10 text-center'>
-              <Layers3 className='mx-auto size-10 text-primary/50' />
-              <h2 className='font-semibold'>{c('Start with a floor', 'Bắt đầu với một tầng')}</h2>
-              <Button disabled={!writable} onClick={() => onAdd('floor', 0)}>
-                <Plus className='size-4' />
-                {c('Link floor', 'Liên kết tầng')}
-              </Button>
-            </div>
-          ) : query.isPending ? (
-            <div className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
-              <LoaderCircle className='size-4 animate-spin' />
-              {c('Loading floor…', 'Đang tải sơ đồ…')}
-            </div>
-          ) : query.isError ? (
-            <div className='m-auto p-8 text-center'>
-              <p role='alert' className='mb-3 text-sm text-destructive'>
-                {query.error.message}
-              </p>
-              <Button variant='outline' onClick={() => void query.refetch()}>
-                {c('Retry', 'Thử lại')}
-              </Button>
-            </div>
-          ) : (
-            layout &&
-            (aiOpen && aiPrecisionEdit && aiLayout && aiShape && aiCanEditSelection ? (
-              <ResourcePlacementEditor
-                presentation='workspace'
-                actions={
-                  <Button variant='outline' size='sm' onClick={() => setAiPrecisionEdit(false)}>
-                    <ChevronLeft className='size-4' />
-                    {c('Back to direct dragging', 'Về kéo thả trực tiếp')}
-                  </Button>
-                }
-                workspaceId={workspaceId}
-                floorId={floorId}
-                resourceId={aiResource?.id}
-                parentRoomId={aiResource?.parentRoomId ?? undefined}
-                category={aiResource?.category}
-                decoration={aiObject}
-                draftLayout={aiLayout}
-                value={{
-                  posX: String(aiShape.x),
-                  posY: String(aiShape.y),
-                  width: String(aiShape.width),
-                  height: String(aiShape.height),
-                  rotation: String(aiShape.rotation)
-                }}
-                disabled={!writable || aiWorking}
-                onBegin={rememberAi}
-                onChange={changeAi}
-                onUndo={() => {
-                  const previous = aiUndo.at(-1);
-                  if (previous && aiProposal) {
-                    setAiRedo((items) => [...items, aiProposal]);
-                    setAiUndo((items) => items.slice(0, -1));
-                    setAiProposal(previous);
-                  }
-                }}
-                onRedo={() => {
-                  const next = aiRedo.at(-1);
-                  if (next && aiProposal) {
-                    setAiUndo((items) => [...items, aiProposal]);
-                    setAiRedo((items) => items.slice(0, -1));
-                    setAiProposal(next);
-                  }
-                }}
-                onReset={() => {
-                  if (aiUndo[0]) {
-                    setAiProposal(aiUndo[0]);
-                    setAiUndo([]);
-                    setAiRedo([]);
-                  }
-                }}
-                canUndo={aiUndo.length > 0}
-                canRedo={aiRedo.length > 0}
-                onSelect={(key) =>
-                  setFocus((previous) => ({ key, sequence: previous.sequence + 1 }))
-                }
-              />
-            ) : availabilityMode ? (
-              <FloorAvailabilityPanel
-                calendar={calendar}
-                layout={layout}
-                focus={calendarFocus}
-                onFocus={focusCalendar}
-              />
+          <div
+            ref={setEditorCanvas}
+            className={resourceEditor ? 'flex min-h-[480px] min-w-0 flex-1 flex-col' : 'hidden'}
+          />
+          <div className={resourceEditor ? 'hidden' : 'flex min-h-0 flex-1 flex-col'}>
+            {!floorId ? (
+              <div className='m-auto space-y-3 p-10 text-center'>
+                <Layers3 className='mx-auto size-10 text-primary/50' />
+                <h2 className='font-semibold'>{c('Start with a floor', 'Bắt đầu với một tầng')}</h2>
+                <Button disabled={!writable} onClick={() => onAdd('floor', 0)}>
+                  <Plus className='size-4' />
+                  {c('Link floor', 'Liên kết tầng')}
+                </Button>
+              </div>
+            ) : query.isPending ? (
+              <div className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
+                <LoaderCircle className='size-4 animate-spin' />
+                {c('Loading floor…', 'Đang tải sơ đồ…')}
+              </div>
+            ) : query.isError ? (
+              <div className='m-auto p-8 text-center'>
+                <p role='alert' className='mb-3 text-sm text-destructive'>
+                  {query.error.message}
+                </p>
+                <Button variant='outline' onClick={() => void query.refetch()}>
+                  {c('Retry', 'Thử lại')}
+                </Button>
+              </div>
             ) : (
-              <FloorLayoutPreview
-                presentation='workspace'
-                actions={
-                  aiOpen && aiProposal ? (
-                    <>
-                      <span className='text-xs text-muted-foreground'>
-                        {c(
-                          'Drag any object directly. Changes remain in this proposal until Apply.',
-                          'Kéo trực tiếp đồ vật bất kỳ. Chỉ lưu khi nhấn Áp dụng.'
-                        )}
-                      </span>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        disabled={aiWorking || !aiUndo.length}
-                        onClick={() => {
-                          const previous = aiUndo.at(-1);
-                          if (previous) {
-                            setAiRedo((items) => [...items, aiProposal]);
-                            setAiUndo((items) => items.slice(0, -1));
-                            setAiProposal(previous);
-                          }
-                        }}
-                      >
-                        {c('Undo', 'Hoàn tác')}
-                      </Button>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        disabled={aiWorking || !aiRedo.length}
-                        onClick={() => {
-                          const next = aiRedo.at(-1);
-                          if (next) {
-                            setAiUndo((items) => [...items, aiProposal]);
-                            setAiRedo((items) => items.slice(0, -1));
-                            setAiProposal(next);
-                          }
-                        }}
-                      >
-                        {c('Redo', 'Làm lại')}
-                      </Button>
-                      {aiShape && aiCanEditSelection && (
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={aiWorking}
-                          onClick={() => setAiPrecisionEdit(true)}
-                        >
-                          {c('Resize / rotate', 'Đổi kích thước / xoay')}
-                        </Button>
-                      )}
-                    </>
-                  ) : editable && selection ? (
-                    <>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        disabled={busy || overviewDragging || !undo.length}
-                        onClick={() => history('undo')}
-                      >
-                        {c('Undo', 'Hoàn tác')}
-                      </Button>
-                      <Button
-                        size='sm'
-                        variant='outline'
-                        disabled={busy || overviewDragging || !redo.length}
-                        onClick={() => history('redo')}
-                      >
-                        {c('Redo', 'Làm lại')}
-                      </Button>
-                      {selection.object && (
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || overviewDragging}
-                          onClick={copyObject}
-                        >
-                          <Copy className='size-4' />
-                          {c('Copy', 'Sao chép')}
-                        </Button>
-                      )}
-                      {objectClipboard && (
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          disabled={busy || overviewDragging}
-                          onClick={() => addObject(objectClipboard.kind, objectClipboard)}
-                        >
-                          {c('Paste', 'Dán')}
-                        </Button>
-                      )}
-                      <span className='text-xs text-muted-foreground'>
-                        {c(
-                          'Edits to all objects remain in this draft until you save.',
-                          'Thay đổi của các đồ vật được giữ chung đến khi bạn lưu tất cả.'
-                        )}
-                      </span>
-                    </>
-                  ) : undefined
-                }
-                onObjectDrag={
-                  aiProposal && !availabilityMode && !aiWorking && writable
-                    ? dragAiPreview
-                    : editable && !busy && (!loadingSelection || overviewDragging)
-                      ? (key, fields, phase) => {
-                          void dragOverview(key, fields, phase);
-                        }
-                      : undefined
-                }
-                previewChanges={aiProposal ? aiPreviewChanges(layout, aiProposal) : undefined}
-                collisionKeys={aiGeometry?.collisionKeys ?? validation.result?.collisionKeys}
-                layout={aiLayout ?? layout}
-                width={layout.width ?? 1200}
-                height={layout.height ?? 800}
-                focus={{ ...focus, key: focus.key ?? selection?.key ?? null }}
-                onFocus={(key) => {
-                  if (key && aiProposal)
-                    setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
-                  else if (key) select(key);
-                  else setFocus((previous) => ({ key: null, sequence: previous.sequence + 1 }));
-                }}
-              />
-            ))
-          )}
-        </section>
-        {(aiOpen || selection || settings || availabilityMode || infoOpen || aiProposal) && (
-          <aside
-            hidden={!aiOpen && !!aiProposal}
-            className={
-              aiOpen || !aiProposal
-                ? 'flex min-h-0 flex-col border-t border-border bg-card p-4 lg:col-span-2 xl:col-span-1 xl:border-l xl:border-t-0'
-                : 'hidden'
-            }
-          >
-            {(aiOpen || aiProposal) && layout ? (
-              <FloorAiAssistant
-                key={actorId + ':' + workspaceId + ':' + floorId}
-                previewIssues={aiGeometryIssues}
-                actorId={actorId}
-                workspaceId={workspaceId}
-                resourceTypes={options.types}
-                layout={layout}
-                selectedKey={selection?.key ?? focus.key}
-                writable={writable && layout.editableLayout}
-                blocked={busy || dirtyManual}
-                proposal={aiProposal}
-                onProposal={(value) => {
-                  setAiProposal(value);
-                  setAiPrecisionEdit(false);
-                  setAiUndo([]);
-                  setAiRedo([]);
-                }}
-                onBusy={setAiWorking}
-                onFocus={(key) =>
-                  setFocus((previous) => ({ key, sequence: previous.sequence + 1 }))
-                }
-                onClose={() => setAiOpen(false)}
-                onSaved={async () => {
-                  setSelection(null);
-                  await onSaved();
-                  await query.refetch();
-                }}
-                onApplied={() => {
-                  setAiProposal(null);
-                  setAiOpen(false);
-                  setAiUndo([]);
-                  setAiRedo([]);
-                  setFocus((previous) => ({ key: null, sequence: previous.sequence + 1 }));
-                }}
-                onPlace={(object) => {
-                  setAiProposal(null);
-                  setAiOpen(false);
-                  setPendingObjects((items) => [...items, object]);
-                  const fields = canvasPosition(object);
-                  setSelection({ key: `decoration:${object.id}`, object, initial: fields, fields });
-                  setUndo([]);
-                  setRedo([]);
-                }}
-              />
-            ) : (
-              <>
-                <div className='mb-4 flex items-center justify-between'>
-                  <h2 className='text-xs font-semibold'>
-                    {availabilityMode
-                      ? c('Availability & calendar', 'Trạng thái & lịch đặt')
-                      : settings
-                        ? c('Canvas settings', 'Thiết lập canvas')
-                        : selection
-                          ? c('Object properties', 'Thuộc tính đối tượng')
-                          : c('Floor inspector', 'Thông tin sơ đồ')}
-                  </h2>
-                  {selection && (
-                    <Button
-                      size='icon'
-                      variant='ghost'
-                      className='size-7'
-                      aria-label={c('Deselect', 'Bỏ chọn')}
-                      disabled={busy}
-                      onClick={() => {
-                        if (selection) stage(selection.key, selection.fields, selection.object);
-                        clearSelection();
-                      }}
-                    >
-                      <X className='size-3.5' />
+              layout &&
+              (aiOpen && aiPrecisionEdit && aiLayout && aiShape && aiCanEditSelection ? (
+                <ResourcePlacementEditor
+                  onToggleFullscreen={() => void toggleCanvasFullscreen()}
+                  fullscreenActive={canvasFullscreen}
+                  presentation='workspace'
+                  actions={
+                    <Button variant='outline' size='sm' onClick={() => setAiPrecisionEdit(false)}>
+                      <ChevronLeft className='size-4' />
+                      {c('Back to direct dragging', 'Về kéo thả trực tiếp')}
                     </Button>
-                  )}
-                </div>
-                <div className='min-h-0 flex-1 space-y-5 overflow-y-auto pr-1'>
-                  {availabilityMode && layout ? (
-                    <FloorAvailabilityInspector
-                      calendar={calendar}
-                      layout={layout}
-                      focus={calendarFocus}
-                      workspaceStatus={options.workspaceStatus}
-                    />
-                  ) : selection ? (
-                    <>
-                      <div className='rounded-xl border border-primary/15 bg-primary/5 p-3'>
-                        <p className='text-sm font-semibold'>{name}</p>
-                        <p className='mt-1 text-[11px] text-muted-foreground'>
-                          {selection.resource?.code ??
-                            c('Layout only · not bookable', 'Chỉ bố trí · không đặt chỗ')}
-                        </p>
-                      </div>
-                      {selection.object && (
-                        <>
-                          <label className='block space-y-1.5 text-[11px] font-medium'>
-                            {c('Name', 'Tên đồ vật')}
-                            <Input
-                              maxLength={100}
-                              value={selection.object.label}
-                              disabled={!editable || busy || loadingSelection}
-                              onChange={(event) =>
-                                setSelection((previous) =>
-                                  previous?.object
-                                    ? {
-                                        ...previous,
-                                        object: { ...previous.object, label: event.target.value }
-                                      }
-                                    : previous
-                                )
-                              }
-                              className='h-9 text-xs'
-                            />
-                          </label>
-                          <label className='flex items-center justify-between text-[11px] font-medium'>
-                            {c('Display color', 'Màu hiển thị')}
-                            <input
-                              type='color'
-                              aria-label={c('Display color', 'Màu hiển thị')}
-                              value={selection.object.color}
-                              disabled={!editable || busy || loadingSelection}
-                              onChange={(event) =>
-                                setSelection((previous) =>
-                                  previous?.object
-                                    ? {
-                                        ...previous,
-                                        object: { ...previous.object, color: event.target.value }
-                                      }
-                                    : previous
-                                )
-                              }
-                              className='h-8 w-12 cursor-pointer rounded-lg border border-input bg-background p-1'
-                            />
-                          </label>
-                        </>
-                      )}
-                      <details className='rounded-xl border border-border p-3'>
-                        <summary className='cursor-pointer text-xs font-medium'>
-                          {c('Advanced position & dimensions', 'Vị trí & kích thước nâng cao')}
-                        </summary>
-                        <div className='mt-3 grid grid-cols-2 gap-3'>
-                          {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map((key) => (
-                            <label
-                              key={key}
-                              className={`space-y-1.5 text-[11px] text-muted-foreground ${key === 'rotation' ? 'col-span-2' : ''}`}
-                            >
-                              <span>
-                                {key === 'posX'
-                                  ? (layout?.geometryVersion === 2 ? 'X (m)' : 'X (px)')
-                                  : key === 'posY'
-                                    ? (layout?.geometryVersion === 2 ? 'Y (m)' : 'Y (px)')
-                                    : key === 'width'
-                                      ? (layout?.geometryVersion === 2 ? c('Width (m)', 'Dài — ngang (m)') : c('Width (px)', 'Dài — ngang (px)'))
-                                      : key === 'height'
-                                        ? (layout?.geometryVersion === 2 ? c('Length (m)', 'Rộng — dọc (m)') : c('Height (px)', 'Rộng — dọc (px)'))
-                                        : c('Rotation (°)', 'Góc xoay (°)')}
-                              </span>
-                              <Input
-                                type='number'
-                                step='0.01'
-                                min='0'
-                                max={key === 'rotation' ? 359.99 : undefined}
-                                className='h-9 text-xs tabular-nums'
-                                value={geometryDisplay(selection.fields[key], layout?.geometryVersion === 2, key === 'rotation')}
-                                disabled={!editable || busy || loadingSelection}
-                                readOnly={
-                                  selectedSizeLocked && (key === 'width' || key === 'height')
-                                }
-                                onChange={(event) =>
-                                  change({ ...selection.fields, [key]: geometryInput(event.target.value, layout?.geometryVersion === 2, key === 'rotation') })
-                                }
-                              />
-                            </label>
-                          ))}
-                        </div>
-                        {selectedSizeLocked && (
-                          <p className='mt-2 text-xs text-muted-foreground'>
-                            {c(
-                              'Size follows the resource type. Open resource details to change the type.',
-                              'Kích thước theo loại chỗ. Mở thông tin ghế/phòng để chọn loại khác.'
-                            )}
-                          </p>
-                        )}
-                      </details>
-                      {selection.resource?.category === 'ROOM' && (
-                        <p className='rounded-lg bg-muted p-2.5 text-[11px] leading-relaxed text-muted-foreground'>
+                  }
+                  workspaceId={workspaceId}
+                  floorId={floorId}
+                  resourceId={aiResource?.id}
+                  parentRoomId={aiResource?.parentRoomId ?? undefined}
+                  category={aiResource?.category}
+                  decoration={aiObject}
+                  draftLayout={aiLayout}
+                  value={{
+                    posX: String(aiShape.x),
+                    posY: String(aiShape.y),
+                    width: String(aiShape.width),
+                    height: String(aiShape.height),
+                    rotation: String(aiShape.rotation)
+                  }}
+                  disabled={!writable || aiWorking}
+                  onBegin={rememberAi}
+                  onChange={changeAi}
+                  onUndo={() => {
+                    const previous = aiUndo.at(-1);
+                    if (previous && aiProposal) {
+                      setAiRedo((items) => [...items, aiProposal]);
+                      setAiUndo((items) => items.slice(0, -1));
+                      setAiProposal(previous);
+                    }
+                  }}
+                  onRedo={() => {
+                    const next = aiRedo.at(-1);
+                    if (next && aiProposal) {
+                      setAiUndo((items) => [...items, aiProposal]);
+                      setAiRedo((items) => items.slice(0, -1));
+                      setAiProposal(next);
+                    }
+                  }}
+                  onReset={() => {
+                    if (aiUndo[0]) {
+                      setAiProposal(aiUndo[0]);
+                      setAiUndo([]);
+                      setAiRedo([]);
+                    }
+                  }}
+                  canUndo={aiUndo.length > 0}
+                  canRedo={aiRedo.length > 0}
+                  onSelect={(key) =>
+                    setFocus((previous) => ({ key, sequence: previous.sequence + 1 }))
+                  }
+                />
+              ) : availabilityMode ? (
+                <FloorAvailabilityPanel
+                  calendar={calendar}
+                  layout={layout}
+                  focus={calendarFocus}
+                  onFocus={focusCalendar}
+                />
+              ) : (
+                <FloorLayoutPreview
+                  onToggleFullscreen={() => void toggleCanvasFullscreen()}
+                  fullscreenActive={canvasFullscreen}
+                  presentation='workspace'
+                  actions={
+                    aiOpen && aiProposal ? (
+                      <>
+                        <span className='text-xs text-muted-foreground'>
                           {c(
-                            'Moving this room carries its assigned seats and fully contained furniture. Prices and availability do not change.',
-                            'Di chuyển phòng kéo theo ghế thuộc phòng và đồ bố trí nằm trọn bên trong. Không đổi giá hay trạng thái nhận đặt.'
+                            'Drag any object directly. Changes remain in this proposal until Apply.',
+                            'Kéo trực tiếp đồ vật bất kỳ. Chỉ lưu khi nhấn Áp dụng.'
                           )}
-                        </p>
-                      )}
-                      {validation.result && !validation.result.valid && (
-                        <p
-                          role='alert'
-                          className='rounded-lg border border-destructive/20 bg-destructive/5 p-2.5 text-xs text-destructive'
-                        >
-                          {validation.result.collisions.size
-                            ? `${c('Overlapping objects', 'Đối tượng chồng lấn')}: ${[...validation.result.collisions].join(', ')}`
-                            : c(
-                                'Objects must fit inside the floor and their room.',
-                                'Đối tượng phải nằm trọn trong tầng/phòng.'
-                              )}
-                        </p>
-                      )}
-                      {!!validation.result?.collisionKeys.size && (
+                        </span>
                         <Button
                           size='sm'
                           variant='outline'
+                          disabled={aiWorking || !aiUndo.length}
                           onClick={() => {
-                            const key =
-                              [...validation.result!.collisionKeys].find(
-                                (item) => item !== selection.key
-                              ) ?? selection.key;
-                            setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
+                            const previous = aiUndo.at(-1);
+                            if (previous) {
+                              setAiRedo((items) => [...items, aiProposal]);
+                              setAiUndo((items) => items.slice(0, -1));
+                              setAiProposal(previous);
+                            }
                           }}
                         >
-                          {c('Show collision', 'Xem vị trí chồng lấn')}
+                          {c('Undo', 'Hoàn tác')}
                         </Button>
-                      )}
-                      {selection.resource && (
                         <Button
+                          size='sm'
                           variant='outline'
-                          className='w-full text-xs'
-                          size='sm'
-                          disabled={busy || !editable}
-                          onClick={() =>
-                            act(() => {
-                              const resource = selection.resource!;
-                              clearSelection();
-                              onEditResource(resource);
-                            })
-                          }
-                        >
-                          <SlidersHorizontal className='size-3.5' />
-                          {c('Business properties', 'Thông tin ghế/phòng')}
-                        </Button>
-                      )}
-                      {selection.resource && editable && (
-                        <Button
-                          variant='ghost'
-                          size='sm'
-                          className='w-full text-destructive'
-                          disabled={busy || dirty}
+                          disabled={aiWorking || !aiRedo.length}
                           onClick={() => {
-                            setDeleteError('');
-                            setRemove(true);
+                            const next = aiRedo.at(-1);
+                            if (next) {
+                              setAiUndo((items) => [...items, aiProposal]);
+                              setAiRedo((items) => items.slice(0, -1));
+                              setAiProposal(next);
+                            }
                           }}
                         >
-                          <Trash2 className='size-3.5' />
-                          {c('Delete seat or room', 'Xóa ghế/phòng')}
+                          {c('Redo', 'Làm lại')}
                         </Button>
-                      )}
-                      {selection.object && (
-                        <div className='flex gap-2'>
+                        {aiShape && aiCanEditSelection && (
                           <Button
                             size='sm'
                             variant='outline'
-                            className='flex-1 text-xs'
+                            disabled={aiWorking}
+                            onClick={() => setAiPrecisionEdit(true)}
+                          >
+                            {c('Resize / rotate', 'Đổi kích thước / xoay')}
+                          </Button>
+                        )}
+                      </>
+                    ) : editable && selection ? (
+                      <>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={busy || overviewDragging || !undo.length}
+                          onClick={() => history('undo')}
+                        >
+                          {c('Undo', 'Hoàn tác')}
+                        </Button>
+                        <Button
+                          size='sm'
+                          variant='outline'
+                          disabled={busy || overviewDragging || !redo.length}
+                          onClick={() => history('redo')}
+                        >
+                          {c('Redo', 'Làm lại')}
+                        </Button>
+                        {selection.object && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={busy || overviewDragging}
+                            onClick={copyObject}
+                          >
+                            <Copy className='size-4' />
+                            {c('Copy', 'Sao chép')}
+                          </Button>
+                        )}
+                        {objectClipboard && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            disabled={busy || overviewDragging}
+                            onClick={() => addObject(objectClipboard.kind, objectClipboard)}
+                          >
+                            {c('Paste', 'Dán')}
+                          </Button>
+                        )}
+                        <span className='text-xs text-muted-foreground'>
+                          {c(
+                            'Edits to all objects remain in this draft until you save.',
+                            'Thay đổi của các đồ vật được giữ chung đến khi bạn lưu tất cả.'
+                          )}
+                        </span>
+                      </>
+                    ) : undefined
+                  }
+                  onObjectDrag={
+                    aiProposal && !availabilityMode && !aiWorking && writable
+                      ? dragAiPreview
+                      : editable && !busy && (!loadingSelection || overviewDragging)
+                        ? (key, fields, phase) => {
+                            void dragOverview(key, fields, phase);
+                          }
+                        : undefined
+                  }
+                  previewChanges={aiProposal ? aiPreviewChanges(layout, aiProposal) : undefined}
+                  collisionKeys={aiGeometry?.collisionKeys ?? validation.result?.collisionKeys}
+                  layout={aiLayout ?? layout}
+                  width={layout.width ?? 1200}
+                  height={layout.height ?? 800}
+                  focus={{ ...focus, key: focus.key ?? selection?.key ?? null }}
+                  onFocus={(key) => {
+                    if (key && aiProposal)
+                      setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
+                    else if (key) select(key);
+                    else setFocus((previous) => ({ key: null, sequence: previous.sequence + 1 }));
+                  }}
+                />
+              ))
+            )}
+          </div>
+        </section>
+        {resourceEditor && (
+          <aside
+            className={`flex min-h-0 flex-col border-t bg-card xl:border-l xl:border-t-0 ${canvasFullscreen ? 'md:border-l md:border-t-0' : 'lg:col-span-2 xl:col-span-1'}`}
+          >
+            <ResourceEditor
+              workspaceId={workspaceId}
+              options={{
+                ...options,
+                floors: options.floors.filter((floor) => floor.id === floorId)
+              }}
+              current={resourceEditor.resource}
+              studio={{
+                onToggleFullscreen: () => void toggleCanvasFullscreen(),
+                fullscreenActive: canvasFullscreen,
+                canvasTarget: editorCanvas,
+                initialTypeId: resourceEditor.typeId,
+                existingCodes: layout?.resources.map((item) => item.code)
+              }}
+              onSaved={async () => {
+                await onSaved();
+                await query.refetch();
+              }}
+              onClose={() => setResourceEditor(null)}
+            />
+          </aside>
+        )}
+        {!resourceEditor &&
+          (aiOpen || selection || settings || availabilityMode || infoOpen || aiProposal) && (
+            <aside
+              hidden={!aiOpen && !!aiProposal}
+              className={
+                aiOpen && aiCollapsed
+                  ? 'hidden'
+                  : aiOpen || !aiProposal
+                    ? `flex min-h-0 flex-col border-t border-border bg-card p-4 xl:border-l xl:border-t-0 ${canvasFullscreen ? 'md:border-l md:border-t-0' : 'lg:col-span-2 xl:col-span-1'}`
+                    : 'hidden'
+              }
+            >
+              {(aiOpen || aiProposal) && layout ? (
+                <FloorAiAssistant
+                  key={actorId + ':' + workspaceId + ':' + floorId}
+                  previewIssues={aiGeometryIssues}
+                  actorId={actorId}
+                  workspaceId={workspaceId}
+                  resourceTypes={options.types}
+                  layout={layout}
+                  selectedKey={selection?.key ?? focus.key}
+                  writable={writable && layout.editableLayout}
+                  blocked={busy || dirtyManual}
+                  proposal={aiProposal}
+                  onProposal={(value) => {
+                    setAiProposal(value);
+                    setAiPrecisionEdit(false);
+                    setAiUndo([]);
+                    setAiRedo([]);
+                  }}
+                  onBusy={setAiWorking}
+                  onFocus={(key) =>
+                    setFocus((previous) => ({ key, sequence: previous.sequence + 1 }))
+                  }
+                  onClose={() => setAiOpen(false)}
+                  onMinimize={() => setAiCollapsed(true)}
+                  onSaved={async () => {
+                    setSelection(null);
+                    await onSaved();
+                    await query.refetch();
+                  }}
+                  onApplied={() => {
+                    setAiProposal(null);
+                    setAiOpen(false);
+                    setAiUndo([]);
+                    setAiRedo([]);
+                    setFocus((previous) => ({ key: null, sequence: previous.sequence + 1 }));
+                  }}
+                  onPlace={(object) => {
+                    setAiProposal(null);
+                    setAiOpen(false);
+                    setPendingObjects((items) => [...items, object]);
+                    const fields = canvasPosition(object);
+                    setSelection({
+                      key: `decoration:${object.id}`,
+                      object,
+                      initial: fields,
+                      fields
+                    });
+                    setUndo([]);
+                    setRedo([]);
+                  }}
+                />
+              ) : (
+                <>
+                  <div className='mb-4 flex items-center justify-between'>
+                    <h2 className='text-xs font-semibold'>
+                      {availabilityMode
+                        ? c('Availability & calendar', 'Trạng thái & lịch đặt')
+                        : settings
+                          ? c('Canvas settings', 'Thiết lập canvas')
+                          : selection
+                            ? c('Object properties', 'Thuộc tính đối tượng')
+                            : c('Floor inspector', 'Thông tin sơ đồ')}
+                    </h2>
+                    {selection && (
+                      <Button
+                        size='icon'
+                        variant='ghost'
+                        className='size-7'
+                        aria-label={c('Deselect', 'Bỏ chọn')}
+                        disabled={busy}
+                        onClick={() => {
+                          if (selection) stage(selection.key, selection.fields, selection.object);
+                          clearSelection();
+                        }}
+                      >
+                        <X className='size-3.5' />
+                      </Button>
+                    )}
+                  </div>
+                  <div className='min-h-0 flex-1 space-y-5 overflow-y-auto pr-1'>
+                    {availabilityMode && layout ? (
+                      <FloorAvailabilityInspector
+                        calendar={calendar}
+                        layout={layout}
+                        focus={calendarFocus}
+                        workspaceStatus={options.workspaceStatus}
+                      />
+                    ) : selection ? (
+                      <>
+                        <div className='rounded-xl border border-primary/15 bg-primary/5 p-3'>
+                          <p className='text-sm font-semibold'>{name}</p>
+                          <p className='mt-1 text-[11px] text-muted-foreground'>
+                            {selection.resource?.code ??
+                              c('Layout only · not bookable', 'Chỉ bố trí · không đặt chỗ')}
+                          </p>
+                        </div>
+                        {selection.object && (
+                          <>
+                            <label className='block space-y-1.5 text-[11px] font-medium'>
+                              {c('Name', 'Tên đồ vật')}
+                              <Input
+                                maxLength={100}
+                                value={selection.object.label}
+                                disabled={!editable || busy || loadingSelection}
+                                onChange={(event) =>
+                                  setSelection((previous) =>
+                                    previous?.object
+                                      ? {
+                                          ...previous,
+                                          object: { ...previous.object, label: event.target.value }
+                                        }
+                                      : previous
+                                  )
+                                }
+                                className='h-9 text-xs'
+                              />
+                            </label>
+                            <label className='flex items-center justify-between text-[11px] font-medium'>
+                              {c('Display color', 'Màu hiển thị')}
+                              <input
+                                type='color'
+                                aria-label={c('Display color', 'Màu hiển thị')}
+                                value={selection.object.color}
+                                disabled={!editable || busy || loadingSelection}
+                                onChange={(event) =>
+                                  setSelection((previous) =>
+                                    previous?.object
+                                      ? {
+                                          ...previous,
+                                          object: { ...previous.object, color: event.target.value }
+                                        }
+                                      : previous
+                                  )
+                                }
+                                className='h-8 w-12 cursor-pointer rounded-lg border border-input bg-background p-1'
+                              />
+                            </label>
+                          </>
+                        )}
+                        <details className='rounded-xl border border-border p-3'>
+                          <summary className='cursor-pointer text-xs font-medium'>
+                            {c('Advanced position & dimensions', 'Vị trí & kích thước nâng cao')}
+                          </summary>
+                          <div className='mt-3 grid grid-cols-2 gap-3'>
+                            {(['posX', 'posY', 'width', 'height', 'rotation'] as const).map(
+                              (key) => (
+                                <label
+                                  key={key}
+                                  className={`space-y-1.5 text-[11px] text-muted-foreground ${key === 'rotation' ? 'col-span-2' : ''}`}
+                                >
+                                  <span>
+                                    {key === 'posX'
+                                      ? layout?.geometryVersion === 2
+                                        ? 'X (m)'
+                                        : 'X (px)'
+                                      : key === 'posY'
+                                        ? layout?.geometryVersion === 2
+                                          ? 'Y (m)'
+                                          : 'Y (px)'
+                                        : key === 'width'
+                                          ? layout?.geometryVersion === 2
+                                            ? c('Width (m)', 'Dài — ngang (m)')
+                                            : c('Width (px)', 'Dài — ngang (px)')
+                                          : key === 'height'
+                                            ? layout?.geometryVersion === 2
+                                              ? c('Length (m)', 'Rộng — dọc (m)')
+                                              : c('Height (px)', 'Rộng — dọc (px)')
+                                            : c('Rotation (°)', 'Góc xoay (°)')}
+                                  </span>
+                                  <Input
+                                    type='number'
+                                    step='0.01'
+                                    min='0'
+                                    max={key === 'rotation' ? 359.99 : undefined}
+                                    className='h-9 text-xs tabular-nums'
+                                    value={geometryDisplay(
+                                      selection.fields[key],
+                                      layout?.geometryVersion === 2,
+                                      key === 'rotation'
+                                    )}
+                                    disabled={!editable || busy || loadingSelection}
+                                    readOnly={
+                                      selectedSizeLocked && (key === 'width' || key === 'height')
+                                    }
+                                    onChange={(event) =>
+                                      change({
+                                        ...selection.fields,
+                                        [key]: geometryInput(
+                                          event.target.value,
+                                          layout?.geometryVersion === 2,
+                                          key === 'rotation'
+                                        )
+                                      })
+                                    }
+                                  />
+                                </label>
+                              )
+                            )}
+                          </div>
+                          {selectedSizeLocked && (
+                            <p className='mt-2 text-xs text-muted-foreground'>
+                              {c(
+                                'Size follows the resource type. Open resource details to change the type.',
+                                'Kích thước theo loại chỗ. Mở thông tin ghế/phòng để chọn loại khác.'
+                              )}
+                            </p>
+                          )}
+                        </details>
+                        {selection.resource?.category === 'ROOM' && (
+                          <p className='rounded-lg bg-muted p-2.5 text-[11px] leading-relaxed text-muted-foreground'>
+                            {c(
+                              'Moving this room carries its assigned seats and fully contained furniture. Prices and availability do not change.',
+                              'Di chuyển phòng kéo theo ghế thuộc phòng và đồ bố trí nằm trọn bên trong. Không đổi giá hay trạng thái nhận đặt.'
+                            )}
+                          </p>
+                        )}
+                        {validation.result && !validation.result.valid && (
+                          <p
+                            role='alert'
+                            className='rounded-lg border border-destructive/20 bg-destructive/5 p-2.5 text-xs text-destructive'
+                          >
+                            {validation.result.collisions.size
+                              ? `${c('Overlapping objects', 'Đối tượng chồng lấn')}: ${[...validation.result.collisions].join(', ')}`
+                              : c(
+                                  'Objects must fit inside the floor and their room.',
+                                  'Đối tượng phải nằm trọn trong tầng/phòng.'
+                                )}
+                          </p>
+                        )}
+                        {!!validation.result?.collisionKeys.size && (
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={() => {
+                              const key =
+                                [...validation.result!.collisionKeys].find(
+                                  (item) => item !== selection.key
+                                ) ?? selection.key;
+                              setFocus((previous) => ({ key, sequence: previous.sequence + 1 }));
+                            }}
+                          >
+                            {c('Show collision', 'Xem vị trí chồng lấn')}
+                          </Button>
+                        )}
+                        {selection.resource && (
+                          <Button
+                            variant='outline'
+                            className='w-full text-xs'
+                            size='sm'
                             disabled={busy || !editable}
                             onClick={() =>
-                              addObject(selection.object!.kind, {
-                                ...selection.object!,
-                                posX: Number(selection.fields.posX),
-                                posY: Number(selection.fields.posY),
-                                width: Number(selection.fields.width),
-                                height: Number(selection.fields.height),
-                                rotation: Number(selection.fields.rotation)
+                              act(() => {
+                                const resource = selection.resource!;
+                                clearSelection();
+                                setResourceEditor({ resource });
                               })
                             }
                           >
-                            <Copy className='size-3.5' />
-                            {c('Duplicate', 'Nhân bản')}
+                            <SlidersHorizontal className='size-3.5' />
+                            {c('Business properties', 'Thông tin ghế/phòng')}
                           </Button>
+                        )}
+                        {selection.resource && editable && (
                           <Button
-                            size='icon'
-                            variant='outline'
-                            className='size-8 text-destructive'
-                            aria-label={c('Remove decoration', 'Xóa đồ bố trí')}
-                            disabled={busy || !editable}
-                            onClick={() => setRemove(true)}
+                            variant='ghost'
+                            size='sm'
+                            className='w-full text-destructive'
+                            disabled={busy || dirty}
+                            onClick={() => {
+                              setDeleteError('');
+                              setRemove(true);
+                            }}
                           >
                             <Trash2 className='size-3.5' />
+                            {c('Delete seat or room', 'Xóa ghế/phòng')}
                           </Button>
-                        </div>
-                      )}
-                    </>
-                  ) : settings ? (
-                    <>
-                      <p className='text-xs leading-relaxed text-muted-foreground'>
-                        {c(
-                          'Canvas dimensions are in pixels. Resizing never scales your objects. All objects must stay inside.',
-                          'Kích thước theo pixel. Đổi kích thước không tự co giãn đồ vật. Mọi đối tượng phải nằm trong canvas.'
                         )}
-                      </p>
-                      {(['width', 'height'] as const).map((key) => (
-                        <label key={key} className='block space-y-2 text-xs'>
-                          {key === 'width'
-                            ? c('Width (px)', 'Dài — ngang (px)')
-                            : c('Height (px)', 'Rộng — dọc (px)')}
-                          <Input
-                            inputMode='decimal'
-                            value={key === 'width' ? width : height}
-                            disabled={busy || !editable || !!layout?.floor.location}
-                            onChange={(event) =>
-                              setDimensions({ width, height, [key]: event.target.value })
-                            }
-                          />
-                        </label>
-                      ))}
+                        {selection.object && (
+                          <div className='flex gap-2'>
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              className='flex-1 text-xs'
+                              disabled={busy || !editable}
+                              onClick={() =>
+                                addObject(selection.object!.kind, {
+                                  ...selection.object!,
+                                  posX: Number(selection.fields.posX),
+                                  posY: Number(selection.fields.posY),
+                                  width: Number(selection.fields.width),
+                                  height: Number(selection.fields.height),
+                                  rotation: Number(selection.fields.rotation)
+                                })
+                              }
+                            >
+                              <Copy className='size-3.5' />
+                              {c('Duplicate', 'Nhân bản')}
+                            </Button>
+                            <Button
+                              size='icon'
+                              variant='outline'
+                              className='size-8 text-destructive'
+                              aria-label={c('Remove decoration', 'Xóa đồ bố trí')}
+                              disabled={busy || !editable}
+                              onClick={() => setRemove(true)}
+                            >
+                              <Trash2 className='size-3.5' />
+                            </Button>
+                          </div>
+                        )}
+                      </>
+                    ) : settings ? (
+                      <>
+                        <p className='text-xs leading-relaxed text-muted-foreground'>
+                          {c(
+                            'Canvas dimensions are in pixels. Resizing never scales your objects. All objects must stay inside.',
+                            'Kích thước theo pixel. Đổi kích thước không tự co giãn đồ vật. Mọi đối tượng phải nằm trong canvas.'
+                          )}
+                        </p>
+                        {(['width', 'height'] as const).map((key) => (
+                          <label key={key} className='block space-y-2 text-xs'>
+                            {key === 'width'
+                              ? c('Width (px)', 'Dài — ngang (px)')
+                              : c('Height (px)', 'Rộng — dọc (px)')}
+                            <Input
+                              inputMode='decimal'
+                              value={key === 'width' ? width : height}
+                              disabled={busy || !editable || !!layout?.floor.location}
+                              onChange={(event) =>
+                                setDimensions({ width, height, [key]: event.target.value })
+                              }
+                            />
+                          </label>
+                        ))}
+                        <Button
+                          className='w-full text-xs'
+                          size='sm'
+                          disabled={busy || !editable || !dirtyDimensions}
+                          onClick={() => void saveCanvas()}
+                        >
+                          {busy ? (
+                            <LoaderCircle className='size-4 animate-spin' />
+                          ) : (
+                            <Save className='size-4' />
+                          )}
+                          {c('Save canvas draft', 'Lưu canvas nháp')}
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <div className='space-y-2 rounded-xl border bg-muted/20 p-3 text-xs'>
+                          <p className='font-semibold'>
+                            {layout?.floor.location?.buildingName ??
+                              c('Building not linked', 'Chưa liên kết tòa nhà')}
+                          </p>
+                          <p>{layout?.floor.location?.physicalFloorName ?? layout?.floor.name}</p>
+                          {metrics.isPending ? (
+                            <p role='status'>{c('Loading dimensions…', 'Đang tải kích thước…')}</p>
+                          ) : metrics.isError ? (
+                            <Button
+                              size='sm'
+                              variant='outline'
+                              onClick={() => void metrics.refetch()}
+                            >
+                              {c('Reload dimensions', 'Tải lại kích thước')}
+                            </Button>
+                          ) : (
+                            metrics.data && (
+                              <>
+                                <p>
+                                  {c('Whole floor', 'Toàn tầng')}:{' '}
+                                  {metrics.data.physicalWidthM ?? '—'} ×{' '}
+                                  {metrics.data.physicalLengthM ?? '—'} m
+                                </p>
+                                <p>
+                                  {c('Workspace region', 'Vùng workspace')}:{' '}
+                                  {metrics.data.widthM ?? '—'} × {metrics.data.lengthM ?? '—'} m
+                                </p>
+                                <Button
+                                  size='sm'
+                                  variant='outline'
+                                  className='w-full text-xs'
+                                  disabled={!editable || busy}
+                                  onClick={() => act(() => setEditingFloorDimensions(true))}
+                                >
+                                  {c('Edit floor dimensions', 'Sửa kích thước tầng')}
+                                </Button>
+                              </>
+                            )
+                          )}
+                        </div>
+                        <div className='rounded-xl border border-dashed border-border bg-muted/20 px-4 py-4 text-center'>
+                          <MousePointer2 className='mx-auto mb-3 size-7 text-primary/60' />
+                          <h3 className='text-xs font-semibold'>
+                            {c('Select an object', 'Chọn một đối tượng')}
+                          </h3>
+                          <p className='mt-2 text-[11px] leading-relaxed text-muted-foreground'>
+                            {c(
+                              'Click the map or choose a layer to move, resize and rotate it directly.',
+                              'Bấm trên sơ đồ hoặc chọn trong danh sách để kéo thả, đổi kích thước và xoay trực tiếp.'
+                            )}
+                          </p>
+                        </div>
+                        <div className='grid grid-cols-2 gap-2'>
+                          {[
+                            [
+                              c('Rooms', 'Phòng'),
+                              resources.filter((item) => item.category === 'ROOM').length
+                            ],
+                            [
+                              c('Seats', 'Ghế'),
+                              resources.filter((item) => item.category !== 'ROOM').length
+                            ],
+                            [c('Furniture', 'Đồ bố trí'), objects.length],
+                            ['Canvas', `${layout?.width ?? 1200} × ${layout?.height ?? 800}`]
+                          ].map(([label, value]) => (
+                            <div
+                              key={String(label)}
+                              className='rounded-xl border border-border bg-muted/10 p-3'
+                            >
+                              <p className='text-[10px] text-muted-foreground'>{label}</p>
+                              <p className='mt-1 text-sm font-semibold tabular-nums'>{value}</p>
+                            </div>
+                          ))}
+                        </div>
+                        <details className='space-y-2 border-t border-border pt-4 text-[11px] text-muted-foreground'>
+                          <summary className='cursor-pointer font-medium text-foreground'>
+                            {c('Keyboard & navigation', 'Phím tắt & điều hướng')}
+                          </summary>
+                          <p>
+                            Ctrl / ⌘ + {c('scroll', 'cuộn chuột')} · {c('Zoom', 'Thu/phóng')}
+                          </p>
+                          <p>↑ ↓ ← → · 1 px / Shift · 10 px</p>
+                          <p>Ctrl / ⌘ + Z · {c('Undo', 'Hoàn tác')}</p>
+                          <p>
+                            {c(
+                              'Drag handles · Resize & rotate',
+                              'Kéo tay nắm · Đổi kích thước & xoay'
+                            )}
+                          </p>
+                        </details>
+                        {!!missing && (
+                          <p
+                            role='alert'
+                            className='rounded-lg bg-destructive/5 p-2.5 text-xs text-destructive'
+                          >
+                            {missing}{' '}
+                            {c(
+                              'resources need geometry before publishing.',
+                              'chỗ cần tọa độ/kích thước trước khi xuất bản.'
+                            )}
+                          </p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {selection && (
+                    <div className='mt-4 space-y-2 border-t border-border pt-4'>
                       <Button
-                        className='w-full text-xs'
+                        className='w-full rounded-xl'
                         size='sm'
-                        disabled={busy || !editable || !dirtyDimensions}
-                        onClick={() => void saveCanvas()}
+                        disabled={
+                          busy ||
+                          !editable ||
+                          (!dirtySelection && !pendingObjects.length && !dirtyScene) ||
+                          validation.blocked ||
+                          loadingSelection ||
+                          overviewDragging
+                        }
+                        onClick={() => void save()}
                       >
                         {busy ? (
                           <LoaderCircle className='size-4 animate-spin' />
                         ) : (
                           <Save className='size-4' />
                         )}
-                        {c('Save canvas draft', 'Lưu canvas nháp')}
+                        {c('Save all changes', 'Lưu tất cả thay đổi')}
                       </Button>
-                    </>
-                  ) : (
-                    <>
-                      <div className='rounded-xl border border-dashed border-border bg-muted/20 px-4 py-6 text-center'>
-                        <MousePointer2 className='mx-auto mb-3 size-7 text-primary/60' />
-                        <h3 className='text-xs font-semibold'>
-                          {c('Select an object', 'Chọn một đối tượng')}
-                        </h3>
-                        <p className='mt-2 text-[11px] leading-relaxed text-muted-foreground'>
-                          {c(
-                            'Click the map or choose a layer to move, resize and rotate it directly.',
-                            'Bấm trên sơ đồ hoặc chọn trong danh sách để kéo thả, đổi kích thước và xoay trực tiếp.'
-                          )}
-                        </p>
-                      </div>
-                      <div className='grid grid-cols-2 gap-2'>
-                        {[
-                          [
-                            c('Rooms', 'Phòng'),
-                            resources.filter((item) => item.category === 'ROOM').length
-                          ],
-                          [
-                            c('Seats', 'Ghế'),
-                            resources.filter((item) => item.category !== 'ROOM').length
-                          ],
-                          [c('Furniture', 'Đồ bố trí'), objects.length],
-                          ['Canvas', `${layout?.width ?? 1200} × ${layout?.height ?? 800}`]
-                        ].map(([label, value]) => (
-                          <div
-                            key={String(label)}
-                            className='rounded-xl border border-border bg-muted/10 p-3'
-                          >
-                            <p className='text-[10px] text-muted-foreground'>{label}</p>
-                            <p className='mt-1 text-sm font-semibold tabular-nums'>{value}</p>
-                          </div>
-                        ))}
-                      </div>
-                      <details className='space-y-2 border-t border-border pt-4 text-[11px] text-muted-foreground'>
-                        <summary className='cursor-pointer font-medium text-foreground'>
-                          {c('Keyboard & navigation', 'Phím tắt & điều hướng')}
-                        </summary>
-                        <p>
-                          Ctrl / ⌘ + {c('scroll', 'cuộn chuột')} · {c('Zoom', 'Thu/phóng')}
-                        </p>
-                        <p>↑ ↓ ← → · 1 px / Shift · 10 px</p>
-                        <p>Ctrl / ⌘ + Z · {c('Undo', 'Hoàn tác')}</p>
-                        <p>
-                          {c(
-                            'Drag handles · Resize & rotate',
-                            'Kéo tay nắm · Đổi kích thước & xoay'
-                          )}
-                        </p>
-                      </details>
-                      {!!missing && (
-                        <p
-                          role='alert'
-                          className='rounded-lg bg-destructive/5 p-2.5 text-xs text-destructive'
-                        >
-                          {missing}{' '}
-                          {c(
-                            'resources need geometry before publishing.',
-                            'chỗ cần tọa độ/kích thước trước khi xuất bản.'
-                          )}
-                        </p>
-                      )}
-                    </>
+                      <Button
+                        variant='ghost'
+                        className='w-full text-xs'
+                        size='sm'
+                        disabled={busy}
+                        onClick={clearSelection}
+                      >
+                        <ChevronLeft className='size-3.5' />
+                        {c('Back to overview', 'Về toàn cảnh')}
+                      </Button>
+                    </div>
                   )}
-                </div>
-                {selection && (
-                  <div className='mt-4 space-y-2 border-t border-border pt-4'>
-                    <Button
-                      className='w-full rounded-xl'
-                      size='sm'
-                      disabled={
-                        busy ||
-                        !editable ||
-                        (!dirtySelection && !pendingObjects.length && !dirtyScene) ||
-                        validation.blocked ||
-                        loadingSelection ||
-                        overviewDragging
-                      }
-                      onClick={() => void save()}
-                    >
-                      {busy ? (
-                        <LoaderCircle className='size-4 animate-spin' />
-                      ) : (
-                        <Save className='size-4' />
-                      )}
-                      {c('Save all changes', 'Lưu tất cả thay đổi')}
-                    </Button>
-                    <Button
-                      variant='ghost'
-                      className='w-full text-xs'
-                      size='sm'
-                      disabled={busy}
-                      onClick={clearSelection}
-                    >
-                      <ChevronLeft className='size-3.5' />
-                      {c('Back to overview', 'Về toàn cảnh')}
-                    </Button>
-                  </div>
-                )}
-              </>
-            )}
-          </aside>
-        )}
+                </>
+              )}
+            </aside>
+          )}
       </div>
       <footer className='relative flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-border bg-card px-4 py-2 text-[10px] text-muted-foreground'>
         {layout?.floor.status === 'PUBLISHED' &&
@@ -2101,6 +2389,30 @@ export function FloorCanvasWorkspace({
           </div>
         </DialogContent>
       </Dialog>
+      {catalogType && (
+        <ResourceSetupDialog
+          workspaceId={workspaceId}
+          kind='type'
+          current={catalogType}
+          onSaved={onSaved}
+          onClose={() => setCatalogType(null)}
+        />
+      )}
+      {editingFloorDimensions && metrics.data && (
+        <FloorDimensionsDialog
+          actorId={actorId}
+          workspaceId={workspaceId}
+          floorId={floorId}
+          metrics={metrics.data}
+          onClose={() => setEditingFloorDimensions(false)}
+          onConverted={async () => {
+            await onSaved();
+            await query.refetch();
+            await metrics.refetch();
+            setEditingFloorDimensions(false);
+          }}
+        />
+      )}
       <Dialog
         open={publishing}
         onOpenChange={(open) => {

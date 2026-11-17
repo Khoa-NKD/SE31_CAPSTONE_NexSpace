@@ -1,3 +1,4 @@
+import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -35,22 +36,29 @@ interface WorkspaceCellActionProps {
 }
 
 export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCellActionProps) {
+  const c = useOrganizerCopy();
   const isDraft = workspace.status === 'DRAFT';
   const isActive = workspace.status === 'ACTIVE';
   const isPending = workspace.status === 'PENDING';
   const isMaintenance = workspace.status === 'MAINTENANCE';
-  const resumeRoute = isDraft ? getWorkspaceResumeRoute(workspace) : '/dashboard/organizer/workspaces/create';
+  const resumeRoute = isDraft
+    ? getWorkspaceResumeRoute(workspace)
+    : '/dashboard/organizer/workspaces/create';
 
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button variant='ghost' className='h-8 w-8 p-0' aria-label='Open action menu'>
+        <Button
+          variant='ghost'
+          className='h-8 w-8 p-0'
+          aria-label={c('Open action menu', 'Mở menu thao tác')}
+        >
           <MoreHorizontal className='h-4 w-4' />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align='end' className='w-56'>
         <DropdownMenuGroup>
-          <DropdownMenuLabel>Actions</DropdownMenuLabel>
+          <DropdownMenuLabel>{c('Actions', 'Thao tác')}</DropdownMenuLabel>
           {isDraft ? (
             <DropdownMenuItem asChild>
               <Link
@@ -59,7 +67,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                 className='cursor-pointer flex items-center text-amber-600 font-medium'
               >
                 <PlayCircle className='mr-2 h-4 w-4 text-amber-600' />
-                <span>Resume Setup</span>
+                <span>{c('Resume Setup', 'Tiếp tục thiết lập')}</span>
               </Link>
             </DropdownMenuItem>
           ) : (
@@ -71,7 +79,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                   className='cursor-pointer flex items-center text-indigo-600 dark:text-indigo-400 font-medium'
                 >
                   <Edit className='mr-2 h-4 w-4' />
-                  <span>Chỉnh sửa hồ sơ</span>
+                  <span>{c('Edit workspace profile', 'Chỉnh sửa hồ sơ')}</span>
                 </Link>
               </DropdownMenuItem>
             )
@@ -83,7 +91,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
               className='cursor-pointer flex items-center'
             >
               <Eye className='mr-2 h-4 w-4 text-muted-foreground' />
-              <span>Manage Status &amp; Details</span>
+              <span>{c('Manage Status & Details', 'Quản lý trạng thái và chi tiết')}</span>
             </Link>
           </DropdownMenuItem>
 
@@ -95,7 +103,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                 className='cursor-pointer flex items-center'
               >
                 <ExternalLink className='mr-2 h-4 w-4 text-muted-foreground' />
-                <span>View Public Page</span>
+                <span>{c('View Public Page', 'Xem trang công khai')}</span>
               </Link>
             </DropdownMenuItem>
           )}
@@ -106,7 +114,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuLabel className='text-[10px] uppercase tracking-wider text-muted-foreground'>
-                Status Transition
+                {c('Status Transition', 'Chuyển trạng thái')}
               </DropdownMenuLabel>
               {!isActive && (
                 <DropdownMenuItem
@@ -114,7 +122,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                   className='cursor-pointer text-emerald-600 font-medium'
                 >
                   <PlayCircle className='mr-2 h-4 w-4' />
-                  <span>Activate (Active)</span>
+                  <span>{c('Activate (Active)', 'Bật hoạt động')}</span>
                 </DropdownMenuItem>
               )}
               {!isPending && (
@@ -123,7 +131,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                   className='cursor-pointer text-amber-600'
                 >
                   <PauseCircle className='mr-2 h-4 w-4' />
-                  <span>Set Pending (Đang xử lý)</span>
+                  <span>{c('Set Pending (Đang xử lý)', 'Chuyển sang đang xử lý')}</span>
                 </DropdownMenuItem>
               )}
               {!isMaintenance && (
@@ -132,7 +140,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                   className='cursor-pointer text-purple-600'
                 >
                   <Wrench className='mr-2 h-4 w-4' />
-                  <span>Set Maintenance (Bảo trì)</span>
+                  <span>{c('Set Maintenance (Bảo trì)', 'Chuyển sang bảo trì')}</span>
                 </DropdownMenuItem>
               )}
               {!isDraft && (
@@ -141,7 +149,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                   className='cursor-pointer text-muted-foreground'
                 >
                   <Edit className='mr-2 h-4 w-4' />
-                  <span>Move to Draft (Nháp)</span>
+                  <span>{c('Move to Draft (Nháp)', 'Chuyển về bản nháp')}</span>
                 </DropdownMenuItem>
               )}
               <DropdownMenuItem
@@ -149,7 +157,7 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
                 className='cursor-pointer text-destructive'
               >
                 <Archive className='mr-2 h-4 w-4' />
-                <span>Archive</span>
+                <span>{c('Archive', 'Lưu trữ')}</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
           </>
@@ -191,14 +199,22 @@ const statusConfig: Record<
 };
 
 export function getWorkspaceColumns(
+  c: OrganizerCopy,
   onStatusChange?: (id: string, status: WorkspaceStatus) => void
 ): ColumnDef<OrganizerWorkspace>[] {
+  const statusLabels: Record<WorkspaceStatus, string> = {
+    ACTIVE: c('Active', 'Đang hoạt động'),
+    PENDING: c('Pending', 'Đang xử lý'),
+    MAINTENANCE: c('Maintenance', 'Đang bảo trì'),
+    DRAFT: c('Draft', 'Bản nháp'),
+    ARCHIVED: c('Archived', 'Đã lưu trữ')
+  };
   return [
     {
       id: 'workspace',
       accessorKey: 'name',
       header: ({ column }: { column: Column<OrganizerWorkspace, unknown> }) => (
-        <DataTableColumnHeader column={column} title='Workspace' />
+        <DataTableColumnHeader column={column} title={c('Workspace', 'Không gian')} />
       ),
       cell: ({ row }) => {
         const ws = row.original;
@@ -248,29 +264,33 @@ export function getWorkspaceColumns(
       id: 'status',
       accessorKey: 'status',
       header: ({ column }: { column: Column<OrganizerWorkspace, unknown> }) => (
-        <DataTableColumnHeader column={column} title='Status' />
+        <DataTableColumnHeader column={column} title={c('Status', 'Trạng thái')} />
       ),
       cell: ({ row }) => {
         const status = row.original.status;
         const config = statusConfig[status] || statusConfig.ACTIVE;
         return (
           <div className='flex flex-col gap-1 items-start'>
-            <Badge variant={config.variant} className={`border font-semibold text-2xs ${config.className}`}>
-              {config.label}
+            <Badge
+              variant={config.variant}
+              className={`border font-semibold text-2xs ${config.className}`}
+            >
+              {statusLabels[status] || status}
             </Badge>
             {status === 'PENDING' && (
               <span className='text-2xs text-amber-600 dark:text-amber-400'>
-                Đang được xử lý khi đang active
+                {c('Processing while active', 'Đang được xử lý khi đang active')}
               </span>
             )}
             {status === 'MAINTENANCE' && (
               <span className='text-2xs text-purple-600 dark:text-purple-400'>
-                Đang tạm ngưng bảo trì
+                {c('Temporarily closed for maintenance', 'Đang tạm ngưng bảo trì')}
               </span>
             )}
             {status === 'DRAFT' && row.original.draftProgress !== undefined && (
               <span className='text-2xs text-muted-foreground'>
-                {row.original.draftProgress}% complete
+                {row.original.draftProgress}
+                {c('% complete', '% hoàn tất')}
               </span>
             )}
           </div>
@@ -280,30 +300,32 @@ export function getWorkspaceColumns(
     },
     {
       id: 'capacity',
-      header: 'Capacity & Units',
+      header: c('Capacity & Units', 'Sức chứa và số chỗ'),
       cell: ({ row }) => {
         const ws = row.original;
         return (
           <div className='flex flex-col text-xs text-muted-foreground gap-0.5'>
             <span className='text-foreground font-medium flex items-center gap-1'>
               <Users className='size-3 text-muted-foreground' />
-              {ws.desksCount} desks
+              {ws.desksCount} {c('desks', 'ghế')}
             </span>
-            <span>{ws.meetingRoomsCount} meeting rooms</span>
+            <span>
+              {ws.meetingRoomsCount} {c('meeting rooms', 'phòng họp')}
+            </span>
           </div>
         );
       }
     },
     {
       id: 'performance',
-      header: 'Occupancy & Rating',
+      header: c('Occupancy & Rating', 'Tỷ lệ sử dụng và đánh giá'),
       cell: ({ row }) => {
         const ws = row.original;
         return (
           <div className='flex flex-col text-xs gap-1'>
             <div className='flex items-center gap-1 font-medium'>
               <Star className='size-3.5 fill-amber-400 text-amber-400' />
-              <span>{ws.rating > 0 ? ws.rating.toFixed(1) : 'New'}</span>
+              <span>{ws.rating > 0 ? ws.rating.toFixed(1) : c('New', 'Mới')}</span>
               {ws.reviewsCount ? (
                 <span className='text-muted-foreground text-2xs'>({ws.reviewsCount})</span>
               ) : null}
@@ -324,7 +346,7 @@ export function getWorkspaceColumns(
     {
       id: 'tier',
       accessorKey: 'tier',
-      header: 'Tier / Plan',
+      header: c('Tier / Plan', 'Hạng / Gói'),
       cell: ({ row }) => {
         return (
           <span className='text-xs font-medium text-muted-foreground'>
@@ -335,7 +357,7 @@ export function getWorkspaceColumns(
     },
     {
       id: 'actions',
-      header: 'Actions',
+      header: c('Actions', 'Thao tác'),
       cell: ({ row }) => (
         <WorkspaceCellAction workspace={row.original} onStatusChange={onStatusChange} />
       ),
@@ -343,4 +365,3 @@ export function getWorkspaceColumns(
     }
   ];
 }
-
