@@ -326,4 +326,32 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
                 null
         );
     }
+
+    @Query("""
+            SELECT COUNT(b) FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status = base.api.shared.enums.BookingStatus.PENDING_PAYMENT
+              AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now)
+            """)
+    long countActiveHoldsByCustomer(
+            @Param("customerId") Long customerId,
+            @Param("now") LocalDateTime now
+    );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.resource.id = :resourceId
+              AND b.startTime = :startTime
+              AND b.endTime = :endTime
+              AND b.status = base.api.shared.enums.BookingStatus.PENDING_PAYMENT
+              AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now)
+            """)
+    Optional<BookingModel> findActiveHoldByCustomerAndResource(
+            @Param("customerId") Long customerId,
+            @Param("resourceId") Long resourceId,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("now") LocalDateTime now
+    );
 }

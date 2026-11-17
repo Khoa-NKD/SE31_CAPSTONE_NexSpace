@@ -44,6 +44,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -73,6 +74,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private static final BigDecimal DEFAULT_COMMISSION_PERCENT = new BigDecimal("10.00");
     private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = new BigDecimal("0.00");
     private static final int DEFAULT_MAX_ADVANCE_DAYS = 90;
+    private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
     private static final int DEFAULT_MIN_ADVANCE_MINUTES = 0;
 
     private static final int DEFAULT_HOLD_MINUTES = 10;
@@ -100,6 +102,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final CurrentUserProvider currentUserProvider;
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
+
+    @Value("${app.booking.max-active-holds:3}")
+    private int maxActiveHolds = 3;
+
+    @Value("${app.booking.hold-duration-minutes:10}")
+    private int holdDurationMinutes = 10;
 
     @Override
     @Transactional
@@ -152,8 +160,31 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         // 5. Validate Workspace Operating Hours
         validateOperatingHours(workspace.getId(), startTime, endTime);
 
-        // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
         LocalDateTime now = LocalDateTime.now();
+
+        // 5.1. Idempotent Active Hold Reuse:
+        // Nếu cùng khách hàng yêu cầu giữ cùng tài nguyên trong cùng khung giờ đang còn hiệu lực:
+        // Tái sử dụng ngay phiên giữ chỗ đó, không ném 409 Conflict và không tạo bản ghi rác.
+        Optional<BookingModel> existingHold = bookingRepository.findActiveHoldByCustomerAndResource(
+                customerId, resource.getId(), startTime, endTime, now);
+        if (existingHold.isPresent()) {
+            BookingModel reused = existingHold.get();
+            if (reused.getHoldExpiresAt() != null && reused.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
+                reused.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
+                reused = bookingRepository.save(reused);
+            }
+            log.info("Idempotent hold reuse in createBooking: code={}, customerId={}", reused.getBookingCode(), customerId);
+            return BookingMapper.toDto(reused);
+        }
+
+        // 5.2. Giới hạn số Hold Active (Anti-Hoarding / Anti-DoS):
+        // Số hold active tối đa linh hoạt qua biến môi trường BOOKING_MAX_ACTIVE_HOLDS
+        long activeHolds = bookingRepository.countActiveHoldsByCustomer(customerId, now);
+        if (activeHolds >= maxActiveHolds) {
+            throw new BadRequestException("Bạn chỉ được giữ tối đa " + maxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
+        }
+
+        // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
         List<BookingModel> conflictingBookings = bookingRepository.findConflictingBookingsWithHold(
                 resource.getId(), startTime, endTime, ACTIVE_BOOKING_STATUSES, now);
 
@@ -1086,17 +1117,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     }
 
     private int getEffectiveHoldMinutes() {
-        return platformSettingRepository.findById("booking.hold_ttl_minutes")
-                .or(() -> platformSettingRepository.findById("booking_hold_minutes"))
-                .map(PlatformSettingModel::getSettingValue)
-                .map(val -> {
-                    try {
-                        return Integer.parseInt(val.trim());
-                    } catch (Exception e) {
-                        return DEFAULT_HOLD_MINUTES;
-                    }
-                })
-                .orElse(DEFAULT_HOLD_MINUTES);
+        return holdDurationMinutes;
     }
 
     private int getIntSetting(String key, int defaultValue) {
