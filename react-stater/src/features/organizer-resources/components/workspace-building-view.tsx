@@ -7,6 +7,8 @@ import {
   ArrowRight,
   Building2,
   Layers3,
+  MapPin,
+  Pencil,
   Plus,
   RotateCcw,
   RotateCw,
@@ -15,12 +17,7 @@ import {
   Move3D,
   ChevronRight,
   MousePointer2,
-  CheckCircle2,
   LockKeyhole,
-  Armchair,
-  DoorOpen,
-  Shapes,
-  Scan,
   Maximize2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -60,6 +57,7 @@ export function WorkspaceBuildingView({
   const { language } = useLanguage();
   const vi = language === 'vi';
   const c = (en: string, local: string) => (vi ? local : en);
+  const floorLabel = (floor: Pick<FloorOption, 'floorNumber'>) => `${c('Floor', 'Tầng')} ${floor.floorNumber}`;
   // Sort a copy to preserve query data and the project's pre-ES2023 browser target.
   const physicalEntries = workspaceBuildingFloors(building, floors, workspace.id);
   const openFloor = (id: number) => {
@@ -70,6 +68,18 @@ export function WorkspaceBuildingView({
   const ordered = [...physicalEntries].sort((a, b) => a.floorNumber - b.floorNumber || a.id - b.id);
   // oxlint-disable-next-line unicorn/no-array-reverse
   const descendingFloors = [...ordered].reverse();
+  const modelScale =
+    300 /
+    Math.max(
+      1,
+      ...ordered.flatMap((floor) => [floor.physicalWidth ?? 1200, floor.physicalHeight ?? 840])
+    );
+  const plate = (floor: (typeof ordered)[number] | undefined) => ({
+    width: (floor?.physicalWidth ?? 1200) * modelScale,
+    height: (floor?.physicalHeight ?? 840) * modelScale,
+    radius: (floor?.cornerRadiusPx ?? 0) * modelScale
+  });
+  const foundation = plate(ordered[0]);
   const linkedFloorCount = building
     ? building.floors.filter((floor) =>
         floor.occupants.some((area) => area.workspaceId === workspace.id)
@@ -85,8 +95,7 @@ export function WorkspaceBuildingView({
   );
   const linkedFloors = ordered.filter((floor) => floor.linked);
   const selected = linkedFloors.find((floor) => floor.id === selectedId);
-  const active =
-    selected ?? linkedFloors.find((floor) => floor.id === hovered) ?? linkedFloors.at(-1);
+  const active = selected ?? linkedFloors.find((floor) => floor.id === hovered);
   const detail = useQuery({
     ...floorLayoutOptions(actorId, selected?.workspaceId ?? workspace.id, selected?.id ?? 0),
     enabled: !!selected && selected.id > 0
@@ -101,11 +110,15 @@ export function WorkspaceBuildingView({
     setSelectedId(id);
     setHovered(id);
   };
+  const clearFloorFocus = () => {
+    setSelectedId(null);
+    setHovered(null);
+  };
   useEffect(() => {
     if (selectedId === null) return;
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !document.querySelector('[role="dialog"][data-state="open"]'))
-        setSelectedId(null);
+        clearFloorFocus();
     };
     document.addEventListener('keydown', escape);
     return () => document.removeEventListener('keydown', escape);
@@ -140,8 +153,10 @@ export function WorkspaceBuildingView({
           {workspaceState(workspace.status, vi)}
         </Badge>
         <Button size='sm' disabled={!writable} onClick={onAddFloor}>
-          <Plus className='size-4' />
-          {c('Link floor', 'Liên kết tầng')}
+          {building ? <Pencil className='size-4' /> : <Plus className='size-4' />}
+          {building
+            ? c('Edit address & floor setup', 'Sửa địa chỉ & cấu hình tầng')
+            : c('Set up location & floors', 'Thiết lập địa điểm & tầng')}
         </Button>
       </OrganizerPageHeader>
       <div className='grid gap-5 xl:grid-cols-[minmax(0,1fr)_310px]'>
@@ -194,14 +209,13 @@ export function WorkspaceBuildingView({
           </div>
           <div
             className={`nexspace-building-scene relative h-[560px] overflow-hidden bg-gradient-to-b from-muted/10 via-primary/[.025] to-muted/30 sm:h-[620px] ${selected ? 'has-selected-floor' : ''}`}
-            style={
-              {
-                perspective: '1400px',
-                '--picked-z': `${Math.max(200, ordered.length * gap + 60)}px`
-              } as CSSProperties
-            }
+            style={{ perspective: '1400px' }}
             onPointerDown={(event) => {
-              if (event.button !== 0 || (event.target as Element).closest('button')) return;
+              if (
+                event.button !== 0 ||
+                (event.target as Element).closest('button, [data-building-overlay]')
+              )
+                return;
               event.currentTarget.setPointerCapture(event.pointerId);
               pointer.current = {
                 id: event.pointerId,
@@ -243,7 +257,13 @@ export function WorkspaceBuildingView({
                 ? c('Floor extracted · Esc to return', 'Đã rút tầng · Esc để đưa về')
                 : c('Drag background to orbit', 'Kéo nền để xoay góc nhìn')}
             </div>
-            <div className='pointer-events-none absolute right-5 top-5 z-10 w-48 rounded-2xl border border-primary/20 bg-card/95 p-4 shadow-lg backdrop-blur-md'>
+            <div
+              className={
+                selected
+                  ? 'hidden'
+                  : 'pointer-events-none absolute right-5 top-5 z-10 w-48 rounded-2xl border border-primary/20 bg-card/95 p-4 shadow-lg backdrop-blur-md'
+              }
+            >
               <div className='flex items-center gap-2 text-xs font-medium text-muted-foreground'>
                 <span className='flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary'>
                   <Layers3 className='size-4' />
@@ -282,24 +302,28 @@ export function WorkspaceBuildingView({
                     } as CSSProperties
                   }
                 >
-                  <div className='nexspace-building-ground' />
-                  <div className='nexspace-building-foundation' />
-                  {selected && (
-                    <div
-                      aria-hidden='true'
-                      className='nexspace-building-vacancy'
-                      style={{
-                        transform: `translateZ(${ordered.findIndex((floor) => floor.id === selected.id) * gap}px)`
-                      }}
-                    />
-                  )}
+                  <div
+                    aria-hidden='true'
+                    className='pointer-events-none absolute bg-foreground/10 blur-xl'
+                    style={{
+                      width: foundation.width,
+                      height: foundation.height,
+                      left: (300 - foundation.width) / 2,
+                      top: (210 - foundation.height) / 2,
+                      borderRadius: foundation.radius,
+                      transform: 'translateZ(-36px)'
+                    }}
+                  />
+
                 </div>
                 {ordered.map((floor, index) => (
                   <BuildingStorey
                     key={floor.id}
                     floor={floor}
-                    label={floor.displayName ?? floor.name}
+                    geometry={plate(floor)}
+                    label={floorLabel(floor)}
                     index={index}
+                    roof={index === ordered.length - 1}
                     gap={gap}
                     camera={camera}
                     disabled={!floor.linked}
@@ -309,31 +333,10 @@ export function WorkspaceBuildingView({
                     loading={selected?.id === floor.id && floor.id > 0 && detail.isPending}
                     onHover={hoverFloor}
                     onPick={() => selectFloor(floor.id)}
-                    onReturn={() => setSelectedId(null)}
+                    onReturn={clearFloorFocus}
                     onOpen={() => openFloor(floor.id)}
                   />
                 ))}
-                <div
-                  aria-hidden='true'
-                  className='nexspace-building-rig nexspace-building-cap'
-                  style={
-                    {
-                      transform: `rotateX(${camera.tilt}deg) rotateZ(${camera.angle}deg) scale(${camera.zoom})`,
-                      zIndex: ordered.length + 1
-                    } as CSSProperties
-                  }
-                >
-                  <div
-                    className='nexspace-building-roof'
-                    style={{
-                      transform: `translateZ(${Math.max(0, ordered.length - 1) * gap + 10}px)`
-                    }}
-                  >
-                    <span />
-                    <span />
-                    <span />
-                  </div>
-                </div>
               </>
             ) : (
               <div className='absolute inset-0 flex flex-col items-center justify-center gap-4 p-8 text-center'>
@@ -353,11 +356,16 @@ export function WorkspaceBuildingView({
                 </Button>
               </div>
             )}
-            <div className='absolute bottom-5 left-1/2 z-10 flex max-w-[calc(100%-24px)] -translate-x-1/2 flex-wrap items-center justify-center gap-1 rounded-2xl border border-border/80 bg-background/90 p-1.5 shadow-lg shadow-black/5 backdrop-blur'>
+            <div
+              role='toolbar'
+              aria-label={c('Building view controls', 'Điều khiển mô hình tòa nhà')}
+              data-building-overlay
+              className='nexspace-building-controls absolute left-3 top-1/2 z-40 flex -translate-y-1/2 flex-col items-center gap-0.5 rounded-xl border border-border/80 bg-background/95 p-1 shadow-md backdrop-blur'
+            >
               <Button
                 size='icon'
                 variant='ghost'
-                className='size-8 rounded-xl'
+                className='size-8 shrink-0 rounded-lg'
                 aria-label={c('Rotate left', 'Xoay trái')}
                 onClick={() =>
                   setCamera((previous) => ({ ...previous, angle: previous.angle - 15 }))
@@ -368,7 +376,7 @@ export function WorkspaceBuildingView({
               <Button
                 size='icon'
                 variant='ghost'
-                className='size-8 rounded-xl'
+                className='size-8 shrink-0 rounded-lg'
                 aria-label={c('Rotate right', 'Xoay phải')}
                 onClick={() =>
                   setCamera((previous) => ({ ...previous, angle: previous.angle + 15 }))
@@ -376,11 +384,11 @@ export function WorkspaceBuildingView({
               >
                 <RotateCw className='size-3.5' />
               </Button>
-              <span className='mx-1 h-4 border-l border-border' />
+              <span className='my-0.5 w-7 border-t border-border' />
               <Button
                 size='icon'
                 variant='ghost'
-                className='size-8 rounded-xl'
+                className='size-8 shrink-0 rounded-lg'
                 disabled={camera.zoom <= 0.5}
                 aria-label={c('Zoom out', 'Thu nhỏ')}
                 onClick={() =>
@@ -403,7 +411,7 @@ export function WorkspaceBuildingView({
               <Button
                 size='icon'
                 variant='ghost'
-                className='size-8 rounded-xl'
+                className='size-8 shrink-0 rounded-lg'
                 disabled={camera.zoom >= 1.8}
                 aria-label={c('Zoom in', 'Phóng to')}
                 onClick={() =>
@@ -415,24 +423,24 @@ export function WorkspaceBuildingView({
               >
                 <ZoomIn className='size-3.5' />
               </Button>
-              <span className='mx-1 h-4 border-l border-border' />
+              <span className='my-0.5 w-7 border-t border-border' />
               <button
                 type='button'
-                className='rounded-lg px-2 py-1.5 text-[10px] text-muted-foreground hover:bg-muted'
+                className='w-14 whitespace-nowrap rounded-lg px-1 py-2 text-[10px] text-muted-foreground hover:bg-muted'
                 onClick={() => setCamera((previous) => ({ ...previous, angle: -32, tilt: 58 }))}
               >
                 {c('Isometric', 'Đẳng cự')}
               </button>
               <button
                 type='button'
-                className='rounded-lg px-2 py-1.5 text-[10px] text-muted-foreground hover:bg-muted'
+                className='w-14 whitespace-nowrap rounded-lg px-1 py-2 text-[10px] text-muted-foreground hover:bg-muted'
                 onClick={() => setCamera((previous) => ({ ...previous, angle: 0, tilt: 38 }))}
               >
                 {c('Front', 'Mặt trước')}
               </button>
               <button
                 type='button'
-                className='rounded-lg px-2 py-1.5 text-[10px] text-muted-foreground hover:bg-muted'
+                className='w-14 whitespace-nowrap rounded-lg px-1 py-2 text-[10px] text-muted-foreground hover:bg-muted'
                 onClick={() => setCamera((previous) => ({ ...previous, angle: -12, tilt: 72 }))}
               >
                 {c('Top', 'Từ trên')}
@@ -456,133 +464,29 @@ export function WorkspaceBuildingView({
         <aside className='flex flex-col gap-4'>
           <section className='rounded-2xl border border-primary/20 bg-gradient-to-br from-primary/[.06] to-card p-5'>
             <p className='mb-4 text-[10px] font-semibold uppercase tracking-[.17em] text-primary'>
-              {c('Floor spotlight', 'Thông tin tầng')}
+              {c('Location overview', 'Tổng quan địa điểm')}
             </p>
-            {active ? (
-              <>
-                <div className='mb-4 flex justify-end'>
-                  <FloorActions
-                    workspaceId={workspace.id}
-                    floor={
-                      detail.data?.floor.id === active.id
-                        ? detail.data.floor
-                        : (floors.find((f) => f.id === active.id) ?? active)
-                    }
-                    floors={floors}
-                    disabled={
-                      !writable ||
-                      active.id <= 0 ||
-                      (!!active.workspaceId && active.workspaceId !== workspace.id)
-                    }
-                    onSaved={onSaved}
-                    onDeleted={() => {
-                      setSelectedId(null);
-                      setHovered(null);
-                    }}
-                    onCopied={(floor) => selectFloor(floor.id)}
-                  />
-                </div>
-                <div className='flex items-start justify-between gap-3'>
-                  <div>
-                    <p className='text-[11px] text-muted-foreground'>
-                      {c('Floor', 'Tầng')} {active.floorNumber}
-                    </p>
-                    <h2 className='mt-1 break-words text-xl font-semibold tracking-tight'>
-                      {active.displayName ?? active.name}
-                    </h2>
-                    {building && (
-                      <div className='mt-3 space-y-2'>
-                        {building.floors
-                          .find((f) => f.floorNumber === active.floorNumber)
-                          ?.occupants.filter((o) => o.workspaceId === workspace.id)
-                          .map((o) => (
-                            <button
-                              key={o.floorPlanId}
-                              type='button'
-                              onClick={() => onOpenFloor(o.floorPlanId, o.workspaceId)}
-                              className='block w-full rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-left text-xs'
-                            >
-                              <strong>{o.workspaceName ?? `Workspace #${o.workspaceId}`}</strong>
-                              <span className='mt-1 block text-muted-foreground'>
-                                {o.layoutName} · {o.width} × {o.height} px
-                              </span>
-                            </button>
-                          ))}
-                      </div>
-                    )}
+              <dl className='space-y-3 text-sm'>
+                <div className='flex items-start gap-2'>
+                  <MapPin className='mt-0.5 size-4 shrink-0 text-primary' />
+                  <div className='min-w-0'>
+                    <dt className='text-xs text-muted-foreground'>{c('Address', 'Địa chỉ')}</dt>
+                    <dd className='mt-1 break-words font-medium'>
+                      {building?.address || c('No address set', 'Chưa thiết lập địa chỉ')}
+                    </dd>
                   </div>
-                  <span className='flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary'>
-                    <Layers3 className='size-5' />
-                  </span>
                 </div>
-                <Badge variant='secondary' className='mt-4 gap-1.5 rounded-full text-[10px]'>
-                  {active.status === 'PUBLISHED' && <CheckCircle2 className='size-3' />}
-                  {active.status === 'PUBLISHED'
-                    ? c('Published layout', 'Sơ đồ đã xuất bản')
-                    : c('Draft layout', 'Sơ đồ bản nháp')}
-                </Badge>
-                {selected && detail.data && (
-                  <div className='mt-4 grid grid-cols-2 gap-2'>
-                    {[
-                      [
-                        c('Rooms', 'Phòng'),
-                        detail.data.resources.filter((item) => item.category === 'ROOM').length,
-                        DoorOpen
-                      ],
-                      [
-                        c('Seats', 'Ghế'),
-                        detail.data.resources.filter((item) => item.category === 'DESK').length,
-                        Armchair
-                      ],
-                      [c('Furnishings', 'Đồ bố trí'), detail.data.decorations?.length ?? 0, Shapes],
-                      [
-                        'Canvas',
-                        detail.data.width && detail.data.height
-                          ? `${detail.data.width} × ${detail.data.height}`
-                          : c('Not set', 'Chưa thiết lập'),
-                        Scan
-                      ]
-                    ].map(([label, value, Icon]) => {
-                      const Symbol = Icon as typeof DoorOpen;
-                      return (
-                        <div
-                          key={String(label)}
-                          className='rounded-xl border border-border/70 bg-background/60 p-3'
-                        >
-                          <p className='flex items-center gap-1.5 text-[10px] text-muted-foreground'>
-                            <Symbol className='size-3' />
-                            {String(label)}
-                          </p>
-                          <p className='mt-1.5 text-sm font-semibold tabular-nums'>
-                            {String(value)}
-                          </p>
-                        </div>
-                      );
-                    })}
+                <div className='flex items-center justify-between gap-2'>
+                  <dt className='text-muted-foreground'>{c('Workspace floors', 'Số tầng sử dụng')}</dt>
+                  <dd className='font-semibold tabular-nums'>{linkedFloorCount}</dd>
+                </div>
+                {building && building.floors.length !== linkedFloorCount && (
+                  <div className='flex items-center justify-between gap-2'>
+                    <dt className='text-muted-foreground'>{c('Building total', 'Tổng số tầng')}</dt>
+                    <dd className='font-semibold tabular-nums'>{building.floors.length}</dd>
                   </div>
                 )}
-                <p className='mt-4 text-xs leading-relaxed text-muted-foreground'>
-                  {c(
-                    'Select this floor to bring it forward and inspect its saved layout.',
-                    'Chọn tầng để đưa ra phía trước và xem bố trí đã lưu của tầng.'
-                  )}
-                </p>
-                <Button
-                  className='mt-5 w-full rounded-xl'
-                  size='sm'
-                  onClick={() => (selected ? openFloor(selected.id) : selectFloor(active.id))}
-                >
-                  {selected
-                    ? c('View floor plan', 'Xem sơ đồ')
-                    : c('Inspect this floor', 'Khám phá tầng này')}
-                  <ArrowRight className='size-4' />
-                </Button>
-              </>
-            ) : (
-              <p className='text-xs text-muted-foreground'>
-                {c('Create a floor to get started.', 'Thêm tầng để bắt đầu thiết kế.')}
-              </p>
-            )}
+              </dl>
           </section>
           <section className='flex min-h-0 flex-1 flex-col overflow-hidden rounded-2xl border border-border bg-card'>
             <div className='flex items-center justify-between border-b border-border px-4 py-3'>
@@ -597,7 +501,7 @@ export function WorkspaceBuildingView({
             </div>
             <div className='max-h-[350px] space-y-1 overflow-y-auto p-2'>
               {descendingFloors.map((floor) => (
-                <div key={floor.id} className='flex items-center gap-1'>
+                <div key={floor.id} className='flex min-w-0 items-center gap-1 rounded-xl p-1 hover:bg-muted/50'>
                   <button
                     type='button'
                     disabled={!floor.linked}
@@ -606,7 +510,7 @@ export function WorkspaceBuildingView({
                     onFocus={() => hoverFloor(floor.id)}
                     aria-pressed={selected?.id === floor.id}
                     onClick={() => selectFloor(floor.id)}
-                    className={`flex min-w-0 flex-1 items-center gap-3 rounded-xl border px-3 py-3 text-left transition-colors ${!floor.linked ? 'cursor-default border-transparent bg-muted/40 opacity-45' : active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
+                    className={`flex w-full min-w-0 items-center gap-3 rounded-lg border px-3 py-2 text-left transition-colors ${!floor.linked ? 'cursor-default border-transparent bg-muted/40 opacity-45' : active?.id === floor.id ? 'border-primary/20 bg-primary/5' : 'border-transparent hover:bg-muted'}`}
                   >
                     <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-xs font-semibold tabular-nums text-primary'>
                       {floor.floorNumber.toString().padStart(2, '0')}
@@ -614,9 +518,9 @@ export function WorkspaceBuildingView({
                     <span className='min-w-0 flex-1'>
                       <span
                         className='block truncate text-xs font-medium'
-                        title={floor.displayName ?? floor.name}
+                        title={floorLabel(floor)}
                       >
-                        {floor.displayName ?? floor.name}
+                        {floorLabel(floor)}
                       </span>
                       <span className='mt-1 block text-[10px] text-muted-foreground'>
                         {!floor.linked
@@ -626,12 +530,26 @@ export function WorkspaceBuildingView({
                             : c('Draft', 'Bản nháp')}
                       </span>
                     </span>
-                    <ArrowRight className='size-3.5 text-muted-foreground' />
                   </button>
                   {floor.linked && floor.id > 0 && (
-                    <Button variant='ghost' size='sm' onClick={() => openFloor(floor.id)}>
-                      {c('Open layout', 'Mở sơ đồ')}
-                    </Button>
+                    <div className='flex shrink-0 items-center gap-0.5'>
+                      <FloorActions
+                      compact
+                      workspaceId={workspace.id}
+                      floor={floors.find((item) => item.id === floor.id) ?? floor}
+                      floors={floors}
+                      disabled={!writable}
+                      onSaved={onSaved}
+                      onDeleted={clearFloorFocus}
+                      onCopied={(copy) => selectFloor(copy.id)}
+                      />
+                      <Button variant='ghost' size='icon' className='size-8 shrink-0 rounded-lg'
+                        aria-label={c('Open layout', 'Mở sơ đồ') + ' · ' + floorLabel(floor)}
+                        title={c('Open layout', 'Mở sơ đồ')}
+                        onClick={() => openFloor(floor.id)}>
+                        <ArrowRight className='size-4' />
+                      </Button>
+                    </div>
                   )}
                 </div>
               ))}

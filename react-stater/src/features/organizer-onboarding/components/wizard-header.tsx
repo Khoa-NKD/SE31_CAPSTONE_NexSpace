@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 interface WizardHeaderProps {
-  currentStep: 1 | 2 | 3 | 4 | 5;
+  currentStep: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 export function WizardHeader({ currentStep }: WizardHeaderProps) {
@@ -42,7 +42,7 @@ export function WizardHeader({ currentStep }: WizardHeaderProps) {
           variant='secondary'
           className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold tracking-wide ml-1'
         >
-          {c('Step', 'Bước')} {currentStep} {c('of 4', 'trên 4')}
+          {c('Step', 'Bước')} {currentStep} {c('of 6', 'trên 6')}
         </Badge>
       </div>
 

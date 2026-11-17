@@ -178,10 +178,7 @@ export function ResourceFloorManager({
                 >
                   {floors.map((floor) => (
                     <option key={floor.id} value={floor.id}>
-                      {floor.location
-                        ? `${floor.location.buildingName} / ${floor.location.physicalFloorName} / `
-                        : ''}
-                      {floor.name} · {floor.status}
+                      {c('Floor', 'Tầng')} {floor.floorNumber} · {floor.status}
                     </option>
                   ))}
                 </select>

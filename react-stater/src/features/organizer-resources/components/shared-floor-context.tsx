@@ -9,6 +9,7 @@ import { ResourceMapSymbol } from './resource-map-symbol';
 
 /** Neighbor layouts are read-only context. All coordinates remain local to the active area. */
 export function useSharedFloorContext(layout?: FloorLayout, enabled = true) {
+  const { language } = useLanguage();
   const actorId = useAuthStore((state) => state.user?.id ?? 0);
   const [hover, setHover] = useState<{
     name: string;
@@ -48,7 +49,7 @@ export function useSharedFloorContext(layout?: FloorLayout, enabled = true) {
     setHover(
       area
         ? {
-            name: area.layoutName,
+            name: `${language === 'vi' ? 'Tầng' : 'Floor'} ${floor.floorNumber}`,
             workspace: area.workspaceName,
             readOnly: area.floorPlanId !== layout?.floor.id,
             left: Math.max(8, Math.min(event.clientX + 16, window.innerWidth - 288)),

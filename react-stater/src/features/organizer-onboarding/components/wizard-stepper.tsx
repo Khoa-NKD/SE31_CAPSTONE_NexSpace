@@ -4,7 +4,7 @@ import { Link } from '@tanstack/react-router';
 import { Check } from 'lucide-react';
 
 export interface WizardStepperProps {
-  currentStep: 1 | 2 | 3 | 4 | 5;
+  currentStep: 1 | 2 | 3 | 4 | 5 | 6;
 }
 
 const getSteps = (c: (en: string, vi: string) => string) =>
@@ -17,16 +17,26 @@ const getSteps = (c: (en: string, vi: string) => string) =>
 
     {
       number: 2,
+      title: c('Location', 'Địa điểm'),
+      route: '/dashboard/organizer/workspaces/create/location'
+    },
+    {
+      number: 3,
+      title: c('Floors', 'Cấu hình tầng'),
+      route: '/dashboard/organizer/workspaces/create/location'
+    },
+    {
+      number: 4,
       title: c('Operating Hours', 'Giờ hoạt động'),
       route: '/dashboard/organizer/workspaces/create/hours'
     },
     {
-      number: 3,
+      number: 5,
       title: c('Amenities', 'Tiện ích'),
       route: '/dashboard/organizer/workspaces/create/amenities'
     },
     {
-      number: 4,
+      number: 6,
       title: c('Photos & Media', 'Thư viện ảnh'),
       route: '/dashboard/organizer/workspaces/create/media'
     }
@@ -35,7 +45,7 @@ const getSteps = (c: (en: string, vi: string) => string) =>
 export function WizardStepper({ currentStep }: WizardStepperProps) {
   const c = useOrganizerCopy();
   // Compute progress line width
-  const progressPercent = ((Math.min(currentStep, 4) - 1) / 3) * 100;
+  const progressPercent = ((currentStep - 1) / 5) * 100;
 
   return (
     <div className='max-w-4xl mx-auto mb-6 sm:mb-8 px-2'>
@@ -86,7 +96,10 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
                 {isCompleted ? (
                   <Link
                     to={step.route}
-                    search={(prev) => prev}
+                    search={(prev) => ({
+                      ...prev,
+                      stage: step.number === 3 ? ('floors' as const) : undefined
+                    })}
                     className='cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded-full'
                     aria-label={`Go to Step ${step.number}: ${step.title}`}
                   >

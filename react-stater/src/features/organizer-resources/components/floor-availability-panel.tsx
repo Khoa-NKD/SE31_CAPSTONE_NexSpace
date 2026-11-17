@@ -18,7 +18,8 @@ export function useFloorAvailability(
   actorId: number,
   workspaceId: number,
   floorId: number,
-  enabled: boolean
+  enabled: boolean,
+  layout?: FloorLayout
 ) {
   const [initial] = useState(() => {
     const from = new Date();
@@ -35,6 +36,12 @@ export function useFloorAvailability(
   const states: Record<number, AvailabilityState> = Object.fromEntries(
     (query.data?.resources ?? []).map((item) => [item.id, item.state])
   );
+  for (const item of layout?.resources ?? []) {
+    if (item.category !== 'DESK' || !item.parentRoomId) continue;
+    const parentState = states[item.parentRoomId];
+    if (parentState) states[item.id] = parentState;
+    else delete states[item.id];
+  }
   const valid = availabilityInterval(from, to);
   const apply = () => {
     if (!valid) return;

@@ -401,6 +401,7 @@ section:fullscreen > .nexspace-building-scene {
   --picked-scale: 1.08;
 }
 .nexspace-building-storey {
+  pointer-events: none;
   position: absolute;
   left: 50%;
   top: 64%;
@@ -448,18 +449,21 @@ section:fullscreen > .nexspace-building-scene {
   top: 0;
   bottom: 0;
 }
-.nexspace-building-storey .nexspace-building-floor-tag {
-  z-index: 2;
-  top: 50%;
-  max-width: 80%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 12px;
-  padding: 1px 7px;
-  transform: translateY(-50%) translateZ(3px);
-  border: none;
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--primary) 30%, var(--background));
+.nexspace-storey-face-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  transform-origin: 0 0;
   backface-visibility: hidden;
+  pointer-events: none;
 }
 .nexspace-building-storey.is-hovered .nexspace-building-floor-top,
 .nexspace-building-storey:focus-within .nexspace-building-floor-top {
@@ -469,7 +473,7 @@ section:fullscreen > .nexspace-building-scene {
     0 0 0 1.5px color-mix(in srgb, var(--primary) 45%, transparent),
     0 0 18px color-mix(in srgb, var(--primary) 12%, transparent);
 }
-.nexspace-building-storey.is-hovered .nexspace-building-floor-tag {
+.nexspace-building-storey.is-hovered .nexspace-storey-face-label {
   box-shadow: 0 0 12px color-mix(in srgb, var(--primary) 35%, transparent);
 }
 .nexspace-building-storey.is-picked .nexspace-building-floor-top {
@@ -497,31 +501,41 @@ section:fullscreen > .nexspace-building-scene {
 }
 .nexspace-storey-hologram {
   position: absolute;
-  left: 25px;
-  top: -150px;
-  width: 250px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--primary) 40%, var(--border));
-  border-radius: 13px;
+  left: calc(50% + var(--picked-x));
+  top: 64%;
+  transform: translate(-50%, calc(-100% + var(--picked-y) - var(--picked-height) * 0.5 * 0.84 * var(--picked-scale) - 38px));
+  z-index: 1500;
+  width: min(250px, calc(100% - 32px));
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--primary) 25%, var(--border));
+  border-radius: 14px;
   background: var(--card);
   color: var(--foreground);
-  transform-origin: center bottom;
-  transform: translateZ(45px) rotateX(-34deg) rotateZ(8deg);
-  box-shadow:
-    4px 5px 0 color-mix(in srgb, var(--primary) 12%, var(--border)),
-    8px 16px 28px #00000020;
-  animation: nexspace-storey-information 780ms ease both;
+  box-shadow: 0 8px 24px #00000016;
+  animation: nexspace-storey-information 220ms ease both;
 }
 .nexspace-storey-hologram::after {
   content: '';
   position: absolute;
-  left: 50%;
   top: 100%;
+  left: 50%;
   width: 1px;
-  height: 35px;
-  background: linear-gradient(var(--primary), transparent);
+  height: 38px;
+  background: var(--primary);
   pointer-events: none;
 }
+.nexspace-storey-hologram::before {
+  content: '';
+  position: absolute;
+  top: calc(100% + 35px);
+  left: calc(50% - 3px);
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--primary);
+  pointer-events: none;
+}
+
 .nexspace-storey-open {
   margin-top: 10px;
 }
@@ -547,9 +561,7 @@ section:fullscreen > .nexspace-building-scene {
     margin-top: -87px;
   }
   .nexspace-storey-hologram {
-    width: 240px;
-    left: 5px;
-    top: -150px;
+    width: min(240px, calc(100% - 32px));
   }
   .has-selected-floor .nexspace-building-rig {
     left: 50%;
@@ -575,4 +587,38 @@ section:fullscreen > .nexspace-building-scene {
   .nexspace-building-rig {
     transition: none;
   }
+}
+
+/* Transparent rectangular wrappers must not intercept another floor's curved outline. */
+.nexspace-storey-pick {
+  pointer-events: none;
+}
+.nexspace-storey-pick > .nexspace-building-floor-top {
+  pointer-events: auto;
+}
+.nexspace-building-storey.is-muted .nexspace-storey-pick > span {
+  filter: grayscale(1) brightness(0.48);
+}
+.nexspace-building-controls {
+  z-index: 2000;
+}
+.nexspace-storey-roof-panels {
+  position: absolute;
+  inset: 16%;
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 8px;
+  pointer-events: none;
+}
+.nexspace-storey-roof-panels > span {
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, var(--border));
+  background: repeating-linear-gradient(
+    0deg,
+    color-mix(in srgb, var(--primary) 10%, var(--card)) 0 14px,
+    color-mix(in srgb, var(--primary) 25%, var(--card)) 14px 16px
+  );
+  box-shadow: 2px 3px 0 color-mix(in srgb, var(--primary) 10%, var(--border));
+}
+.nexspace-storey-roof-panels > span:nth-child(n + 4) {
+  display: none;
 }

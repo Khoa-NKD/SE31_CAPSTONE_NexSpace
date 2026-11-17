@@ -206,7 +206,7 @@ export function BuildingCatalog({
                   <div className='flex items-center justify-between gap-2'>
                     <p className='flex items-center gap-2 text-sm font-medium'>
                       <Layers3 className='size-4 text-primary' />
-                      {f.floorNumber} · {f.name}
+                      {c('Floor', 'Tầng')} {f.floorNumber}
                     </p>
                     <div className='flex gap-1'>
                       <Button
@@ -243,7 +243,7 @@ export function BuildingCatalog({
                         className='flex max-w-full items-center gap-1 rounded-lg border border-primary/15 bg-primary/5 px-2.5 py-1.5 text-xs text-primary disabled:cursor-default'
                       >
                         <span className='truncate'>
-                          {o.workspaceName || `Workspace #${o.workspaceId}`} · {o.layoutName}
+                          {o.workspaceName || `Workspace #${o.workspaceId}`}
                         </span>
                         {onOpen && <ArrowUpRight className='size-3 shrink-0' />}
                       </button>

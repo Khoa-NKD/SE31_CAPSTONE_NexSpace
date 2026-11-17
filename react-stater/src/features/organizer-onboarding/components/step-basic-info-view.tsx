@@ -137,7 +137,7 @@ export function StepBasicInfoView({
     const saved = await saveDraftToServer({ silent: true });
     if (!saved) return;
     router.navigate({
-      to: '/dashboard/organizer/workspaces/create/hours',
+      to: '/dashboard/organizer/workspaces/create/location',
       search: (prev) => ({ ...prev, id: String(saved.id) })
     });
   };

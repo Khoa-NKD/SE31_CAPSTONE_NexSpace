@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query';
 import { backendRequest } from '../../auth/api/session';
+import { resourceTypePhotoBody } from './resource-type-photos';
 import type {
   DecorationKind,
   DecorationIconName,
@@ -236,14 +237,16 @@ export const applyFloorDesign = (
   proposalId: string,
   saveTemplates: boolean,
   design?: AiProposal['design'],
-  confirmNewTypes = false
-) =>
-  backendRequest<FloorLayout>(`${path(workspace, floor)}/ai/apply`, 'POST', {
-    proposalId,
-    saveTemplates,
-    design,
-    confirmNewTypes
-  });
+  confirmNewTypes = false,
+  photos: Record<number, File[]> = {}
+) => {
+  const input = { proposalId, saveTemplates, design, confirmNewTypes };
+  return backendRequest<FloorLayout>(
+    `${path(workspace, floor)}/ai/apply`,
+    'POST',
+    Object.keys(photos).length ? resourceTypePhotoBody(input, photos) : input
+  );
+};
 export interface SavedAiDraft {
   version: number;
   design: AiProposal['design'];
