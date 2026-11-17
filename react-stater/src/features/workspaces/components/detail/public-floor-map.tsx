@@ -15,6 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { backendRequest } from '@/features/auth/api/session';
@@ -395,8 +396,40 @@ export function PublicFloorMap({
     const isOffice = isResourceOffice(resource);
     const capacityText = resource.capacity ? `${resource.capacity}` : isOffice ? '4' : resource.category === 'ROOM' ? '6' : '1';
 
-    const select = () => {
-      if (isAvailable && matchesCurrentFilter) {
+    const handleResourceClick = () => {
+      if (!matchesCurrentFilter) return;
+
+      if (isBooked) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is already booked in this timeframe.`,
+            `Vị trí ${resource.name || resource.code} đã có người đặt trong khung giờ này.`
+          )
+        );
+        return;
+      }
+
+      if (isLocked) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is currently held by someone else.`,
+            `Vị trí ${resource.name || resource.code} đang được người khác giữ chỗ.`
+          )
+        );
+        return;
+      }
+
+      if (isMaintenance) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is currently under maintenance.`,
+            `Vị trí ${resource.name || resource.code} hiện đang tạm khóa hoặc bảo trì.`
+          )
+        );
+        return;
+      }
+
+      if (isAvailable) {
         setInternalSelectedId(resource.id);
         onSelect?.(resource);
         onSelectResource?.(resource);
@@ -464,25 +497,27 @@ export function PublicFloorMap({
       <g
         key={resource.id}
         transform={`rotate(${resource.rotation} ${resource.posX + resource.width / 2} ${resource.posY + resource.height / 2})`}
-        role={isAvailable && matchesCurrentFilter ? 'button' : 'img'}
-        tabIndex={isAvailable && matchesCurrentFilter ? 0 : undefined}
+        role={matchesCurrentFilter ? 'button' : 'img'}
+        tabIndex={matchesCurrentFilter ? 0 : undefined}
         aria-label={titleText}
         aria-pressed={isAvailable && matchesCurrentFilter ? isCurrentSelected : undefined}
-        onClick={isAvailable && matchesCurrentFilter ? select : undefined}
+        onClick={matchesCurrentFilter ? handleResourceClick : undefined}
         onKeyDown={
-          isAvailable && matchesCurrentFilter
+          matchesCurrentFilter
             ? (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  select();
+                  handleResourceClick();
                 }
               }
             : undefined
         }
         className={`group/res ${opacityClass} ${
-          isAvailable && matchesCurrentFilter
-            ? 'cursor-pointer outline-none transition-all duration-150 focus-visible:opacity-95'
-            : 'cursor-not-allowed'
+          matchesCurrentFilter
+            ? isAvailable
+              ? 'cursor-pointer outline-none transition-all duration-150 focus-visible:opacity-95'
+              : 'cursor-pointer outline-none transition-all duration-150 opacity-90 hover:opacity-100'
+            : 'pointer-events-none'
         }`}
       >
         <title>{titleText}</title>

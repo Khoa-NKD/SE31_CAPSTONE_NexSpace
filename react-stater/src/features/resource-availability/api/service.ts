@@ -52,6 +52,13 @@ export const resourceAvailabilityService = {
     return apiClient.get<HoldResourceResponseDto>('/bookings/hold', {
       params: { resourceId }
     });
+  },
+
+  /**
+   * Khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release API)
+   */
+  async releaseHold(bookingId: number): Promise<HoldResourceResponseDto> {
+    return apiClient.post<HoldResourceResponseDto>(`/bookings/${bookingId}/release-hold`);
   }
 };
 
