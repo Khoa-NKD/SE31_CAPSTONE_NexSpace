@@ -1,29 +1,3 @@
-# Dependencies
-node_modules/
-.pnp
-.pnp.js
-
-# Build outputs
-dist/
-build/
-target/
-*.jar
-*.war
-.output/
-.vercel/
-.vinxi/
-.vite/
-.tanstack/
-*.tsbuildinfo
-
-# Environment variables & Secrets
-.env
-.env*.local
-application-local.properties
-.gist-url
-.config-url
-
-# IDEs and editors
 # Build outputs
 target/
 build/
@@ -46,23 +20,6 @@ application-local.yaml
 !.vscode/tasks.json
 !.vscode/launch.json
 !.vscode/extensions.json
-.idea
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Logs & Dumps
-logs
-*.log
-*.dumpstream
-
-# Agent Skills
-.agent/
-.agents/
-
-# Custom rules
-SCREEN_ARCHITECTURE_STANDARDS.md
 *.swp
 *.swo
 *~
