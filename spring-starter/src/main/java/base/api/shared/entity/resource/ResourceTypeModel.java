@@ -19,6 +19,7 @@ import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 /**
  * Loại chỗ (VD: Hot desk, Phòng họp 6 người). Phải có ít nhất 1 mức giá.
@@ -32,6 +33,12 @@ import java.math.BigDecimal;
 @Check(name = "ck_resource_type_has_price",
         constraints = "price_per_hour IS NOT NULL OR price_per_day IS NOT NULL OR price_per_month IS NOT NULL")
 public class ResourceTypeModel extends BaseModel {
+
+    public record Photo(String url, String publicId) {}
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "photos_json")
+    private List<Photo> photos;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "workspace_id", nullable = false)

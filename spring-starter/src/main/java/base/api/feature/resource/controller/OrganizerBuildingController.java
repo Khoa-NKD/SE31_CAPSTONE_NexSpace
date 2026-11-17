@@ -21,6 +21,17 @@ import org.springframework.web.bind.annotation.*;
 public class OrganizerBuildingController extends BaseAPIController {
     private final BuildingService service;
 
+    @GetMapping("/workspaces/{workspaceId}/site")
+    public ResponseEntity<ApiResponse<BuildingResponses.Building>> workspaceSite(@PathVariable @Positive Long workspaceId) {
+        return success(service.workspaceSite(getCurrentUserId(), workspaceId));
+    }
+
+    @PutMapping("/workspaces/{workspaceId}/site")
+    public ResponseEntity<ApiResponse<BuildingResponses.Building>> saveWorkspaceSite(@PathVariable @Positive Long workspaceId,
+            @Valid @RequestBody BuildingRequests.WorkspaceSite body) {
+        return success(service.saveWorkspaceSite(getCurrentUserId(), workspaceId, body));
+    }
+
     @GetMapping("/buildings")
     public ResponseEntity<ApiResponse<List<BuildingResponses.Building>>> catalog() { return success(service.catalog(getCurrentUserId())); }
 

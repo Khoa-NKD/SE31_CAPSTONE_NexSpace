@@ -25,7 +25,7 @@ public final class ResourceResponses {
         var physical = f.getBuildingFloor();
         var b = physical == null ? null : physical.getBuilding();
         var location = physical == null ? null : new BuildingResponses.Location(b.getId(), b.getName(), b.getAddress(),
-            physical.getId(), physical.getName(), physical.getFloorNumber(), f.getUsageX(), f.getUsageY(), f.getUsageWidth(), f.getUsageHeight());
+            physical.getId(), physical.getName(), physical.getFloorNumber(), f.getUsageX(), f.getUsageY(), f.getUsageWidth(), f.getUsageHeight(), physical.getOutline(), physical.getCornerRadiusM());
         return new FloorOption(f.getId(), f.getName(), f.getFloorNumber(), f.getStatus(), revision(f), location);
     }
 
@@ -45,7 +45,14 @@ public final class ResourceResponses {
                     BigDecimal pricePerMonth,
             boolean active,
             ResourceCurrency currency,
-            String revision, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
+            String revision, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM,
+            List<String> photoUrls) {
+        public TypeOption(Long id, String name, ResourceCategory category, int capacity, BigDecimal pricePerHour,
+                BigDecimal pricePerDay, BigDecimal pricePerMonth, boolean active, ResourceCurrency currency, String revision,
+                ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
+            this(id, name, category, capacity, pricePerHour, pricePerDay, pricePerMonth, active, currency, revision,
+                    usageKind, standardWidthM, standardLengthM, List.of());
+        }
         public TypeOption(Long id, String name, ResourceCategory category, int capacity, BigDecimal pricePerHour,
                 BigDecimal pricePerDay, BigDecimal pricePerMonth, boolean active, ResourceCurrency currency, String revision) {
             this(id, name, category, capacity, pricePerHour, pricePerDay, pricePerMonth, active, currency, revision, null, null, null);

@@ -1,4 +1,5 @@
 package base.api.feature.resource.service;
+import base.api.shared.entity.resource.MetricGeometry;
 
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.resource.FloorPlanModel;
@@ -81,10 +82,15 @@ public final class ResourceCanvas {
     }
 
     public static Bounds editorBounds(FloorPlanModel floor) {
-        if (!ownsDraft(floor)) return read(floor);
+        if (!ownsDraft(floor)) return withOutline(floor, read(floor));
         var temporary = new FloorPlanModel();
         temporary.setLayoutJson(floor.getDraftLayoutJson());
-        return read(temporary);
+        return withOutline(floor, read(temporary));
+    }
+
+    public static Bounds withOutline(FloorPlanModel floor, Bounds bounds) {
+        if (bounds == null || floor.getBuildingFloor() == null) return bounds;
+        return new Bounds(bounds.width(), bounds.height(), MetricGeometry.pixels(floor.getBuildingFloor().getCornerRadiusM()));
     }
 
     public static java.util.List<base.api.feature.resource.dto.FloorDecorations.Item> decorations(
@@ -320,7 +326,13 @@ public final class ResourceCanvas {
         }
     }
 
-    public record Bounds(BigDecimal width, BigDecimal height) {}
+    public record Bounds(BigDecimal width, BigDecimal height, BigDecimal cornerRadius) {
+        public Bounds(BigDecimal width, BigDecimal height) { this(width, height, BigDecimal.ZERO); }
+        public Bounds(BigDecimal width, BigDecimal height, boolean rounded) {
+            this(width, height, rounded ? width.min(height).multiply(new BigDecimal("0.12")) : BigDecimal.ZERO);
+        }
+        public boolean rounded() { return cornerRadius.signum() > 0; }
+    }
 
     public record Pose(
             BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height, BigDecimal rotation) {}
@@ -558,5 +570,15 @@ public final class ResourceCanvas {
                     "Resource "
                             + resource.getLabel()
                             + " is outside the floor canvas, including its rotation");
+        if (bounds.rounded()) {
+            double canvasWidth = bounds.width().doubleValue(), canvasHeight = bounds.height().doubleValue();
+            double radius = bounds.cornerRadius().doubleValue();
+            for (double[] point : corners(resource)) {
+                double dx = point[0] - Math.max(radius, Math.min(canvasWidth - radius, point[0]));
+                double dy = point[1] - Math.max(radius, Math.min(canvasHeight - radius, point[1]));
+                if (Math.hypot(dx, dy) > radius + epsilon)
+                    throw new ConflictException("Resource " + resource.getLabel() + " is outside a rounded floor corner");
+            }
+        }
     }
 }

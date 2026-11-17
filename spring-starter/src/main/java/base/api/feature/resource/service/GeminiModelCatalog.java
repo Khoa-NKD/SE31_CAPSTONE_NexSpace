@@ -81,6 +81,10 @@ final class GeminiModelCatalog {
             unavailableModels.add(model);
     }
 
+    synchronized boolean isKnownUnavailable(String model) {
+        return unavailableModels.contains(model);
+    }
+
     boolean isRetired(String model) {
         var date = SHUTDOWNS.get(model);
         return date != null && !LocalDate.now(ZoneOffset.UTC).isBefore(date);

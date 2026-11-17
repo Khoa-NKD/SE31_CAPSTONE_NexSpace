@@ -12,6 +12,16 @@ import lombok.Setter;
 @Getter
 @Setter
 public class BuildingFloorModel extends BaseModel {
+    public enum Outline { RECTANGULAR, ROUNDED }
+
+    @Enumerated(EnumType.STRING)
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VARCHAR)
+    @Column(nullable = false, length = 16)
+    private Outline outline = Outline.RECTANGULAR;
+
+    @Column(name = "corner_radius_m", nullable = false, precision = 10, scale = 2)
+    private BigDecimal cornerRadiusM = BigDecimal.ZERO;
+
     @Column(name = "geometry_version", nullable = false)
     private int geometryVersion = 1;
 

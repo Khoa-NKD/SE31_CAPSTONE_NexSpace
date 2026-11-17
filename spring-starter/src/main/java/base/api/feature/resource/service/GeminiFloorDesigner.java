@@ -29,7 +29,11 @@ public class GeminiFloorDesigner {
     private final GeminiModelCatalog catalog;
     private volatile String lastAutomaticModel;
     private static final Duration TOTAL_TIMEOUT = Duration.ofSeconds(90);
-    private static final Duration AUTOMATIC_ATTEMPT_TIMEOUT = Duration.ofSeconds(50);
+    private static final Duration TEXT_ATTEMPT_TIMEOUT = Duration.ofSeconds(25);
+    private static final Duration IMAGE_ATTEMPT_TIMEOUT = Duration.ofSeconds(42);
+    private static final Duration REPAIR_TIMEOUT = Duration.ofSeconds(20);
+    private static final Duration TIMEOUT_COOLDOWN = Duration.ofMinutes(2);
+    private final Map<String, Long> timedOutUntil = new ConcurrentHashMap<>();
 
     @org.springframework.beans.factory.annotation.Autowired
     public GeminiFloorDesigner(ObjectMapper mapper, Validator validator,
@@ -58,8 +62,18 @@ public class GeminiFloorDesigner {
         catalog.requireAvailable(requestedModel);
         return generate(context, image, requestedModel, false);
     }
+    public FloorDesign.Design design(Object context, FloorDesign.ImageInput image, String requestedModel,
+            java.util.function.Function<FloorDesign.Design, List<String>> review) {
+        if (requestedModel != null) catalog.requireAvailable(requestedModel);
+        String selected = requestedModel != null ? requestedModel : lastAutomaticModel != null ? lastAutomaticModel : model;
+        return generate(context, image, selected, requestedModel == null, review);
+    }
     private FloorDesign.Design generate(Object context, FloorDesign.ImageInput image, String model,
             boolean automatic) {
+        return generate(context, image, model, automatic, null);
+    }
+    private FloorDesign.Design generate(Object context, FloorDesign.ImageInput image, String model,
+            boolean automatic, java.util.function.Function<FloorDesign.Design, List<String>> review) {
         if (apiKey.isBlank()) throw new ConflictException("Gemini is not configured. Add GEMINI_API_KEY to the backend Local configuration");
         if (!model.matches("[A-Za-z0-9._-]{1,100}")) throw new ConflictException("Invalid configured Gemini model");
         long started = System.nanoTime();
@@ -77,7 +91,9 @@ public class GeminiFloorDesigner {
             String json = mapper.writeValueAsString(payload);
             if (json.getBytes(StandardCharsets.UTF_8).length > 8000000)
                 throw new BadRequestException("The floor is too large for one AI request. Reduce its object count first");
-            var response = sendWithFallback(json, model, automatic);
+            long deadline = started + TOTAL_TIMEOUT.toNanos();
+            var response = sendWithFallback(json, model, automatic, image != null, deadline);
+            for (int repair = 0; ; repair++) {
                 var root = mapper.readTree(new String(response.body(), StandardCharsets.UTF_8));
                 var candidate = root.path("candidates").path(0);
                 if (!"STOP".equals(candidate.path("finishReason").asText()))
@@ -85,18 +101,46 @@ public class GeminiFloorDesigner {
                 var text = new StringBuilder();
                 for (var part : candidate.path("content").path("parts"))
                     if (!part.path("thought").asBoolean()) text.append(part.path("text").asText());
-                var strict = mapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
-                        .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
-                var result = strict.readValue(text.toString(), FloorDesign.Design.class);
-                if (result == null || !validator.validate(result).isEmpty())
-                    throw new BadRequestException("AI returned an invalid design. Ask it to simplify the proposal");
+                var checked = validateDesign(text.toString());
+                var issues = new ArrayList<>(checked.issues());
+                if (issues.isEmpty() && review != null) issues.addAll(review.apply(checked.design()));
+                if (!issues.isEmpty()) {
+                    log.warn("Floor AI output rejected: fields={}, layoutIssueCount={}, repairAttempt={}", checked.issues(), issues.size() - checked.issues().size(), repair);
+                    if (repair >= 1 || deadline - System.nanoTime() < Duration.ofSeconds(8).toNanos()) {
+                        // Structurally valid geometry remains editable, but apply still rejects invalid layouts.
+                        if (checked.issues().isEmpty()) return checked.design();
+                        throw new BadRequestException("AI returned invalid design fields: " + String.join(", ", issues)
+                                + ". No changes were applied. Please retry");
+                    }
+                    var corrected = (ObjectNode) mapper.readTree(json);
+                    var contents = (com.fasterxml.jackson.databind.node.ArrayNode) corrected.path("contents");
+                    contents.add(mapper.valueToTree(Map.of("role", "model", "parts", List.of(Map.of("text", text.toString())))));
+                    contents.add(mapper.valueToTree(Map.of("role", "user", "parts", List.of(Map.of("text",
+                            "Repair only these output validation failures: " + String.join(", ", issues)
+                            + ". Follow all bounds and field descriptions in the schema. Round decimals to at most two places. "
+                            + "Keep the original layout intent, quantities, existing IDs and catalog choices. "
+                            + "Return the complete corrected JSON design, without markdown. Never bypass business rules.")))));
+                    String repairJson = mapper.writeValueAsString(corrected);
+                    if (repairJson.getBytes(StandardCharsets.UTF_8).length > 8000000)
+                        throw new BadRequestException("AI output needs correction but exceeds the request size limit. No changes were applied");
+                    long repairDeadline = Math.min(deadline, System.nanoTime() + REPAIR_TIMEOUT.toNanos());
+                    try {
+                        response = sendWithFallback(repairJson, response.model(), false, image != null, repairDeadline);
+                    } catch (java.io.IOException | ConflictException failure) {
+                        if (!checked.issues().isEmpty()) throw failure;
+                        log.warn("Floor AI repair did not complete; returning the draft for review");
+                        return checked.design();
+                    }
+                    continue;
+                }
                 var usage = root.path("usageMetadata");
                 log.info("Floor AI completed: elapsedMs={}, contextBytes={}, outputTokens={}, thinkingTokens={}",
                         Duration.ofNanos(System.nanoTime() - started).toMillis(),
                         contextJson.getBytes(StandardCharsets.UTF_8).length,
                         usage.path("candidatesTokenCount").asLong(0), usage.path("thoughtsTokenCount").asLong(0));
                 if (automatic) lastAutomaticModel = response.model();
-                return result;
+                return checked.design();
+            }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); throw new ConflictException("AI request cancelled");
         } catch (com.fasterxml.jackson.databind.JsonMappingException e) {
@@ -116,12 +160,38 @@ public class GeminiFloorDesigner {
 
     private record GenerationResponse(String model, byte[] body) {}
 
+    private record ValidatedDesign(FloorDesign.Design design, List<String> issues) {}
+
+    /** Only structural paths and constraint names may leave the provider-response boundary. */
+    private ValidatedDesign validateDesign(String text) {
+        try {
+            var strict = mapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                    .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+            var result = strict.readValue(text, FloorDesign.Design.class);
+            if (result == null) return new ValidatedDesign(null, List.of("design (NotNull)"));
+            var issues = validator.validate(result).stream().map(violation ->
+                    violation.getPropertyPath().toString().replace("<list element>", "")
+                    + " (" + violation.getConstraintDescriptor().getAnnotation().annotationType().getSimpleName() + ")")
+                    .distinct().sorted().limit(12).toList();
+            return new ValidatedDesign(result, issues);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException failure) {
+            String path = failure instanceof com.fasterxml.jackson.databind.JsonMappingException mapping
+                    ? mapping.getPath().stream().map(ref -> ref.getFieldName() == null ? "item" : ref.getFieldName())
+                        .filter(name -> name.matches("[A-Za-z_]{1,40}")).limit(4)
+                        .collect(java.util.stream.Collectors.joining(".")) : "design";
+            return new ValidatedDesign(null, List.of((path.isEmpty() ? "design" : path) + " (JSON structure)"));
+        }
+    }
+
     /** Omit repeated transport/pricing fields; geometry, identity and the reusable catalog stay intact. */
     private JsonNode compactContext(Object context) {
         JsonNode compact = mapper.valueToTree(context);
         for (var resource : compact.path("resources")) {
             if (resource instanceof ObjectNode object) object.remove(List.of("workspaceId", "floorPlanId",
                     "floorName", "pricePerHour", "effectivePricePerHour", "pricePerDay", "pricePerMonth"));
+        }
+        for (var type : compact.path("resourceTypes")) {
+            if (type instanceof ObjectNode object) object.remove("photoUrls");
         }
         return compact;
     }
@@ -138,19 +208,37 @@ public class GeminiFloorDesigner {
         return mapper.writeValueAsString(payload);
     }
 
-    private GenerationResponse sendWithFallback(String json, String preferred, boolean automatic)
+    private String compatiblePayload(String json) throws java.io.IOException {
+        var payload = (ObjectNode) mapper.readTree(json);
+        var config = (ObjectNode) payload.path("generationConfig");
+        var shape = config.remove("responseJsonSchema");
+        var instruction = (ObjectNode) payload.path("systemInstruction").path("parts").path(0);
+        instruction.put("text", instruction.path("text").asText()
+                + "\nReturn exactly one JSON object. Use this JSON schema as the response shape: " + shape);
+        return mapper.writeValueAsString(payload);
+    }
+
+    private GenerationResponse sendWithFallback(String json, String preferred, boolean automatic, boolean hasImage, long deadline)
             throws java.io.IOException, InterruptedException {
-        long deadline = System.nanoTime() + TOTAL_TIMEOUT.toNanos();
         var candidates = new ArrayDeque<String>();
-        if (!catalog.isRetired(preferred)) candidates.add(preferred);
-        boolean discovered = false;
+        long now = System.nanoTime();
+        timedOutUntil.entrySet().removeIf(entry -> entry.getValue() - now <= 0);
+        boolean deferPreferred = automatic && timedOutUntil.containsKey(preferred);
+        if (!catalog.isRetired(preferred) && !deferPreferred && !catalog.isKnownUnavailable(preferred))
+            candidates.add(preferred);
+        boolean discovered = !automatic;
         boolean quotaReached = false;
+        boolean unavailable = false;
         int transientStatus = 0;
         boolean timedOut = false;
+        boolean formatRejected = false;
         while (true) {
             if (deadline - System.nanoTime() <= 0) throw new HttpTimeoutException("Gemini request deadline exceeded");
             if (candidates.isEmpty()) {
                 if (discovered) {
+                    if (formatRejected) throw providerFailure(400, "INVALID_ARGUMENT");
+                    if (timedOut && unavailable)
+                        throw new ConflictException("Gemini timed out and its fallback models are unavailable. Your layout is unchanged. Try again shortly");
                     if (timedOut) throw new HttpTimeoutException("Available Gemini models timed out");
                     if (transientStatus != 0) throw providerFailure(transientStatus, "UNAVAILABLE");
                     throw new ConflictException(quotaReached
@@ -158,27 +246,52 @@ public class GeminiFloorDesigner {
                             : "No Gemini model is currently available for floor design");
                 }
                 catalog.options().stream().map(FloorDesign.ModelOption::id)
-                        .filter(id -> !id.equals(preferred))
-                        .sorted(Comparator.comparingInt((String id) -> id.contains("flash") ? 0 : 1)
-                                .thenComparing(Comparator.naturalOrder()))
-                        .limit(2).forEach(candidates::add);
+                        .filter(id -> !id.equals(preferred) || deferPreferred)
+                        .sorted(Comparator.comparing((String id) -> timedOutUntil.containsKey(id))
+                                .thenComparingInt(id -> fallbackRank(id, hasImage))
+                                .thenComparing(Comparator.reverseOrder()))
+                        .limit(5).forEach(candidates::add);
                 discovered = true;
                 continue;
             }
             String candidate = candidates.removeFirst();
             try {
-                return new GenerationResponse(candidate, send(payloadForModel(json, candidate), candidate,
-                        deadline, automatic));
+                Duration attemptBudget = hasImage ? IMAGE_ATTEMPT_TIMEOUT : TEXT_ATTEMPT_TIMEOUT;
+                long modelDeadline = automatic
+                        ? Math.min(deadline, System.nanoTime() + attemptBudget.toNanos()) : deadline;
+                log.info("Floor AI attempting model={}", candidate);
+                try {
+                    return new GenerationResponse(candidate, send(payloadForModel(json, candidate), candidate, modelDeadline));
+                } catch (RequestFormatRejected rejected) {
+                    log.warn("Gemini rejected structured generation for model={}; retrying in JSON mode", candidate);
+                    return new GenerationResponse(candidate, send(compatiblePayload(json), candidate, modelDeadline));
+                }
+            } catch (RequestFormatRejected rejected) {
+                if (!automatic) throw providerFailure(400, "INVALID_ARGUMENT");
+                formatRejected = true;
             } catch (HttpTimeoutException e) {
                 if (!automatic) throw e;
                 timedOut = true;
-                log.warn("Gemini generation timed out; trying another available model within the request deadline");
+                timedOutUntil.put(candidate, System.nanoTime() + TIMEOUT_COOLDOWN.toNanos());
+                log.warn("Gemini model={} timed out; trying another available model within the request deadline", candidate);
             } catch (ModelUnavailable e) {
+                if (!automatic) throw providerFailure(e.status, e.status == 429 ? "RESOURCE_EXHAUSTED" : e.status == 404 ? "NOT_FOUND" : "UNAVAILABLE");
                 quotaReached |= e.status == 429;
+                unavailable |= e.status == 404;
                 if (e.status >= 500) transientStatus = e.status;
             }
         }
     }
+
+    private static int fallbackRank(String id, boolean hasImage) {
+        if (id.endsWith("-latest") || id.contains("exp") || id.contains("preview")) return 4;
+        if (id.endsWith("-flash-lite")) return hasImage ? 1 : 0;
+        if (id.endsWith("-flash")) return hasImage ? 0 : 1;
+        if (id.endsWith("-pro")) return 2;
+        return 3;
+    }
+
+    private static final class RequestFormatRejected extends RuntimeException {}
 
     private static final class ModelUnavailable extends RuntimeException {
         private final int status;
@@ -189,8 +302,7 @@ public class GeminiFloorDesigner {
     }
 
     /** Retry explicit transient server errors within the shared request deadline. */
-    private byte[] send(String json, String model, long deadline, boolean automatic) throws java.io.IOException, InterruptedException {
-        long modelDeadline = automatic ? Math.min(deadline, System.nanoTime() + AUTOMATIC_ATTEMPT_TIMEOUT.toNanos()) : deadline;
+    private byte[] send(String json, String model, long modelDeadline) throws java.io.IOException, InterruptedException {
         for (int attempt = 0; attempt < 2; attempt++) {
             long remaining = modelDeadline - System.nanoTime();
             if (remaining <= 0) throw new HttpTimeoutException("Gemini request deadline exceeded");
@@ -225,6 +337,8 @@ public class GeminiFloorDesigner {
                 if (status == 404) catalog.markUnavailable(model);
                 // Only allowlisted provider categories and status codes are logged; no prompt, key or response text.
                 log.warn("Gemini request failed: HTTP {}, category={}, attempt={}", status, category, attempt + 1);
+                if (status == 400 && "INVALID_ARGUMENT".equals(category))
+                    throw new RequestFormatRejected();
                 if (!category.startsWith("API_KEY_") && (status == 404 || status == 429))
                     throw new ModelUnavailable(status);
                 boolean transientFailure = status == 500 || status == 502 || status == 503 || status == 504;
@@ -298,28 +412,7 @@ public class GeminiFloorDesigner {
     }
 
     static ObjectNode schema(Type type) {
-        var mapper = new ObjectMapper();
-        var node = mapper.createObjectNode();
-        if (type instanceof ParameterizedType p && p.getRawType() == List.class) {
-            node.put("type", "array"); node.set("items", schema(p.getActualTypeArguments()[0])); return node;
-        }
-        var cls = (Class<?>) type;
-        if (cls.isRecord()) {
-            node.put("type", "object"); node.put("additionalProperties", false);
-            var props = node.putObject("properties"); var required = node.putArray("required");
-            for (var field : cls.getRecordComponents()) {
-                var child = schema(field.getGenericType());
-                if (Set.of("id", "parentKey", "capacity", "expectedRevision", "question", "icon", "pricePerHour", "pricePerDay", "pricePerMonth").contains(field.getName())) {
-                    var nullable = mapper.createObjectNode(); var alternatives = nullable.putArray("anyOf");
-                    alternatives.add(child); alternatives.addObject().put("type", "null"); child = nullable;
-                }
-                props.set(field.getName(), child); required.add(field.getName());
-            }
-        } else if (cls.isEnum()) {
-            node.put("type", "string"); var values = node.putArray("enum");
-            for (var value : cls.getEnumConstants()) values.add(value.toString());
-        } else node.put("type", cls == String.class ? "string" : cls == Long.class || cls == Integer.class ? "integer" : "number");
-        return node;
+        return AiDesignSchema.schema(type);
     }
 
     private static final String INSTRUCTIONS = """
@@ -346,17 +439,33 @@ public class GeminiFloorDesigner {
         is explicitly requested. Never create resources outside the current workspace/scope.
         Explain that the result is an editable approximation requiring review before applying.
         Coordinates are LOCAL PIXELS, rounded to 2 decimal places. Use metrics to convert realistic meter sizes.
+        Output up to 100 resource changes, 100 removed IDs, 500 decorations, 20 templates and 20 new types.
+        Use nonblank labels and names (100 characters for furniture and types, 150 for resources).
+        Use six-digit hex colors and ASCII identifiers up to 64 characters, with letters, digits, underscores or hyphens.
+        Decoration IDs are required. Existing resource IDs are positive; use null only for a new resource.
+        Keep positions nonnegative, dimensions positive, rotation between 0 and 359.99, and prices null or positive.
         resources contains only new or changed seats/rooms. For existing items preserve their IDs and resourceTypeId.
         Resolve target names or codes against supplied objects. If multiple objects match, ask the user
         to select one, and return no changes. Follow explicit quantities exactly.
         Keys for existing resources MUST be r_<id>. New resource keys must be unique n_<identifier>.
         parentKey refers to an existing r_<id> or a new room key; open desks use null. Rooms cannot have parents.
+        Assign a desk to a room ONLY when all four rotated desk corners lie entirely inside that room.
+        Calculate children in the room's local coordinate system, then transform them into canvas coordinates.
+        For a meeting-room request with a table and N chairs, place exactly N chairs INSIDE the room around
+        the table, with room for each chair's actual footprint. Keep TV, table and chairs from overlapping.
+        Never make the room smaller than its contents. Reuse catalog dimensions without shrinking chairs.
+        Before returning, audit every room's children, bounds, rotated corners and all pairwise overlaps.
+        For complex reference images, reconstruct the outer boundary and room partitions first, then place
+        visible furniture room by room. Preserve orientation, adjacency, aisle widths and repeated counts.
+        Do not replace the drawing with a generic grid. Keep empty circulation areas empty and do not invent
+        hidden objects. If output limits prevent tracing all visible objects, say which portion is missing.
         Reuse an existing type ONLY when active, with confirmed usageKind, standardWidthM, standardLengthM,
         category, capacity and requested currency/prices all matching the desired configuration.
         Only resourceTypes contains reusable IDs for newly placed seats and rooms. An ID from an existing
         object or previousDraft is not reusable for a new object unless listed in resourceTypes.
-        Check the catalog separately for DESK and ROOM. If a requested category is absent, propose newTypes
-        and reference their temporary IDs. Never use a ROOM type ID for a desk or vice versa.
+        Check each requested usage within DESK and ROOM. If the catalog has no matching type, propose
+        newTypes and reference their temporary IDs even if other types exist in that category.
+        Never use a ROOM type ID for a desk or vice versa.
         Missing catalog entries or prices are not reasons to return a question.
         When asked to use existing types, take the selected catalog entry's exact usage, dimensions and capacity.
         If the user explicitly requests a different configuration, reference a new type instead of the existing ID.

@@ -6,10 +6,25 @@ import java.util.List;
 public final class BuildingResponses {
     private BuildingResponses() {}
     public record Building(Long id, String name, String address, String revision, List<PhysicalFloor> floors,
-                           BigDecimal latitude, BigDecimal longitude, String city, String ward) {}
+                           BigDecimal latitude, BigDecimal longitude, String city, String ward, Long workspaceId) {
+        public Building(Long id, String name, String address, String revision, List<PhysicalFloor> floors,
+                BigDecimal latitude, BigDecimal longitude, String city, String ward) {
+            this(id, name, address, revision, floors, latitude, longitude, city, ward, null);
+        }
+    }
     public record PhysicalFloor(Long id, String name, int floorNumber, BigDecimal width,
                                 BigDecimal height, String revision, List<Occupant> occupants,
-                                BigDecimal realWidthM, BigDecimal realLengthM, int geometryVersion) {
+                                BigDecimal realWidthM, BigDecimal realLengthM, int geometryVersion,
+                                base.api.shared.entity.resource.BuildingFloorModel.Outline outline, BigDecimal cornerRadiusM) {
+        @com.fasterxml.jackson.annotation.JsonProperty
+        public BigDecimal areaM2() {
+            return base.api.shared.entity.resource.MetricGeometry.floorArea(realWidthM, realLengthM, cornerRadiusM);
+        }
+        public PhysicalFloor(Long id, String name, int floorNumber, BigDecimal width, BigDecimal height,
+                String revision, List<Occupant> occupants, BigDecimal realWidthM, BigDecimal realLengthM, int geometryVersion) {
+            this(id, name, floorNumber, width, height, revision, occupants, realWidthM, realLengthM, geometryVersion,
+                    base.api.shared.entity.resource.BuildingFloorModel.Outline.RECTANGULAR, BigDecimal.ZERO);
+        }
         public PhysicalFloor(Long id, String name, int floorNumber, BigDecimal width, BigDecimal height,
                 String revision, List<Occupant> occupants) {
             this(id, name, floorNumber, width, height, revision, occupants, null, null, 1);
@@ -20,5 +35,12 @@ public final class BuildingResponses {
                            BigDecimal width, BigDecimal height) {}
     public record Location(Long buildingId, String buildingName, String buildingAddress,
                            Long buildingFloorId, String physicalFloorName, int floorNumber,
-                           BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {}
+                           BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height,
+                           base.api.shared.entity.resource.BuildingFloorModel.Outline outline, BigDecimal cornerRadiusM) {
+        public Location(Long buildingId, String buildingName, String buildingAddress, Long buildingFloorId,
+                String physicalFloorName, int floorNumber, BigDecimal x, BigDecimal y, BigDecimal width, BigDecimal height) {
+            this(buildingId, buildingName, buildingAddress, buildingFloorId, physicalFloorName, floorNumber,
+                    x, y, width, height, base.api.shared.entity.resource.BuildingFloorModel.Outline.RECTANGULAR, BigDecimal.ZERO);
+        }
+    }
 }

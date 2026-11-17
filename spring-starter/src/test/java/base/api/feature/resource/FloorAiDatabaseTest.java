@@ -45,6 +45,7 @@ class FloorAiDatabaseTest {
         @Bean Clock organizerApplicationClock() { return Clock.fixed(Instant.parse("2026-11-11T00:00:00Z"), ZoneOffset.UTC); }
         @Bean ObjectMapper objectMapper() { return new ObjectMapper().findAndRegisterModules(); }
         @Bean GeminiFloorDesigner gemini() { return mock(GeminiFloorDesigner.class); }
+        @Bean ResourceTypePhotos resourceTypePhotos() { return mock(ResourceTypePhotos.class); }
         @Bean TransactionTemplate transactionTemplate(PlatformTransactionManager manager) { return new TransactionTemplate(manager); }
     }
     @Autowired EntityManager em;
@@ -87,7 +88,7 @@ class FloorAiDatabaseTest {
         return new FloorDesign.Propose("Add one desk",resources.floorLayout(owner,workspace,floor).floor().revision(), FloorDesign.Scope.WORKSPACE,null,"en",null);
     }
     @Test void savesRealDataAndReplaysWithoutDuplicates() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner,workspace,floor,request()); assertThat(draft.applicable()).isTrue();
         var result = ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false));
         assertThat(result.resources()).hasSize(1); assertThat(result.resources().get(0).id()).isPositive();
@@ -96,7 +97,7 @@ class FloorAiDatabaseTest {
     }
     @Test void libraryFailureRollsBackResourcesAndProposalCanBeRetried() {
         design.saveTemplate(owner,null,new FloorDesign.TemplateInput("Sofa",FloorDecorations.Kind.OTHER,BigDecimal.ONE,BigDecimal.ONE,"#334455",null));
-        when(gemini.design(any())).thenReturn(proposal(true));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(true));
         var draft = ai.propose(owner,workspace,floor,request());
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),true))).isInstanceOf(ConflictException.class);
         assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
@@ -131,7 +132,7 @@ class FloorAiDatabaseTest {
             area.setLayoutJson(ResourceCanvas.writeDecorations(area, new ResourceCanvas.Bounds(new BigDecimal("1200"), new BigDecimal("600")), List.of(object)));
             return null;
         });
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Clear layout", null, List.of(), List.of(), List.of(), List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Clear layout", null, List.of(), List.of(), List.of(), List.of()));
         var clear = ai.propose(owner, workspace, floor, request());
         assertThat(clear.applicable()).isTrue();
         var saved = ai.apply(owner, workspace, floor, new FloorDesign.Apply(clear.proposalId(), false));
@@ -157,7 +158,7 @@ class FloorAiDatabaseTest {
         });
         var moved = new FloorDecorations.Item(object.id(), object.kind(), object.label(), new BigDecimal("100"),
                 object.posY(), object.width(), object.height(), object.rotation(), object.color());
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Move table", null, List.of(), List.of(), List.of(moved), List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Move table", null, List.of(), List.of(), List.of(moved), List.of()));
         var proposal = ai.propose(owner, workspace, floor, request());
         assertThat(proposal.applicable()).isTrue();
         assertThatThrownBy(() -> ai.apply(owner, workspace, floor, new FloorDesign.Apply(proposal.proposalId(), false)))
@@ -168,7 +169,7 @@ class FloorAiDatabaseTest {
 
     @Test void legacyAiGeometryChangesStillRequireConfirmedMeasurements() {
         tx.execute(status -> { em.find(FloorPlanModel.class, floor).getBuildingFloor().setGeometryVersion(1); return null; });
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner, workspace, floor, request());
         assertThat(draft.applicable()).isTrue();
         assertThatThrownBy(() -> ai.apply(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false)))
@@ -215,7 +216,7 @@ class FloorAiDatabaseTest {
     }
 
     @Test void calibrationCannotMoveResourcesWithLiveBookings() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner, workspace, floor, request());
         var saved = ai.apply(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false));
         tx.execute(status -> { em.find(WorkspaceModel.class, workspace).setStatus(WorkspaceStatus.ACTIVE); return null; });
@@ -239,7 +240,7 @@ class FloorAiDatabaseTest {
     }
 
     @Test void savedAiDraftSurvivesWithoutCreatingResourcesAndIsReusedAsContext() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner, workspace, floor, request());
         var saved = ai.saveDraft(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false));
         assertThat(ai.savedDraft(owner, workspace, floor)).isEqualTo(saved);
@@ -249,7 +250,7 @@ class FloorAiDatabaseTest {
     }
 
     @Test void publicMapUsesPublishedGeometryUntilExplicitRepublish() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var proposal = ai.propose(owner, workspace, floor, request());
         var saved = ai.apply(owner, workspace, floor, new FloorDesign.Apply(proposal.proposalId(), false));
         var id = saved.resources().get(0).id();
@@ -271,7 +272,7 @@ class FloorAiDatabaseTest {
     }
 
     @Test void areaResizePreservesResourceMetresAndRejectsContentClipping() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner, workspace, floor, request());
         var saved = ai.apply(owner, workspace, floor, new FloorDesign.Apply(draft.proposalId(), false));
         Long physicalId = tx.execute(status -> em.find(FloorPlanModel.class, floor).getBuildingFloor().getId());
@@ -299,18 +300,18 @@ class FloorAiDatabaseTest {
         verify(gemini,never()).design(any()); assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
     }
     @Test void changedFloorRejectsStaleProposal() {
-        when(gemini.design(any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
         resources.renameFloor(owner,workspace,floor,new FloorManagement.Rename("Renamed",request().expectedRevision()));
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false))).isInstanceOf(ConflictException.class);
         assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
     }
     @Test void editsKeepResourceIdentityAndPricing() {
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var first = ai.propose(owner,workspace,floor,request());
         var saved = ai.apply(owner,workspace,floor,new FloorDesign.Apply(first.proposalId(),false)).resources().get(0);
         var moved = new FloorDesign.ResourceChange("r_"+saved.id(),saved.id(),type,"Moved desk",null,1,
                 new BigDecimal("300"),new BigDecimal("100"),new BigDecimal("36"),new BigDecimal("30"),BigDecimal.ZERO, ResourceUsageKind.WORK_SEAT);
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Move",null,List.of(moved),List.of(),List.of(),List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Move",null,List.of(moved),List.of(),List.of(),List.of()));
         var edit = ai.propose(owner,workspace,floor,request()); assertThat(edit.applicable()).isTrue();
         var result = ai.apply(owner,workspace,floor,new FloorDesign.Apply(edit.proposalId(),false));
         assertThat(result.resources()).hasSize(1); assertThat(result.resources().get(0).id()).isEqualTo(saved.id());
@@ -319,7 +320,7 @@ class FloorAiDatabaseTest {
     @Test void overlappingDraftRemainsEditableButCannotBeSavedUntilAdjusted() {
         var first = proposal(false).resources().get(0);
         var other = new FloorDesign.ResourceChange("n_other",null,type,"Other",null,1,first.posX(),first.posY(),first.width(),first.height(),first.rotation(), ResourceUsageKind.WORK_SEAT);
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Overlap",null,List.of(first,other),List.of(),List.of(),List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Overlap",null,List.of(first,other),List.of(),List.of(),List.of()));
         var draft = ai.propose(owner, workspace, floor, request());
         assertThat(draft.design().resources()).containsExactly(first, other);
         verify(gemini).design(any());
@@ -333,7 +334,7 @@ class FloorAiDatabaseTest {
                 .resources()).hasSize(2);
     }
     @Test void concurrentAppliesOnlyCreateOneResource() throws Exception {
-        when(gemini.design(any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
         var pool = java.util.concurrent.Executors.newFixedThreadPool(2);
         var start = new java.util.concurrent.CountDownLatch(1);
         try {
@@ -349,7 +350,7 @@ class FloorAiDatabaseTest {
         var newSeat = new FloorDesign.ResourceChange(seat.key(),null,-1L,seat.name(),null,1,seat.posX(),seat.posY(),seat.width(),seat.height(),seat.rotation(), ResourceUsageKind.WORK_SEAT);
         var unpriced = new FloorDesign.NewType(-1L,"Window desk",ResourceCategory.DESK,ResourceCurrency.USD,1,null,null,null, ResourceUsageKind.WORK_SEAT, new BigDecimal("0.60"), new BigDecimal("0.50"));
         var plan = new FloorDesign.Design("New desk type",null,List.of(newSeat),List.of(),List.of(),List.of(),List.of(unpriced));
-        when(gemini.design(any())).thenReturn(plan);
+        when(gemini.design(any(), any(), any(), any())).thenReturn(plan);
         var draft = ai.propose(owner,workspace,floor,request());
         assertThat(draft.applicable()).isTrue();
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false,plan,false))).isInstanceOf(BadRequestException.class);
@@ -378,7 +379,7 @@ class FloorAiDatabaseTest {
         design.saveTemplate(owner,null,template);
         var object = new FloorDecorations.Item("locker",FloorDecorations.Kind.OTHER,"Locker",new BigDecimal("600"),new BigDecimal("500"),new BigDecimal("50"),new BigDecimal("50"),BigDecimal.ZERO,"#334455",FloorDecorations.Icon.LOCKER);
         var plan = new FloorDesign.Design("New type and locker",null,List.of(change),List.of(),List.of(object),List.of(template),List.of(newType));
-        when(gemini.design(any())).thenReturn(plan);
+        when(gemini.design(any(), any(), any(), any())).thenReturn(plan);
         var draft = ai.propose(owner,workspace,floor,request());
         assertThat(draft.applicable()).isTrue();
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),true,plan,true))).isInstanceOf(ConflictException.class);
@@ -391,7 +392,7 @@ class FloorAiDatabaseTest {
     @Test void manualBatchSwapsSavedSeatsAgainstTheFinalSceneAndRollsBackInvalidScene() {
         var first = proposal(false).resources().get(0);
         var second = new FloorDesign.ResourceChange("n_second",null,type,"Second",null,1,new BigDecimal("300"),first.posY(),first.width(),first.height(),first.rotation(), ResourceUsageKind.WORK_SEAT);
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Two seats",null,List.of(first,second),List.of(),List.of(),List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Two seats",null,List.of(first,second),List.of(),List.of(),List.of()));
         var draft = ai.propose(owner,workspace,floor,request());
         var saved = ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false));
         var a = resources.detail(owner,saved.resources().get(0).id());
@@ -413,7 +414,7 @@ class FloorAiDatabaseTest {
         return new ResourceRequests.BatchItem("r_"+r.id(),r.id(),null,new ResourceRequests.Input(r.floorPlanId(),r.resourceTypeId(),r.code(),r.name(),r.zoneName(),r.noiseLevel(),r.capacityOverride(),r.pricePerHour(),r.description(),x,r.posY(),r.width(),r.height(),r.rotation(),r.revision(),r.parentRoomId()));
     }
     @Test void manuallyAdjustedPreviewIsValidatedAndSavedInsteadOfOriginalProposal() {
-        when(gemini.design(any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false)); var draft = ai.propose(owner,workspace,floor,request());
         var change = draft.design().resources().get(0);
         var adjusted = new FloorDesign.ResourceChange(change.key(),null,type,change.name(),null,1,
                 new BigDecimal("400"),change.posY(),change.width(),change.height(),change.rotation(), ResourceUsageKind.WORK_SEAT);
@@ -424,27 +425,34 @@ class FloorAiDatabaseTest {
         assertThatThrownBy(() -> ai.apply(owner,workspace,floor,new FloorDesign.Apply(draft.proposalId(),false))).isInstanceOf(ConflictException.class);
     }
 
-    @Test void newSeatsInheritTheCatalogFootprintAndRejectDifferentUsageOrUnknownMetadata() {
+    @Test void newSeatsInheritMatchingFootprintsAndOfferATypeForDifferentUsage() {
         var original = proposal(false).resources().get(0);
         var wider = new FloorDesign.ResourceChange(original.key(), null, type, original.name(), null, 1,
                 original.posX(), original.posY(), new BigDecimal("40"), original.height(), original.rotation(), ResourceUsageKind.WORK_SEAT);
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Wider seat", null, List.of(wider), List.of(), List.of(), List.of()));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Wider seat", null, List.of(wider), List.of(), List.of(), List.of()));
         var normalized = ai.propose(owner,workspace,floor,request());
         assertThat(normalized.applicable()).isTrue();
         assertThat(normalized.design().resources().get(0).width()).isEqualByComparingTo(original.width());
         var sofa = new FloorDesign.ResourceChange(original.key(), null, type, "Sofa seat", null, 1,
                 original.posX(), original.posY(), original.width(), original.height(), original.rotation(), ResourceUsageKind.SOFA_SEAT);
-        when(gemini.design(any())).thenReturn(new FloorDesign.Design("Sofa", null, List.of(sofa), List.of(), List.of(), List.of()));
-        assertThat(ai.propose(owner,workspace,floor,request()).applicable()).isFalse();
+        when(gemini.design(any(), any(), any(), any())).thenReturn(new FloorDesign.Design("Sofa", null, List.of(sofa), List.of(), List.of(), List.of()));
+        var sofaDraft = ai.propose(owner,workspace,floor,request());
+        assertThat(sofaDraft.issues()).isEmpty();
+        assertThat(sofaDraft.applicable()).isTrue();
+        assertThat(sofaDraft.design().newTypes()).singleElement().satisfies(proposed -> {
+            assertThat(proposed.usageKind()).isEqualTo(ResourceUsageKind.SOFA_SEAT);
+            assertThat(proposed.pricePerHour()).isNull();
+            assertThat(sofaDraft.design().resources().get(0).resourceTypeId()).isEqualTo(proposed.tempId());
+        });
         tx.execute(status -> { var legacy = em.find(ResourceTypeModel.class,type); legacy.setUsageKind(null); legacy.setStandardWidthM(null); legacy.setStandardLengthM(null); return null; });
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         assertThat(ai.propose(owner,workspace,floor,request()).applicable()).isFalse();
         assertThat(resources.floorLayout(owner,workspace,floor).resources()).isEmpty();
     }
 
     @Test void emptyCatalogOffersAnUnpricedDraftEvenIfProviderReturnsAnUnknownTypeId() {
         tx.execute(status -> { em.remove(em.find(ResourceTypeModel.class, type)); return null; });
-        when(gemini.design(any())).thenReturn(proposal(false));
+        when(gemini.design(any(), any(), any(), any())).thenReturn(proposal(false));
         var draft = ai.propose(owner, workspace, floor, request());
 
         assertThat(draft.issues()).isEmpty();
@@ -478,7 +486,7 @@ class FloorAiDatabaseTest {
                 BigDecimal.ZERO, ResourceUsageKind.WORK_SEAT);
         var wrongReference = new FloorDesign.Design("Two desks", null, List.of(first, second), List.of(),
                 List.of(), List.of());
-        when(gemini.design(any())).thenReturn(wrongReference);
+        when(gemini.design(any(), any(), any(), any())).thenReturn(wrongReference);
 
         var draft = ai.propose(owner, workspace, floor, request());
         assertThat(draft.issues()).isEmpty();
