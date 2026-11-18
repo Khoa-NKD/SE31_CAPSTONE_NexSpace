@@ -1,3 +1,4 @@
+import { cancellationPolicyError, defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
@@ -133,7 +134,7 @@ function isItemValidMedia(item: { url?: string; uploadStatus?: string }): boolea
 export function StepReviewChecklistView() {
   const c = useOrganizerCopy();
   const router = useRouter();
-  const { basicInfo, location, operatingHours, amenities, media, saveDraft, setSubmissionStatus } =
+  const { basicInfo, location, operatingHours, cancellationRules, amenities, media, saveDraft, setSubmissionStatus } =
     useWizardStore();
 
   const { isSaving, saveDraftToServer } = useWizardDraftSync();
@@ -151,6 +152,7 @@ export function StepReviewChecklistView() {
       operatingHours.schedule.every(
         (s) => !s.isOpen || isOperatingTimeRangeValid(s.openTime, s.closeTime)
       ));
+  const isCancellationPolicyValid = !cancellationPolicyError(cancellationRules ?? defaultCancellationRules(), c);
   const isAmenitiesValid = amenities.length >= 1;
 
   const durableMediaCount = media.items.filter(isItemValidMedia).length;
@@ -164,7 +166,7 @@ export function StepReviewChecklistView() {
   // Calculate audit score across the 3 core onboarding sections (Steps 1–4)
   const auditSections = [
     { id: 'basic_info', name: 'Basic Information', valid: isBasicInfoValid },
-    { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid },
+    { id: 'hours', name: 'Operating Hours & Access', valid: isOperatingHoursValid && isCancellationPolicyValid },
     {
       id: 'media_amenities',
       name: 'Amenities & Media Assets',
@@ -680,10 +682,7 @@ export function StepReviewChecklistView() {
               <span className='font-medium text-foreground mt-1 flex items-center gap-1.5'>
                 <CheckCircle2 className='size-3.5 text-emerald-600 shrink-0' />
                 <span>
-                  {c(
-                    'Flexible (Full refund up to 2 hours before booking)',
-                    'Linh hoạt (hoàn tiền toàn bộ nếu hủy trước giờ đặt ít nhất 2 tiếng)'
-                  )}
+                  {(cancellationRules ?? defaultCancellationRules()).map((rule) => `${rule.minHoursBeforeStart}h: ${rule.refundPercent}%`).join(' · ')}
                 </span>
               </span>
             </div>

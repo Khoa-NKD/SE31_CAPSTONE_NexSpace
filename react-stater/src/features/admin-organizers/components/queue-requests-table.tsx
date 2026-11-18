@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React from 'react';
 import { ArrowRight, Building, Building2, Store, Landmark, Layers } from 'lucide-react';
 import { VerificationApplication } from '../data/mock-organizers';
@@ -107,7 +108,7 @@ export function QueueRequestsTable({
 
                     {/* Submitted At */}
                     <td className='py-3 px-4'>
-                      <div className='text-foreground'>{app.submittedAtFormatted}</div>
+                      <div className='text-foreground'>{formatDateLabel(app.submittedAtFormatted)}</div>
                       <div className='text-[11px] text-muted-foreground'>{app.submittedAtRelative}</div>
                     </td>
 

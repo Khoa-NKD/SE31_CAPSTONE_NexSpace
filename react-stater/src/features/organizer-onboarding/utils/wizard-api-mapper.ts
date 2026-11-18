@@ -1,3 +1,4 @@
+import { defaultCancellationRules } from '../../workspaces/utils/cancellation-policy.ts';
 import type {
   CanonicalWorkspace,
   CreateWorkspaceDto,
@@ -243,6 +244,7 @@ export function mapWizardStateToCreateDto(
     organizerId,
     amenities: state.amenities || [],
     operatingHours,
+    cancellationRules: state.cancellationRules ?? defaultCancellationRules(),
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     clientDraftKey: state.clientDraftKey,
     ...floorPlanMeta
@@ -279,6 +281,7 @@ export function mapWizardStateToUpdateDto(
     supportPhone: state.basicInfo.contactPhone,
     supportEmail: state.basicInfo.contactEmail,
     operatingHours,
+    cancellationRules: state.cancellationRules ?? defaultCancellationRules(),
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     autoBlockPublicHolidays: state.operatingHours.blockHolidays,
     checkInLeadMinutes: state.operatingHours.allowGracePeriod ? 15 : 0,
@@ -355,6 +358,7 @@ export function mapCanonicalToWizardState(
       longitude: typeof cw.longitude === 'number' ? cw.longitude : null,
       entryNotes: cw.entryInstructions || existingLocalState?.location?.entryNotes || ''
     },
+    cancellationRules: cw.cancellationRules ?? defaultCancellationRules(),
     operatingHours: {
       is247,
       schedule: schedules.length > 0 ? schedules : existingLocalState?.operatingHours?.schedule || [],

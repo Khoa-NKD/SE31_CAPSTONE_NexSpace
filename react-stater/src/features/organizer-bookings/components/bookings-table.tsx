@@ -1,3 +1,5 @@
+import { formatDateLabel } from '@/lib/format';
+import { formatBookingMoney } from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import {
@@ -185,7 +187,9 @@ export function BookingsTable({
                     {/* Reserved Window */}
                     <TableCell>
                       <div className='flex flex-col'>
-                        <span className='font-medium text-foreground'>{row.reservedDate}</span>
+                        <span className='font-medium text-foreground'>
+                          {formatDateLabel(row.reservedDate)}
+                        </span>
                         <span className='text-[11px] text-muted-foreground'>
                           {row.reservedTimeWindow}
                         </span>
@@ -202,7 +206,7 @@ export function BookingsTable({
                               : 'text-foreground'
                           }`}
                         >
-                          ${row.amount.toFixed(2)}
+                          {formatBookingMoney(row.amount)}
                         </span>
                         <span className='inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted text-muted-foreground border border-border w-fit'>
                           {getGatewayIcon(row.paymentGateway)}

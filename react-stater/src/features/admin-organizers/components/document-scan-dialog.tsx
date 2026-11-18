@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -158,7 +159,7 @@ export function DocumentScanDialog({
                         <div>Số / No: <strong className='font-mono'>{document.details.idNumber}</strong></div>
                         <div>Họ và tên: <strong className='font-semibold'>{document.details.legalRep}</strong></div>
                         <div>Ngày sinh: {document.details.dob}</div>
-                        <div>Có giá trị đến: {document.details.expiryDate}</div>
+                        <div>Có giá trị đến: {formatDateLabel(document.details.expiryDate)}</div>
                       </div>
                     </div>
                   </div>
@@ -170,7 +171,7 @@ export function DocumentScanDialog({
                     </div>
                     <div className='space-y-1.5 text-[11px] pt-1'>
                       <div>Đặc điểm nhận dạng: {document.details.identificationFeatures}</div>
-                      <div>Ngày cấp: {document.details.issueDate}</div>
+                      <div>Ngày cấp: {formatDateLabel(document.details.issueDate)}</div>
                       <div className='font-mono text-[9px] bg-slate-200 p-1.5 rounded'>
                         {document.details.mrzCode}
                       </div>

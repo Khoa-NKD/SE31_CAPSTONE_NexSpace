@@ -1,8 +1,9 @@
+import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
+import { DateInput } from '@/components/ui/date-input';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { RefreshCw, LoaderCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/features/landing/context/language-context';
 import {
   floorAvailabilityOptions,
@@ -158,15 +159,13 @@ export function FloorAvailabilityInspector({
         ).map(([key, label]) => (
           <label key={key} className='block space-y-1.5 text-[11px] text-muted-foreground'>
             {label}
-            <Input
+            <DateInput
               type='datetime-local'
               className='h-9 min-w-0 text-xs'
               value={calendar[key]}
-              onChange={(event) =>
-                key === 'from'
-                  ? calendar.setFrom(event.target.value)
-                  : calendar.setTo(event.target.value)
-              }
+              onValueChange={(dateValue) => key === 'from'
+                  ? calendar.setFrom(dateValue)
+                  : calendar.setTo(dateValue)}
             />
           </label>
         ))}
@@ -214,8 +213,8 @@ export function FloorAvailabilityInspector({
       {calendar.query.data && (
         <div className='space-y-1 border-t border-border pt-3 text-[10px] text-muted-foreground'>
           <p>{c('Applied interval', 'Khoảng giờ đang xem')}:</p>
-          <p>{new Date(calendar.query.data.from).toLocaleString(vi ? 'vi-VN' : 'en-GB')}</p>
-          <p>→ {new Date(calendar.query.data.to).toLocaleString(vi ? 'vi-VN' : 'en-GB')}</p>
+          <p>{formatDisplayDateTime(new Date(calendar.query.data.from))}</p>
+          <p>→ {formatDisplayDateTime(new Date(calendar.query.data.to))}</p>
           <p className='pt-1'>
             {c('Updated', 'Cập nhật')}:{' '}
             {new Date(calendar.query.data.asOf).toLocaleTimeString(vi ? 'vi-VN' : 'en-GB')}

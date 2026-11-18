@@ -1,3 +1,5 @@
+import { formatDateLabel } from '@/lib/format';
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import {
   BadgeCheck,
   MapPin,
@@ -189,7 +191,7 @@ export function BookingSummaryCard({
 function formatSchedule(startTime?: string, endTime?: string, dateFallback?: string) {
   if (!startTime || !endTime) {
     return {
-      dateStr: dateFallback || 'Selected Date',
+      dateStr: formatDateLabel(dateFallback) || 'Selected Date',
       timeStr: '09:00 AM - 01:00 PM (4 hours)',
       durationHours: 4
     };
@@ -200,12 +202,6 @@ function formatSchedule(startTime?: string, endTime?: string, dateFallback?: str
   const diffMs = Math.max(0, end.getTime() - start.getTime());
   const hours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 || 1;
 
-  const dateOptions: Intl.DateTimeFormatOptions = {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  };
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
@@ -213,8 +209,8 @@ function formatSchedule(startTime?: string, endTime?: string, dateFallback?: str
   };
 
   const dateStr = !isNaN(start.getTime())
-    ? start.toLocaleDateString('en-US', dateOptions)
-    : dateFallback || 'Selected Date';
+    ? formatDisplayDate(start)
+    : formatDateLabel(dateFallback) || 'Selected Date';
 
   const timeStr =
     !isNaN(start.getTime()) && !isNaN(end.getTime())

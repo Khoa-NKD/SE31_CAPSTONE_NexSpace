@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import {
@@ -248,12 +249,12 @@ export function ProfileForm({ user }: ProfileFormProps) {
                 <Label htmlFor='birth-date-input' className='text-xs font-medium'>
                   Ngày sinh
                 </Label>
-                <Input
+                <DateInput
                   id='birth-date-input'
                   type='date'
                   value={birthDate}
-                  onChange={(e) => {
-                    setBirthDate(e.target.value);
+                  onValueChange={(dateValue) => {
+                    setBirthDate(dateValue);
                     if (fieldErrors.birthDate) {
                       setFieldErrors((prev) => ({ ...prev, birthDate: '' }));
                     }

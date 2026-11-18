@@ -1,3 +1,4 @@
+import { formatDate, parseDisplayDate } from '@/lib/format';
 import React, { useState, useMemo, useCallback } from 'react';
 import {
   ChevronLeft,
@@ -172,7 +173,8 @@ export function DateTimePickerModal({
         return d >= today ? d : new Date(today);
       }
       if (typeof initialDate === 'string') {
-        const parsed = new Date(initialDate);
+        const canonical = parseDisplayDate(initialDate) ?? initialDate;
+        const parsed = new Date(/^\d{4}-\d{2}-\d{2}$/.test(canonical) ? canonical + 'T00:00:00' : canonical);
         if (!isNaN(parsed.getTime())) {
           parsed.setHours(0, 0, 0, 0);
           return parsed >= today ? parsed : new Date(today);
@@ -459,8 +461,7 @@ export function DateTimePickerModal({
     const isoStartTime = `${isoDate}T${minutesTo24Hour(effectiveStartTimeMinutes)}`;
     const isoEndTime = `${isoDate}T${minutesTo24Hour(effectiveEndTimeMinutes)}`;
 
-    const monthAbbr = MONTH_NAMES[selectedDate.getMonth()].slice(0, 3);
-    const dateFormatted = `${monthAbbr} ${selectedDate.getDate()}, ${selectedDate.getFullYear()}`;
+    const dateFormatted = formatDate(selectedDate);
 
     const formattedSchedule: ScheduleSelection = {
       date: dateFormatted,
@@ -630,7 +631,7 @@ export function DateTimePickerModal({
             {isSelectedDateClosed ? (
               <div className='bg-rose-500/10 border-rose-500/20 text-rose-600 dark:text-rose-400 flex items-center gap-2 rounded-lg border p-2 text-xs font-medium'>
                 <AlertCircle className='h-4 w-4 shrink-0' />
-                <span>This workspace is closed on {MONTH_NAMES[selectedDate.getMonth()]} {selectedDate.getDate()}. Please select another day.</span>
+                <span>This workspace is closed on {formatDate(selectedDate)}. Please select another day.</span>
               </div>
             ) : isTodayExpired ? (
               <div className='bg-amber-500/10 border-amber-500/20 text-amber-600 dark:text-amber-400 flex items-center gap-2 rounded-lg border p-2 text-xs font-medium'>

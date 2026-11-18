@@ -159,7 +159,7 @@ export function BookingReviewPage({
               notes={customerNotes}
               onNotesChange={setCustomerNotes}
             />
-            <CancellationPolicyCard />
+            <CancellationPolicyCard snapshot={effectiveBooking?.cancellationPolicySnapshot} rules={workspace?.cancellationRules} />
           </div>
 
           {/* Right Column (5 cols ~ 40% - Sticky Card) */}

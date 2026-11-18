@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -267,7 +268,7 @@ export function WorkspaceBookingCard({
               {schedule ? (
                 <div className='space-y-1'>
                   <div className='text-sm font-bold text-slate-900 dark:text-white'>
-                    {schedule.date}
+                    {formatDateLabel(schedule.date)}
                   </div>
                   <div className='flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-medium'>
                     <span className='flex items-center gap-1'>
@@ -427,7 +428,7 @@ export function WorkspaceBookingCard({
                 <Calendar className='size-3 shrink-0' />
                 <span className='truncate'>
                   {schedule
-                    ? `${schedule.date} · ${schedule.startTime}`
+                    ? `${formatDateLabel(schedule.date)} · ${schedule.startTime}`
                     : language === 'vi'
                       ? 'Chọn ngày & giờ'
                       : 'Select date & time'}

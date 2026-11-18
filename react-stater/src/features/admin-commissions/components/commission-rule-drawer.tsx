@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -291,7 +292,7 @@ function CommissionRuleForm({
                 <input
                   id='rule-start-date'
                   type='text'
-                  value={startDate}
+                  value={formatDateLabel(startDate)}
                   onChange={(e) => setStartDate(e.target.value)}
                   className='w-full text-xs font-medium border border-input rounded-lg p-2.5 pl-8 text-foreground bg-background'
                 />
@@ -309,7 +310,7 @@ function CommissionRuleForm({
                 <input
                   id='rule-end-date'
                   type='text'
-                  value={endDate}
+                  value={formatDateLabel(endDate)}
                   onChange={(e) => setEndDate(e.target.value)}
                   className='w-full text-xs font-medium border border-input rounded-lg p-2.5 pl-8 text-foreground bg-background font-mono'
                 />

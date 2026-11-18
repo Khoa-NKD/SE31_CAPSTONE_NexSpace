@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import type { CanonicalWorkspace } from '../../workspaces/api/types';
 
 export type WorkspaceStatus = 'active' | 'pending' | 'maintenance' | 'draft' | 'suspended' | 'archived';
@@ -129,8 +130,8 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
   const metroZone = cw.district && cw.city ? `${cw.district}, ${cw.city}` : (cw.city || 'Metro Area');
 
   const formattedDate = cw.submittedAt
-    ? new Date(cw.submittedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
-    : (cw.createdAt ? new Date(cw.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Jan 24, 2026');
+    ? formatDisplayDate(new Date(cw.submittedAt))
+    : (cw.createdAt ? formatDisplayDate(new Date(cw.createdAt)) : 'Jan 24, 2026');
 
   const formattedTime = cw.submittedAt
     ? new Date(cw.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'

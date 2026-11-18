@@ -271,10 +271,9 @@ export const organizerNavGroups: NavGroup[] = [
       },
       {
         title: 'Analytics',
-        url: '#analytics',
+        url: '/dashboard/organizer/analytics',
         icon: 'trendingUp',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
       }
     ]
   }

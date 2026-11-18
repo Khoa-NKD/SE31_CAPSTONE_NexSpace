@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -63,7 +64,7 @@ function mapApiToAdminBookingItem(b: AdminBookingApiItem): BookingItem {
 
   const start = new Date(b.startTime);
   const end = new Date(b.endTime);
-  const timeSlot = `${start.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' })} • ${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
+  const timeSlot = `${formatDisplayDate(start)} • ${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 
   const initials = b.customerName
     .split(' ')
@@ -112,14 +113,14 @@ function mapApiToAdminBookingItem(b: AdminBookingApiItem): BookingItem {
       {
         id: '1',
         title: 'Booking Created',
-        timestamp: new Date(b.createdAt).toLocaleString('vi-VN'),
+        timestamp: formatDisplayDateTime(new Date(b.createdAt)),
         description: `Booking #${b.bookingCode} reserved by ${b.customerName}.`,
         completed: true
       },
       {
         id: '2',
         title: 'VietQR Payment Verified',
-        timestamp: new Date(b.createdAt).toLocaleString('vi-VN'),
+        timestamp: formatDisplayDateTime(new Date(b.createdAt)),
         description: `PayOS received ${formatVnd(b.amount)} full payment.`,
         completed: b.status !== 'PENDING_PAYMENT'
       }

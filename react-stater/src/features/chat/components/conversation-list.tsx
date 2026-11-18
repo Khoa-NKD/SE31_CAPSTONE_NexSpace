@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { useMemo, useState } from 'react';
 import { Icons } from '@/components/icons';
 import { motion } from 'motion/react';
@@ -112,7 +113,7 @@ export function ConversationList({ conversations, selectedId, onSelect }: Conver
                   </div>
                   {lastMessage && (
                     <span className='text-muted-foreground shrink-0 text-[0.65rem]'>
-                      {lastMessage.timestamp}
+                      {formatDateLabel(lastMessage.timestamp)}
                     </span>
                   )}
                 </div>

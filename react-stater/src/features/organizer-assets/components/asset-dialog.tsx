@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -201,11 +202,11 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           <Label htmlFor='purchaseDate' className='text-xs font-semibold'>
             {c('Purchase date', 'Ngày mua')}
           </Label>
-          <Input
+          <DateInput
             id='purchaseDate'
             type='date'
             value={purchaseDate}
-            onChange={(e) => setPurchaseDate(e.target.value)}
+            onValueChange={(dateValue) => setPurchaseDate(dateValue)}
           />
         </div>
       </div>
@@ -215,11 +216,11 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           <Label htmlFor='warrantyUntil' className='text-xs font-semibold'>
             {c('Warranty expiry', 'Thời hạn bảo hành')}
           </Label>
-          <Input
+          <DateInput
             id='warrantyUntil'
             type='date'
             value={warrantyUntil}
-            onChange={(e) => setWarrantyUntil(e.target.value)}
+            onValueChange={(dateValue) => setWarrantyUntil(dateValue)}
           />
         </div>
 
@@ -227,11 +228,11 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           <Label htmlFor='nextMaintenanceDate' className='text-xs font-semibold'>
             {c('Next maintenance date', 'Lịch bảo trì tiếp theo')}
           </Label>
-          <Input
+          <DateInput
             id='nextMaintenanceDate'
             type='date'
             value={nextMaintenanceDate}
-            onChange={(e) => setNextMaintenanceDate(e.target.value)}
+            onValueChange={(dateValue) => setNextMaintenanceDate(dateValue)}
           />
         </div>
       </div>

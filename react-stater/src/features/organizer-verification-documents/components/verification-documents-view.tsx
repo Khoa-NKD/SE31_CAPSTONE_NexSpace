@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
 import { useRef, useState, useSyncExternalStore } from 'react';
@@ -267,7 +268,7 @@ function DocumentsPanel({ actorId, data }: { actorId: number; data: Verification
                     <p className='text-xs text-muted-foreground'>
                       {tr('Uploaded:')}{' '}
                       <time dateTime={document.uploadedAt}>
-                        {document.uploadedAt.replace('T', ' ')}
+                        {formatDateLabel(document.uploadedAt)}
                       </time>
                     </p>
                   ) : null}

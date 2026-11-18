@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useState } from 'react';
 import {
   MapPin,
@@ -206,12 +207,6 @@ function formatSchedule(startTime?: string, endTime?: string) {
   const diffMs = Math.max(0, end.getTime() - start.getTime());
   const hours = Math.round((diffMs / (1000 * 60 * 60)) * 10) / 10 || 1;
 
-  const dateOptions: Intl.DateTimeFormatOptions = {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric'
-  };
   const timeOptions: Intl.DateTimeFormatOptions = {
     hour: '2-digit',
     minute: '2-digit',
@@ -219,7 +214,7 @@ function formatSchedule(startTime?: string, endTime?: string) {
   };
 
   const dateStr = !isNaN(start.getTime())
-    ? start.toLocaleDateString('en-US', dateOptions)
+    ? formatDisplayDate(start)
     : 'Selected Date';
 
   const timeStr =

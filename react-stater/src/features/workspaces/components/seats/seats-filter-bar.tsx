@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { Calendar, List, LayoutGrid } from 'lucide-react';
 import type { SeatCategory } from '../../types/seat';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
@@ -56,7 +57,7 @@ export function SeatsFilterBar({
         >
           <Calendar className='h-4 w-4 shrink-0 transition-transform group-hover:scale-110' />
           <span>
-            {schedule.date} • {schedule.startTime} - {schedule.endTime} ({schedule.durationHours} hrs)
+            {formatDateLabel(schedule.date)} • {schedule.startTime} - {schedule.endTime} ({schedule.durationHours} hrs)
           </span>
           <span className='ml-1 text-xs font-bold underline underline-offset-2 transition-colors group-hover:text-primary/80'>
             Change
