@@ -76,6 +76,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = new BigDecimal("0.00");
     private static final int DEFAULT_MAX_ADVANCE_DAYS = 90;
     private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
+    private static final int DEFAULT_HOLD_DURATION_MINUTES = 10;
     private static final int DEFAULT_MIN_ADVANCE_MINUTES = 0;
 
     private static final int DEFAULT_HOLD_MINUTES = 10;
@@ -103,12 +104,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final CurrentUserProvider currentUserProvider;
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
-
-    @Value("${app.booking.max-active-holds:3}")
-    private int maxActiveHolds = 3;
-
-    @Value("${app.booking.hold-duration-minutes:10}")
-    private int holdDurationMinutes = 10;
 
     @Override
     @Transactional
@@ -181,10 +176,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         }
 
         // 5.2. Giới hạn số Hold Active (Anti-Hoarding / Anti-DoS):
-        // Số hold active tối đa linh hoạt qua biến môi trường BOOKING_MAX_ACTIVE_HOLDS
+        // Số hold active tối đa điều khiển động từ bảng platform_setting trong database
         long activeHolds = bookingRepository.countActiveHoldsByCustomer(customerId, now);
-        if (activeHolds >= maxActiveHolds) {
-            throw new BadRequestException("Bạn chỉ được giữ tối đa " + maxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
+        int effectiveMaxActiveHolds = getEffectiveMaxActiveHolds();
+        if (activeHolds >= effectiveMaxActiveHolds) {
+            throw new BadRequestException("Bạn chỉ được giữ tối đa " + effectiveMaxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
         }
 
         // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
@@ -1052,7 +1048,31 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     }
 
     private int getEffectiveHoldMinutes() {
-        return holdDurationMinutes;
+        return platformSettingRepository.findById("booking.hold_ttl_minutes")
+                .or(() -> platformSettingRepository.findById("booking_hold_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_HOLD_DURATION_MINUTES;
+                    }
+                })
+                .orElse(DEFAULT_HOLD_DURATION_MINUTES);
+    }
+
+    private int getEffectiveMaxActiveHolds() {
+        return platformSettingRepository.findById("booking.max_active_holds")
+                .or(() -> platformSettingRepository.findById("booking_max_active_holds"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_MAX_ACTIVE_HOLDS;
+                    }
+                })
+                .orElse(DEFAULT_MAX_ACTIVE_HOLDS);
     }
 
     private int getIntSetting(String key, int defaultValue) {

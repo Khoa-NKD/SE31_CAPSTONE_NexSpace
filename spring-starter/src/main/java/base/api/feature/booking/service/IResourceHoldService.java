@@ -31,4 +31,30 @@ public interface IResourceHoldService {
      * @return Thông tin phiên giữ chỗ
      */
     HoldResourceResponseDto getActiveHold(Long customerId, Long resourceId);
+
+    /**
+     * Khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release).
+     * <p>
+     * Tuân thủ các nguyên tắc bảo mật cốt lõi:
+     * 1. Strict Ownership Defense: Chỉ chủ sở hữu đơn đặt chỗ mới được nhả hold; nếu sai ném NotFoundException.
+     * 2. State Machine Integrity: Chỉ cho phép nhả hold khi đang ở PENDING_PAYMENT hoặc PENDING_APPROVAL.
+     * 3. Chuyển trạng thái sang CANCELLED, xóa holdExpiresAt và phát sự kiện nội bộ ResourceHoldReleasedEvent.
+     *
+     * @param customerId ID khách hàng yêu cầu nhả hold
+     * @param bookingId ID đơn đặt chỗ đang giữ
+     * @return Thông tin phiên giữ chỗ đã được giải phóng
+     */
+    HoldResourceResponseDto releaseHold(Long customerId, Long bookingId);
+
+    /**
+     * Quét và tự động giải phóng toàn bộ các phiên giữ chỗ PENDING_PAYMENT đã hết hạn thời gian giữ chỗ.
+     * <p>
+     * Tuân thủ các nguyên tắc:
+     * 1. Kiểm tra an toàn: Bỏ qua booking có giao dịch thanh toán thành công (chống race condition với webhook).
+     * 2. Cập nhật trạng thái EXPIRED, xóa holdExpiresAt, ghi audit log actor SYSTEM.
+     * 3. Phát sự kiện nội bộ ResourceHoldExpiredEvent phục vụ cập nhật realtime SSE.
+     *
+     * @return Số lượng phiên giữ chỗ đã được giải phóng thành công
+     */
+    int expireOutdatedHolds();
 }
