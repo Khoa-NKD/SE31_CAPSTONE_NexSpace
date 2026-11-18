@@ -168,6 +168,13 @@ PLATFORM_SETTINGS_DATA = [
         "Thời gian giữ chỗ tạm thời (phút) khi chờ thanh toán PayOS trước khi tự động giải phóng slot",
     ),
     (
+        "booking.max_active_holds",
+        "BOOKING",
+        "3",
+        "INTEGER",
+        "Số lượng chỗ giữ tạm thời tối đa cùng lúc của một khách hàng",
+    ),
+    (
         "booking.min_advance_minutes",
         "BOOKING",
         "30",

@@ -14,15 +14,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping({"/api/v1/bookings/hold", "/api/bookings/hold"})
 @RequiredArgsConstructor
-@Tag(name = "Customer - Booking Hold", description = "API Giữ chỗ tạm thời (Temporary Hold) và Tái sử dụng Idempotent")
+@Tag(name = "Customer - Booking Hold", description = "API Giữ chỗ tạm thời (Temporary Hold) và Tự động Giải phóng (Auto-Release)")
 public class BookingHoldController extends BaseAPIController {
 
     private final IResourceHoldService resourceHoldService;
 
     @Operation(summary = "Giữ chỗ tạm thời (mặc định 10 phút) có cơ chế Idempotent Reuse và giới hạn tối đa 3 hold")
-    @PostMapping
+    @PostMapping({"/api/v1/bookings/hold", "/api/bookings/hold"})
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<HoldResourceResponseDto>> holdResource(
             @Valid @RequestBody HoldResourceRequestDto dto) {
@@ -34,11 +33,20 @@ public class BookingHoldController extends BaseAPIController {
     }
 
     @Operation(summary = "Lấy thông tin phiên giữ chỗ đang có hiệu lực của khách hàng cho tài nguyên này")
-    @GetMapping
+    @GetMapping({"/api/v1/bookings/hold", "/api/bookings/hold"})
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<HoldResourceResponseDto>> getActiveHold(
             @RequestParam Long resourceId) {
         HoldResourceResponseDto response = resourceHoldService.getActiveHold(getCurrentUserId(), resourceId);
         return success(response, "Lấy thông tin phiên giữ chỗ thành công");
+    }
+
+    @Operation(summary = "Khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release)")
+    @PostMapping({"/api/v1/bookings/{id}/release-hold", "/api/bookings/{id}/release-hold", "/api/v1/bookings/hold/{id}/release", "/api/bookings/hold/{id}/release"})
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<HoldResourceResponseDto>> releaseHold(
+            @PathVariable("id") Long bookingId) {
+        HoldResourceResponseDto response = resourceHoldService.releaseHold(getCurrentUserId(), bookingId);
+        return success(response, "Giải phóng phiên giữ chỗ thành công");
     }
 }
