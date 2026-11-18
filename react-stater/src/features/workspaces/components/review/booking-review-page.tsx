@@ -133,6 +133,9 @@ export function BookingReviewPage({
           holdExpiresAt={effectiveExpiresAt}
           initialSeconds={effectiveInitialSeconds}
           serverTime={effectiveHoldData?.serverTime}
+          remainingHoldAttempts={effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3}
+          maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
+          penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}
           onReleaseSuccess={() => {
             if (workspaceId) {
               window.location.href = `/workspaces/${workspaceId}`;
