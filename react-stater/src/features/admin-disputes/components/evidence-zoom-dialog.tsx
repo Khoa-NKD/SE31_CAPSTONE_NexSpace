@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React from 'react';
 import {
   Dialog,
@@ -28,7 +29,7 @@ export function EvidenceZoomDialog({
           <DialogTitle className='text-sm font-bold flex items-center justify-between'>
             <span>{evidence.title}</span>
             <span className='text-[10px] px-2 py-0.5 rounded font-mono bg-muted border border-border'>
-              {evidence.timestamp}
+              {formatDateLabel(evidence.timestamp)}
             </span>
           </DialogTitle>
           <DialogDescription className='text-xs text-muted-foreground'>

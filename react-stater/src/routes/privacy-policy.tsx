@@ -70,7 +70,7 @@ function PrivacyPolicyPage() {
           </p>
         </section>
         <div className='border-border border-t pt-4'>
-          <p className='text-muted-foreground text-sm'>Last updated: February 2026</p>
+          <p className='text-muted-foreground text-sm'>Last updated: 02/2026</p>
         </div>
       </div>
     </div>

@@ -580,7 +580,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
                 {history.data.filter((item) => item.id !== details.id).map((item) => (
                   <li key={item.id} className='rounded-lg border p-3 text-sm'>
                     <p className='font-medium'>#{item.id} · {item.legalName}</p>
-                    {item.reviewedAt && <p className='text-muted-foreground'>{item.reviewedAt.replace('T', ' ')} UTC</p>}
+                    {item.reviewedAt && <p className='text-muted-foreground'>{applicationTimestamp(item.reviewedAt)}</p>}
                     <p className='mt-1 whitespace-pre-wrap'>{item.reviewFeedback}</p>
                   </li>
                 ))}

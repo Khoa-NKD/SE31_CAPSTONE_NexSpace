@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React from 'react';
 import { ChevronRight, Copy, CreditCard } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -156,7 +157,7 @@ export function TransactionsLedgerTable({
 
                   {/* Timestamp */}
                   <td className='px-4 py-4 text-muted-foreground text-[11px]'>
-                    <div>{record.timestamp}</div>
+                    <div>{formatDateLabel(record.timestamp)}</div>
                     <div className='text-[10px] text-muted-foreground/80 font-mono'>{record.relativeTime}</div>
                   </td>
 

@@ -1,3 +1,5 @@
+import { formatDateLabel } from '@/lib/format';
+import { formatDate } from '@/lib/format';
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
@@ -80,16 +82,11 @@ function getDefaultSchedule() {
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
   const year = tomorrow.getFullYear();
-  const monthNames = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-  ];
-  const monthStr = monthNames[tomorrow.getMonth()];
   const monthNum = String(tomorrow.getMonth() + 1).padStart(2, '0');
   const day = String(tomorrow.getDate()).padStart(2, '0');
   const isoDate = `${year}-${monthNum}-${day}`;
   return {
-    date: `${monthStr} ${day}, ${year}`,
+    date: formatDate(tomorrow),
     startTimeStr: '09:00 AM',
     endTimeStr: '01:00 PM',
     isoStartTime: `${isoDate}T09:00:00`,
@@ -123,7 +120,7 @@ export function SeatsPage({
 
   const [currentStartTime, setCurrentStartTime] = useState<string>(startTime || defaults.isoStartTime);
   const [currentEndTime, setCurrentEndTime] = useState<string>(endTime || defaults.isoEndTime);
-  const [currentDateLabel, setCurrentDateLabel] = useState<string>(date || defaults.date);
+  const [currentDateLabel, setCurrentDateLabel] = useState<string>(formatDateLabel(date) || defaults.date);
   const [durationHours, setDurationHours] = useState<number>(initialDuration);
 
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>(initialFloorId);
@@ -134,7 +131,7 @@ export function SeatsPage({
   useEffect(() => {
     if (startTime) setCurrentStartTime(startTime);
     if (endTime) setCurrentEndTime(endTime);
-    if (date) setCurrentDateLabel(date);
+    if (date) setCurrentDateLabel(formatDateLabel(date));
     if (startTime && endTime) {
       setDurationHours(computeDurationHours(startTime, endTime, 4));
     }

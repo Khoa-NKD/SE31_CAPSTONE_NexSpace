@@ -56,6 +56,19 @@ export interface AnalyticsReport {
   statuses: { status: string; count: number }[];
   heatmap: { dayOfWeek: number; hour: number; bookedHours: string }[];
   notices: { code: string; count: number }[];
+  earnings?: OrganizerEarnings;
+  previousEarnings?: OrganizerEarnings;
+}
+export interface OrganizerEarnings {
+  rentalAmount: string | null;
+  vatAmount: string | null;
+  platformFeeAmount: string | null;
+  organizerAmount: string | null;
+  rentalEarningsAmount: string | null;
+  unallocatedAmount: string | null;
+  transferredAmount: string | null;
+  transferTrackingAvailable: boolean;
+  validationIssues: number;
 }
 export interface AnalyticsOptions {
   workspaces: { id: number; name: string }[];

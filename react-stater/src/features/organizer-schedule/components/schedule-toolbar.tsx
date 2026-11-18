@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React from 'react';
 import {
   Calendar,
@@ -93,10 +94,10 @@ export function ScheduleToolbar({
           </Button>
 
           {onCustomDateChange && (
-            <input
+            <DateInput
               type="date"
               value={customDate || ''}
-              onChange={(e) => onCustomDateChange(e.target.value)}
+              onValueChange={(dateValue) => onCustomDateChange(dateValue)}
               className="h-9 px-2 text-xs rounded-lg border border-border bg-background text-foreground shadow-2xs focus:ring-1 focus:ring-primary focus:outline-hidden"
               title="Pick a specific date"
             />

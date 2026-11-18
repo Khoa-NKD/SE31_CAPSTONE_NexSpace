@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { apiClient } from '@/lib/api-client';
 import type {
   AdminUserRecord,
@@ -105,7 +106,7 @@ export function normalizeAdminUserRecord(raw: RawAdminUserInput): AdminUserRecor
   const registeredDate =
     raw.registeredDate ||
     (createdDate && !isNaN(createdDate.getTime())
-      ? createdDate.toLocaleDateString('vi-VN', { year: 'numeric', month: '2-digit', day: '2-digit' })
+      ? formatDisplayDate(createdDate)
       : '—');
 
   const registeredTimeUtc =
@@ -139,14 +140,14 @@ export function normalizeAdminUserRecord(raw: RawAdminUserInput): AdminUserRecor
     twoFactorEnabled: !!raw.twoFactorEnabled,
     twoFactorMethod: raw.twoFactorMethod || (raw.twoFactorEnabled ? 'TOTP Authenticator' : 'Disabled'),
     lastLogin: raw.lastLoginAt
-      ? new Date(raw.lastLoginAt).toLocaleString('vi-VN')
+      ? formatDisplayDateTime(new Date(raw.lastLoginAt))
       : raw.lastLogin || 'Chưa có thông tin',
     clientFingerprint: raw.clientFingerprint || 'FP-BROWSER-SECURE',
     consecutiveFailedLogins: raw.consecutiveFailedLogins ?? raw.failedLoginCount ?? 0,
     sessionRootKey: raw.sessionRootKey || `sec_key_${id}`,
     passwordLastChanged:
       raw.passwordLastChanged ||
-      (raw.updatedAt ? new Date(raw.updatedAt).toLocaleDateString('vi-VN') : '—'),
+      (raw.updatedAt ? formatDisplayDate(new Date(raw.updatedAt)) : '—'),
     stats: raw.stats || {
       totalBookings: 0,
       gmvAmount: '0 ₫',

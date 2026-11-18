@@ -1,3 +1,4 @@
+import { formatDateTime } from '@/lib/format';
 /**
  * Strictly deterministic mock data aligned with Stitch Project 6390451165421541093.
  * Screen: A06: Workspace Administration Overview (Screen ID: e4047dc13f1c46cb9952dc34e5ab15a5)
@@ -407,7 +408,7 @@ export function deriveModerationDecisionRecords(
         const parsed = new Date(dateStr);
         if (!isNaN(parsed.getTime())) {
           displayTime = parsed.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          exactTime = parsed.toUTCString();
+          exactTime = formatDateTime(parsed, {timeZone: 'UTC'}) + ' UTC';
         }
       } catch {
         // Keep fallback

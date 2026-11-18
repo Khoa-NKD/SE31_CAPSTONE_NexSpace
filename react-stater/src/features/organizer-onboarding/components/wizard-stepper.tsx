@@ -27,7 +27,7 @@ const getSteps = (c: (en: string, vi: string) => string) =>
     },
     {
       number: 4,
-      title: c('Operating Hours', 'Giờ hoạt động'),
+      title: c('Hours & policies', 'Giờ & chính sách'),
       route: '/dashboard/organizer/workspaces/create/hours'
     },
     {

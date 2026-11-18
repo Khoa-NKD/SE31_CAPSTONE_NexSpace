@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -108,12 +109,7 @@ export function MyBookingsPage() {
       const end = new Date(endStr);
       const startTime = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
       const endTime = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = start.toLocaleDateString(isVi ? 'vi-VN' : 'en-US', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      const dateStr = formatDisplayDate(start);
       return { time: `${startTime} – ${endTime}`, date: dateStr };
     } catch {
       return { time: '09:00 – 17:00', date: startStr };

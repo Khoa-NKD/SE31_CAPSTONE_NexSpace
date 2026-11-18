@@ -1,3 +1,5 @@
+import { defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
+import type { CancellationRule } from '@/features/workspaces/api/types';
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import type {
@@ -156,6 +158,7 @@ export interface WizardStore extends OnboardingDraftState {
   setLocation: (data: Partial<LocationValues>) => void;
   setCoordinates: (latitude: number | null, longitude: number | null) => void;
   setOperatingHours: (data: Partial<OperatingHoursValues>) => void;
+  setCancellationRules: (rules: CancellationRule[]) => void;
   updateDaySchedule: (day: DayOfWeek, updates: Partial<DaySchedule>) => void;
   applyMondayToWeekdays: () => void;
   toggleAmenity: (amenityId: string) => void;
@@ -208,6 +211,7 @@ export const useWizardStore = create<WizardStore>()(
       basicInfo: INITIAL_BASIC_INFO,
       location: INITIAL_LOCATION,
       operatingHours: INITIAL_OPERATING_HOURS,
+      cancellationRules: defaultCancellationRules(),
       amenities: INITIAL_AMENITIES,
       amenityAddonRates: {},
       media: INITIAL_MEDIA_GALLERY,
@@ -239,6 +243,8 @@ export const useWizardStore = create<WizardStore>()(
           isDraftSynced: false,
           location: { ...state.location, latitude, longitude }
         })),
+
+      setCancellationRules: (rules) => set({ cancellationRules: rules, isDraftSynced: false }),
 
       setOperatingHours: (data) =>
         set((state) => ({
@@ -583,6 +589,7 @@ export const useWizardStore = create<WizardStore>()(
           basicInfo: INITIAL_BASIC_INFO,
           location: INITIAL_LOCATION,
           operatingHours: INITIAL_OPERATING_HOURS,
+          cancellationRules: defaultCancellationRules(),
           amenities: INITIAL_AMENITIES,
           media: { coverPhotoId: '', items: [] },
           floorPlan: INITIAL_FLOOR_PLAN,
@@ -607,6 +614,9 @@ export const useWizardStore = create<WizardStore>()(
         return {
           ...currentState,
           ...p,
+          cancellationRules: Array.isArray(p.cancellationRules)
+            ? p.cancellationRules
+            : defaultCancellationRules(),
           canonicalWorkspaceId: p.canonicalWorkspaceId ?? currentState.canonicalWorkspaceId,
           isEditMode: p.isEditMode ?? currentState.isEditMode,
           clientDraftKey: p.clientDraftKey ?? currentState.clientDraftKey,

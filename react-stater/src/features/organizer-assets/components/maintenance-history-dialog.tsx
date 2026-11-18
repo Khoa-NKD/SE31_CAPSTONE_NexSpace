@@ -1,3 +1,4 @@
+import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -151,7 +152,7 @@ export function MaintenanceHistoryDialog({
                     <Calendar className='w-3.5 h-3.5' />
                     <span>
                       {log.createdAt
-                        ? new Date(log.createdAt).toLocaleString(c('en-US', 'vi-VN'))
+                        ? formatDisplayDateTime(new Date(log.createdAt))
                         : '—'}
                     </span>
                   </div>

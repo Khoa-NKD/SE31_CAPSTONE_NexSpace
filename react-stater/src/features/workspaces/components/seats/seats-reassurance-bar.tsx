@@ -1,6 +1,8 @@
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { ShieldCheck, History, QrCode } from 'lucide-react';
 
 export function SeatsReassuranceBar() {
+  const c=useOrganizerCopy();
   return (
     <div className='bg-card border-border shadow-xs grid grid-cols-1 gap-4 rounded-xl border p-4 sm:p-5 md:grid-cols-3'>
       {/* Col 1: PayOS */}
@@ -18,7 +20,7 @@ export function SeatsReassuranceBar() {
         </div>
       </div>
 
-      {/* Col 2: Free Cancellation */}
+      {/* Col 2: {c('Cancellation policy','Chính sách hủy')} */}
       <div className='border-border/60 flex items-center gap-3 border-t pt-3 md:border-t-0 md:border-l md:pt-0 md:pl-4'>
         <div className='bg-primary/10 text-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-lg'>
           <History className='h-5 w-5' />
@@ -28,7 +30,7 @@ export function SeatsReassuranceBar() {
             Free Cancellation
           </h3>
           <p className='text-muted-foreground text-xs'>
-            Full refund up to 1 hr before start
+            {c('See the applicable policy before payment','Xem chính sách áp dụng trước khi thanh toán')}
           </p>
         </div>
       </div>

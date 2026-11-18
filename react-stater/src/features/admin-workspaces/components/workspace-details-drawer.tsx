@@ -1,3 +1,4 @@
+import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
   X,
@@ -906,7 +907,7 @@ export function WorkspaceDetailsDrawer({
                 {activeWorkspace?.reviewedAt && (
                   <div className='flex items-center justify-between py-1 border-b border-border'>
                     <span className='text-muted-foreground'>Thời gian phê duyệt gần nhất</span>
-                    <span className='text-muted-foreground'>{new Date(activeWorkspace.reviewedAt).toLocaleString()}</span>
+                    <span className='text-muted-foreground'>{formatDisplayDateTime(new Date(activeWorkspace.reviewedAt))}</span>
                   </div>
                 )}
                 {activeWorkspace?.reviewFeedback && (

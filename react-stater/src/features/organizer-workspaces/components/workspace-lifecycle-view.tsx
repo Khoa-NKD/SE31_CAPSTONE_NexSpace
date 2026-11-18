@@ -1225,7 +1225,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                   <CheckCircle2 className='size-4 text-indigo-600 shrink-0 mt-0.5' />
                   <div>
                     <span className='font-bold text-foreground block'>Partner Compliance Verification Completed</span>
-                    <span className='text-muted-foreground text-[11px]'>Oct 12, 2026 by NexSpace Admin</span>
+                    <span className='text-muted-foreground text-[11px]'>12/10/2026 by NexSpace Admin</span>
                   </div>
                 </div>
               </div>

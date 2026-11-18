@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -90,7 +91,7 @@ export function LiveSystemAlerts({ initialAlerts }: LiveSystemAlertsProps) {
 
                   <div className='flex items-center gap-1 text-[10px] text-slate-700 dark:text-slate-200 shrink-0'>
                     <Clock className='size-3 text-slate-600 dark:text-slate-300' aria-hidden='true' />
-                    <span>{alert.timestamp}</span>
+                    <span>{formatDateLabel(alert.timestamp)}</span>
                   </div>
                 </div>
 

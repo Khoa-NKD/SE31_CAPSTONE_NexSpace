@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsApi, type AnalyticsFilter, type AnalyticsSummary } from '../api';
-import { money } from '../format';
+import { money, displayAnalyticsDate } from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Button } from '@/components/ui/button';
 
@@ -91,11 +91,16 @@ function LedgerTable({
           <option value='REFUND'>{c('Processed refunds', 'Tiền đã hoàn')}</option>
         </select>
       </div>
-      <div className='mb-4 grid gap-3 sm:grid-cols-3'>
+      <div className='mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5'>
         {[
+          [c('Customer payments', 'Tiền khách đã trả'), money(summary.receivedAmount, locale)],
+          [
+            c('After refunds, before fees', 'Sau hoàn, chưa trừ phí'),
+            money(summary.netAmount, locale)
+          ],
           [c('Refunds processed', 'Đã hoàn trong kỳ'), money(summary.refundedAmount, locale)],
           [
-            c('Average per first-paid booking', 'Giá trị TB mỗi lượt trả lần đầu'),
+            c('Average per first-paid booking', 'Giá trị trung bình mỗi đơn đã thanh toán'),
             money(summary.averagePaidBookingValue, locale)
           ],
           [
@@ -149,7 +154,7 @@ function LedgerTable({
                     className='border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30'
                   >
                     <td className='whitespace-nowrap p-3 text-xs'>
-                      {r.occurredAt.replace('T', ' ').slice(0, 19)}
+                      {displayAnalyticsDate(r.occurredAt)}
                     </td>
                     <td className='p-3'>
                       <span className='font-medium'>{r.bookingCode}</span>

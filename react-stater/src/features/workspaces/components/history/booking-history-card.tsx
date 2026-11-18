@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useState } from 'react';
 import {
   Calendar,
@@ -54,11 +55,7 @@ function formatDateRange(start?: string, end?: string) {
     
     const timeStr = `${startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` +
       (endDate ? ` - ${endDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` : '');
-    const dateStr = startDate.toLocaleDateString('vi-VN', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
+    const dateStr = formatDisplayDate(startDate);
     return { timeStr, dateStr };
   } catch {
     return { timeStr: start, dateStr: '' };

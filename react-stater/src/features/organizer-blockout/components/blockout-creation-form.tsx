@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useMemo } from 'react';
 import {
   Lock,
@@ -151,11 +152,11 @@ export function BlockoutCreationForm({
             <div className="grid grid-cols-5 gap-1.5">
               <div className="col-span-3 relative">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-3 pointer-events-none" />
-                <Input
+                <DateInput
                   id="start-date"
                   type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
+                  onValueChange={(dateValue) => setStartDate(dateValue)}
                   className="h-10 pl-8 pr-1 text-xs bg-background"
                 />
               </div>
@@ -180,11 +181,11 @@ export function BlockoutCreationForm({
             <div className="grid grid-cols-5 gap-1.5">
               <div className="col-span-3 relative">
                 <Calendar className="w-3.5 h-3.5 text-muted-foreground absolute left-2.5 top-3 pointer-events-none" />
-                <Input
+                <DateInput
                   id="end-date"
                   type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
+                  onValueChange={(dateValue) => setEndDate(dateValue)}
                   className="h-10 pl-8 pr-1 text-xs bg-background"
                 />
               </div>

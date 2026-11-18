@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -172,7 +173,7 @@ function DisputeInvestigationDrawerContent({
                 CUSTOMER INCIDENT STATEMENT
               </span>
               <span className='font-mono text-[11px] text-muted-foreground'>
-                {disputeCase.submittedAtFormatted}
+                {formatDateLabel(disputeCase.submittedAtFormatted)}
               </span>
             </div>
             <div className='p-3 bg-muted/50 rounded border-l-4 border-red-500 text-foreground text-xs italic leading-relaxed'>
@@ -226,7 +227,7 @@ function DisputeInvestigationDrawerContent({
                         </div>
                         <div className='flex items-center justify-between text-[10px] text-white/60'>
                           <span>Hash: {ev.verifiedHash}</span>
-                          <span>{ev.timestamp}</span>
+                          <span>{formatDateLabel(ev.timestamp)}</span>
                         </div>
                       </div>
                     ) : ev.type === 'photo' && ev.imageUrl ? (
@@ -286,7 +287,7 @@ function DisputeInvestigationDrawerContent({
                   {disputeCase.linkedBookingDetails}
                 </p>
                 <p className='text-[11px] text-muted-foreground mt-0.5'>
-                  {disputeCase.linkedBookingDate}
+                  {formatDateLabel(disputeCase.linkedBookingDate)}
                 </p>
                 <Link
                   to='/dashboard/admin/bookings'
@@ -356,7 +357,7 @@ function DisputeInvestigationDrawerContent({
                     <div className='flex items-center justify-between'>
                       <span className='font-bold text-foreground'>{log.sender}</span>
                       <span className='font-mono text-[10px] text-muted-foreground'>
-                        {log.timestamp}
+                        {formatDateLabel(log.timestamp)}
                       </span>
                     </div>
                     <p className='text-foreground text-[11px] mt-0.5 leading-relaxed'>

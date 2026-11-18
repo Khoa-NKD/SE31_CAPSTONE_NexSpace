@@ -1,4 +1,10 @@
+import { formatDateLabel } from '../../lib/format.ts';
 import type { AnalyticsFilter, Trend } from './api';
+
+/** Preserve recorded calendar dates and timezone labels when formatting report values. */
+export function displayAnalyticsDate(value: string): string {
+  return formatDateLabel(value);
+}
 
 /** Financial calculations use integer cents; Number is used only for chart coordinates. */
 export function cents(value: string): bigint {

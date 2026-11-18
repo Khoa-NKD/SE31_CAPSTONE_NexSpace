@@ -1,12 +1,13 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useMemo, useState } from 'react';
+import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Download, RefreshCw, BarChart3, AlertTriangle, SlidersHorizontal } from 'lucide-react';
 import { analyticsApi, type AnalyticsFilter, type AnalyticsReport } from '../api';
-import { chartTrends, localDate, preset } from '../format';
+import { chartTrends, localDate, preset, displayAnalyticsDate } from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { AnalyticsCharts, AnalyticsRankings, BookingBreakdown } from './report-charts';
 import { FinancialLedger } from './financial-ledger';
 import { SummaryCards } from './summary-cards';
@@ -16,6 +17,7 @@ const selectClass =
 const panelClass = 'rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5';
 
 export function OrganizerAnalyticsView() {
+  const navigate = useNavigate();
   const c = useOrganizerCopy();
   const locale = c('en-US', 'vi-VN');
   const actor = useAuthStore((state) => state.user?.id);
@@ -65,9 +67,7 @@ export function OrganizerAnalyticsView() {
   }
 
   function applyWorkspace(workspaceId: number) {
-    const next = { ...filter, workspaceId, floorNumber: undefined, resourceTypeId: undefined };
-    setFilter(next);
-    setDraft(next);
+    void navigate({ to: '/dashboard/organizer/bookings', search: { workspaceId } });
   }
   function showMoney(kind: string) {
     setLedgerKind(kind);
@@ -209,20 +209,20 @@ export function OrganizerAnalyticsView() {
         <div className='grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.5fr_auto]'>
           <label className='space-y-1 text-xs text-muted-foreground'>
             {c('From (inclusive)', 'Từ ngày')}
-            <Input
+            <DateInput
               type='date'
               required
               value={draft.from}
-              onChange={(e) => setDraft({ ...draft, from: e.target.value })}
+              onValueChange={(dateValue) => setDraft({ ...draft, from: dateValue })}
             />
           </label>
           <label className='space-y-1 text-xs text-muted-foreground'>
             {c('To (inclusive)', 'Đến hết ngày')}
-            <Input
+            <DateInput
               type='date'
               required
               value={draft.to}
-              onChange={(e) => setDraft({ ...draft, to: e.target.value })}
+              onValueChange={(dateValue) => setDraft({ ...draft, to: dateValue })}
             />
           </label>
           <label className='space-y-1 text-xs text-muted-foreground'>
@@ -368,11 +368,11 @@ export function OrganizerAnalyticsView() {
         <>
           <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
             <span>
-              {data.filter.from} → {data.filter.to} · VND ·{' '}
-              {c('Stored timestamp zone', 'Múi giờ ghi nhận')}: {data.timestampZone}
+              {displayAnalyticsDate(data.filter.from)} → {displayAnalyticsDate(data.filter.to)} ·
+              VND · {c('Stored timestamp zone', 'Múi giờ ghi nhận')}: {data.timestampZone}
             </span>
             <span>
-              {c('Updated', 'Cập nhật')}: {data.generatedAt.replace('T', ' ').slice(0, 19)}{' '}
+              {c('Updated', 'Cập nhật')}: {displayAnalyticsDate(data.generatedAt)}{' '}
               {report.isFetching && c(' · refreshing…', ' · đang cập nhật…')}
             </span>
           </div>
@@ -399,7 +399,12 @@ export function OrganizerAnalyticsView() {
             )}
           </div>
           <ReportNotes report={data} warningsOnly />
-          <SummaryCards current={data.current} previous={data.previous} onMoney={showMoney} />
+          <SummaryCards
+            current={data.current}
+            earnings={data.earnings}
+            previousEarnings={data.previousEarnings}
+            onMoney={showMoney}
+          />
           <nav
             className='flex gap-1 overflow-x-auto border-b pb-2'
             aria-label={c('Analytics sections', 'Các phần thống kê')}
@@ -482,17 +487,21 @@ function ReportNotes({
 }) {
   const c = useOrganizerCopy();
   const descriptions: Record<string, string> = {
+    EARNINGS_NEED_RECONCILIATION: c(
+      'Organizer allocation cannot be certified: some booking currency, tax, fee, payment or refund data is incomplete or inconsistent. Amounts remain unknown rather than estimated.',
+      'Chưa đủ căn cứ tính tiền bạn được hưởng: có dữ liệu tiền tệ, VAT, phí, thanh toán hoặc hoàn tiền thiếu/không khớp. Không thay số thiếu bằng 0 hay ước lượng.'
+    ),
     EVENT_DATE_BASIS: c(
       'Bookings use creation dates; paid bookings use first payment dates; cash and refunds use their own processing dates. These are different cohorts.',
-      'Lượt phát sinh theo ngày tạo; lượt đã trả theo lần thanh toán đầu; tiền nhận và hoàn theo ngày xử lý tương ứng. Các nhóm này không cùng tập booking.'
+      'Đơn đặt mới theo ngày tạo; đơn đã thanh toán theo ngày thanh toán thành công đầu tiên; tiền nhận và hoàn theo ngày xử lý tương ứng. Các nhóm này không cùng tập booking.'
     ),
     CURRENT_RESOURCE_CLASSIFICATION: c(
       'Workspace, floor and resource-type grouping uses current assignments. Moving or renaming resources changes historical grouping, not recorded payment amounts.',
       'Nhóm workspace, tầng và loại chỗ dùng liên kết hiện tại. Đổi tên hoặc chuyển chỗ có thể đổi cách phân nhóm lịch sử, không đổi số tiền đã ghi nhận.'
     ),
-    PAYOUT_AND_PROFIT_UNAVAILABLE: c(
-      'Organizer payouts and profit are not calculated: completed payout records and operating costs are not yet verified.',
-      'Chưa tính tiền organizer thực nhận và lợi nhuận: chưa đủ căn cứ chi trả hoàn tất và chi phí vận hành.'
+    ORGANIZER_ALLOCATION_BASIS: c(
+      'Bank transfers are shown only from PAID payout records with a reference and date. Allocations are not proof of a transfer; operating costs and profit are not calculated.',
+      'Chỉ ghi tiền đã chuyển từ bản ghi chi trả PAID có mã và ngày chuyển. Tiền được phân bổ không đồng nghĩa đã chuyển; chưa tính chi phí vận hành hay lợi nhuận.'
     ),
     HISTORICAL_OCCUPANCY_UNAVAILABLE: c(
       'Reserved hours are not actual attendance or historical occupancy. Rooms do not add their contained desks to sales or resource-hours.',

@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -94,13 +95,7 @@ function handleSendReminder(booking: BookingItem) {
 function mapBookingDtoToItem(dto: BookingDto): BookingItem {
   const startDate = new Date(dto.startTime);
   const endDate = new Date(dto.endTime);
-  const dateFormatted = !isNaN(startDate.getTime())
-    ? startDate.toLocaleDateString('vi-VN', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
-    : 'N/A';
+  const dateFormatted = !isNaN(startDate.getTime()) ? formatDisplayDate(startDate) : 'N/A';
   const startStr = !isNaN(startDate.getTime())
     ? startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
@@ -203,10 +198,12 @@ function handleCheckInToggle(id: string) {
   });
 }
 
-export function BookingsManagementView() {
+export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspaceId?: number }) {
   const c = useOrganizerCopy();
   // Filters & Search
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>(
+    initialWorkspaceId ?? 'ALL'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('All Dates');
   const [customDate, setCustomDate] = useState('');

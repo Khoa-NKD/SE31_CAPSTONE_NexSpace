@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import type { AnalyticsReport, Ranking, Trend } from '../api';
-import { cents, money, type chartTrends } from '../format';
+import { cents, money, displayAnalyticsDate, type chartTrends } from '../format';
 
 const panel = 'min-w-0 rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5';
 
@@ -32,7 +32,7 @@ function CashTooltip({
   if (!active || !row) return null;
   return (
     <div className='space-y-1 rounded-lg border bg-popover p-3 text-xs text-popover-foreground shadow-md'>
-      <p>{row.date}</p>
+      <p>{displayAnalyticsDate(row.date)}</p>
       <p>
         {c('Received', 'Đã nhận')}: {money(row.receivedAmount, locale)}
       </p>
@@ -40,7 +40,7 @@ function CashTooltip({
         {c('Refunded', 'Đã hoàn')}: {money(row.refundedAmount, locale)}
       </p>
       <p>
-        {c('After refunds', 'Sau hoàn')}: {money(row.netAmount, locale)}
+        {c('After refunds', 'Sau hoàn, trước phí')}: {money(row.netAmount, locale)}
       </p>
     </div>
   );
@@ -57,17 +57,17 @@ function BookingTooltip({
   if (!active || !row) return null;
   return (
     <div className='space-y-2 rounded-xl border bg-popover p-3 text-xs text-popover-foreground shadow-lg'>
-      <p className='border-b pb-2 font-medium'>{row.date}</p>
+      <p className='border-b pb-2 font-medium'>{displayAnalyticsDate(row.date)}</p>
       <p>
-        {c('Created', 'Phát sinh')}: <strong>{row.createdBookings}</strong>
+        {c('New bookings', 'Đơn đặt mới')}: <strong>{row.createdBookings}</strong>
       </p>
       <p>
-        {c('First paid', 'Thanh toán lần đầu')}: <strong>{row.paidBookings}</strong>
+        {c('Paid bookings', 'Đơn đã thanh toán')}: <strong>{row.paidBookings}</strong>
       </p>
       <p className='max-w-52 text-[10px] text-muted-foreground'>
         {c(
           'Different date cohorts; this is not a conversion rate.',
-          'Hai nhóm theo ngày khác nhau; không phải tỷ lệ chuyển đổi.'
+          'Theo ngày tạo đơn và ngày thanh toán thành công. Mỗi đơn thanh toán chỉ tính một lần.'
         )}
       </p>
     </div>
@@ -85,7 +85,9 @@ export function AnalyticsCharts({
   return (
     <div className='grid gap-4 xl:grid-cols-[1.4fr_1fr]'>
       <section className={panel} aria-label={c('Cash flow chart', 'Biểu đồ dòng tiền')}>
-        <h2 className='font-semibold'>{c('Cash flow over time', 'Dòng tiền theo thời gian')}</h2>
+        <h2 className='font-semibold'>
+          {c('Cash flow over time', 'Tiền khách theo thời gian (trước phí)')}
+        </h2>
         <p className='mb-4 text-xs text-muted-foreground'>
           {c(
             'VND · payment and processed refund dates',
@@ -112,17 +114,15 @@ export function AnalyticsCharts({
                 tickLine={false}
                 tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                 tickMargin={12}
-                minTickGap={28}
-                tickFormatter={(value: string) => value.slice(5).replace('-', '/')}
+                minTickGap={64}
+                tickFormatter={displayAnalyticsDate}
               />
               <YAxis
-                width={65}
+                width={100}
                 axisLine={false}
                 tickLine={false}
                 tick={{ fontSize: 10, fill: 'var(--muted-foreground)' }}
-                tickFormatter={(value: number) =>
-                  new Intl.NumberFormat(locale, { notation: 'compact' }).format(value)
-                }
+                tickFormatter={(value: number) => String(value)}
               />
               <Tooltip content={<CashTooltip locale={locale} />} />
               <ReferenceLine y={0} stroke='var(--border)' />
@@ -143,7 +143,7 @@ export function AnalyticsCharts({
               <Area
                 type='linear'
                 dataKey='net'
-                name={c('After refunds', 'Sau hoàn')}
+                name={c('After refunds', 'Sau hoàn, trước phí')}
                 stroke='#10b981'
                 fill={'url(#' + gradient + '-net)'}
                 strokeWidth={2.5}
@@ -158,7 +158,7 @@ export function AnalyticsCharts({
         <p className='mb-4 text-xs text-muted-foreground'>
           {c(
             'Created bookings vs bookings paid for the first time',
-            'Lượt tạo mới và lượt thanh toán lần đầu'
+            'Đơn đặt mới và đơn đã thanh toán trong thời gian đã chọn'
           )}
         </p>
         <div className='h-72 sm:h-80'>
@@ -171,8 +171,8 @@ export function AnalyticsCharts({
                 tickLine={false}
                 tick={{ fontSize: 11, fill: 'var(--muted-foreground)' }}
                 tickMargin={12}
-                minTickGap={28}
-                tickFormatter={(value: string) => value.slice(5).replace('-', '/')}
+                minTickGap={64}
+                tickFormatter={displayAnalyticsDate}
               />
               <YAxis
                 allowDecimals={false}
@@ -192,7 +192,7 @@ export function AnalyticsCharts({
               />
               <Bar
                 dataKey='createdBookings'
-                name={c('Created', 'Phát sinh')}
+                name={c('New bookings', 'Đơn đặt mới')}
                 fill='#94a3b8'
                 radius={[4, 4, 0, 0]}
                 maxBarSize={24}
@@ -200,7 +200,7 @@ export function AnalyticsCharts({
               />
               <Bar
                 dataKey='paidBookings'
-                name={c('First paid', 'Đã thanh toán')}
+                name={c('Paid bookings', 'Đơn đã thanh toán')}
                 fill='#6366f1'
                 radius={[4, 4, 0, 0]}
                 maxBarSize={24}
@@ -247,11 +247,11 @@ export function AnalyticsRankings({
     <section className={panel}>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
         <div>
-          <h2 className='font-semibold'>{c('Rental ranking', 'Xếp hạng cho thuê')}</h2>
+          <h2 className='font-semibold'>{c('Rental ranking', 'Xếp hạng theo thanh toán khách')}</h2>
           <p className='text-xs text-muted-foreground'>
             {c(
               'Cash after refunds is the default ranking criterion.',
-              'Mặc định xếp theo tiền thu sau hoàn.'
+              'Theo tiền khách sau hoàn, chưa trừ phí hệ thống. Không phải tiền organizer thực nhận.'
             )}
           </p>
         </div>
@@ -292,7 +292,7 @@ export function AnalyticsRankings({
           >
             <option value='netAmount'>{c('Cash after refunds', 'Tiền thu sau hoàn')}</option>
             <option value='receivedAmount'>{c('Cash received', 'Tiền đã nhận')}</option>
-            <option value='paidBookings'>{c('Paid bookings', 'Lượt đã thanh toán')}</option>
+            <option value='paidBookings'>{c('Paid bookings', 'Đơn đã thanh toán')}</option>
           </select>
           <button
             className='rounded-lg border px-3 text-sm'
@@ -312,10 +312,10 @@ export function AnalyticsRankings({
             <tr>
               <th className='p-3'>#</th>
               <th className='p-3'>{c('Name', 'Tên')}</th>
-              <th className='p-3 text-right'>{c('Paid bookings', 'Lượt đã trả')}</th>
+              <th className='p-3 text-right'>{c('Paid bookings', 'Đơn đã thanh toán')}</th>
               <th className='p-3 text-right'>{c('Received', 'Đã nhận')}</th>
               <th className='p-3 text-right'>{c('Refunded', 'Đã hoàn')}</th>
-              <th className='p-3 text-right'>{c('After refunds', 'Sau hoàn')}</th>
+              <th className='p-3 text-right'>{c('After refunds', 'Sau hoàn, trước phí')}</th>
             </tr>
           </thead>
           <tbody>
@@ -339,7 +339,9 @@ export function AnalyticsRankings({
                 <td className='p-3 font-medium'>
                   {dimension === 'workspaces' ? (
                     <button
+                      type='button'
                       className='text-left text-primary hover:underline'
+                      title={c('View bookings for this workspace', 'Xem đặt chỗ của workspace này')}
                       onClick={() => onWorkspace(r.id)}
                     >
                       {r.name}

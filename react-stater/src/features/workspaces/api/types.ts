@@ -1,3 +1,5 @@
+export interface CancellationRule { minHoursBeforeStart: number; refundPercent: number; }
+
 /**
  * Canonical Workspace Entity & DTOs
  * Based on NexSpace Database Specification v3.3 (Table: Workspace, Sheet 15)
@@ -85,6 +87,7 @@ export interface CanonicalWorkspace {
 
   // 4. Operating Hours
   operatingHours: WorkspaceOperatingHour[];
+  cancellationRules?: CancellationRule[];
   receptionHours?: string;
   autoBlockPublicHolidays?: boolean;
   checkInLeadMinutes?: number;
@@ -208,6 +211,7 @@ export interface PublicWorkspaceSummary {
   amenities: string[];
   tags: string[];
   operatingHours: WorkspaceOperatingHour[];
+  cancellationRules?: CancellationRule[];
   bookingConfirmationMode: BookingConfirmationMode;
   featuredPosition?: number | null;
   publicUrl?: string;
@@ -334,6 +338,7 @@ export interface CreateWorkspaceDto {
   amenities?: string[];
   tags?: string[];
   operatingHours?: WorkspaceOperatingHour[];
+  cancellationRules?: CancellationRule[];
   receptionHours?: string;
   clientDraftKey?: string;
 }
@@ -363,6 +368,7 @@ export interface UpdateWorkspaceDto {
   timezone?: string;
   entryInstructions?: string;
   operatingHours?: WorkspaceOperatingHour[];
+  cancellationRules?: CancellationRule[];
   receptionHours?: string;
   autoBlockPublicHolidays?: boolean;
   checkInLeadMinutes?: number;

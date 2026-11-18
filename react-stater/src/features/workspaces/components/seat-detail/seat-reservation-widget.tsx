@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -82,7 +83,7 @@ export function SeatReservationWidget({
   const vatAmount = subtotal * 0.08;
   const totalDue = subtotal + vatAmount;
 
-  const displayDate = date || 'Nov 19, 2026';
+  const displayDate = formatDateLabel(date || '19/11/2026');
   const displayStartTime = formatDisplayTime(startTime) || '09:00';
   const displayEndTime = formatDisplayTime(endTime) || '11:00';
   const displaySeat = resource ? `${resource.name} (${resource.code})` : 'Desk A-04 (Executive Hot Desk)';

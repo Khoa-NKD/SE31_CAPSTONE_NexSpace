@@ -89,8 +89,8 @@ test('maps every supported status and hides feedback for states outside rejectio
 });
 
 test('formats actual UTC timestamps without local-timezone conversion and never invents missing dates', () => {
-  assert.equal(applicationTimestamp('2026-11-04T08:00:00'), '2026-11-04 08:00:00 UTC');
-  assert.equal(applicationTimestamp('2026-11-04T08:00:00.123'), '2026-11-04 08:00:00.123 UTC');
+  assert.equal(applicationTimestamp('2026-11-04T08:00:00'), '04/11/2026 08:00 UTC');
+  assert.equal(applicationTimestamp('2026-11-04T08:00:00.123'), '04/11/2026 08:00 UTC');
   for (const value of [null, undefined, '', 'invalid'])
     assert.equal(applicationTimestamp(value), 'Not available');
 });

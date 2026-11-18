@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React from 'react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -42,19 +43,14 @@ export function BookingConfirmationPage({
   const orderRef = booking ? `#${booking.bookingCode}` : propOrderRef || (code ? `#${code}` : '#NX-PASS');
   const email = booking?.customerEmail || user?.email || 'customer@nexspace.vn';
 
-  let dateStr = 'Jan 25, 2026';
+  let dateStr = '25/01/2026';
   let timeSlot = '09:00 AM – 05:00 PM';
 
   if (booking?.startTime && booking?.endTime) {
     try {
       const start = new Date(booking.startTime);
       const end = new Date(booking.endTime);
-      dateStr = start.toLocaleDateString('vi-VN', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      dateStr = formatDisplayDate(start);
       timeSlot = `${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} – ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
     } catch {
       // Fallback

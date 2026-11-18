@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { Icons } from '@/components/icons';
 import { motion, useReducedMotion } from 'motion/react';
 import { cn } from '@/lib/utils';
@@ -61,7 +62,7 @@ export function MessageBubble({ message }: MessageBubbleProps) {
         )}
         <div className='mt-2 flex items-center justify-end gap-1.5 text-[0.65rem] sm:mt-3 sm:gap-2 sm:text-[0.7rem]'>
           <span className={cn('text-muted-foreground', isUser && 'text-primary-foreground/80')}>
-            {message.timestamp}
+            {formatDateLabel(message.timestamp)}
           </span>
           {isUser && (
             <Icons.checks
