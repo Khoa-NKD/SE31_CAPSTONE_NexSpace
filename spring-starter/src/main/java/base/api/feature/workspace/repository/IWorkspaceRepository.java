@@ -735,5 +735,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             @Param("status") WorkspaceStatus status,
             @Param("query") String query,
             Pageable pageable);
+
+    List<WorkspaceModel> findByStatus(WorkspaceStatus status);
 }
 

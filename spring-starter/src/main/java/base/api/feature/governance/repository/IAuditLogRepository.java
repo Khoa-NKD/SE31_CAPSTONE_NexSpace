@@ -19,5 +19,6 @@ public interface IAuditLogRepository extends JpaRepository<AuditLogModel, Long> 
     Page<AuditLogModel> findByEntityTypeAndEntityId(String entityType, Long entityId, Pageable pageable);
     Page<AuditLogModel> findByUserId(Long userId, Pageable pageable);
     Page<AuditLogModel> findByModule(String module, Pageable pageable);
+    List<AuditLogModel> findTop10ByOrderByIdDesc();
 }
 

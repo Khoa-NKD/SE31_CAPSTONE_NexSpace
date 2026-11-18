@@ -4,5 +4,6 @@ public enum ReconciliationStatus {
     UNRECONCILED,
     MATCHED,
     MISMATCH,
-    RESOLVED
+    RESOLVED,
+    RECONCILED
 }

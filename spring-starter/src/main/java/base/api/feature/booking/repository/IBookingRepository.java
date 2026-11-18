@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -354,4 +355,37 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("endTime") LocalDateTime endTime,
             @Param("now") LocalDateTime now
     );
+
+    long countByCreatedAtAfter(LocalDateTime since);
+
+    long countByStatusInAndCreatedAtAfter(Collection<BookingStatus> statuses, LocalDateTime since);
+
+    List<BookingModel> findByCreatedAtAfterOrderByCreatedAtAsc(LocalDateTime since);
+
+    @Query("""
+            SELECT b.workspace.id, COUNT(b.id), COALESCE(SUM(b.finalPrice), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses
+            GROUP BY b.workspace.id
+            ORDER BY SUM(b.finalPrice) DESC
+            """)
+    List<Object[]> findTopWorkspacesByRevenue(@Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("""
+            SELECT COALESCE(SUM(b.platformFeeAmount), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses AND b.createdAt >= :since
+            """)
+    BigDecimal sumPlatformFeeByStatusInAndCreatedAtAfter(
+            @Param("statuses") Collection<BookingStatus> statuses,
+            @Param("since") LocalDateTime since);
+
+    @Query("""
+            SELECT COALESCE(SUM(b.finalPrice), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses AND b.createdAt >= :since
+            """)
+    BigDecimal sumFinalPriceByStatusInAndCreatedAtAfter(
+            @Param("statuses") Collection<BookingStatus> statuses,
+            @Param("since") LocalDateTime since);
 }
