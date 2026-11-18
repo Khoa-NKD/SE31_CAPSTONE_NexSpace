@@ -81,6 +81,7 @@ class PaymentServiceImplTest {
         booking.setCustomer(customer);
         booking.setStatus(BookingStatus.PENDING_PAYMENT);
         booking.setFinalPrice(BigDecimal.valueOf(10.00)); // $10 USD
+        booking.setPricingSnapshot("{\"currency\":\"USD\"}");
         booking.setHoldExpiresAt(LocalDateTime.now().plusMinutes(10));
     }
 

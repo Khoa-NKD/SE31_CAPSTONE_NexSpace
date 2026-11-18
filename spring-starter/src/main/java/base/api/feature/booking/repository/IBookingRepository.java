@@ -18,6 +18,14 @@ import java.util.Optional;
 
 @Repository
 public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
+    /** Cash received in VND, including receipts on subsequently cancelled bookings. */
+    @Query("""
+            SELECT COALESCE(SUM(p.receivedAmount), 0) FROM PaymentTransactionModel p
+            WHERE p.status = base.api.shared.enums.PaymentStatus.SUCCESS
+              AND p.paidAt IS NOT NULL AND p.receivedAmount >= 0
+              AND p.booking.workspace.organizer.id = :organizerId
+            """)
+    java.math.BigDecimal sumReceivedPayments(@Param("organizerId") Long organizerId);
     long countByWorkspaceOrganizerIdAndStatusInAndEndTimeAfter(
             Long organizerId, Collection<BookingStatus> statuses, LocalDateTime now);
 

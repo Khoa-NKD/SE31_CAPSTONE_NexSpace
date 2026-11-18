@@ -130,16 +130,7 @@ public class PaymentServiceImpl implements IPaymentService {
             throw new BadRequestException("Giá trị đơn đặt chỗ không hợp lệ");
         }
 
-        BigDecimal amountVnd;
-        if (finalPrice.compareTo(BigDecimal.valueOf(1000)) < 0) {
-            // Price is stored in USD, convert to VND
-            amountVnd = finalPrice.multiply(BigDecimal.valueOf(usdToVndRate))
-                    .divide(BigDecimal.valueOf(1000), 0, RoundingMode.HALF_UP)
-                    .multiply(BigDecimal.valueOf(1000));
-        } else {
-            // Already in VND
-            amountVnd = finalPrice.setScale(0, RoundingMode.HALF_UP);
-        }
+        BigDecimal amountVnd = base.api.feature.payment.service.BookingPaymentAmount.inVnd(booking, usdToVndRate);
 
         // Generate unique orderCode for PayOS (must be positive integer <= 9007199254740991)
         long orderCode = generateOrderCode();
