@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { createFileRoute, redirect } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import PageContainer from '@/components/layout/page-container';
 import { MOCK_OVERVIEW_DATA } from '@/features/admin-overview/data/mock-overview';
+import { adminOverviewQueryOptions } from '@/features/admin-overview/api/queries';
 import { AdminKpiRow } from '@/features/admin-overview/components/admin-kpi-row';
 import { PriorityTriageGrid } from '@/features/admin-overview/components/priority-triage-grid';
 import { OperationalTrendsChart } from '@/features/admin-overview/components/operational-trends-chart';
@@ -33,7 +35,9 @@ export const Route = createFileRoute('/dashboard/overview')({
 
 function AdministratorDashboardPage() {
   const [selectedRange, setSelectedRange] = useState<'today' | '7d' | '30d'>('7d');
-  const currentData = MOCK_OVERVIEW_DATA[selectedRange] || MOCK_OVERVIEW_DATA['7d'];
+  const { data, isLoading } = useQuery(adminOverviewQueryOptions(selectedRange));
+
+  const currentData = data ?? MOCK_OVERVIEW_DATA[selectedRange] ?? MOCK_OVERVIEW_DATA['7d'];
 
   return (
     <PageContainer>
@@ -41,9 +45,16 @@ function AdministratorDashboardPage() {
         {/* Page Header Row */}
         <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6'>
           <div>
-            <h1 className='text-2xl font-bold tracking-tight text-foreground font-heading'>
-              Administrator Dashboard
-            </h1>
+            <div className='flex items-center gap-2'>
+              <h1 className='text-2xl font-bold tracking-tight text-foreground font-heading'>
+                Administrator Dashboard
+              </h1>
+              {isLoading && (
+                <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 animate-pulse'>
+                  Đang đồng bộ DB...
+                </span>
+              )}
+            </div>
             <p className='text-sm text-muted-foreground mt-0.5'>
               Real-time platform operations and priority triage.
             </p>

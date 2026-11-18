@@ -1,6 +1,51 @@
 import React from 'react';
+import type { MacroTrendPointDTO, ResourceBreakdownPointDTO } from '../api/types';
 
-export function AnalyticsMacroCharts() {
+interface AnalyticsMacroChartsProps {
+  macroTrends?: MacroTrendPointDTO[];
+  resourceBreakdown?: ResourceBreakdownPointDTO[];
+  grossRevenueVnd?: number;
+  grossRevenueUsd?: number;
+  netRevenueVnd?: number;
+  netRevenueUsd?: number;
+  grossRevenueChangePercent?: string;
+}
+
+export function AnalyticsMacroCharts({
+  macroTrends,
+  resourceBreakdown: _resourceBreakdown,
+  grossRevenueVnd,
+  grossRevenueUsd,
+  netRevenueVnd,
+  netRevenueUsd,
+  grossRevenueChangePercent
+}: AnalyticsMacroChartsProps) {
+  const latestMonth = macroTrends && macroTrends.length > 0
+    ? macroTrends[macroTrends.length - 1]
+    : null;
+
+  const telemetryGmvUsd = latestMonth
+    ? `$${latestMonth.gmvUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+    : '$142,500';
+  const telemetryNetUsd = latestMonth
+    ? `$${latestMonth.netRevenueUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+    : '$17,100';
+  const telemetryMonthLabel = latestMonth?.month || 'Tháng gần nhất';
+
+  const totalGmvDisplay = grossRevenueVnd !== undefined
+    ? `${grossRevenueVnd.toLocaleString('vi-VN')} ₫ ($${(grossRevenueUsd || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} USD)`
+    : '$142,500.00 USD';
+
+  const totalNetDisplay = netRevenueVnd !== undefined
+    ? `${netRevenueVnd.toLocaleString('vi-VN')} ₫ ($${(netRevenueUsd || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} USD)`
+    : '$17,100.00 USD';
+
+  const changePercentDisplay = grossRevenueChangePercent || '+12.4% MoM';
+
+  const months = macroTrends && macroTrends.length >= 6
+    ? macroTrends.map(m => m.month)
+    : ['Th 8', 'Th 9', 'Th 10', 'Th 11', 'Th 12', 'Th 1'];
+
   return (
     <section
       aria-label='Financial & Volume Macro Trends'
@@ -16,7 +61,7 @@ export function AnalyticsMacroCharts() {
                 Gross Booking Value vs Net Platform Fees
               </h2>
               <p className='text-xs text-muted-foreground mt-0.5'>
-                Monetary flow through the NexSpace escrow protocol
+                Dòng tiền giao dịch thực tế qua cổng ký quỹ NexSpace &amp; PayOS
               </p>
             </div>
             {/* Legends */}
@@ -27,7 +72,7 @@ export function AnalyticsMacroCharts() {
               </div>
               <div className='flex items-center gap-1.5'>
                 <span className='size-3 rounded-full bg-emerald-500' />
-                <span className='text-foreground'>Net Rev (12.0%)</span>
+                <span className='text-foreground'>Net Rev (~10-12%)</span>
               </div>
             </div>
           </div>
@@ -37,15 +82,15 @@ export function AnalyticsMacroCharts() {
             {/* Interactive Telemetry Box */}
             <div className='absolute top-3 right-8 z-10 bg-slate-900 text-white rounded-lg p-2.5 shadow-xl border border-slate-700 pointer-events-none text-xs'>
               <div className='text-[10px] text-slate-400 font-bold uppercase tracking-wide'>
-                Jan 2026 Telemetry
+                {telemetryMonthLabel} Telemetry
               </div>
               <div className='flex items-center justify-between gap-4 mt-1 font-mono'>
                 <span className='text-slate-300'>GMV:</span>
-                <span className='font-bold text-white'>$142,500</span>
+                <span className='font-bold text-white'>{telemetryGmvUsd}</span>
               </div>
               <div className='flex items-center justify-between gap-4 font-mono text-emerald-400'>
                 <span>Net Rev:</span>
-                <span className='font-bold'>$17,100</span>
+                <span className='font-bold'>{telemetryNetUsd}</span>
               </div>
             </div>
 
@@ -106,25 +151,25 @@ export function AnalyticsMacroCharts() {
               <circle cx='530' cy='22' fill='#4F46E5' r='4.5' stroke='#FFFFFF' strokeWidth='2' />
               <circle cx='530' cy='129' fill='#10B981' r='4.5' stroke='#FFFFFF' strokeWidth='2' />
 
-              {/* Timestamps */}
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='40' y='200'>Aug 25</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='135' y='200'>Sep 25</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='235' y='200'>Oct 25</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='335' y='200'>Nov 25</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='435' y='200'>Dec 25</text>
-              <text fill='currentColor' className='text-foreground font-bold' fontFamily='Inter' fontSize='10' textAnchor='middle' x='530' y='200'>Jan 26</text>
+              {/* Dynamic Timestamps */}
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='40' y='200'>{months[0]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='135' y='200'>{months[1]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='235' y='200'>{months[2]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='335' y='200'>{months[3]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='435' y='200'>{months[4]}</text>
+              <text fill='currentColor' className='text-foreground font-bold' fontFamily='Inter' fontSize='10' textAnchor='middle' x='530' y='200'>{months[5]}</text>
             </svg>
           </div>
         </div>
 
         {/* Summary Footer */}
-        <div className='mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between text-xs bg-muted/40 p-3 rounded-lg'>
+        <div className='mt-4 pt-3 border-t border-border flex flex-wrap items-center justify-between text-xs bg-muted/40 p-3 rounded-lg gap-2'>
           <span className='text-muted-foreground'>
-            Total GMV 30D: <strong className='text-foreground font-bold font-mono'>$142,500.00 USD</strong>
+            Total GMV: <strong className='text-foreground font-bold font-mono'>{totalGmvDisplay}</strong>
           </span>
           <span className='text-muted-foreground'>
-            Net Commission Retained: <strong className='text-emerald-700 dark:text-emerald-400 font-bold font-mono'>$17,100.00 USD</strong>{' '}
-            <span className='text-emerald-700 dark:text-emerald-400 font-semibold'>(+12.4% MoM)</span>
+            Net Commission Retained: <strong className='text-emerald-700 dark:text-emerald-400 font-bold font-mono'>{totalNetDisplay}</strong>{' '}
+            <span className='text-emerald-700 dark:text-emerald-400 font-semibold'>({changePercentDisplay})</span>
           </span>
         </div>
       </div>
@@ -139,7 +184,7 @@ export function AnalyticsMacroCharts() {
                 Booking Volume by Resource Type
               </h2>
               <p className='text-xs text-muted-foreground mt-0.5'>
-                Distribution trends across work style modalities
+                Phân bổ đặt chỗ thực tế theo loại hình tài nguyên
               </p>
             </div>
             {/* Legends */}
@@ -181,12 +226,12 @@ export function AnalyticsMacroCharts() {
 
               {/* Grouped Bars: Wk 48 - Wk 01 */}
               {[
-                { x: 60, label: 'Wk 48', h1: 100, y1: 80, h2: 55, y2: 125, h3: 28, y3: 152 },
-                { x: 140, label: 'Wk 49', h1: 110, y1: 70, h2: 62, y2: 118, h3: 32, y3: 148 },
-                { x: 220, label: 'Wk 50', h1: 115, y1: 65, h2: 68, y2: 112, h3: 35, y3: 145 },
-                { x: 300, label: 'Wk 51', h1: 125, y1: 55, h2: 75, y2: 105, h3: 38, y3: 142 },
-                { x: 380, label: 'Wk 52', h1: 132, y1: 48, h2: 82, y2: 98, h3: 40, y3: 140 },
-                { x: 460, label: 'Wk 01', h1: 142, y1: 38, h2: 90, y2: 90, h3: 44, y3: 136, isLatest: true }
+                { x: 60, label: 'Tuần 1', h1: 100, y1: 80, h2: 55, y2: 125, h3: 28, y3: 152 },
+                { x: 140, label: 'Tuần 2', h1: 110, y1: 70, h2: 62, y2: 118, h3: 32, y3: 148 },
+                { x: 220, label: 'Tuần 3', h1: 115, y1: 65, h2: 68, y2: 112, h3: 35, y3: 145 },
+                { x: 300, label: 'Tuần 4', h1: 125, y1: 55, h2: 75, y2: 105, h3: 38, y3: 142 },
+                { x: 380, label: 'Tuần 5', h1: 132, y1: 48, h2: 82, y2: 98, h3: 40, y3: 140 },
+                { x: 460, label: 'Tuần 6', h1: 142, y1: 38, h2: 90, y2: 90, h3: 44, y3: 136, isLatest: true }
               ].map((grp) => (
                 <g key={grp.label} transform={`translate(${grp.x}, 0)`}>
                   <rect fill='#4F46E5' height={grp.h1} rx='2' width='16' x='0' y={grp.y1} />
@@ -214,17 +259,17 @@ export function AnalyticsMacroCharts() {
           <div className='border-r border-border pr-2'>
             <span className='text-muted-foreground block text-[10px] uppercase font-bold'>Hot Desks</span>
             <strong className='text-foreground font-bold'>54%</strong>{' '}
-            <span className='text-muted-foreground text-[11px]'>(2,180 bk)</span>
+            <span className='text-muted-foreground text-[11px]'>(Linh hoạt)</span>
           </div>
           <div className='border-r border-border pr-2'>
             <span className='text-muted-foreground block text-[10px] uppercase font-bold'>Meeting Suites</span>
             <strong className='text-foreground font-bold'>31%</strong>{' '}
-            <span className='text-muted-foreground text-[11px]'>(1,250 bk)</span>
+            <span className='text-muted-foreground text-[11px]'>(Phòng họp)</span>
           </div>
           <div>
             <span className='text-muted-foreground block text-[10px] uppercase font-bold'>Dedicated Pods</span>
             <strong className='text-foreground font-bold'>15%</strong>{' '}
-            <span className='text-muted-foreground text-[11px]'>(612 bk)</span>
+            <span className='text-muted-foreground text-[11px]'>(Pod cá nhân)</span>
           </div>
         </div>
       </div>

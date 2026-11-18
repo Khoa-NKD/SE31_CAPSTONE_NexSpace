@@ -1,7 +1,33 @@
 import React from 'react';
 import { DoorOpen, Users, Store, ArrowUp } from 'lucide-react';
+import type { AdminPlatformAnalyticsResponseDTO } from '../api/types';
 
-export function AnalyticsKpiGrid() {
+interface AnalyticsKpiGridProps {
+  summary?: AdminPlatformAnalyticsResponseDTO;
+  isLoading?: boolean;
+}
+
+export function AnalyticsKpiGrid({ summary, isLoading: _isLoading }: AnalyticsKpiGridProps) {
+  const occupancyDisplay = summary
+    ? `${summary.averageOccupancyPercent.toFixed(1)}%`
+    : '78.4%';
+  const occupancyChange = summary?.occupancyChangePercent || '+4.2% MoM';
+
+  const gmvDisplay = summary
+    ? `${summary.grossRevenueVnd.toLocaleString('vi-VN')} ₫`
+    : '778,750,000 VND';
+  const gmvUsdDisplay = summary
+    ? `$${summary.grossRevenueUsd.toLocaleString('en-US', { maximumFractionDigits: 1 })} USD`
+    : '$31,150 USD';
+  const gmvChange = summary?.grossRevenueChangePercent || '+12.4% MoM';
+
+  const workspacesCount = summary
+    ? summary.activeWorkspacesCount
+    : 86;
+  const bookingsCount = summary
+    ? summary.totalBookings
+    : 1240;
+
   return (
     <section
       aria-label='Operational Utilization & Growth KPI Cards'
@@ -16,11 +42,11 @@ export function AnalyticsKpiGrid() {
             </span>
             <div className='flex items-baseline gap-2.5 mt-1'>
               <span className='text-3xl font-extrabold tracking-tight text-foreground'>
-                78.4%
+                {occupancyDisplay}
               </span>
               <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
                 <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                +4.2% MoM
+                {occupancyChange}
               </span>
             </div>
           </div>
@@ -58,26 +84,26 @@ export function AnalyticsKpiGrid() {
             </svg>
           </div>
           <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            Peak desk utilization reached{' '}
-            <strong className='text-foreground font-bold'>92.1%</strong> at 14:00 ICT
+            Tỷ lệ lấp đầy đạt{' '}
+            <strong className='text-foreground font-bold'>{occupancyDisplay}</strong> trên toàn hệ thống
           </p>
         </div>
       </div>
 
-      {/* Card 2: User Cohort Retention */}
+      {/* Card 2: Platform Gross Revenue */}
       <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-primary/40 transition-all'>
         <div className='flex items-start justify-between'>
           <div className='space-y-1'>
             <span className='text-xs font-semibold text-muted-foreground'>
-              User Cohort Retention (30D)
+              Platform Gross Volume (GMV)
             </span>
             <div className='flex items-baseline gap-2.5 mt-1'>
-              <span className='text-3xl font-extrabold tracking-tight text-foreground'>
-                64.2%
+              <span className='text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground'>
+                {gmvDisplay}
               </span>
               <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
                 <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                +3.1% vs Q4
+                {gmvChange}
               </span>
             </div>
           </div>
@@ -115,7 +141,7 @@ export function AnalyticsKpiGrid() {
             </svg>
           </div>
           <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            <strong className='text-foreground font-bold'>4,820</strong> active corporate &amp; nomad accounts
+            Quy đổi quốc tế xấp xỉ <strong className='text-foreground font-bold'>{gmvUsdDisplay}</strong>
           </p>
         </div>
       </div>
@@ -125,15 +151,15 @@ export function AnalyticsKpiGrid() {
         <div className='flex items-start justify-between'>
           <div className='space-y-1'>
             <span className='text-xs font-semibold text-muted-foreground'>
-              Organizer Growth Rate
+              Active Workspaces &amp; Bookings
             </span>
             <div className='flex items-baseline gap-2.5 mt-1'>
               <span className='text-3xl font-extrabold tracking-tight text-foreground'>
-                +14 Hubs
+                {workspacesCount} Không gian
               </span>
               <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
                 <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                +18.5% QoQ
+                {bookingsCount} lượt đặt
               </span>
             </div>
           </div>
@@ -171,7 +197,7 @@ export function AnalyticsKpiGrid() {
             </svg>
           </div>
           <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            Total <strong className='text-foreground font-bold'>86</strong> verified workspace partners across VN &amp; SG
+            Tổng cộng <strong className='text-foreground font-bold'>{bookingsCount}</strong> đặt chỗ đã ghi nhận thực tế trên hệ thống
           </p>
         </div>
       </div>

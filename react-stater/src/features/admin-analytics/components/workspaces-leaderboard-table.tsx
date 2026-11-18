@@ -12,7 +12,13 @@ import {
   MOCK_LEADERBOARD_ITEMS,
   WorkspaceLeaderboardItem
 } from '../data/mock-analytics';
+import type { WorkspaceLeaderboardItemDTO } from '../api/types';
 import { HubBiDrawer } from './hub-bi-drawer';
+
+interface WorkspacesLeaderboardTableProps {
+  items?: WorkspaceLeaderboardItemDTO[];
+  isLoading?: boolean;
+}
 
 function handleDownloadCsv() {
   toast.success('Leaderboard CSV Exported', {
@@ -20,17 +26,23 @@ function handleDownloadCsv() {
   });
 }
 
-export function WorkspacesLeaderboardTable() {
+export function WorkspacesLeaderboardTable({ items, isLoading: _isLoading }: WorkspacesLeaderboardTableProps) {
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [selectedHub, setSelectedHub] = useState<WorkspaceLeaderboardItem | null>(null);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
-  const filteredItems = MOCK_LEADERBOARD_ITEMS.filter((item) => {
+  // Use real items from API if available, fallback to mock data
+  const sourceItems: WorkspaceLeaderboardItem[] = (items && items.length > 0)
+    ? (items as unknown as WorkspaceLeaderboardItem[])
+    : MOCK_LEADERBOARD_ITEMS;
+
+  const filteredItems = sourceItems.filter((item) => {
     if (selectedCity === 'all') return true;
-    if (selectedCity === 'hcmc') return item.city === 'HCMC';
-    if (selectedCity === 'hanoi') return item.city === 'Hanoi';
-    if (selectedCity === 'danang') return item.city === 'Da Nang';
-    if (selectedCity === 'singapore') return item.city === 'Singapore';
+    const cityLower = (item.city || '').toLowerCase();
+    if (selectedCity === 'hcmc') return cityLower.includes('hcm') || cityLower.includes('hồ chí minh');
+    if (selectedCity === 'hanoi') return cityLower.includes('hanoi') || cityLower.includes('hà nội');
+    if (selectedCity === 'danang') return cityLower.includes('da nang') || cityLower.includes('đà nẵng');
+    if (selectedCity === 'singapore') return cityLower.includes('singapore');
     return true;
   });
 
@@ -53,21 +65,21 @@ export function WorkspacesLeaderboardTable() {
                 Top Performing Workspaces Leaderboard
               </h2>
               <span className='px-2.5 py-0.5 rounded text-[11px] font-bold bg-primary/10 text-primary border border-primary/20'>
-                Tier-1 Revenue Hubs
+                {items && items.length > 0 ? 'Dữ liệu hệ thống thực tế' : 'Tier-1 Revenue Hubs'}
               </span>
             </div>
             <p className='text-xs text-muted-foreground mt-1'>
-              Top revenue-generating hubs ranked by gross bookings, occupancy velocity, and member satisfaction ratings.
+              Bảng xếp hạng không gian làm việc theo doanh thu GMV, lượt đặt chỗ và đánh giá khách hàng.
             </p>
           </div>
 
           {/* Quick City Filter Pills */}
           <div className='flex items-center gap-1.5 overflow-x-auto pb-1 lg:pb-0 text-xs'>
             {[
-              { id: 'all', label: 'All Cities' },
-              { id: 'hcmc', label: 'Ho Chi Minh City' },
-              { id: 'hanoi', label: 'Hanoi' },
-              { id: 'danang', label: 'Da Nang' },
+              { id: 'all', label: 'Tất cả thành phố' },
+              { id: 'danang', label: 'Đà Nẵng' },
+              { id: 'hcmc', label: 'TP. Hồ Chí Minh' },
+              { id: 'hanoi', label: 'Hà Nội' },
               { id: 'singapore', label: 'Singapore' }
             ].map((city) => (
               <button
@@ -91,14 +103,14 @@ export function WorkspacesLeaderboardTable() {
           <table className='w-full text-left border-collapse text-xs'>
             <thead>
               <tr className='bg-muted/50 text-muted-foreground text-[11px] font-bold uppercase tracking-wider border-b border-border'>
-                <th scope='col' className='py-3 px-5 w-16'>Rank</th>
-                <th scope='col' className='py-3 px-5'>Workspace Name &amp; Location</th>
-                <th scope='col' className='py-3 px-5'>City / District</th>
-                <th scope='col' className='py-3 px-5 text-right'>Total Bookings (30d)</th>
-                <th scope='col' className='py-3 px-5 text-right'>Gross Revenue (GMV)</th>
-                <th scope='col' className='py-3 px-5 w-48'>Average Occupancy %</th>
-                <th scope='col' className='py-3 px-5'>Satisfaction</th>
-                <th scope='col' className='py-3 px-5 text-right'>Action</th>
+                <th scope='col' className='py-3 px-5 w-16'>Thứ hạng</th>
+                <th scope='col' className='py-3 px-5'>Tên không gian &amp; Địa chỉ</th>
+                <th scope='col' className='py-3 px-5'>Khu vực</th>
+                <th scope='col' className='py-3 px-5 text-right'>Lượt đặt</th>
+                <th scope='col' className='py-3 px-5 text-right'>Doanh thu GMV</th>
+                <th scope='col' className='py-3 px-5 w-48'>Tỷ lệ lấp đầy</th>
+                <th scope='col' className='py-3 px-5'>Đánh giá</th>
+                <th scope='col' className='py-3 px-5 text-right'>Thao tác</th>
               </tr>
             </thead>
             <tbody className='divide-y divide-border font-medium'>
@@ -154,23 +166,23 @@ export function WorkspacesLeaderboardTable() {
                     {/* District */}
                     <td className='py-4 px-5'>
                       <span className='inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-muted text-foreground border border-border'>
-                        {hub.district}
+                        {hub.district || hub.city}
                       </span>
                     </td>
 
                     {/* Total Bookings */}
                     <td className='py-4 px-5 text-right font-mono font-semibold text-foreground text-xs'>
                       {hub.totalBookings30d.toLocaleString()}{' '}
-                      <span className='text-[11px] text-muted-foreground font-sans'>bks</span>
+                      <span className='text-[11px] text-muted-foreground font-sans'>lượt</span>
                     </td>
 
                     {/* Gross Revenue */}
                     <td className='py-4 px-5 text-right font-mono'>
                       <div className='font-bold text-foreground text-xs'>
-                        {hub.grossRevenueDisplay}
+                        {hub.localCurrencyDisplay || hub.grossRevenueDisplay}
                       </div>
                       <div className='text-[11px] text-muted-foreground'>
-                        {hub.localCurrencyDisplay}
+                        {hub.grossRevenueDisplay}
                       </div>
                     </td>
 
@@ -192,7 +204,7 @@ export function WorkspacesLeaderboardTable() {
                         <div className='w-full bg-muted rounded-full h-2 overflow-hidden'>
                           <div
                             className='bg-primary h-2 rounded-full transition-all duration-500'
-                            style={{ width: `${hub.averageOccupancyPercent}%` }}
+                            style={{ width: `${Math.min(100, hub.averageOccupancyPercent)}%` }}
                           />
                         </div>
                       </div>
@@ -219,7 +231,7 @@ export function WorkspacesLeaderboardTable() {
                         onClick={() => handleOpenHubBi(hub)}
                         className='h-7 text-xs font-semibold text-primary hover:text-primary/80 gap-1 px-2'
                       >
-                        <span>View Hub BI</span>
+                        <span>Chi tiết BI</span>
                         <ArrowRight className='size-3' />
                       </Button>
                     </td>
@@ -233,9 +245,9 @@ export function WorkspacesLeaderboardTable() {
         {/* Footer */}
         <div className='px-6 py-3 bg-muted/40 border-t border-border flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-2'>
           <div className='flex items-center gap-2'>
-            <span>Displaying top {filteredItems.length} of 86 audited commercial hubs</span>
+            <span>Hiển thị {filteredItems.length} không gian đã kiểm định</span>
             <span className='size-1 rounded-full bg-muted-foreground' />
-            <span>Real-time booking reconciliation enabled</span>
+            <span>Đồng bộ giao dịch tự động qua cổng PayOS</span>
           </div>
 
           <div className='flex items-center gap-3'>
@@ -245,15 +257,15 @@ export function WorkspacesLeaderboardTable() {
               className='font-semibold text-primary hover:underline inline-flex items-center gap-1'
             >
               <Download className='size-3' />
-              <span>Download CSV Audit</span>
+              <span>Tải file CSV</span>
             </button>
             <span className='text-border'>|</span>
             <button
               type='button'
-              onClick={() => toast.info('Viewing all 86 registered partner hubs across Vietnam and Singapore')}
+              onClick={() => toast.info(`Hiện có ${sourceItems.length} không gian trong hệ thống`)}
               className='font-semibold text-primary hover:underline'
             >
-              View All 86 Partners
+              Xem tất cả ({sourceItems.length})
             </button>
           </div>
         </div>
