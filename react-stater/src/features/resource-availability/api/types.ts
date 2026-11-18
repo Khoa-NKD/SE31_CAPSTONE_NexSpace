@@ -105,6 +105,9 @@ export interface HoldResourceResponseDto {
   baseAmount: number;
   finalPrice: number;
   currency: string;
+  remainingHoldAttempts?: number;
+  maxHoldAttempts?: number;
+  penaltyBlockMinutes?: number;
 }
 
 
