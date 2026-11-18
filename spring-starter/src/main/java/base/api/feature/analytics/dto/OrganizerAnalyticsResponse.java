@@ -9,7 +9,12 @@ public record OrganizerAnalyticsResponse(
         AnalyticsFilter filter, String currency, String timestampZone, LocalDateTime generatedAt,
         Summary current, Summary previous, List<Trend> trends,
         List<Ranking> workspaces, List<Ranking> resourceTypes, List<Ranking> resources,
-        List<StatusCount> statuses, List<HeatCell> heatmap, List<Notice> notices) {
+        List<StatusCount> statuses, List<HeatCell> heatmap, List<Notice> notices,
+        Earnings earnings, Earnings previousEarnings) {
+    /** Period allocations are not proof of a completed bank transfer. Unknown totals remain null. */
+    public record Earnings(String rentalAmount, String vatAmount, String platformFeeAmount,
+                           String organizerAmount, String rentalEarningsAmount, String unallocatedAmount,
+                           String transferredAmount, boolean transferTrackingAvailable, long validationIssues) {}
     public record Summary(long createdBookings, long paidBookings, long payingCustomers,
                           long returningCustomers, long completedBookings, long cancelledBookings,
                           long expiredBookings, long noShowBookings, String receivedAmount,

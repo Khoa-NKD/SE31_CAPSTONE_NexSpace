@@ -3,6 +3,9 @@ package base.api.feature.analytics.repository;
 import base.api.feature.analytics.dto.AnalyticsFilter;
 import base.api.feature.analytics.dto.OrganizerAnalyticsResponse.*;
 import base.api.shared.exception.NotFoundException;
+import base.api.feature.analytics.service.OrganizerEarningsCalculator;
+import base.api.feature.analytics.service.OrganizerEarningsCalculator.Basis;
+import base.api.feature.analytics.service.OrganizerEarningsCalculator.Event;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
@@ -134,6 +137,57 @@ public class OrganizerAnalyticsRepository {
 
     private record Totals(long created, long paid, long customers, long returningCustomers,
                           BigDecimal received, BigDecimal refunded, long receiptCount, long refundCount, long anomalies) {}
+
+    /** Read all prior cash events for affected bookings so period refunds reverse the correct original fees. */
+    public Earnings earnings(long actor, AnalyticsFilter filter) {
+        var p = params(actor, filter);
+        String candidates = " SELECT DISTINCT booking_id FROM events WHERE " + PERIOD
+                + " AND kind IN ('PAYMENT','REFUND') ";
+        var bases = jdbc.query(SCOPE + "SELECT id, booking_currency, final_price, tax_amount, platform_fee_amount, service_fee_amount FROM scope WHERE id IN ("
+                + candidates + ")", p, (rs, row) -> new Basis(rs.getLong("id"), rs.getString("booking_currency"),
+                rs.getBigDecimal("final_price"), rs.getBigDecimal("tax_amount"), rs.getBigDecimal("platform_fee_amount"), rs.getBigDecimal("service_fee_amount")));
+        var events = jdbc.query(SCOPE + """
+                SELECT e.booking_id,e.event_id,e.kind,e.occurred_at,e.received,e.refunded,e.reconciliation_status,e.booking_issue,
+                       p.amount expected_amount, COALESCE(p.id,r.payment_transaction_id) payment_id
+                FROM events e LEFT JOIN payment_transaction p ON e.event_id=CONCAT('PAYMENT-',p.id)
+                LEFT JOIN refund_request r ON e.event_id=CONCAT('REFUND-',r.id)
+                WHERE e.occurred_at < :end AND e.kind IN ('PAYMENT','REFUND') AND e.booking_id IN (
+                """ + candidates + ")", p, (rs, row) -> new Event(rs.getLong("booking_id"), rs.getString("event_id"),
+                rs.getString("kind"), rs.getTimestamp("occurred_at").toLocalDateTime(),
+                rs.getBigDecimal("received").add(rs.getBigDecimal("refunded")), rs.getBigDecimal("expected_amount"),
+                rs.getString("reconciliation_status"), rs.getInt("booking_issue") != 0, rs.getLong("payment_id")));
+        var allocation = OrganizerEarningsCalculator.calculate(bases, events, filter.start(), filter.end());
+        long issues = allocation.excludedBookings() + invalidFinancialRecords(actor, filter)
+                + paymentReview(actor, filter).overRefundedPayments();
+        var payouts = jdbc.query(SCOPE + """
+                SELECT o.status,o.payout_amount,o.paid_at,o.payout_reference,b.booking_currency
+                FROM organizer_payout o JOIN scope b ON b.id=o.booking_id
+                WHERE o.organizer_id=:actor AND o.created_at < :end
+                """, p, (rs, row) -> new Payout(rs.getString("status"), rs.getBigDecimal("payout_amount"),
+                rs.getTimestamp("paid_at") == null ? null : rs.getTimestamp("paid_at").toLocalDateTime(),
+                rs.getString("payout_reference"), rs.getString("booking_currency")));
+        BigDecimal transferred = BigDecimal.ZERO;
+        boolean invalidTransfer = false;
+        for (var payout : payouts) {
+            if (!"PAID".equals(payout.status())) continue;
+            if (payout.at() == null) { invalidTransfer = true; continue; }
+            if (payout.at().isBefore(filter.start()) || !payout.at().isBefore(filter.end())) continue;
+            if (!"VND".equals(payout.currency()) || payout.amount() == null || payout.amount().signum() < 0
+                    || payout.reference() == null || payout.reference().isBlank()) invalidTransfer = true;
+            else transferred = transferred.add(payout.amount());
+        }
+        BigDecimal cash = events.stream().filter(e -> !e.at().isBefore(filter.start()))
+                .map(e -> "REFUND".equals(e.kind()) ? e.amount().negate() : e.amount())
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal retainedGross = allocation.rental().add(allocation.vat());
+        return new Earnings(issues == 0 ? money(allocation.rental()) : null,
+                issues == 0 ? money(allocation.vat()) : null, issues == 0 ? money(allocation.fee()) : null,
+                issues == 0 ? money(allocation.organizer()) : null, issues == 0 ? money(allocation.rentalEarnings()) : null,
+                issues == 0 ? money(cash.subtract(retainedGross)) : null,
+                payouts.isEmpty() || invalidTransfer ? null : money(transferred), !payouts.isEmpty(), issues);
+    }
+
+    private record Payout(String status, BigDecimal amount, java.time.LocalDateTime at, String reference, String currency) {}
 
     private long count(List<StatusCount> statuses, String status) {
         return statuses.stream().filter(s -> s.status().equals(status)).mapToLong(StatusCount::count).sum();

@@ -42,9 +42,10 @@ public class OrganizerAnalyticsRepositoryTest {
         sql.execute("CREATE TABLE floor_plan(id BIGINT PRIMARY KEY, workspace_id BIGINT, floor_number INT)");
         sql.execute("CREATE TABLE resource_type(id BIGINT PRIMARY KEY, workspace_id BIGINT, name VARCHAR(100), category VARCHAR(20))");
         sql.execute("CREATE TABLE bookable_resource(id BIGINT PRIMARY KEY, floor_plan_id BIGINT, resource_type_id BIGINT, name VARCHAR(100), parent_room_id BIGINT)");
-        sql.execute("CREATE TABLE booking(id BIGINT PRIMARY KEY, booking_code VARCHAR(100), workspace_id BIGINT, resource_id BIGINT, customer_id BIGINT, status VARCHAR(20), created_at DATETIME(6), start_time DATETIME(6), end_time DATETIME(6), pricing_snapshot VARCHAR(1000), cancelled_at DATETIME(6))");
+        sql.execute("CREATE TABLE booking(id BIGINT PRIMARY KEY, booking_code VARCHAR(100), workspace_id BIGINT, resource_id BIGINT, customer_id BIGINT, status VARCHAR(20), created_at DATETIME(6), start_time DATETIME(6), end_time DATETIME(6), pricing_snapshot VARCHAR(1000), cancelled_at DATETIME(6), final_price DECIMAL(18,2), tax_amount DECIMAL(18,2), platform_fee_amount DECIMAL(18,2), service_fee_amount DECIMAL(18,2))");
         sql.execute("CREATE TABLE payment_transaction(id BIGINT PRIMARY KEY, booking_id BIGINT, status VARCHAR(20), paid_at DATETIME(6), received_amount DECIMAL(18,2), reconciliation_status VARCHAR(20), amount DECIMAL(18,2))");
         sql.execute("CREATE TABLE refund_request(id BIGINT PRIMARY KEY, booking_id BIGINT, payment_transaction_id BIGINT, status VARCHAR(20), processed_at DATETIME(6), approved_amount DECIMAL(18,2))");
+        sql.execute("CREATE TABLE organizer_payout(id BIGINT PRIMARY KEY, organizer_id BIGINT, booking_id BIGINT, status VARCHAR(20), payout_amount DECIMAL(18,2), payout_reference VARCHAR(100), created_at DATETIME(6), paid_at DATETIME(6))");
         sql.update("INSERT INTO workspace VALUES(1,10,'Mine'),(2,20,'Other')");
         sql.update("INSERT INTO floor_plan VALUES(1,1,1),(2,2,1)");
         sql.update("INSERT INTO resource_type VALUES(1,1,'Room','ROOM'),(2,1,'Desk','DESK'),(3,2,'Other','ROOM')");
@@ -62,7 +63,7 @@ public class OrganizerAnalyticsRepositoryTest {
 
     @AfterEach void tearDown() {
         if (mysql) {
-            for (String table : new String[]{"refund_request","payment_transaction","booking","bookable_resource","resource_type","floor_plan","workspace"}) sql.execute("DROP TABLE IF EXISTS " + table);
+            for (String table : new String[]{"organizer_payout","refund_request","payment_transaction","booking","bookable_resource","resource_type","floor_plan","workspace"}) sql.execute("DROP TABLE IF EXISTS " + table);
         } else sql.execute("SHUTDOWN");
     }
 
@@ -316,4 +317,47 @@ public class OrganizerAnalyticsRepositoryTest {
     public static String jsonExtract(String value,String path) throws Exception { return new ObjectMapper().readTree(value).path(path.substring(2)).toString(); }
     public static String jsonUnquote(String value) throws Exception { return new ObjectMapper().readTree(value).asText(); }
     public static int weekday(java.sql.Timestamp value) { return value.toLocalDateTime().getDayOfWeek().getValue()-1; }
+
+    private void earningsFixture() {
+        sql.update("DELETE FROM refund_request"); sql.update("DELETE FROM payment_transaction"); sql.update("DELETE FROM booking");
+        booking(100,1,1,100,"CONFIRMED","2026-11-01 00:00:00","2026-11-02 09:00:00","2026-11-02 10:00:00");
+        sql.update("UPDATE booking SET final_price=108000,tax_amount=8000,platform_fee_amount=10000,service_fee_amount=0 WHERE id=100");
+        receipt(100,100,"SUCCESS","2026-11-01 10:00:00","108000","MATCHED");
+    }
+    @Test void organizerAllocationIncludesVatButSeparatesRentalIncomeAndActualTransfers() {
+        earningsFixture();
+        var result=repository.earnings(10,filter);
+        assertThat(result.organizerAmount()).isEqualTo("98000.00");
+        assertThat(result.rentalEarningsAmount()).isEqualTo("90000.00");
+        assertThat(result.vatAmount()).isEqualTo("8000.00");
+        assertThat(result.platformFeeAmount()).isEqualTo("10000.00");
+        assertThat(result.transferTrackingAvailable()).isFalse(); assertThat(result.transferredAmount()).isNull();
+        assertThat(repository.earnings(20,filter).organizerAmount()).isEqualTo("0.00");
+        sql.update("INSERT INTO organizer_payout VALUES(1,10,100,'PAID',98000,'BANK-VERIFIED-1','2026-11-02 10:00:00','2026-11-03 10:00:00')");
+        assertThat(repository.earnings(10,filter).transferredAmount()).isEqualTo("98000.00");
+        assertThat(repository.earnings(20,filter).transferTrackingAvailable()).isFalse();
+    }
+    @Test void partialRefundReducesOriginalFeeAndDoesNotUseCurrentRates() {
+        earningsFixture();
+        sql.update("INSERT INTO refund_request VALUES(100,100,100,'PROCESSED','2026-11-03 10:00:00',54000)");
+        var result=repository.earnings(10,filter);
+        assertThat(result.organizerAmount()).isEqualTo("49000.00");
+        assertThat(result.platformFeeAmount()).isEqualTo("5000.00"); assertThat(result.vatAmount()).isEqualTo("4000.00");
+        sql.update("UPDATE booking SET platform_fee_amount=20000 WHERE id=100");
+        assertThat(repository.earnings(10,filter).organizerAmount()).isEqualTo("44000.00");
+    }
+    @Test void duplicatePaymentsRemainUnallocatedAndMissingFeeCannotBecomeZero() {
+        earningsFixture(); receipt(101,100,"SUCCESS","2026-11-02 10:00:00","108000","MATCHED");
+        var result=repository.earnings(10,filter);
+        assertThat(result.organizerAmount()).isEqualTo("98000.00"); assertThat(result.unallocatedAmount()).isEqualTo("108000.00");
+        sql.update("UPDATE booking SET platform_fee_amount=NULL WHERE id=100");
+        result=repository.earnings(10,filter);
+        assertThat(result.organizerAmount()).isNull(); assertThat(result.validationIssues()).isPositive();
+    }
+    @Test void invalidTransferReferencesAreNotReportedAsMoneyActuallyReceived() {
+        earningsFixture();
+        sql.update("INSERT INTO organizer_payout VALUES(1,10,100,'PAID',98000,NULL,'2026-11-02 10:00:00','2026-11-03 10:00:00')");
+        var result=repository.earnings(10,filter);
+        assertThat(result.transferTrackingAvailable()).isTrue(); assertThat(result.transferredAmount()).isNull();
+    }
 }

@@ -665,8 +665,7 @@ class BookingServiceTest {
         when(bookingRepository.findById(1001L)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
-        when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                .thenReturn(List.of(rule24h));
+        booking.setCancellationPolicySnapshot(base.api.feature.workspace.service.CancellationPolicies.snapshot(List.of(rule24h)));
 
         BookingResponseDto result = bookingService.cancelBooking(mockCustomer.getId(), 1001L, "Thay đổi lịch trình công tác");
 
@@ -730,8 +729,7 @@ class BookingServiceTest {
         rule12h.setRefundPercent(new BigDecimal("50.00"));
 
         when(bookingRepository.findById(1003L)).thenReturn(Optional.of(booking));
-        when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                .thenReturn(List.of(rule24h, rule12h));
+        booking.setCancellationPolicySnapshot(base.api.feature.workspace.service.CancellationPolicies.snapshot(List.of(rule24h, rule12h)));
 
         BookingCancellationPreviewDto preview = bookingService.getCancellationPreview(mockCustomer.getId(), 1003L);
 

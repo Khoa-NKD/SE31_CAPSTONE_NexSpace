@@ -60,14 +60,18 @@ class OrganizerAnalyticsControllerTest {
         var filter = new base.api.feature.analytics.dto.AnalyticsFilter(java.time.LocalDate.of(2026,11,1),java.time.LocalDate.of(2026,11,30),null,null,null,null);
         var summary = new base.api.feature.analytics.dto.OrganizerAnalyticsResponse.Summary(
                 0,0,0,0,0,0,0,0,"9007199254740993.01","0.00","9007199254740993.01","0.00","0.0000",0,0,0);
+        var earnings = new base.api.feature.analytics.dto.OrganizerAnalyticsResponse.Earnings(
+                "9007199254740993.01","0.00","0.00","9007199254740993.01","9007199254740993.01","0.00",null,false,0);
         when(service.report(10,filter)).thenReturn(new base.api.feature.analytics.dto.OrganizerAnalyticsResponse(
                 filter,"VND","Asia/Ho_Chi_Minh",java.time.LocalDateTime.of(2026,11,30,12,0),summary,summary,
-                List.of(),List.of(),List.of(),List.of(),List.of(),List.of(),List.of()));
+                List.of(),List.of(),List.of(),List.of(),List.of(),List.of(),List.of(),earnings,earnings));
         when(service.export(10,filter,null)).thenReturn("Event,Amount (VND)\r\n1,100.00\r\n");
         var mvc = MockMvcBuilders.standaloneSetup(controller).setControllerAdvice(new GlobalExceptionHandler()).build();
         mvc.perform(get("/api/organizer/analytics").param("from","2026-11-01").param("to","2026-11-30"))
                 .andExpect(status().isOk()).andExpect(jsonPath("$.data.current.receivedAmount").isString())
-                .andExpect(jsonPath("$.data.current.receivedAmount").value("9007199254740993.01"));
+                .andExpect(jsonPath("$.data.current.receivedAmount").value("9007199254740993.01"))
+                .andExpect(jsonPath("$.data.earnings.organizerAmount").isString())
+                .andExpect(jsonPath("$.data.earnings.organizerAmount").value("9007199254740993.01"));
         mvc.perform(get("/api/organizer/analytics/export").param("from","2026-11-01").param("to","2026-11-30").accept("text/csv","application/json"))
                 .andExpect(status().isOk()).andExpect(content().contentTypeCompatibleWith("text/csv"))
                 .andExpect(content().string("Event,Amount (VND)\r\n1,100.00\r\n"));

@@ -554,85 +554,41 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     public BookingCancellationPreviewDto getCancellationPreview(Long currentUserId, Long bookingId) {
         BookingModel booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
-
         boolean isOwner = booking.getCustomer() != null && booking.getCustomer().getId().equals(currentUserId);
         boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
                 && booking.getWorkspace().getOrganizer().getId().equals(currentUserId);
         boolean isAdmin = isCallerAdmin(currentUserId);
-
-        if (!isOwner && !isHost && !isAdmin) {
-            throw new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId);
-        }
-
-        boolean canCancel = booking.getStatus() != BookingStatus.CANCELLED
-                && booking.getStatus() != BookingStatus.COMPLETED
-                && booking.getStatus() != BookingStatus.EXPIRED
-                && booking.getStatus() != BookingStatus.CHECKED_IN
-                && booking.getStatus() != BookingStatus.NO_SHOW;
-
+        if (!isOwner && !isHost && !isAdmin) throw new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId);
+        boolean canCancel = !List.of(BookingStatus.CANCELLED,BookingStatus.COMPLETED,BookingStatus.EXPIRED,
+                BookingStatus.CHECKED_IN,BookingStatus.NO_SHOW).contains(booking.getStatus());
+        boolean host = isHost || isAdmin;
         LocalDateTime now = LocalDateTime.now();
-        long hoursBeforeStart = Duration.between(now, booking.getStartTime()).toHours();
-
-        List<WorkspaceCancellationRuleModel> rules = java.util.Collections.emptyList();
-        if (booking.getWorkspace() != null) {
-            rules = cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(booking.getWorkspace().getId());
+        List<base.api.feature.workspace.dto.response.CancellationRuleDto> rules = List.of();
+        if (booking.getStatus() == BookingStatus.CONFIRMED && !host) {
+            rules = base.api.feature.workspace.service.CancellationPolicies.readSnapshot(booking.getCancellationPolicySnapshot());
+        } else if (booking.getCancellationPolicySnapshot() != null) {
+            try { rules = base.api.feature.workspace.service.CancellationPolicies.readSnapshot(booking.getCancellationPolicySnapshot()); }
+            catch (BadRequestException ignored) { /* Non-refundable or host-driven cancellation needs no customer policy. */ }
         }
-
-        List<BookingCancellationPreviewDto.CancellationRuleItemDto> ruleItems = new java.util.ArrayList<>();
-        for (WorkspaceCancellationRuleModel r : rules) {
-            ruleItems.add(BookingCancellationPreviewDto.CancellationRuleItemDto.builder()
-                    .minHoursBeforeStart(r.getMinHoursBeforeStart())
-                    .refundPercent(r.getRefundPercent())
-                    .label("Trước " + r.getMinHoursBeforeStart() + "h: hoàn " + r.getRefundPercent() + "%")
-                    .build());
+        BigDecimal percent = BigDecimal.ZERO;
+        if (canCancel && booking.getStatus() == BookingStatus.CONFIRMED) {
+            percent = host ? BigDecimal.valueOf(100)
+                    : base.api.feature.workspace.service.CancellationPolicies.refundPercent(rules,now,booking.getStartTime());
         }
-
-        BigDecimal refundPercent = BigDecimal.ZERO;
-        BigDecimal refundAmount = BigDecimal.ZERO;
-        String explanation;
-
-        boolean isHostOrAdmin = isHost || isAdmin;
-        if (isHostOrAdmin) {
-            refundPercent = BigDecimal.valueOf(100);
-            refundAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : BigDecimal.ZERO;
-            explanation = "Organizer/Host hủy đơn: Khách hàng được hoàn trả 100% toàn bộ chi phí theo chính sách bảo vệ người dùng.";
-        } else if (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.PENDING_APPROVAL) {
-            refundPercent = BigDecimal.ZERO;
-            refundAmount = BigDecimal.ZERO;
-            explanation = "Đơn đặt chỗ đang ở trạng thái chờ thanh toán/chờ duyệt. Chỗ ngồi sẽ được giải phóng ngay lập tức mà không phát sinh phí.";
-        } else if (hoursBeforeStart <= 0) {
-            refundPercent = BigDecimal.ZERO;
-            refundAmount = BigDecimal.ZERO;
-            explanation = "Đã quá thời gian bắt đầu sử dụng không gian. Không thể hoàn tiền.";
-        } else {
-            for (WorkspaceCancellationRuleModel r : rules) {
-                if (hoursBeforeStart >= r.getMinHoursBeforeStart()) {
-                    refundPercent = r.getRefundPercent();
-                    break;
-                }
-            }
-            if (refundPercent.compareTo(BigDecimal.ZERO) > 0 && booking.getFinalPrice() != null) {
-                refundAmount = booking.getFinalPrice()
-                        .multiply(refundPercent)
-                        .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-            }
-            explanation = "Hủy trước " + hoursBeforeStart + " giờ. Áp dụng chính sách hoàn trả " + refundPercent + "% giá trị đơn hàng.";
-        }
-
-        return BookingCancellationPreviewDto.builder()
-                .bookingId(booking.getId())
-                .bookingCode(booking.getBookingCode())
-                .status(booking.getStatus())
-                .startTime(booking.getStartTime())
-                .hoursBeforeStart(hoursBeforeStart)
-                .finalPrice(booking.getFinalPrice())
-                .refundPercent(refundPercent)
-                .refundAmount(refundAmount)
-                .isHostCancellation(isHostOrAdmin)
-                .canCancel(canCancel)
-                .cancellationPolicyExplanation(explanation)
-                .rules(ruleItems)
-                .build();
+        BigDecimal amount = booking.getFinalPrice() == null ? BigDecimal.ZERO
+                : booking.getFinalPrice().multiply(percent).divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP);
+        var items = rules.stream().map(rule -> BookingCancellationPreviewDto.CancellationRuleItemDto.builder()
+                .minHoursBeforeStart(rule.minHoursBeforeStart().intValueExact()).refundPercent(rule.refundPercent())
+                .label("Từ " + rule.minHoursBeforeStart().intValueExact() + " giờ trước khi bắt đầu: hoàn " + rule.refundPercent().toPlainString() + "%").build()).toList();
+        String explanation = !canCancel ? "Trạng thái đơn không cho phép hủy qua luồng này."
+                : booking.getStatus() != BookingStatus.CONFIRMED ? "Đơn chưa xác nhận: hủy và giải phóng chỗ, không phát sinh khoản hoàn trong luồng này."
+                : host ? "Organizer hoặc quản trị viên hủy đơn đã xác nhận: hoàn 100% giá trị đơn."
+                : "Áp dụng chính sách đã chốt khi đặt: hoàn " + percent.toPlainString() + "%. Không dùng chính sách workspace đã sửa sau đó.";
+        return BookingCancellationPreviewDto.builder().bookingId(booking.getId()).bookingCode(booking.getBookingCode())
+                .status(booking.getStatus()).startTime(booking.getStartTime())
+                .hoursBeforeStart(Math.max(0,Duration.between(now,booking.getStartTime()).toHours()))
+                .finalPrice(booking.getFinalPrice()).refundPercent(percent).refundAmount(amount)
+                .isHostCancellation(host).canCancel(canCancel).cancellationPolicyExplanation(explanation).rules(items).build();
     }
 
     @Override
@@ -671,28 +627,13 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         if (booking.getStatus() == BookingStatus.CONFIRMED) {
             if (cancelSource == CancelSource.ORGANIZER || cancelSource == CancelSource.ADMINISTRATOR) {
-                // Host/Admin cancellation -> Full 100% refund
                 refundPercent = BigDecimal.valueOf(100);
-                refundAmount = booking.getFinalPrice() != null ? booking.getFinalPrice() : BigDecimal.ZERO;
             } else {
-                // Customer cancellation -> Calculate from rules
-                long hoursBeforeStart = Duration.between(now, booking.getStartTime()).toHours();
-                if (hoursBeforeStart > 0 && booking.getWorkspace() != null) {
-                    List<WorkspaceCancellationRuleModel> rules = cancellationRuleRepository
-                            .findByWorkspaceIdOrderByMinHoursBeforeStartDesc(booking.getWorkspace().getId());
-                    for (WorkspaceCancellationRuleModel r : rules) {
-                        if (hoursBeforeStart >= r.getMinHoursBeforeStart()) {
-                            refundPercent = r.getRefundPercent();
-                            break;
-                        }
-                    }
-                    if (refundPercent.compareTo(BigDecimal.ZERO) > 0 && booking.getFinalPrice() != null) {
-                        refundAmount = booking.getFinalPrice()
-                                .multiply(refundPercent)
-                                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
-                    }
-                }
+                var policy = base.api.feature.workspace.service.CancellationPolicies.readSnapshot(booking.getCancellationPolicySnapshot());
+                refundPercent = base.api.feature.workspace.service.CancellationPolicies.refundPercent(policy,now,booking.getStartTime());
             }
+            if (booking.getFinalPrice() != null) refundAmount = booking.getFinalPrice().multiply(refundPercent)
+                    .divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP);
         }
 
         BookingStatus previousStatus = booking.getStatus();
@@ -1093,19 +1034,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     }
 
     private String buildCancellationPolicySnapshot(Long workspaceId) {
-        List<WorkspaceCancellationRuleModel> rules = cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId);
-        List<Map<String, Object>> list = new ArrayList<>();
-        for (WorkspaceCancellationRuleModel r : rules) {
-            Map<String, Object> item = new LinkedHashMap<>();
-            item.put("minHoursBeforeStart", r.getMinHoursBeforeStart());
-            item.put("refundPercent", r.getRefundPercent());
-            list.add(item);
-        }
-        try {
-            return objectMapper.writeValueAsString(list);
-        } catch (JsonProcessingException e) {
-            return "[]";
-        }
+        return base.api.feature.workspace.service.CancellationPolicies.snapshot(
+                cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId));
     }
 
     private BigDecimal getDecimalSetting(String key, BigDecimal defaultValue) {

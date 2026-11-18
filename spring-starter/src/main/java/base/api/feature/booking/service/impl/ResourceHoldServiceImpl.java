@@ -450,19 +450,8 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     }
 
     private String buildCancellationPolicySnapshot(Long workspaceId) {
-        List<WorkspaceCancellationRuleModel> rules = cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId);
-        List<Map<String, Object>> list = new ArrayList<>();
-        for (WorkspaceCancellationRuleModel rule : rules) {
-            Map<String, Object> r = new LinkedHashMap<>();
-            r.put("minHoursBeforeStart", rule.getMinHoursBeforeStart());
-            r.put("refundPercent", rule.getRefundPercent());
-            list.add(r);
-        }
-        try {
-            return objectMapper.writeValueAsString(list);
-        } catch (JsonProcessingException e) {
-            return "[]";
-        }
+        return base.api.feature.workspace.service.CancellationPolicies.snapshot(
+                cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId));
     }
 
     private int getEffectiveHoldMinutes() {

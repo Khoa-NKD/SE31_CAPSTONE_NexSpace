@@ -89,9 +89,7 @@ booking status despite successful payment, or payment
 at/after cancellation or expiration are separately flagged. A normal payment before
 a later cancellation is not a late-payment warning. A missing cancellation timestamp
 on a cancelled/expired booking requires review. Cash after refunds is neither profit nor
-an organizer payout. The current code does not provide verified complete payout,
-operating-cost or historical sellable-inventory workflows, so those measures are
-explicitly unavailable. No business policies or payout status transitions are invented.
+an organizer payout. Completed transfers are read from existing PAID payout records only. The current code does not provide a complete payout execution, operating-cost or historical sellable-inventory workflow. No business policies or payout status transitions are invented.
 
 Cards, trends, rankings and export use the same event definitions. A report is read
 under REPEATABLE_READ; ledger requests occur later and may see newly arrived events.
@@ -118,3 +116,57 @@ with a clear error instead of charging in a guessed currency.
 No sample metrics are substituted when the API fails or returns an empty dataset.
 The existing organizer booking KPI ribbon also removes fabricated growth, amounts,
 dates and mock booking fallbacks; its counters are clearly labelled all-time.
+
+
+## Organizer allocation and actual transfers (18 November 2026)
+
+The report adds earnings and previousEarnings. Existing cash summaries, charts,
+rankings and CSV retain their cash-event semantics and are labelled before fees.
+All allocation fields are decimal strings. A null field means insufficient verified
+source data, never an estimated zero.
+
+The organizer supplies the rental service and receives its rental VAT for tax
+handling. Allocation uses the booking's saved VND final price, tax and platform fee;
+current rates are never applied to old bookings. No extra tax on platform fees is
+invented, and these figures do not certify tax filing or invoice issuance.
+
+- rentalAmount: retained settled rental including surcharges/addons but excluding rental VAT.
+- vatAmount: retained rental VAT after processed refunds.
+- platformFeeAmount: original fee retained in proportion to the original payment's retained principal.
+- organizerAmount: retained principal minus retained fee, including rental VAT.
+- rentalEarningsAmount: organizer allocation minus rental VAT, before operating costs.
+- unallocatedAmount: signed cash-event change outside the allocated principal, e.g. duplicate or incomplete payments.
+- transferredAmount: PAID payout records with a date and reference, in the selected transfer-date period.
+- transferTrackingAvailable: false when no source payout records exist. This must not be shown as proof of zero transferred funds.
+- validationIssues: source issues that prevent certifying the period's organizer allocation.
+
+Customer refund eligibility remains a separate policy decision. This reporting
+change neither fixes a refund percentage nor changes cancellation execution. It
+uses only PROCESSED refunds with their actual approved amount and payment link.
+The agreed reporting rule is proportional commission reversal: refund all the
+principal and the fee becomes zero; refund part and retain the corresponding fee.
+The same proportional allocation applies to rental VAT. Cumulative balances are
+rounded HALF_UP to cents before calculating period differences; rounding cannot
+make tax plus commission exceed retained funds.
+
+Only the first complete, matched payment funds one booking. Surplus on that payment
+is returned before its principal; refunds of duplicate payments never reduce the
+original booking allocation. Refunding the original payment reverses that allocation
+even if separate duplicate funds remain. A duplicate receipt is not assigned to a
+refunded booking automatically. Equal payment timestamps use numeric payment ID,
+matching the existing first-paid booking definition.
+
+Earlier-period payments are read to calculate later refunds correctly. Events at
+the exclusive end boundary or later do not affect the report. A later-period refund
+can produce negative allocation, VAT and fee adjustments. These are period changes,
+not a withdrawable balance. Transfer totals have their own event dates and must not
+be subtracted from period allocations to fabricate an outstanding balance.
+
+Missing/unsupported currency, fee or tax, inconsistent payments, over-refunds and
+unagreed nonzero customer service charges prevent income certification. USD values
+are not converted with a current exchange rate. No migrations, payment execution,
+refund execution, sample-data updates or bank transfers are performed by this feature.
+
+The local fixture for 20/10/2026–18/11/2026 independently reconciles to rental
+2425000, VAT 194000, fee 242500, organizer allocation 2376500, and rental earnings
+2182500 VND. The fixture has no payout records; actual transfers remain unknown.

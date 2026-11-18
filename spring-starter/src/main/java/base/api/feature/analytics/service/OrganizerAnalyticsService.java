@@ -26,10 +26,11 @@ public class OrganizerAnalyticsService {
         repository.requireOwnedWorkspace(actor, filter.workspaceId());
         var previousFilter=filter.previous();
         var summary = repository.summary(actor, filter);
+        var earnings = repository.earnings(actor, filter);
         var notices = new ArrayList<Notice>();
         notices.add(new Notice("EVENT_DATE_BASIS", 0));
         notices.add(new Notice("CURRENT_RESOURCE_CLASSIFICATION", 0));
-        notices.add(new Notice("PAYOUT_AND_PROFIT_UNAVAILABLE", 0));
+        notices.add(new Notice("ORGANIZER_ALLOCATION_BASIS", 0));
         notices.add(new Notice("HISTORICAL_OCCUPANCY_UNAVAILABLE", 0));
         notices.add(new Notice("BOOKING_STATUS_IS_CURRENT", 0));
         long invalid = repository.invalidFinancialRecords(actor, filter);
@@ -39,11 +40,13 @@ public class OrganizerAnalyticsService {
         if (review.refundedDuplicates() > 0) notices.add(new Notice("DUPLICATE_PAYMENTS_REFUNDED", review.refundedDuplicates()));
         if (review.overRefundedPayments() > 0) notices.add(new Notice("REFUND_EXCEEDS_RECEIPT", review.overRefundedPayments()));
         if (summary.anomalousReceipts() > 0) notices.add(new Notice("RECEIPTS_NEED_RECONCILIATION", summary.anomalousReceipts()));
+        if (earnings != null && earnings.validationIssues() > 0) notices.add(new Notice("EARNINGS_NEED_RECONCILIATION", earnings.validationIssues()));
         return new OrganizerAnalyticsResponse(filter, "VND", ZoneId.systemDefault().getId(), LocalDateTime.now(),
                 summary, repository.summary(actor, previousFilter), repository.trends(actor, filter),
                 repository.rankings(actor, filter, Dimension.WORKSPACE),
                 repository.rankings(actor, filter, Dimension.TYPE), repository.rankings(actor, filter, Dimension.RESOURCE),
-                repository.statuses(actor, filter), repository.heatmap(actor, filter), List.copyOf(notices));
+                repository.statuses(actor, filter), repository.heatmap(actor, filter), List.copyOf(notices),
+                earnings, repository.earnings(actor, previousFilter));
     }
 
     public Options options(long actor) { return repository.options(actor); }
