@@ -1,5 +1,16 @@
-ALTER TABLE building
-    DROP FOREIGN KEY fk_building_organizer;
+SET @fk_name = (
+    SELECT CONSTRAINT_NAME 
+    FROM information_schema.KEY_COLUMN_USAGE 
+    WHERE TABLE_SCHEMA = DATABASE() 
+      AND TABLE_NAME = 'building' 
+      AND COLUMN_NAME = 'organizer_id' 
+      AND REFERENCED_TABLE_NAME IS NOT NULL 
+    LIMIT 1
+);
+SET @drop_fk_sql = IF(@fk_name IS NOT NULL, CONCAT('ALTER TABLE building DROP FOREIGN KEY `', @fk_name, '`'), 'SELECT 1');
+PREPARE stmt FROM @drop_fk_sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 ALTER TABLE building
     MODIFY COLUMN organizer_id BIGINT NULL,
