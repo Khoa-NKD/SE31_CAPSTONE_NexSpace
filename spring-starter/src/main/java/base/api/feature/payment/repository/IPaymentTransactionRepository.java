@@ -13,6 +13,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -88,4 +89,16 @@ public interface IPaymentTransactionRepository extends JpaRepository<PaymentTran
     List<PaymentTransactionModel> findByReconciliationStatus(ReconciliationStatus reconciliationStatus);
 
     long countByReconciliationStatus(ReconciliationStatus reconciliationStatus);
+
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM PaymentTransactionModel p WHERE p.status = :status AND p.createdAt >= :since")
+    BigDecimal sumAmountByStatusAndCreatedAtAfter(
+            @Param("status") PaymentStatus status,
+            @Param("since") LocalDateTime since);
+
+    @Query("SELECT COALESCE(SUM(p.amount), 0) FROM PaymentTransactionModel p WHERE p.status = :status")
+    BigDecimal sumTotalAmountByStatus(@Param("status") PaymentStatus status);
+
+    List<PaymentTransactionModel> findByStatusAndCreatedAtAfterOrderByCreatedAtAsc(
+            PaymentStatus status,
+            LocalDateTime since);
 }

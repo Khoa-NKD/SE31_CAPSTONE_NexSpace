@@ -92,5 +92,9 @@ public interface IOrganizerProfileRepository extends JpaRepository<OrganizerProf
             """)
     Page<AdminOrganizerApplicationResponse> findSubmittedApplications(
             @Param("status") OrganizerProfileStatus status, @Param("pattern") String pattern, Pageable pageable);
+
+    long countByStatus(OrganizerProfileStatus status);
+
+    java.util.List<OrganizerProfileModel> findByStatus(OrganizerProfileStatus status);
 }
 
