@@ -59,4 +59,5 @@ public class CreateWorkspaceDto {
     private BookingConfirmationMode bookingConfirmationMode = BookingConfirmationMode.INSTANT;
 
     private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
+    private java.util.List<base.api.feature.workspace.dto.response.CancellationRuleDto> cancellationRules;
 }

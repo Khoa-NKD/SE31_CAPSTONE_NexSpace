@@ -72,6 +72,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     private final ICustomerReviewRepository customerReviewRepository;
     private final IBookableResourceRepository bookableResourceRepository;
     private final IMediaRepository mediaRepository;
+    private final base.api.feature.workspace.service.WorkspaceCancellationPolicyService cancellationPolicies;
 
     public WorkspaceServiceImpl(
             IWorkspaceRepository workspaceRepository,
@@ -82,7 +83,6 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         this(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, buildings, null, null, null);
     }
 
-    @Autowired
     public WorkspaceServiceImpl(
             IWorkspaceRepository workspaceRepository,
             IUserRepository userRepository,
@@ -92,6 +92,15 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             ICustomerReviewRepository customerReviewRepository,
             IBookableResourceRepository bookableResourceRepository,
             IMediaRepository mediaRepository) {
+        this(workspaceRepository,userRepository,operatingHourRepository,bookingRepository,buildings,customerReviewRepository,bookableResourceRepository,mediaRepository,null);
+    }
+
+    @Autowired
+    public WorkspaceServiceImpl(IWorkspaceRepository workspaceRepository, IUserRepository userRepository,
+            IWorkspaceOperatingHourRepository operatingHourRepository, IBookingRepository bookingRepository,
+            base.api.feature.resource.service.BuildingService buildings, ICustomerReviewRepository customerReviewRepository,
+            IBookableResourceRepository bookableResourceRepository, IMediaRepository mediaRepository,
+            base.api.feature.workspace.service.WorkspaceCancellationPolicyService cancellationPolicies) {
         this.workspaceRepository = workspaceRepository;
         this.userRepository = userRepository;
         this.operatingHourRepository = operatingHourRepository;
@@ -100,6 +109,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         this.customerReviewRepository = customerReviewRepository;
         this.bookableResourceRepository = bookableResourceRepository;
         this.mediaRepository = mediaRepository;
+        this.cancellationPolicies = cancellationPolicies;
     }
 
     @Override
@@ -111,8 +121,9 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         workspace.setStatus(WorkspaceStatus.DRAFT);
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
+        if (cancellationPolicies != null) cancellationPolicies.save(organizerId,saved,dto.getCancellationRules());
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
-        return WorkspaceMapper.toDetailDto(saved, hours);
+        return policyDetail(WorkspaceMapper.toDetailDto(saved, hours), saved);
     }
 
     @Override
@@ -154,7 +165,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         WorkspaceModel updated = workspaceRepository.save(workspace);
-        return WorkspaceMapper.toDetailDto(updated);
+        if (cancellationPolicies != null) cancellationPolicies.save(organizerId,updated,dto.getCancellationRules());
+        return policyDetail(WorkspaceMapper.toDetailDto(updated), updated);
     }
 
     @Override
@@ -168,12 +180,12 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         if (workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
-            return WorkspaceMapper.toDetailDto(workspace);
+            return policyDetail(WorkspaceMapper.toDetailDto(workspace), workspace);
         }
 
         workspace.setStatus(WorkspaceStatus.ARCHIVED);
         WorkspaceModel archived = workspaceRepository.save(workspace);
-        return WorkspaceMapper.toDetailDto(archived);
+        return policyDetail(WorkspaceMapper.toDetailDto(archived), archived);
     }
 
     @Override
@@ -247,7 +259,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
-        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
+        return policyDetail(WorkspaceMapper.toDetailDto(saved, hours, bookingCount), saved);
     }
 
     @Override
@@ -276,7 +288,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
         long bookingCount = workspace.getId() != null ? bookingRepository.countByWorkspaceId(workspace.getId()) : 0L;
-        return WorkspaceMapper.toDetailDto(workspace, hours, bookingCount);
+        return policyDetail(WorkspaceMapper.toDetailDto(workspace, hours, bookingCount), workspace);
     }
 
     @Override
@@ -285,7 +297,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         WorkspaceModel workspace = workspaceRepository.findByIdAndStatus(workspaceId, WorkspaceStatus.ACTIVE)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc hoặc không gian chưa được kích hoạt"));
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId());
-        return WorkspaceMapper.toDetailDto(workspace, hours);
+        return policyDetail(WorkspaceMapper.toDetailDto(workspace, hours), workspace);
     }
 
     @Override
@@ -682,7 +694,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
-        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
+        return policyDetail(WorkspaceMapper.toDetailDto(saved, hours, bookingCount), saved);
     }
 
     private void validateRequiredFieldsForActivation(WorkspaceModel workspace) {
@@ -728,7 +740,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
-        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
+        return policyDetail(WorkspaceMapper.toDetailDto(saved, hours, bookingCount), saved);
     }
 
     @Override
@@ -751,7 +763,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         WorkspaceModel saved = workspaceRepository.save(workspace);
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         long bookingCount = saved.getId() != null ? bookingRepository.countByWorkspaceId(saved.getId()) : 0L;
-        return WorkspaceMapper.toDetailDto(saved, hours, bookingCount);
+        return policyDetail(WorkspaceMapper.toDetailDto(saved, hours, bookingCount), saved);
     }
 
     @Override
@@ -921,5 +933,11 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             }
         }
         return counts;
+    }
+
+    private WorkspaceDetailDto policyDetail(WorkspaceDetailDto dto, WorkspaceModel workspace) {
+        return dto.toBuilder().cancellationRules(cancellationPolicies == null
+                ? base.api.feature.workspace.service.CancellationPolicies.defaults()
+                : cancellationPolicies.getRules(workspace.getId())).build();
     }
 }

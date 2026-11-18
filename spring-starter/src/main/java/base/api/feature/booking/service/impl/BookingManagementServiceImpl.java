@@ -97,8 +97,13 @@ public class BookingManagementServiceImpl implements IBookingManagementService {
                 .pendingCount(pending)
                 .completedCount(completed)
                 .cancelledCount(cancelled)
-                .totalRevenue(BigDecimal.ZERO)
+                .totalRevenue(receivedPayments(organizerId))
                 .build();
+    }
+
+    private BigDecimal receivedPayments(Long organizerId) {
+        BigDecimal amount = bookingRepository.sumReceivedPayments(organizerId);
+        return amount == null ? BigDecimal.ZERO : amount;
     }
 
     private AdminBookingItemResponseDTO mapToAdminBookingItem(BookingModel b) {
