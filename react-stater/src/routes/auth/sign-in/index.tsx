@@ -19,7 +19,17 @@ export const Route = createFileRoute('/auth/sign-in/')({
 
 function SignInPage() {
   const search = useLocation({ select: (location) => location.searchStr });
-  return <SignInReturn key={search} target={new URLSearchParams(search).get('redirect')} />;
+  const paramTarget = new URLSearchParams(search).get('redirect');
+  const storedTarget = typeof window !== 'undefined' ? sessionStorage.getItem('nexspace_auth_redirect') : null;
+  const target = paramTarget || storedTarget;
+
+  useEffect(() => {
+    if (paramTarget && typeof window !== 'undefined') {
+      sessionStorage.setItem('nexspace_auth_redirect', paramTarget);
+    }
+  }, [paramTarget]);
+
+  return <SignInReturn key={target || search} target={target} />;
 }
 
 function SignInReturn({ target }: { target: string | null }) {

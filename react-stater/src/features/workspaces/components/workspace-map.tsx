@@ -637,8 +637,8 @@ export function WorkspaceMap({
         </button>
       </div>
 
-      {/* Bottom Right: Navigation & Zoom Stack */}
-      <div className="absolute bottom-6 right-4 z-20 flex flex-col gap-2">
+      {/* Bottom Right: Navigation & Zoom Stack (lifted to bottom-24 to prevent collision with floating widgets) */}
+      <div className="absolute bottom-24 right-4 z-20 flex flex-col gap-2">
         <button
           type="button"
           onClick={onLocateMe}

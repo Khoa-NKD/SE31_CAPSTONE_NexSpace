@@ -4,7 +4,8 @@ import { z } from 'zod';
 
 const signUpSearchSchema = z.object({
   verified: z.union([z.boolean(), z.string()]).optional(),
-  email: z.string().optional()
+  email: z.string().optional(),
+  redirect: z.string().optional()
 });
 
 export const Route = createFileRoute('/auth/sign-up/')({

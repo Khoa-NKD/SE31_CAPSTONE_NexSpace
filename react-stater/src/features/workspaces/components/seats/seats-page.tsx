@@ -152,6 +152,20 @@ export function SeatsPage({
 
   const lastUnavailableIdRef = useRef<number | null>(null);
 
+  // Auto-restore selected resource from initialResourceId if arriving back from login
+  useEffect(() => {
+    if (initialResourceId && loadedFloors.length > 0 && !selectedResource) {
+      for (const fl of loadedFloors) {
+        const found = fl.resources?.find((r) => r.id === initialResourceId);
+        if (found) {
+          setSelectedResource(found);
+          setActiveFloorId(fl.id);
+          break;
+        }
+      }
+    }
+  }, [initialResourceId, loadedFloors, selectedResource]);
+
   // Real-time defense: If another user locks or books the currently selected resource, notify user
   useEffect(() => {
     if (selectedResource && availabilityMap.has(selectedResource.id)) {
@@ -194,9 +208,13 @@ export function SeatsPage({
 
     if (!isAuthenticated) {
       toast.info(c('Please sign in to hold this seat and proceed', 'Vui lòng đăng nhập để giữ chỗ và tiếp tục'));
+      const redirectUrl = `/workspaces/seats?workspaceId=${workspaceId}&date=${encodeURIComponent(currentDateLabel)}&startTime=${encodeURIComponent(currentStartTime)}&endTime=${encodeURIComponent(currentEndTime)}${activeFloorId ? `&floorId=${activeFloorId}` : ''}&resourceId=${selectedResource.id}`;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('nexspace_auth_redirect', redirectUrl);
+      }
       navigate({
         to: '/auth/sign-in',
-        search: { redirect: window.location.pathname + window.location.search }
+        search: { redirect: redirectUrl }
       });
       return;
     }
