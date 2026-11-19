@@ -52,6 +52,7 @@ public class RefundServiceImpl implements IRefundService {
     private final IBookingRepository bookingRepository;
     private final PayOS payOS;
     private final IAuditService auditService;
+    private final base.api.feature.notification.service.INotificationService notificationService;
 
     @Value("${nexspace.payos.payout.client-id:${nexspace.payos.client-id:}}")
     private String clientId;
@@ -61,12 +62,14 @@ public class RefundServiceImpl implements IRefundService {
             IUserRepository userRepository,
             IBookingRepository bookingRepository,
             @Qualifier("payOSPayoutClient") PayOS payOS,
-            IAuditService auditService) {
+            IAuditService auditService,
+            @org.springframework.beans.factory.annotation.Autowired(required = false) base.api.feature.notification.service.INotificationService notificationService) {
         this.refundRequestRepository = refundRequestRepository;
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
         this.payOS = payOS;
         this.auditService = auditService;
+        this.notificationService = notificationService;
     }
 
     @Override
@@ -179,6 +182,10 @@ public class RefundServiceImpl implements IRefundService {
 
         RefundRequestModel saved = refundRequestRepository.save(refund);
 
+        if (notificationService != null) {
+            notificationService.sendRefundCompletedNotification(saved);
+        }
+
         auditService.log(
                 adminUser,
                 "REFUND",
@@ -208,6 +215,10 @@ public class RefundServiceImpl implements IRefundService {
         refund.setReviewedAt(LocalDateTime.now());
 
         RefundRequestModel saved = refundRequestRepository.save(refund);
+
+        if (notificationService != null) {
+            notificationService.sendRefundCompletedNotification(saved);
+        }
 
         auditService.log(
                 adminUser,

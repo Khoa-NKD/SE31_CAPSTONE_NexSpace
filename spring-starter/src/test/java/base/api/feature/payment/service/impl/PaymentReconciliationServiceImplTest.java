@@ -2,6 +2,7 @@ package base.api.feature.payment.service.impl;
 
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.BatchReconciliationResponseDTO;
 import base.api.feature.payment.dto.response.ReconciliationResultDTO;
 import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
@@ -56,6 +57,9 @@ class PaymentReconciliationServiceImplTest {
     @Mock
     private IInvoiceService invoiceService;
 
+    @Mock
+    private INotificationService notificationService;
+
     private PaymentReconciliationServiceImpl reconciliationService;
 
     private PaymentTransactionModel transaction;
@@ -68,7 +72,8 @@ class PaymentReconciliationServiceImplTest {
                 bookingRepository,
                 auditService,
                 payOS,
-                invoiceService
+                invoiceService,
+                notificationService
         );
 
         booking = new BookingModel();

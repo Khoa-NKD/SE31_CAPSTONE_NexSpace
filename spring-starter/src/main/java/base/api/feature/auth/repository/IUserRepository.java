@@ -66,4 +66,11 @@ public interface IUserRepository extends JpaRepository<UserModel, Long> {
               AND COALESCE(u.lastLoginAt, u.emailVerifiedAt, u.createdAt) < :cutoff
             """)
     List<UserModel> findActiveUsersInactiveSince(@Param("cutoff") LocalDateTime cutoff);
+
+    @Query("""
+            SELECT u FROM UserModel u
+            WHERE u.roleEntity.name = :roleName
+              AND u.status = base.api.shared.enums.UserStatus.ACTIVE
+            """)
+    List<UserModel> findActiveUsersByRoleName(@Param("roleName") String roleName);
 }

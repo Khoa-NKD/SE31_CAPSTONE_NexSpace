@@ -46,9 +46,14 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # app.api-url=http://localhost:8080
 # Local-only demonstration agreement. Never use this template for real transactions.
 app.organizer.contract.demo-enabled=true
-# Floor design assistant. Keep the real API key in the ignored Local file only.
+# ── AI Gemini Configuration (Tách biệt token giữa Floor AI & Chatbot) ───────
+# API Key dành riêng cho Floor Plan AI Studio
 nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}
-nexspace.floor-ai.model=${GEMINI_MODEL:gemini-3.6-flash}
+nexspace.floor-ai.model=gemini-3.6-flash
+
+# API Key dành riêng cho Chatbot AI
+nexspace.chatbot.gemini-api-key=
+nexspace.chatbot.model=gemini-2.5-flash
 
 # ── PayOS Payment Gateway Configuration (Kênh thu tiền thanh toán) ───────────
 # Lấy bộ key kênh thu tại: https://my.payos.vn/

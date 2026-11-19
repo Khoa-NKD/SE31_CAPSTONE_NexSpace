@@ -8,6 +8,7 @@ import base.api.feature.booking.event.ResourceHoldExpiredEvent;
 import base.api.feature.booking.event.ResourceHoldReleasedEvent;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.booking.service.IResourceHoldService;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
@@ -83,6 +84,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final ApplicationEventPublisher applicationEventPublisher;
     private final IResourceStateSyncService resourceStateSyncService;
     private final PayOS payOS;
+    private final INotificationService notificationService;
 
     @Value("${app.booking.max-hold-lifetime-minutes:15}")
     private int maxHoldLifetimeMinutes = 15;
@@ -359,6 +361,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         } else {
             publishHoldReleasedEvent(saved, now);
         }
+
+        // Gửi thông báo hủy giữ chỗ (In-App + Email)
+        notificationService.sendBookingCancelledNotification(saved, BigDecimal.ZERO, "Khách hàng chủ động nhả phiên giữ chỗ");
 
         log.info("Hold released by customer: bookingId={}, code={}, customerId={}",
                 saved.getId(), saved.getBookingCode(), customerId);

@@ -429,4 +429,16 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
               AND b.status IN (base.api.shared.enums.BookingStatus.CONFIRMED, base.api.shared.enums.BookingStatus.CHECKED_IN, base.api.shared.enums.BookingStatus.COMPLETED)
             """)
     Optional<LocalDateTime> findLatestSuccessfulBookingCreatedAt(@Param("customerId") Long customerId);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            JOIN FETCH b.customer
+            JOIN FETCH b.workspace
+            LEFT JOIN FETCH b.resource
+            WHERE b.status = base.api.shared.enums.BookingStatus.CONFIRMED
+              AND b.startTime BETWEEN :windowStart AND :windowEnd
+            """)
+    List<BookingModel> findUpcomingConfirmedBookings(
+            @Param("windowStart") LocalDateTime windowStart,
+            @Param("windowEnd") LocalDateTime windowEnd);
 }
