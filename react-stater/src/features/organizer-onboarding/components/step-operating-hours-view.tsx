@@ -1,3 +1,5 @@
+import { CancellationPolicyEditor } from './cancellation-policy-editor';
+import { cancellationPolicyError, defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
@@ -158,6 +160,8 @@ export function StepOperatingHoursView() {
   const router = useRouter();
   const {
     operatingHours,
+    cancellationRules,
+    setCancellationRules,
     location,
     setLocation,
     setOperatingHours,
@@ -229,12 +233,14 @@ export function StepOperatingHoursView() {
 
   const handleBack = () => {
     saveDraft();
-    router.navigate({ to: '/dashboard/organizer/workspaces/create', search: (prev) => prev });
+    router.navigate({ to: '/dashboard/organizer/workspaces/create/location', search: (prev) => ({ id: prev.id ? String(prev.id) : undefined, stage: 'floors' }) });
   };
 
   const handleContinue = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    const policyError = cancellationPolicyError(cancellationRules ?? defaultCancellationRules(), c);
+    if (policyError) { setValidationError(policyError); toast.error(policyError); return; }
     if (!operatingHours.is247) {
       const invalidDays = operatingHours.schedule.filter(
         (d) => d.isOpen && !isOperatingTimeRangeValid(d.openTime, d.closeTime)
@@ -284,16 +290,16 @@ export function StepOperatingHoursView() {
     <div className='w-full max-w-5xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
       <div>
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={2} />
+        <WizardHeader currentStep={4} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={2} />
+        <WizardStepper currentStep={4} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
           <div>
             <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground'>
-              {c('Create Workspace Wizard: Operating Hours', 'Tạo không gian: Giờ hoạt động')}
+              {c('Create Workspace Wizard: Operating Hours', 'Tạo không gian: Giờ hoạt động & chính sách')}
             </h1>
             <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
               {c(
@@ -787,6 +793,8 @@ export function StepOperatingHoursView() {
           </div>
         </div>
       </div>
+
+      <CancellationPolicyEditor value={cancellationRules ?? defaultCancellationRules()} onChange={(rules) => {setCancellationRules(rules);setValidationError(null);}} />
 
       <section className='mt-6 rounded-xl border bg-card p-6'>
         <label htmlFor='workspace-entry-notes' className='mb-2 block text-sm font-semibold'>

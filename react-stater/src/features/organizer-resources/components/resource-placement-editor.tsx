@@ -1,3 +1,5 @@
+import { useCanvasMultiSelection, type GroupEditPhase } from './use-canvas-multi-selection';
+import { floorCornerRadius } from '../utils/floor-outline';
 import {
   useId,
   useEffect,
@@ -35,7 +37,7 @@ import {
 } from './shared-floor-context';
 import type { FloorDecoration, FloorLayout } from '../api/resources';
 import { decorationPresets } from '../utils/decoration-presets';
-import { previewLayout } from '../utils/layout-placement';
+import { previewLayout, insideRoom, containingRoomId } from '../utils/layout-placement';
 import { pixelsToMetres } from '../utils/metric-units';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -121,6 +123,12 @@ export function ResourcePlacementEditor({
   canRedo,
   presentation = 'form',
   onSelect,
+  groupSelection,
+  onGroupChange,
+  onGroupDelete,
+  onGroupCopy,
+  onGroupDuplicate,
+  hideActive = false,
   draftLayout,
   actions,
   onCopy,
@@ -146,8 +154,14 @@ export function ResourcePlacementEditor({
   canRedo: boolean;
   presentation?: 'form' | 'workspace';
   onSelect?: (key: string) => void;
+  groupSelection?: string[];
+  onGroupChange?: (layout: FloorLayout, phase: GroupEditPhase) => void;
+  onGroupDelete?: (keys: string[]) => void;
+  onGroupCopy?: (keys: string[]) => void;
+  onGroupDuplicate?: (keys: string[]) => void;
+  hideActive?: boolean;
   draftLayout?: FloorLayout;
-  actions?: ReactNode;
+  actions?: ReactNode | ((selectionToolbar: ReactNode, selectionCount: number) => ReactNode);
   onCopy?: () => void;
   onPaste?: () => void;
   onToggleFullscreen?: () => void;
@@ -167,9 +181,6 @@ export function ResourcePlacementEditor({
   const gesture = useRef<Gesture | null>(null);
   const [dragging, setDragging] = useState(false);
   const [mode, setMode] = useState<'move' | 'pan'>('move');
-  const [snap, setSnap] = useState(true);
-  const [gridOverride, setGrid] = useState<number | null>(null);
-  const grid = gridOverride ?? (query.data?.geometryVersion === 2 ? 6 : 10);
   const [roomView, setRoomView] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [pan, setPan] = useState({ x: 0, y: 0 });
@@ -184,7 +195,8 @@ export function ResourcePlacementEditor({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && document.fullscreenElement !== containerRef.current)
+      if (event.key === 'Escape' && !event.defaultPrevented && document.fullscreenElement !== containerRef.current &&
+          !document.querySelector('[role="dialog"][data-state="open"]'))
         setExpanded(false);
     };
     document.addEventListener('keydown', escape);
@@ -223,8 +235,16 @@ export function ResourcePlacementEditor({
     query.isSuccess
   );
   const gridId = useId().replaceAll(':', '');
-  const visibleGrid = Math.max(query.data?.geometryVersion === 2 ? 6 : 10, grid);
-  const canvas = { width: query.data?.width ?? 1200, height: query.data?.height ?? 800 };
+  const visibleGrid = query.data?.geometryVersion === 2 ? 6 : 10;
+  const canvas = {
+    width: query.data?.width ?? 1200,
+    height: query.data?.height ?? 800,
+    cornerRadius: floorCornerRadius(
+      query.data?.floor.location,
+      query.data?.width ?? 1200,
+      query.data?.height ?? 800
+    )
+  };
   const item: Placement = {
     x: numberOr(value.posX, 0),
     y: numberOr(value.posY, 0),
@@ -240,7 +260,11 @@ export function ResourcePlacementEditor({
   };
   const original = query.data?.resources.find((resource) => resource.id === resourceId);
   const originalRoom = original ? geometry(original) : undefined;
-  const parent = query.data?.resources.find((resource) => resource.id === parentRoomId);
+  const effectiveParentId =
+    presentation === 'workspace' && category === 'DESK' && query.data
+      ? containingRoomId(query.data.resources, item, resourceId)
+      : parentRoomId;
+  const parent = query.data?.resources.find((resource) => resource.id === effectiveParentId);
   const room = parent ? geometry(parent) : undefined;
   const ready =
     !!query.data?.editableLayout &&
@@ -249,7 +273,24 @@ export function ResourcePlacementEditor({
     !disabled &&
     item.width > 0 &&
     item.height > 0 &&
-    (!parentRoomId || !!room);
+    (!effectiveParentId || !!room);
+  const multi = useCanvasMultiSelection({
+    svgRef,
+    selectionHint: groupSelection,
+    layout: query.data,
+    enabled:
+      mode === 'move' &&
+      !disabled &&
+      !!onGroupChange &&
+      !!query.data?.editableLayout &&
+      !query.isFetching,
+    onChange: onGroupChange,
+    onDelete: onGroupDelete,
+    onCopy: onGroupCopy,
+    onDuplicate: onGroupDuplicate,
+    onPaste,
+    canPaste: !!onPaste
+  });
   const locked = disabled || dragging;
   useEffect(() => {
     const container = containerRef.current;
@@ -277,7 +318,12 @@ export function ResourcePlacementEditor({
   const peers = query.data?.resources.filter((peer) => peer.id !== resourceId) ?? [];
   const rendered = peers.map((peer) => {
     const position = geometry(peer);
-    const child = category === 'ROOM' && peer.parentRoomId === resourceId && !!resourceId;
+    const child =
+      category === 'ROOM' &&
+      peer.category === 'DESK' &&
+      !!position &&
+      !!originalRoom &&
+      insideRoom(position, originalRoom);
     return {
       peer,
       child,
@@ -324,7 +370,11 @@ export function ResourcePlacementEditor({
 
   function place(next: Placement, record = true) {
     if (!ready) return;
-    const constrained = constrainPlacement(next, canvas, room);
+    const constrained = constrainPlacement(
+      next,
+      canvas,
+      presentation === 'workspace' && category === 'DESK' ? undefined : room
+    );
     if (!constrained) return;
     onChange(
       {
@@ -377,7 +427,6 @@ export function ResourcePlacementEditor({
     const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(current.inverse);
     const dx = cursor.x - current.start.x,
       dy = cursor.y - current.start.y;
-    const quantize = (number: number) => (snap ? Math.round(number / grid) * grid : number);
     if (current.kind === 'pan') {
       setPan({ x: current.pan.x - dx, y: current.pan.y - dy });
       return;
@@ -386,8 +435,8 @@ export function ResourcePlacementEditor({
       place(
         {
           ...current.initial,
-          x: quantize(current.initial.x + dx),
-          y: quantize(current.initial.y + dy)
+          x: current.initial.x + dx,
+          y: current.initial.y + dy
         },
         false
       );
@@ -400,19 +449,16 @@ export function ResourcePlacementEditor({
           180) /
         Math.PI;
       const angle = current.initial.rotation + delta;
-      place(
-        { ...current.initial, rotation: angleOf(snap ? Math.round(angle / 15) * 15 : angle) },
-        false
-      );
+      place({ ...current.initial, rotation: angleOf(angle) }, false);
     } else {
       const angle = (current.initial.rotation * Math.PI) / 180;
       const width = Math.min(
         999999.99,
-        Math.max(1, quantize(current.initial.width + Math.cos(angle) * dx + Math.sin(angle) * dy))
+        Math.max(1, current.initial.width + Math.cos(angle) * dx + Math.sin(angle) * dy)
       );
       const height = Math.min(
         999999.99,
-        Math.max(1, quantize(current.initial.height - Math.sin(angle) * dx + Math.cos(angle) * dy))
+        Math.max(1, current.initial.height - Math.sin(angle) * dx + Math.cos(angle) * dy)
       );
       const anchorX =
         current.initial.x +
@@ -492,6 +538,7 @@ export function ResourcePlacementEditor({
     const invalid = entry.child && !placementFits(shape, canvas, item);
     return (
       <g
+        data-selection-key={`resource:${entry.peer.id}`}
         key={entry.peer.id}
         transform={`rotate(${shape.rotation} ${shape.x + shape.width / 2} ${shape.y + shape.height / 2})`}
         className={
@@ -587,6 +634,7 @@ export function ResourcePlacementEditor({
             : 'mt-5 overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
+      {multi.confirmation}
       <SharedFloorTooltip context={shared} />
       <div className='shrink-0 space-y-3 border-b border-border bg-gradient-to-br from-primary/[0.06] via-background to-background px-4 py-4'>
         <div className='flex flex-wrap items-center justify-between gap-2'>
@@ -653,30 +701,6 @@ export function ResourcePlacementEditor({
         </div>
         <div className='flex flex-wrap items-center justify-between gap-2'>
           <div className='flex flex-wrap items-center gap-1.5'>
-            <label className='flex h-8 items-center gap-2 rounded-lg bg-muted/60 px-2.5 text-xs'>
-              <input
-                type='checkbox'
-                checked={snap}
-                disabled={locked}
-                onChange={(event) => setSnap(event.target.checked)}
-              />
-              {c('Snap', 'Bám lưới')}
-            </label>
-            <select
-              aria-label={c('Grid size', 'Kích thước lưới')}
-              className='h-8 rounded-lg border border-input bg-background px-2 text-xs'
-              value={grid}
-              disabled={locked}
-              onChange={(event) => setGrid(Number(event.target.value))}
-            >
-              {(query.data?.geometryVersion === 2 ? [0.6, 3, 6, 30, 60] : [1, 5, 10, 20]).map(
-                (size) => (
-                  <option key={size} value={size}>
-                    {query.data?.geometryVersion === 2 ? `${pixelsToMetres(size)} m` : `${size} px`}
-                  </option>
-                )
-              )}
-            </select>
             <Tool
               label={c('Rotate left 15°', 'Xoay trái 15°')}
               disabled={!ready || dragging}
@@ -785,8 +809,17 @@ export function ResourcePlacementEditor({
           </Button>
         )}
       </div>
-      {actions && (
-        <div className='shrink-0 border-b border-border bg-card px-4 py-3'>{actions}</div>
+      {(actions || onGroupChange) && (
+        <div className='shrink-0 border-b border-border bg-card px-4 py-2'>
+          {typeof actions === 'function' ? (
+            actions(multi.toolbar, multi.count)
+          ) : (
+            <div className='flex items-center gap-2 overflow-x-auto'>
+              {onGroupChange && multi.toolbar}
+              {actions}
+            </div>
+          )}
+        </div>
       )}
       {!floorId ? (
         <p className='p-4 text-sm text-muted-foreground'>
@@ -808,6 +841,7 @@ export function ResourcePlacementEditor({
         <>
           <svg
             ref={svgRef}
+            tabIndex={0}
             viewBox={viewBox}
             data-floor-canvas='true'
             className={`block w-full touch-none select-none bg-muted/20 ${presentation === 'workspace' || expanded ? 'h-0 min-h-0 flex-1' : 'h-72 sm:h-80'} ${mode === 'pan' ? 'cursor-grab active:cursor-grabbing' : ''}`}
@@ -845,10 +879,16 @@ export function ResourcePlacementEditor({
               </pattern>
             </defs>
             <SharedFloorLayer context={shared} />
-            <rect width={canvas.width} height={canvas.height} className='fill-background' />
             <rect
               width={canvas.width}
               height={canvas.height}
+              rx={canvas.cornerRadius}
+              className='fill-background'
+            />
+            <rect
+              width={canvas.width}
+              height={canvas.height}
+              rx={canvas.cornerRadius}
               fill={`url(#${gridId})`}
               className={shared.bounds ? 'stroke-primary' : 'stroke-border'}
               strokeWidth='1'
@@ -901,118 +941,123 @@ export function ResourcePlacementEditor({
               )}
             />
             {staticPeers.filter((entry) => entry.peer.category !== 'ROOM').map(drawPeer)}
-            <g
-              role='button'
-              tabIndex={ready ? 0 : -1}
-              aria-disabled={!ready}
-              aria-label={c(
-                'Move selected resource with arrow keys',
-                'Di chuyển ghế/phòng đang chọn bằng phím mũi tên'
-              )}
-              transform={transform}
-              className={
-                ready && mode === 'move'
-                  ? 'cursor-grab outline-none focus:opacity-75 active:cursor-grabbing'
-                  : 'opacity-60'
-              }
-              onPointerDown={(event) => begin(event, 'move')}
-              onKeyDown={(event) => {
-                if (command(event)) return;
-                if (!ready || dragging) return;
-                if (event.key === 'Escape') {
-                  stop(true);
-                  return;
+            {!hideActive && (
+              <g
+                data-selection-key={
+                  decoration ? `decoration:${decoration.id}` : `resource:${resourceId}`
                 }
-                if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key))
-                  return;
-                event.preventDefault();
-                const step = event.shiftKey ? 10 : 1;
-                if (mode === 'pan') {
-                  setPan((value) => ({
+                role='button'
+                tabIndex={ready ? 0 : -1}
+                aria-disabled={!ready}
+                aria-label={c(
+                  'Move selected resource with arrow keys',
+                  'Di chuyển ghế/phòng đang chọn bằng phím mũi tên'
+                )}
+                transform={transform}
+                className={
+                  ready && mode === 'move'
+                    ? 'cursor-grab outline-none focus:opacity-75 active:cursor-grabbing'
+                    : 'opacity-60'
+                }
+                onPointerDown={(event) => begin(event, 'move')}
+                onKeyDown={(event) => {
+                  if (command(event)) return;
+                  if (!ready || dragging) return;
+                  if (event.key === 'Escape') {
+                    stop(true);
+                    return;
+                  }
+                  if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key))
+                    return;
+                  event.preventDefault();
+                  const step = event.shiftKey ? 10 : 1;
+                  if (mode === 'pan') {
+                    setPan((value) => ({
+                      x:
+                        value.x +
+                        (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0),
+                      y:
+                        value.y +
+                        (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0)
+                    }));
+                    return;
+                  }
+                  place({
+                    ...item,
                     x:
-                      value.x +
+                      item.x +
                       (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0),
                     y:
-                      value.y +
+                      item.y +
                       (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0)
-                  }));
-                  return;
-                }
-                place({
-                  ...item,
-                  x:
-                    item.x +
-                    (event.key === 'ArrowRight' ? step : event.key === 'ArrowLeft' ? -step : 0),
-                  y:
-                    item.y +
-                    (event.key === 'ArrowDown' ? step : event.key === 'ArrowUp' ? -step : 0)
-                });
-              }}
-            >
-              <rect
-                x={item.x}
-                y={item.y}
-                width={Math.max(1, item.width)}
-                height={Math.max(1, item.height)}
-                rx='4'
-                vectorEffect='non-scaling-stroke'
-                strokeWidth='2'
-                strokeDasharray={category === 'ROOM' ? undefined : '4 3'}
-                className={
-                  !fits || collisions.size
-                    ? 'fill-destructive/20 stroke-destructive'
-                    : decoration
-                      ? 'fill-transparent stroke-primary'
-                      : category === 'ROOM'
-                        ? 'fill-primary/10 stroke-primary'
-                        : 'fill-primary/35 stroke-primary'
-                }
-              />
-              {decoration && (
-                <DecorationVisual
-                  item={{
-                    ...decoration,
-                    posX: item.x,
-                    posY: item.y,
-                    width: item.width,
-                    height: item.height,
-                    rotation: item.rotation
-                  }}
-                />
-              )}
-              {!decoration && category !== 'ROOM' && (
-                <ResourceMapSymbol
-                  category={category ?? 'DESK'}
+                  });
+                }}
+              >
+                <rect
                   x={item.x}
                   y={item.y}
-                  width={item.width}
-                  height={item.height}
-                  className={!fits || collisions.size ? 'text-destructive' : 'text-primary'}
+                  width={Math.max(1, item.width)}
+                  height={Math.max(1, item.height)}
+                  rx='4'
+                  vectorEffect='non-scaling-stroke'
+                  strokeWidth='2'
+                  strokeDasharray={category === 'ROOM' ? undefined : '4 3'}
+                  className={
+                    !fits || collisions.size
+                      ? 'fill-destructive/20 stroke-destructive'
+                      : decoration
+                        ? 'fill-transparent stroke-primary'
+                        : category === 'ROOM'
+                          ? 'fill-primary/10 stroke-primary'
+                          : 'fill-primary/35 stroke-primary'
+                  }
                 />
-              )}
-              <text
-                x={item.x + item.width / 2}
-                y={
-                  category !== 'ROOM'
-                    ? item.y + item.height * 0.88
-                    : children.length
-                      ? item.y + Math.min(14, item.height / 3)
-                      : item.y + item.height / 2
-                }
-                textAnchor='middle'
-                dominantBaseline='central'
-                fontSize={Math.max(6, Math.min(13, item.height / 3))}
-                className='pointer-events-none fill-foreground'
-              >
-                {decoration
-                  ? ''
-                  : category !== 'ROOM'
-                    ? c('Selected', 'Đang chọn')
-                    : children.length
-                      ? c('Room group', 'Nhóm phòng')
-                      : c('Room', 'Phòng')}
-              </text>
-            </g>
+                {decoration && (
+                  <DecorationVisual
+                    item={{
+                      ...decoration,
+                      posX: item.x,
+                      posY: item.y,
+                      width: item.width,
+                      height: item.height,
+                      rotation: item.rotation
+                    }}
+                  />
+                )}
+                {!decoration && category !== 'ROOM' && (
+                  <ResourceMapSymbol
+                    category={category ?? 'DESK'}
+                    x={item.x}
+                    y={item.y}
+                    width={item.width}
+                    height={item.height}
+                    className={!fits || collisions.size ? 'text-destructive' : 'text-primary'}
+                  />
+                )}
+                <text
+                  x={item.x + item.width / 2}
+                  y={
+                    category !== 'ROOM'
+                      ? item.y + item.height * 0.88
+                      : children.length
+                        ? item.y + Math.min(14, item.height / 3)
+                        : item.y + item.height / 2
+                  }
+                  textAnchor='middle'
+                  dominantBaseline='central'
+                  fontSize={Math.max(6, Math.min(13, item.height / 3))}
+                  className='pointer-events-none fill-foreground'
+                >
+                  {decoration
+                    ? ''
+                    : category !== 'ROOM'
+                      ? c('Selected', 'Đang chọn')
+                      : children.length
+                        ? c('Room group', 'Nhóm phòng')
+                        : c('Room', 'Phòng')}
+                </text>
+              </g>
+            )}
             {children.map(drawPeer)}
             {onSelect && category === 'ROOM' && (
               <DecorationLayer
@@ -1039,7 +1084,7 @@ export function ResourcePlacementEditor({
                 }
               />
             )}
-            {ready && mode === 'move' && (
+            {ready && !hideActive && mode === 'move' && (
               <g transform={transform}>
                 <line
                   x1={item.x + item.width / 2}
@@ -1126,6 +1171,7 @@ export function ResourcePlacementEditor({
                 )}
               </g>
             )}
+            {onGroupChange && multi.overlay}
           </svg>
           <div
             className={`shrink-0 space-y-1.5 border-t border-border bg-background px-4 py-3 text-xs text-muted-foreground ${presentation === 'workspace' || expanded ? 'max-h-[35%] overflow-y-auto' : ''}`}
@@ -1159,8 +1205,11 @@ export function ResourcePlacementEditor({
             )}
             {collisions.size > 0 && (
               <p className='text-destructive'>
-                {c('Overlaps with: ', 'Đang chồng lấn với: ')}
-                {[...collisions].slice(0, 5).join(', ')}
+                {preview?.roomEdgeCollisions.size
+                  ? c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ') +
+                    [...preview.roomEdgeCollisions].slice(0, 5).join(', ')
+                  : c('Overlaps with: ', 'Đang chồng lấn với: ') +
+                    [...collisions].slice(0, 5).join(', ')}
               </p>
             )}
             {parentRoomId && !room && (

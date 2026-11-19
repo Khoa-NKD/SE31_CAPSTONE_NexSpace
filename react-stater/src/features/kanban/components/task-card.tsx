@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
 import { KanbanItem } from '@/components/ui/kanban';
 import type { Task } from '../utils/store';
@@ -37,7 +38,7 @@ export function TaskCard({ task, ...props }: TaskCardProps) {
               <span className='line-clamp-1'>{task.assignee}</span>
             </div>
           )}
-          {task.dueDate && <time className='text-[10px] tabular-nums'>{task.dueDate}</time>}
+          {task.dueDate && <time className='text-[10px] tabular-nums'>{formatDateLabel(task.dueDate)}</time>}
         </div>
       </div>
     </KanbanItem>

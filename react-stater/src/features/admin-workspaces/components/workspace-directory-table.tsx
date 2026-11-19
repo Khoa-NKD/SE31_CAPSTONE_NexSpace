@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
 import { Building2, CheckCircle2, ChevronRight, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -223,7 +224,7 @@ export function WorkspaceDirectoryTable({
 
                   {/* Submitted */}
                   <td className='px-4 py-4 text-muted-foreground text-[11px]'>
-                    <div>{workspace.submittedAt}</div>
+                    <div>{formatDateLabel(workspace.submittedAt)}</div>
                     <div className='text-[10px] text-muted-foreground/80 font-mono'>{workspace.submittedTime}</div>
                   </td>
 

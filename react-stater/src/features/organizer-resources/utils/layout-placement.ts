@@ -1,3 +1,4 @@
+import { floorCornerRadius } from './floor-outline';
 import type { Category, FloorDecoration, FloorLayout } from '../api/resources';
 import { moveWithRoom, placementFits, placementsOverlap, type Placement } from './placement.ts';
 
@@ -25,6 +26,35 @@ export function insideRoom(item: Placement, room: Placement): boolean {
     { width: Number.MAX_SAFE_INTEGER, height: Number.MAX_SAFE_INTEGER },
     room
   );
+}
+
+/** Membership follows full rotated containment, never a stale stored parent identifier. */
+export function containingRoomId(
+  resources: FloorLayout['resources'],
+  pose: Placement,
+  excludedId?: number
+): number | null {
+  const rooms = resources
+    .filter(
+      (room) => room.id !== excludedId && room.category === 'ROOM' && room.status !== 'ARCHIVED'
+    )
+    .filter((room) => {
+      const shape = layoutGeometry(room);
+      return shape && insideRoom(pose, shape);
+    });
+  return rooms.length === 1 ? rooms[0].id : null;
+}
+
+export function withSpatialParents(layout: FloorLayout): FloorLayout {
+  return {
+    ...layout,
+    resources: layout.resources.map((item) => {
+      const pose = layoutGeometry(item);
+      return item.category === 'DESK' && item.status !== 'ARCHIVED' && pose
+        ? { ...item, parentRoomId: containingRoomId(layout.resources, pose, item.id) }
+        : item;
+    })
+  };
 }
 
 export function previewLayout(
@@ -58,7 +88,7 @@ export function previewLayout(
       rotation: item.rotation
     });
   const resources = layout.resources
-    .filter((resource) => resource.id !== candidate.resourceId)
+    .filter((resource) => resource.id !== candidate.resourceId && resource.status !== 'ARCHIVED')
     .map((resource) => {
       const shape = layoutGeometry(resource);
       return {
@@ -67,23 +97,30 @@ export function previewLayout(
         parentId: resource.parentRoomId,
         room: resource.category === 'ROOM',
         decoration: false,
-          label: resource.id < 0 ? resource.name : resource.code,
+        label: resource.id < 0 ? resource.name : resource.code,
         shape:
-          movingRoom && resource.parentRoomId === candidate.resourceId && shape
+          movingRoom && resource.category === 'DESK' && shape && insideRoom(shape, before)
             ? moveWithRoom(shape, before, item)
             : shape
       };
     });
   if (!candidate.decoration)
     resources.push({
-        key: `resource:${candidate.resourceId ?? -1}`,
+      key: `resource:${candidate.resourceId ?? -1}`,
       id: candidate.resourceId ?? -1,
       parentId: candidate.parentRoomId ?? null,
       room: candidate.category === 'ROOM',
       decoration: false,
-        label: old && old.id < 0 ? old.name : (old?.code ?? 'New'),
+      label: old && old.id < 0 ? old.name : (old?.code ?? 'New'),
       shape: item
     });
+  for (const resource of resources) {
+    if (resource.room || !resource.shape) continue;
+    const rooms = resources.filter(
+      (room) => room.room && room.shape && insideRoom(resource.shape!, room.shape)
+    );
+    resource.parentId = rooms.length === 1 ? rooms[0].id : null;
+  }
   const shapes = [
     ...resources,
     ...decorations.map((object) => ({
@@ -98,11 +135,22 @@ export function previewLayout(
   ];
   const collisions = new Set<string>();
   const collisionKeys = new Set<string>();
+  const roomEdgeCollisions = new Set<string>();
   let fits = true;
   for (let i = 0; i < shapes.length; i++) {
     const a = shapes[i];
     if (!a.shape) continue;
-    if (!placementFits(a.shape, { width: layout.width ?? 1200, height: layout.height ?? 800 }))
+    if (
+      !placementFits(a.shape, {
+        width: layout.width ?? 1200,
+        height: layout.height ?? 800,
+        cornerRadius: floorCornerRadius(
+          layout.floor.location,
+          layout.width ?? 1200,
+          layout.height ?? 800
+        )
+      })
+    )
       fits = false;
     const parent =
       !a.decoration && a.parentId
@@ -126,8 +174,21 @@ export function previewLayout(
         collisions.add(b.label);
         collisionKeys.add(a.decoration ? `decoration:${a.key}` : a.key);
         collisionKeys.add(b.decoration ? `decoration:${b.key}` : b.key);
+        if (!a.decoration && !b.decoration && a.room !== b.room) {
+          const crossesEdge = a.room
+            ? !insideRoom(b.shape, a.shape)
+            : !insideRoom(a.shape, b.shape);
+          if (crossesEdge) roomEdgeCollisions.add(a.room ? b.label : a.label);
+        }
       }
     }
   }
-  return { fits, collisions, collisionKeys, decorations, valid: fits && collisions.size === 0 };
+  return {
+    fits,
+    collisions,
+    collisionKeys,
+    roomEdgeCollisions,
+    decorations,
+    valid: fits && collisions.size === 0
+  };
 }

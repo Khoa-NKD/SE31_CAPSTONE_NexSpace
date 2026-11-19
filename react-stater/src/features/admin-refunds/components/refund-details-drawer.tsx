@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -123,7 +124,7 @@ export function RefundDetailsDrawer({
               SLA: {refund.slaRemaining}
             </span>
             <span>•</span>
-            <span>{refund.triggeredAt}</span>
+            <span>{formatDateLabel(refund.triggeredAt)}</span>
           </div>
         </div>
 
@@ -166,7 +167,7 @@ export function RefundDetailsDrawer({
                   <span className='text-muted-foreground block text-[11px]'>Timeline Context</span>
                   <div className='text-foreground font-medium'>Slot: Today, Scheduled</div>
                   <div className='text-amber-600 dark:text-amber-400 font-medium text-[11px]'>
-                    Claim: {refund.triggeredAt}
+                    Claim: {formatDateLabel(refund.triggeredAt)}
                   </div>
                 </div>
                 <div>
@@ -226,7 +227,7 @@ export function RefundDetailsDrawer({
                         {refund.evidence.verificationBadge}
                       </span>
                       <span className='text-[10px] text-muted-foreground'>
-                        EXIF: {refund.evidence.exifTimestamp}
+                        EXIF: {formatDateLabel(refund.evidence.exifTimestamp)}
                       </span>
                     </div>
 

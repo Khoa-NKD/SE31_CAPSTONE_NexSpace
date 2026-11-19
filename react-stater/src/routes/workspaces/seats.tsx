@@ -8,6 +8,7 @@ export interface SeatsSearch {
   endTime?: string;
   floorId?: number;
   resourceId?: number;
+  view?: 'map' | 'list' | '3d';
 }
 
 export const Route = createFileRoute('/workspaces/seats')({
@@ -26,6 +27,10 @@ export const Route = createFileRoute('/workspaces/seats')({
     resourceId:
       Number.isSafeInteger(Number(search.resourceId)) && Number(search.resourceId) > 0
         ? Number(search.resourceId)
+        : undefined,
+    view:
+      search.view === 'list' || search.view === 'map' || search.view === '3d'
+        ? (search.view as 'map' | 'list' | '3d')
         : undefined
   }),
   component: SeatsRoute,

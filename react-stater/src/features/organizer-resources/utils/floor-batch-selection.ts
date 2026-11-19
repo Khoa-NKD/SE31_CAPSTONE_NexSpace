@@ -69,7 +69,7 @@ export function floorBatchSelection(
       y: Number(fields.y),
       width: fields.width.trim() ? Number(fields.width) : floor.width,
       height: fields.height.trim() ? Number(fields.height) : floor.height,
-      name: custom.name ?? baseName.trim()
+      name: `${baseName.trim()} ${floor.floorNumber}`
     };
     const problem = existing.some(
       (f) => f.location?.buildingFloorId === floor.id || f.floorNumber === floor.floorNumber

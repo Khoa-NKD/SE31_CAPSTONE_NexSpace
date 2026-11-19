@@ -15,6 +15,7 @@ import {
   CheckCircle2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { backendRequest } from '@/features/auth/api/session';
@@ -73,6 +74,7 @@ export interface PublicFloorMapProps {
   hasScheduleSelected?: boolean;
   embedded?: boolean;
   showResourceInspector?: boolean;
+  onViewDetail?: (resource: MapResource) => void;
 }
 
 interface ViewBoxRect {
@@ -185,7 +187,8 @@ export function PublicFloorMap({
   onContinueWithResource,
   hasScheduleSelected = false,
   embedded = false,
-  showResourceInspector = true
+  showResourceInspector = true,
+  onViewDetail
 }: PublicFloorMapProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -395,8 +398,40 @@ export function PublicFloorMap({
     const isOffice = isResourceOffice(resource);
     const capacityText = resource.capacity ? `${resource.capacity}` : isOffice ? '4' : resource.category === 'ROOM' ? '6' : '1';
 
-    const select = () => {
-      if (isAvailable && matchesCurrentFilter) {
+    const handleResourceClick = () => {
+      if (!matchesCurrentFilter) return;
+
+      if (isBooked) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is already booked in this timeframe.`,
+            `Vị trí ${resource.name || resource.code} đã có người đặt trong khung giờ này.`
+          )
+        );
+        return;
+      }
+
+      if (isLocked) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is currently held by someone else.`,
+            `Vị trí ${resource.name || resource.code} đang được người khác giữ chỗ.`
+          )
+        );
+        return;
+      }
+
+      if (isMaintenance) {
+        toast.warning(
+          c(
+            `Seat ${resource.name || resource.code} is currently under maintenance.`,
+            `Vị trí ${resource.name || resource.code} hiện đang tạm khóa hoặc bảo trì.`
+          )
+        );
+        return;
+      }
+
+      if (isAvailable) {
         setInternalSelectedId(resource.id);
         onSelect?.(resource);
         onSelectResource?.(resource);
@@ -464,25 +499,32 @@ export function PublicFloorMap({
       <g
         key={resource.id}
         transform={`rotate(${resource.rotation} ${resource.posX + resource.width / 2} ${resource.posY + resource.height / 2})`}
-        role={isAvailable && matchesCurrentFilter ? 'button' : 'img'}
-        tabIndex={isAvailable && matchesCurrentFilter ? 0 : undefined}
+        role={matchesCurrentFilter ? 'button' : 'img'}
+        tabIndex={matchesCurrentFilter ? 0 : undefined}
         aria-label={titleText}
         aria-pressed={isAvailable && matchesCurrentFilter ? isCurrentSelected : undefined}
-        onClick={isAvailable && matchesCurrentFilter ? select : undefined}
+        onClick={matchesCurrentFilter ? handleResourceClick : undefined}
+        onDoubleClick={() => {
+          if (onViewDetail) {
+            onViewDetail(resource);
+          }
+        }}
         onKeyDown={
-          isAvailable && matchesCurrentFilter
+          matchesCurrentFilter
             ? (event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault();
-                  select();
+                  handleResourceClick();
                 }
               }
             : undefined
         }
         className={`group/res ${opacityClass} ${
-          isAvailable && matchesCurrentFilter
-            ? 'cursor-pointer outline-none transition-all duration-150 focus-visible:opacity-95'
-            : 'cursor-not-allowed'
+          matchesCurrentFilter
+            ? isAvailable
+              ? 'cursor-pointer outline-none transition-all duration-150 focus-visible:opacity-95'
+              : 'cursor-pointer outline-none transition-all duration-150 opacity-90 hover:opacity-100'
+            : 'pointer-events-none'
         }`}
       >
         <title>{titleText}</title>
@@ -874,57 +916,59 @@ export function PublicFloorMap({
             </div>
 
             {/* Interactive SVG Canvas */}
-            <svg
-              ref={svgRef}
-              viewBox={`${activeViewBox.x} ${activeViewBox.y} ${activeViewBox.width} ${activeViewBox.height}`}
-              preserveAspectRatio='xMidYMid meet'
-              onPointerDown={handlePointerDown}
-              onPointerMove={handlePointerMove}
-              onPointerUp={handlePointerUp}
-              onPointerCancel={handlePointerUp}
-              className={`h-[300px] sm:h-[380px] lg:h-[420px] w-full select-none ${
-                isDragging ? 'cursor-grabbing' : 'cursor-grab'
-              }`}
-              aria-label={c('Published floor layout', 'Bố trí tầng đã publish')}
-            >
-              <defs>
-                <pattern
-                  id={`floor-grid-${workspaceId}`}
-                  width='40'
-                  height='40'
-                  patternUnits='userSpaceOnUse'
-                >
-                  <path
-                    d='M 40 0 L 0 0 0 40'
-                    fill='none'
-                    stroke='currentColor'
-                    strokeWidth='0.6'
-                    className='text-border/40'
-                  />
-                </pattern>
-              </defs>
+            <div className='w-full'>
+              <svg
+                ref={svgRef}
+                viewBox={`${activeViewBox.x} ${activeViewBox.y} ${activeViewBox.width} ${activeViewBox.height}`}
+                preserveAspectRatio='xMidYMid meet'
+                onPointerDown={handlePointerDown}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                className={`h-[300px] sm:h-[380px] lg:h-[420px] w-full select-none ${
+                  isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                }`}
+                aria-label={c('Published floor layout', 'Bố trí tầng đã publish')}
+              >
+                <defs>
+                  <pattern
+                    id={`floor-grid-${workspaceId}`}
+                    width='40'
+                    height='40'
+                    patternUnits='userSpaceOnUse'
+                  >
+                    <path
+                      d='M 40 0 L 0 0 0 40'
+                      fill='none'
+                      stroke='currentColor'
+                      strokeWidth='0.6'
+                      className='text-border/40'
+                    />
+                  </pattern>
+                </defs>
 
-              {/* Subtle Architectural Floor Boundary & Grid */}
-              <rect
-                x={0}
-                y={0}
-                width={floor.width}
-                height={floor.height}
-                rx='12'
-                fill={`url(#floor-grid-${workspaceId})`}
-                className='stroke-border/60'
-                strokeWidth='1.5'
-              />
+                {/* Subtle Architectural Floor Boundary & Grid */}
+                <rect
+                  x={0}
+                  y={0}
+                  width={floor.width}
+                  height={floor.height}
+                  rx='12'
+                  fill={`url(#floor-grid-${workspaceId})`}
+                  className='stroke-border/60'
+                  strokeWidth='1.5'
+                />
 
-              {/* 1. Rooms layer (Meeting rooms & Private offices) */}
-              {floor.resources.filter((item) => item.category === 'ROOM').map(shape)}
+                {/* 1. Rooms layer (Meeting rooms & Private offices) */}
+                {floor.resources.filter((item) => item.category === 'ROOM').map(shape)}
 
-              {/* 2. Architectural Decorations (walls, doors, plants, dividers) */}
-              <DecorationLayer items={floor.decorations} blockSelection />
+                {/* 2. Architectural Decorations (walls, doors, plants, dividers) */}
+                <DecorationLayer items={floor.decorations} blockSelection />
 
-              {/* 3. Desks layer (Individual desks) */}
-              {floor.resources.filter((item) => item.category === 'DESK').map(shape)}
-            </svg>
+                {/* 3. Desks layer (Individual desks) */}
+                {floor.resources.filter((item) => item.category === 'DESK').map(shape)}
+              </svg>
+            </div>
           </div>
 
           {/* Quick Selection Summary Footer inside Map */}

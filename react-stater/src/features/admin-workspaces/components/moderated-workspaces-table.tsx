@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState } from 'react';
 import { Search, History } from 'lucide-react';
 import { ModerationDecisionRecord } from '../data/mock-workspaces';
@@ -241,7 +242,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                       </div>
                     </td>
                     <td className='py-3.5 px-4 text-right font-mono text-muted-foreground'>
-                      {rec.timestamp}
+                      {formatDateLabel(rec.timestamp)}
                     </td>
                     <td className='py-3.5 px-4 text-right'>
                       <button

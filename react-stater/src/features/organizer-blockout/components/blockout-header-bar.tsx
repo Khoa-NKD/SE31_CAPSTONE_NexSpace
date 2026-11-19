@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
@@ -63,7 +64,7 @@ export function BlockoutHeaderBar({ metrics }: BlockoutHeaderBarProps) {
                 Next Blockout
               </p>
               <p className="text-sm font-bold text-foreground">
-                {metrics.nextBlockoutDate}{' '}
+                {formatDateLabel(metrics.nextBlockoutDate)}{' '}
                 <span className="text-xs font-normal text-muted-foreground">
                   ({metrics.nextBlockoutReason})
                 </span>

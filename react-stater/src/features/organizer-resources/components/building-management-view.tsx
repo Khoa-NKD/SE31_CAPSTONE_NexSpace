@@ -108,7 +108,7 @@ export function BuildingManagementView({
     );
     setMapPoint(null);
     setLocationBusy(false);
-    setFloorCount('0');
+    setFloorCount(String(building.floors.length));
     setError('');
     setCreating(true);
   }
@@ -118,6 +118,12 @@ export function BuildingManagementView({
     if (saving.current || locationBusy) return;
     if (!/^\d+$/.test(floorCount) || Number(floorCount) > 100) {
       setError(c('Enter a floor count from 0 to 100.', 'Nhập số lượng tầng từ 0 đến 100.'));
+      return;
+    }
+    const removedFloors = [...(editTarget?.floors ?? [])].sort((a, b) => a.floorNumber - b.floorNumber).slice(Number(floorCount));
+    const linkedFloor = removedFloors.find((floor) => floor.occupants.length > 0);
+    if (linkedFloor) {
+      setError(c(`Floor ${linkedFloor.floorNumber} is linked to a workspace.`, `Tầng ${linkedFloor.floorNumber} đã liên kết với workspace nên không thể bỏ.`));
       return;
     }
     if (
@@ -145,7 +151,7 @@ export function BuildingManagementView({
           address: address.trim(),
           ...coordinates,
           ...administration,
-          ...(editTarget ? {} : { floorCount: Number(floorCount) })
+          floorCount: Number(floorCount)
         },
         editTarget ?? undefined
       );
@@ -246,7 +252,7 @@ export function BuildingManagementView({
                     onChange={(event) => setName(event.target.value)}
                   />
                 </div>
-                {creating && !editTarget && (
+                {creating && (
                   <div>
                     <label
                       htmlFor='building-floor-count'
@@ -266,10 +272,9 @@ export function BuildingManagementView({
                       onChange={(event) => setFloorCount(event.target.value)}
                     />
                     <p className='text-muted-foreground mt-2 text-xs leading-relaxed'>
-                      {c(
-                        '0 = add later. Creates empty physical floors 1…N, with a 1200 × 800 px canvas. No workspace or seats are created.',
-                        '0 = thêm sau. Tự tạo tầng vật lý trống từ 1…N, canvas 1200 × 800 px. Chưa tạo workspace hay ghế/phòng.'
-                      )}
+                      {editTarget
+                        ? c('Increasing adds empty floors above the highest floor. Decreasing removes only unlinked floors from the top.', 'Tăng số tầng sẽ thêm tầng trống ở trên cùng. Giảm số tầng chỉ bỏ các tầng cao nhất chưa liên kết.')
+                        : c('0 = add later. New floors start at 20 × 15 m.', '0 = thêm sau. Tầng mới mặc định 20 × 15 m.')}
                     </p>
                   </div>
                 )}

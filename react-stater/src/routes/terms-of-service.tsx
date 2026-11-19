@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { createFileRoute } from '@tanstack/react-router';
 
 import { seo } from '@/lib/seo';
@@ -21,11 +22,7 @@ function TermsOfServicePage() {
           <h1 className='text-foreground text-3xl font-bold'>Terms of Service</h1>
           <p className='text-muted-foreground mt-2 text-sm'>
             Last updated:{' '}
-            {new Date().toLocaleDateString('en-US', {
-              month: 'long',
-              day: 'numeric',
-              year: 'numeric'
-            })}
+            {formatDisplayDate(new Date())}
           </p>
         </div>
         <section>

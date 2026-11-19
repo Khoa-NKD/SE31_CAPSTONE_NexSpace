@@ -131,7 +131,7 @@ export function BuildingAllocationFields({
                 <option value={0}>{c('Choose an existing floor', 'Chọn tầng đã có')}</option>
                 {building?.floors.map((f) => (
                   <option key={f.id} value={f.id}>
-                    {f.floorNumber} · {f.name} · {f.occupants.length} workspace
+                    {c('Floor', 'Tầng')} {f.floorNumber} · {f.occupants.length} workspace
                   </option>
                 ))}
               </select>

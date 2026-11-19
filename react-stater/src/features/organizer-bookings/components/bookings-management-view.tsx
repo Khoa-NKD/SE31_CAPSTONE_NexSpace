@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
@@ -10,7 +11,6 @@ import {
   BookingsKpiSummary,
   CheckInState
 } from '../types';
-import { MOCK_BOOKINGS_KPI, MOCK_BOOKINGS_LEDGER } from '../data/mock-bookings';
 import { BookingsHeaderBar } from './bookings-header-bar';
 import { BookingsKpiRibbon } from './bookings-kpi-ribbon';
 import { BookingsFilterBar, WorkspaceOption } from './bookings-filter-bar';
@@ -95,13 +95,7 @@ function handleSendReminder(booking: BookingItem) {
 function mapBookingDtoToItem(dto: BookingDto): BookingItem {
   const startDate = new Date(dto.startTime);
   const endDate = new Date(dto.endTime);
-  const dateFormatted = !isNaN(startDate.getTime())
-    ? startDate.toLocaleDateString('vi-VN', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric'
-      })
-    : 'N/A';
+  const dateFormatted = !isNaN(startDate.getTime()) ? formatDisplayDate(startDate) : 'N/A';
   const startStr = !isNaN(startDate.getTime())
     ? startDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
     : '';
@@ -204,10 +198,12 @@ function handleCheckInToggle(id: string) {
   });
 }
 
-export function BookingsManagementView() {
+export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspaceId?: number }) {
   const c = useOrganizerCopy();
   // Filters & Search
-  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>('ALL');
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState<number | string | 'ALL'>(
+    initialWorkspaceId ?? 'ALL'
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('All Dates');
   const [customDate, setCustomDate] = useState('');
@@ -278,16 +274,15 @@ export function BookingsManagementView() {
   const approveMutation = useApproveBookingMutation();
   const rejectMutation = useRejectBookingMutation();
 
-  // Combine API data or fallback to mock data
+  // Never substitute sample reservations when a live request has not succeeded.
   const bookings: BookingItem[] = useMemo(() => {
     if (apiBookingsResponse?.content && apiBookingsResponse.content.length > 0) {
       return apiBookingsResponse.content.map(mapBookingDtoToItem);
     }
-    // Fallback if API returns empty array or mock is active
     if (apiBookingsResponse && apiBookingsResponse.totalElements === 0) {
       return [];
     }
-    return MOCK_BOOKINGS_LEDGER;
+    return [];
   }, [apiBookingsResponse]);
 
   const totalItems = apiBookingsResponse?.totalElements ?? bookings.length;
@@ -309,11 +304,11 @@ export function BookingsManagementView() {
     if (kpiData) {
       return {
         totalReservations: kpiData.totalCount,
-        growthMoM: 14.5,
+        growthMoM: 0,
         confirmedCount: kpiData.confirmedCount,
-        confirmedVolume: kpiData.totalRevenue || kpiData.confirmedCount * 2000,
+        confirmedVolume: kpiData.totalRevenue ?? 0,
         pendingCount: kpiData.pendingCount,
-        pendingVolume: kpiData.pendingCount * 2000,
+        pendingVolume: 0,
         cancelledCount: kpiData.cancelledCount,
         cancellationRatePercent:
           kpiData.totalCount > 0
@@ -321,20 +316,13 @@ export function BookingsManagementView() {
             : 0
       };
     }
-    const confirmedVol = bookings
-      .filter((b) => b.status === 'CONFIRMED')
-      .reduce((sum, b) => sum + (b.amount || 0), 0);
-    const pendingVol = bookings
-      .filter((b) => b.status === 'PENDING_PAYMENT')
-      .reduce((sum, b) => sum + (b.amount || 0), 0);
-
     return {
       totalReservations: totalItems,
-      growthMoM: MOCK_BOOKINGS_KPI.growthMoM,
+      growthMoM: 0,
       confirmedCount: statusCounts.confirmed,
-      confirmedVolume: confirmedVol || MOCK_BOOKINGS_KPI.confirmedVolume,
+      confirmedVolume: 0,
       pendingCount: statusCounts.pending,
-      pendingVolume: pendingVol || MOCK_BOOKINGS_KPI.pendingVolume,
+      pendingVolume: 0,
       cancelledCount: statusCounts.cancelled,
       cancellationRatePercent: totalItems > 0 ? (statusCounts.cancelled / totalItems) * 100 : 0
     };
@@ -497,7 +485,7 @@ export function BookingsManagementView() {
       />
 
       {/* 2. KPI Metrics Ribbon */}
-      <BookingsKpiRibbon kpis={kpis} />
+      <BookingsKpiRibbon kpis={kpis} available={!!kpiData} />
 
       {/* 3. Filter Bar & Search */}
       <div className='space-y-4'>

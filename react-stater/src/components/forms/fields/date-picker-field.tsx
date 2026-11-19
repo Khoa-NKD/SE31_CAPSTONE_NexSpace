@@ -41,7 +41,7 @@ export function DatePickerField({
             )}
           >
             <Icons.calendar className='mr-2 h-4 w-4' />
-            {field.state.value ? format(field.state.value, 'PPP') : <span>{placeholder}</span>}
+            {field.state.value ? format(field.state.value, 'dd/MM/yyyy') : <span>{placeholder}</span>}
           </Button>
         </PopoverTrigger>
         <PopoverContent className='w-auto p-0' align='start'>
@@ -93,10 +93,10 @@ export function DateRangeField({
             {range?.from ? (
               range.to ? (
                 <>
-                  {format(range.from, 'LLL dd, y')} - {format(range.to, 'LLL dd, y')}
+                  {format(range.from, 'dd/MM/yyyy')} - {format(range.to, 'dd/MM/yyyy')}
                 </>
               ) : (
-                format(range.from, 'LLL dd, y')
+                format(range.from, 'dd/MM/yyyy')
               )
             ) : (
               <span>{placeholder}</span>

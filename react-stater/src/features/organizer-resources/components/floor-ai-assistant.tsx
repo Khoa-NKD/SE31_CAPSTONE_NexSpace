@@ -1,4 +1,5 @@
 import { furnishingIconCatalog, matchFurnishingIcon } from '../utils/furnishing-icon-catalog';
+import { ResourceTypePhotoField } from './resource-type-photo-field';
 import {
   readFloorChat,
   writeFloorChat,
@@ -188,6 +189,11 @@ export function FloorAiAssistant({
     !!proposal && (proposal.design.removeResourceIds.length > 0 || removedFurnishings.length > 0);
   const removalsConfirmed = !removesObjects || confirmedRemoval === proposal?.design;
   const newTypes = proposal?.design.newTypes ?? [];
+  const [photoDraft, setPhotoDraft] = useState<{
+    proposalId: string;
+    photos: Record<number, File[]>;
+  } | null>(null);
+  const newTypePhotos = photoDraft?.proposalId === proposal?.proposalId ? photoDraft?.photos : undefined;
   const typesConfirmed = newTypes.length === 0 || confirmedTypeDesign === proposal?.design;
   const incompleteTypes = newTypes
     .map((type) => ({ type, issues: aiTypeIssues(type) }))
@@ -339,6 +345,7 @@ export function FloorAiAssistant({
       ]
     : [];
   const changeProposal = (value: AiProposal | null) => {
+    if (value?.proposalId !== proposal?.proposalId) setPhotoDraft(null);
     onProposal(value);
   };
   const errorMessage = (value: unknown) =>
@@ -549,7 +556,13 @@ export function FloorAiAssistant({
         proposal.proposalId,
         saveTemplates,
         proposal.design,
-        newTypes.length > 0 && typesConfirmed
+        newTypes.length > 0 && typesConfirmed,
+        Object.fromEntries(
+          newTypes.flatMap(({ tempId }) => {
+            const photos = newTypePhotos?.[tempId];
+            return photos?.length ? [[tempId, photos] as const] : [];
+          })
+        )
       );
       if (rememberTypes && proposal.design.resources.length > 0) {
         const previousIds = new Set(layout.resources.map((item) => item.id));
@@ -1362,6 +1375,19 @@ export function FloorAiAssistant({
                               )
                             )}
                           </div>
+                          <ResourceTypePhotoField<File>
+                            photos={newTypePhotos?.[type.tempId] ?? []}
+                            disabled={busy}
+                            onChange={(photos) =>
+                              setPhotoDraft((previous) => ({
+                                proposalId: proposal.proposalId,
+                                photos: {
+                                  ...(previous?.proposalId === proposal.proposalId ? previous.photos : {}),
+                                  [type.tempId]: photos
+                                }
+                              }))
+                            }
+                          />
                         </div>
                       );
                     })}

@@ -1,3 +1,5 @@
+import { formatDateLabel } from '@/lib/format';
+import { formatBookingMoney } from '../format';
 import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -113,10 +115,6 @@ function getStatusBadge(status: string, c: OrganizerCopy) {
   }
 }
 
-function formatCurrency(amount: number) {
-  return `$${amount.toFixed(2)}`;
-}
-
 export function BookingDetailDialog({
   booking,
   isOpen,
@@ -167,7 +165,8 @@ export function BookingDetailDialog({
                 {c('Reservation Details & Audit Log', 'Chi tiết và lịch sử đặt chỗ')}
               </DialogTitle>
               <DialogDescription className='text-xs text-muted-foreground mt-0.5'>
-                {c('Created on', 'Ngày tạo')} {booking.createdAt} • Real-time PayOS Verified
+                {c('Created on', 'Ngày tạo')} {formatDateLabel(booking.createdAt)} • Real-time PayOS
+                Verified
               </DialogDescription>
             </div>
           </div>
@@ -233,7 +232,7 @@ export function BookingDetailDialog({
                 <div className='space-y-0.5'>
                   <p className='text-xs font-medium text-foreground flex items-center gap-1.5'>
                     <Calendar className='w-3.5 h-3.5 text-muted-foreground' />
-                    {booking.reservedDate}
+                    {formatDateLabel(booking.reservedDate)}
                   </p>
                   <p className='text-xs text-muted-foreground flex items-center gap-1.5 font-mono'>
                     <Clock className='w-3.5 h-3.5 text-muted-foreground' />
@@ -269,7 +268,7 @@ export function BookingDetailDialog({
                     {c('Total Transaction Value', 'Tổng giá trị giao dịch')}
                   </p>
                   <p className='text-base font-extrabold text-foreground font-mono'>
-                    {formatCurrency(booking.amount)}
+                    {formatBookingMoney(booking.amount)}
                   </p>
                 </div>
               </div>
@@ -369,7 +368,7 @@ export function BookingDetailDialog({
               {booking.refundAmount != null && booking.refundAmount > 0 && (
                 <div className='text-[11px] font-medium text-emerald-600 dark:text-emerald-400'>
                   {c('Refund policy: Refund', 'Chính sách hoàn tiền: Hoàn')}{' '}
-                  {booking.refundPercent ?? 0}% ({formatCurrency(booking.refundAmount)})
+                  {booking.refundPercent ?? 0}% ({formatBookingMoney(booking.refundAmount)})
                 </div>
               )}
             </div>

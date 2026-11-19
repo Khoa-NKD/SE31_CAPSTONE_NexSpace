@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React from 'react';
 import {
   Wrench,
@@ -103,7 +104,7 @@ export function BlockoutScheduledList({
 
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs font-bold text-foreground">{block.dateDisplay}</span>
+                  <span className="text-xs font-bold text-foreground">{formatDateLabel(block.dateDisplay)}</span>
                   <span className="text-xs text-muted-foreground">•</span>
                   <span className="text-[11px] font-mono text-muted-foreground flex items-center gap-1">
                     <Clock className="w-2.5 h-2.5" />

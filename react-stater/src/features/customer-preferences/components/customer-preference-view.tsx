@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useQuery } from '@tanstack/react-query';
 import {
   SlidersHorizontal,
@@ -86,7 +87,7 @@ export function CustomerPreferenceView() {
           {preferences?.updatedAt && (
             <div className='flex items-center gap-1.5 text-xs text-muted-foreground self-start sm:self-auto bg-muted/50 px-3 py-1.5 rounded-lg'>
               <Clock className='w-3.5 h-3.5' />
-              <span>Cập nhật: {new Date(preferences.updatedAt).toLocaleDateString('vi-VN')}</span>
+              <span>Cập nhật: {formatDisplayDate(new Date(preferences.updatedAt))}</span>
             </div>
           )}
         </div>

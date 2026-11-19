@@ -12,7 +12,7 @@ export function FloorLocationBanner({ floor }: { floor: FloorOption }) {
         <>
           <span className='flex items-center gap-2 font-semibold'>
             <Building2 className='size-4 text-primary' />
-            {location.buildingName} · {location.physicalFloorName} ({location.floorNumber})
+            {location.buildingName} · {c('Floor', 'Tầng')} {location.floorNumber}
           </span>
           <span className='flex items-center gap-1.5 text-muted-foreground'>
             <MapPin className='size-3.5' />

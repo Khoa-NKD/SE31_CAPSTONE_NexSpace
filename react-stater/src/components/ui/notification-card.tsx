@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import type { FC } from 'react';
 import { Icons } from '@/components/icons';
 import { cn } from '@/lib/utils';
@@ -40,10 +41,7 @@ const formatDate = (date: string | Date): string => {
   if (diffHours < 24) return `${diffHours}h ago`;
   if (diffDays < 7) return `${diffDays}d ago`;
 
-  return d.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
-  });
+  return formatDisplayDate(d);
 };
 
 const getActionIcon = (actionType: ActionType) => {

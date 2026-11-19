@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useEffect, useRef } from 'react';
 import {
   X,
@@ -321,7 +322,7 @@ export function BookingDetailsDrawer({
                           </span>
                         )}
                       </div>
-                      <span className='text-[10px] font-mono text-muted-foreground'>{step.timestamp}</span>
+                      <span className='text-[10px] font-mono text-muted-foreground'>{formatDateLabel(step.timestamp)}</span>
                     </div>
                     <p className='text-[11px] text-muted-foreground mt-0.5'>{step.description}</p>
                   </div>

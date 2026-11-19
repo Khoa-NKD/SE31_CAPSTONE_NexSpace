@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useEffect, useState, useRef } from 'react';
 import {
   X,
@@ -209,7 +210,7 @@ export function ProviderDetailsDrawer({
                     <div>
                       <h4 className='text-xs font-bold text-foreground'>{gpkdDoc.title}</h4>
                       <p className='text-[11px] text-muted-foreground'>
-                        {gpkdDoc.englishTitle} • {gpkdDoc.fileFormat} • {gpkdDoc.fileSize} • Uploaded {gpkdDoc.uploadedAt}
+                        {gpkdDoc.englishTitle} • {gpkdDoc.fileFormat} • {gpkdDoc.fileSize} • Uploaded {formatDateLabel(gpkdDoc.uploadedAt)}
                       </p>
                     </div>
                   </div>
@@ -398,7 +399,7 @@ export function ProviderDetailsDrawer({
                   ></span>
                   <div className='flex items-baseline justify-between gap-2'>
                     <span className='font-semibold text-foreground'>{ev.title}</span>
-                    <span className='text-[10px] text-muted-foreground font-mono'>{ev.timestamp}</span>
+                    <span className='text-[10px] text-muted-foreground font-mono'>{formatDateLabel(ev.timestamp)}</span>
                   </div>
                   <p className='text-muted-foreground text-[11px] mt-0.5'>{ev.description}</p>
                 </div>

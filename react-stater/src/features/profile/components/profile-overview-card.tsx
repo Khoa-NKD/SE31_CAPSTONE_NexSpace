@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -88,12 +89,12 @@ export function ProfileOverviewCard({ user, onOpenAvatarDialog, onSignOut }: Pro
             <div className='flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-1 text-[11px] text-muted-foreground/80 pt-1'>
               <span className='flex items-center gap-1'>
                 <Clock className='w-3 h-3' />
-                Tài khoản tạo: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật'}
+                Tài khoản tạo: {user?.createdAt ? formatDisplayDate(new Date(user.createdAt)) : 'Mới cập nhật'}
               </span>
               {user?.lastLoginAt && (
                 <span className='flex items-center gap-1'>
                   <Clock className='w-3 h-3 text-indigo-500' />
-                  Đăng nhập gần nhất: {new Date(user.lastLoginAt).toLocaleString('vi-VN')}
+                  Đăng nhập gần nhất: {formatDisplayDateTime(new Date(user.lastLoginAt))}
                 </span>
               )}
             </div>

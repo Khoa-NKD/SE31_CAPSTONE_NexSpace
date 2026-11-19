@@ -2,6 +2,7 @@ import type { AllocationInput, FloorLocation } from './buildings';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
 import { backendRequest } from '../../auth/api/session.ts';
+import { resourceTypePhotoBody, type ResourceTypePhoto } from './resource-type-photos';
 
 export type Currency = 'VND' | 'USD';
 export type ResourceStatus = 'DRAFT' | 'ACTIVE' | 'DISABLED' | 'ARCHIVED';
@@ -113,6 +114,7 @@ export interface TypeOption {
   usageKind?: ResourceUsageKind | null;
   standardWidthM?: number | string | null;
   standardLengthM?: number | string | null;
+  photoUrls?: string[];
 }
 export interface ResourceOptions {
   workspaceId: number;
@@ -354,6 +356,11 @@ export const deleteResource = (resource: ResourceDetail) =>
     `/organizer/resources/${resource.id}?${new URLSearchParams({ expectedRevision: resource.revision })}`,
     'DELETE'
   );
+export const deleteRoomWithSeats = (room: ResourceDetail) =>
+  backendRequest<number[]>(
+    `/organizer/resources/${room.id}/with-seats?${new URLSearchParams({ expectedRevision: room.revision })}`,
+    'DELETE'
+  );
 export const createResourceFloor = (
   workspaceId: number,
   value: { name: string; floorNumber: number; allocation?: AllocationInput }
@@ -377,14 +384,18 @@ export interface TypeInput {
   standardWidthM?: number | null;
   standardLengthM?: number | null;
 }
-export const saveResourceType = (workspaceId: number, value: TypeInput, current?: TypeOption) =>
-  backendRequest<TypeOption>(
+export const saveResourceType = (
+  workspaceId: number, value: TypeInput, current?: TypeOption, photos?: ResourceTypePhoto[]
+) => {
+  const input = { ...value, ...(current ? { expectedRevision: current.revision } : {}) };
+  return backendRequest<TypeOption>(
     current
       ? `/organizer/workspaces/${workspaceId}/resource-types/${current.id}`
       : `/organizer/workspaces/${workspaceId}/resource-types`,
     current ? 'PUT' : 'POST',
-    { ...value, ...(current ? { expectedRevision: current.revision } : {}) }
+    photos === undefined ? input : resourceTypePhotoBody(input, photos)
   );
+};
 export const deleteResourceType = (workspaceId: number, type: TypeOption) =>
   backendRequest<void>(
     `/organizer/workspaces/${workspaceId}/resource-types/${type.id}?${new URLSearchParams({ expectedRevision: type.revision })}`,

@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import { useMemo } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -19,6 +20,7 @@ import {
   type ScheduleSelection
 } from './date-time-picker-modal';
 import type { CustomerFloor, MapResource } from './public-floor-map';
+import type { ResourceAvailabilityItem } from '@/features/workspaces/api/booking-types';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceBookingCardProps {
@@ -29,6 +31,7 @@ interface WorkspaceBookingCardProps {
   activeFloorId?: number;
   schedule: ScheduleSelection | null;
   onScheduleChange: (schedule: ScheduleSelection) => void;
+  availabilityMap?: Map<number, ResourceAvailabilityItem>;
 }
 
 export function WorkspaceBookingCard({
@@ -38,10 +41,19 @@ export function WorkspaceBookingCard({
   onClearSelectedResource,
   activeFloorId,
   schedule,
-  onScheduleChange
+  onScheduleChange,
+  availabilityMap
 }: WorkspaceBookingCardProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
+
+  const isSelectedResourceAvailable = useMemo(() => {
+    if (!selectedResource) return true;
+    const avail = availabilityMap?.get(selectedResource.id);
+    const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
+    const isMaintenance = avail?.state === 'MAINTENANCE' || !selectedResource.selectable;
+    return (!avail || avail.state === 'AVAILABLE') && !isBooked && !isMaintenance;
+  }, [selectedResource, availabilityMap]);
 
   // Compute lowest starting hourly price from floor resources if workspace.pricePerHour is not present
   const floorStartingHourlyPrice = useMemo(() => {
@@ -153,24 +165,44 @@ export function WorkspaceBookingCard({
 
           {/* 2. Selected Resource Summary (if chosen from Floor Map or Available Spaces) */}
           {selectedResource ? (
-            <div className='p-3 rounded-xl bg-primary/5 dark:bg-primary/10 border border-primary/25 flex items-start justify-between gap-2'>
+            <div
+              className={cn(
+                'p-3 rounded-xl border flex items-start justify-between gap-2',
+                isSelectedResourceAvailable
+                  ? 'bg-primary/5 dark:bg-primary/10 border-primary/25'
+                  : 'bg-rose-500/10 dark:bg-rose-500/15 border-rose-500/30'
+              )}
+            >
               <div className='min-w-0'>
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded bg-primary text-white'>
+                  <span
+                    className={cn(
+                      'text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded text-white',
+                      isSelectedResourceAvailable ? 'bg-primary' : 'bg-rose-600'
+                    )}
+                  >
                     {selectedResource.code}
                   </span>
                   <span className='text-xs font-bold text-slate-900 dark:text-white truncate'>
                     {selectedResource.name}
                   </span>
                 </div>
-                <div className='mt-1 flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400'>
-                  {selectedResource.typeName && <span>{selectedResource.typeName}</span>}
-                  {selectedResource.capacity ? (
-                    <span className='inline-flex items-center gap-0.5'>
-                      • <Users className='size-3' /> {selectedResource.capacity}
-                    </span>
-                  ) : null}
-                </div>
+                {!isSelectedResourceAvailable ? (
+                  <p className='text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1'>
+                    {language === 'vi'
+                      ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
+                      : 'This space is unavailable for the selected time'}
+                  </p>
+                ) : (
+                  <div className='mt-1 flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400'>
+                    {selectedResource.typeName && <span>{selectedResource.typeName}</span>}
+                    {selectedResource.capacity ? (
+                      <span className='inline-flex items-center gap-0.5'>
+                        • <Users className='size-3' /> {selectedResource.capacity}
+                      </span>
+                    ) : null}
+                  </div>
+                )}
               </div>
               {onClearSelectedResource && (
                 <button
@@ -236,7 +268,7 @@ export function WorkspaceBookingCard({
               {schedule ? (
                 <div className='space-y-1'>
                   <div className='text-sm font-bold text-slate-900 dark:text-white'>
-                    {schedule.date}
+                    {formatDateLabel(schedule.date)}
                   </div>
                   <div className='flex items-center justify-between text-xs text-slate-600 dark:text-slate-300 font-medium'>
                     <span className='flex items-center gap-1'>
@@ -299,22 +331,41 @@ export function WorkspaceBookingCard({
           )}
 
           {/* 5. Primary CTA */}
-          <Link
-            to='/workspaces/seats'
-            search={bookingSearchParams}
-            className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-white font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group'
-          >
-            <span>
-              {selectedResource
-                ? language === 'vi'
-                  ? `Tiếp tục đặt ${selectedResource.code}`
-                  : `Continue with ${selectedResource.code}`
-                : language === 'vi'
-                  ? 'Chọn chỗ ngồi & Đặt ngay'
-                  : 'Select Seats & Book'}
-            </span>
-            <ArrowRight className='size-4 group-hover:translate-x-0.5 transition-transform' />
-          </Link>
+          {selectedResource && !isSelectedResourceAvailable ? (
+            <button
+              type='button'
+              disabled
+              className='w-full py-3.5 px-5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-sm rounded-xl cursor-not-allowed border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 select-none'
+              title={
+                language === 'vi'
+                  ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
+                  : 'This space is fully booked in this time slot'
+              }
+            >
+              <span>
+                {language === 'vi'
+                  ? `${selectedResource.code} đã kín chỗ`
+                  : `${selectedResource.code} is unavailable`}
+              </span>
+            </button>
+          ) : (
+            <Link
+              to='/workspaces/seats'
+              search={bookingSearchParams}
+              className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-white font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group'
+            >
+              <span>
+                {selectedResource
+                  ? language === 'vi'
+                    ? `Tiếp tục đặt ${selectedResource.code}`
+                    : `Continue with ${selectedResource.code}`
+                  : language === 'vi'
+                    ? 'Chọn chỗ ngồi & Đặt ngay'
+                    : 'Select Seats & Book'}
+              </span>
+              <ArrowRight className='size-4 group-hover:translate-x-0.5 transition-transform' />
+            </Link>
+          )}
 
           {/* 6. Concise Trust & Booking Assistance Info */}
           <div className='pt-2 space-y-1.5 text-[11px] text-slate-500 dark:text-slate-400'>
@@ -377,7 +428,7 @@ export function WorkspaceBookingCard({
                 <Calendar className='size-3 shrink-0' />
                 <span className='truncate'>
                   {schedule
-                    ? `${schedule.date} · ${schedule.startTime}`
+                    ? `${formatDateLabel(schedule.date)} · ${schedule.startTime}`
                     : language === 'vi'
                       ? 'Chọn ngày & giờ'
                       : 'Select date & time'}
@@ -386,22 +437,32 @@ export function WorkspaceBookingCard({
             </DateTimePickerModal>
           </div>
 
-          <Link
-            to='/workspaces/seats'
-            search={bookingSearchParams}
-            className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5'
-          >
-            <span>
-              {selectedResource
-                ? language === 'vi'
-                  ? `Đặt ${selectedResource.code}`
-                  : `Book ${selectedResource.code}`
-                : language === 'vi'
-                  ? 'Chọn chỗ & Đặt'
-                  : 'Select Space'}
-            </span>
-            <ArrowRight className='size-4' />
-          </Link>
+          {selectedResource && !isSelectedResourceAvailable ? (
+            <button
+              type='button'
+              disabled
+              className='shrink-0 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs sm:text-sm rounded-xl cursor-not-allowed border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 select-none'
+            >
+              <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+            </button>
+          ) : (
+            <Link
+              to='/workspaces/seats'
+              search={bookingSearchParams}
+              className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5'
+            >
+              <span>
+                {selectedResource
+                  ? language === 'vi'
+                    ? `Đặt ${selectedResource.code}`
+                    : `Book ${selectedResource.code}`
+                  : language === 'vi'
+                    ? 'Chọn chỗ & Đặt'
+                    : 'Select Space'}
+              </span>
+              <ArrowRight className='size-4' />
+            </Link>
+          )}
         </div>
       </div>
     </>

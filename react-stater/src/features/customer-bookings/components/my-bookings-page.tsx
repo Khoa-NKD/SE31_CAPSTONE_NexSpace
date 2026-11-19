@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import {
@@ -18,8 +19,10 @@ import {
   CheckCircle2,
   XCircle,
   Clock3,
-  ChevronRight
+  ChevronRight,
+  MessageSquare
 } from 'lucide-react';
+import { BookingChatDialog } from '@/features/chat/components/booking-chat-dialog';
 import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { Button } from '@/components/ui/button';
@@ -53,6 +56,7 @@ export function MyBookingsPage() {
   const [copiedPinId, setCopiedPinId] = useState<number | null>(null);
   const [revealedPins, setRevealedPins] = useState<Record<number, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<CustomerBookingItemResponse | null>(null);
+  const [chatBookingId, setChatBookingId] = useState<number | null>(null);
 
   // Status mapping for API filter
   const apiStatus = activeTab === 'ALL' || activeTab === 'OTHER' ? undefined : (activeTab as BookingStatus);
@@ -108,12 +112,7 @@ export function MyBookingsPage() {
       const end = new Date(endStr);
       const startTime = start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
       const endTime = end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-      const dateStr = start.toLocaleDateString(isVi ? 'vi-VN' : 'en-US', {
-        weekday: 'short',
-        year: 'numeric',
-        month: 'short',
-        day: 'numeric'
-      });
+      const dateStr = formatDisplayDate(start);
       return { time: `${startTime} – ${endTime}`, date: dateStr };
     } catch {
       return { time: '09:00 – 17:00', date: startStr };
@@ -418,6 +417,16 @@ export function MyBookingsPage() {
 
                           <Button
                             size='sm'
+                            variant='outline'
+                            onClick={() => setChatBookingId(b.bookingId)}
+                            className='cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl border-border hover:bg-muted text-primary'
+                          >
+                            <MessageSquare className='h-3.5 w-3.5 text-primary' />
+                            <span>{isVi ? 'Nhắn tin hỗ trợ' : 'Chat Support'}</span>
+                          </Button>
+
+                          <Button
+                            size='sm'
                             onClick={() =>
                               navigate({
                                 to: '/workspaces/confirmation',
@@ -568,6 +577,13 @@ export function MyBookingsPage() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Booking Support Chat Dialog */}
+      <BookingChatDialog
+        bookingId={chatBookingId}
+        open={Boolean(chatBookingId)}
+        onOpenChange={(open) => !open && setChatBookingId(null)}
+      />
 
       <Footer />
     </div>

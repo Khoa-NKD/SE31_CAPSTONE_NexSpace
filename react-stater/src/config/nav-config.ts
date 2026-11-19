@@ -224,12 +224,6 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Buildings',
-        url: '/dashboard/organizer/buildings',
-        icon: 'building',
-        isActive: false
-      },
-      {
         title: 'Floor Plan & Zones',
         url: '/dashboard/organizer/floorplan',
         icon: 'floorPlan',
@@ -268,6 +262,13 @@ export const organizerNavGroups: NavGroup[] = [
         label: '8 Active'
       },
       {
+        title: 'Messages',
+        url: '/dashboard/organizer/messages',
+        icon: 'chat',
+        shortcut: ['m', 'm'],
+        isActive: false
+      },
+      {
         title: 'Schedule (Gantt)',
         url: '/dashboard/organizer/schedule',
         icon: 'gantt',
@@ -277,10 +278,9 @@ export const organizerNavGroups: NavGroup[] = [
       },
       {
         title: 'Analytics',
-        url: '#analytics',
+        url: '/dashboard/organizer/analytics',
         icon: 'trendingUp',
-        disabled: true,
-        label: 'Planned'
+        isActive: false
       }
     ]
   }

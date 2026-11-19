@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState, useEffect, useTransition } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { authService } from '@/features/auth/api/auth-service';
@@ -193,7 +194,7 @@ export function ProfileSettingsView() {
               <p className='text-sm text-muted-foreground font-mono'>{user?.email}</p>
               <p className='text-xs text-muted-foreground/80 flex items-center justify-center sm:justify-start gap-1.5 pt-0.5'>
                 <Clock className='w-3.5 h-3.5' />
-                <span>Tài khoản khởi tạo: {user?.createdAt ? new Date(user.createdAt).toLocaleDateString('vi-VN') : 'Mới cập nhật'}</span>
+                <span>Tài khoản khởi tạo: {user?.createdAt ? formatDisplayDate(new Date(user.createdAt)) : 'Mới cập nhật'}</span>
               </p>
             </div>
           </div>

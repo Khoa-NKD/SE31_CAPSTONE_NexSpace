@@ -128,9 +128,21 @@ export function BookingReviewPage({
 
         {/* Hold Urgency Top Banner */}
         <HoldUrgencyBanner
+          bookingId={effectiveBooking?.id ? Number(effectiveBooking.id) : undefined}
           seatCode={seatCode || 'Desk A-12'}
           holdExpiresAt={effectiveExpiresAt}
           initialSeconds={effectiveInitialSeconds}
+          serverTime={effectiveHoldData?.serverTime}
+          remainingHoldAttempts={effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3}
+          maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
+          penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}
+          onReleaseSuccess={() => {
+            if (workspaceId) {
+              window.location.href = `/workspaces/${workspaceId}`;
+            } else {
+              window.history.back();
+            }
+          }}
         />
 
         {/* 2-Column Checkout Layout (60% Left Review details / 40% Right Sticky Price Card) */}
@@ -150,7 +162,7 @@ export function BookingReviewPage({
               notes={customerNotes}
               onNotesChange={setCustomerNotes}
             />
-            <CancellationPolicyCard />
+            <CancellationPolicyCard snapshot={effectiveBooking?.cancellationPolicySnapshot} rules={workspace?.cancellationRules} />
           </div>
 
           {/* Right Column (5 cols ~ 40% - Sticky Card) */}

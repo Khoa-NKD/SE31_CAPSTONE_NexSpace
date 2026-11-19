@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import React, { useState } from 'react';
 import {
   Dialog,
@@ -272,12 +273,12 @@ export function LockUserDialog({
                       <CalendarIcon className='size-3 text-primary' />
                       <span>Chọn ngày và giờ mở khóa tự động:</span>
                     </Label>
-                    <input
+                    <DateInput
                       id='locked-until-picker'
                       type='datetime-local'
                       value={lockedUntilInput}
-                      onChange={(e) => {
-                        setLockedUntilInput(e.target.value);
+                      onValueChange={(dateValue) => {
+                        setLockedUntilInput(dateValue);
                         if (errorMessage) setErrorMessage(null);
                       }}
                       className='w-full text-xs font-mono px-3 py-1.5 rounded-md border border-border bg-background text-foreground shadow-2xs focus:outline-hidden focus:ring-1 focus:ring-primary'

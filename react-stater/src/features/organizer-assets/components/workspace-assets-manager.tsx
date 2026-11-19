@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
 import { useWorkspaceAssetsQuery } from '@/features/workspaces/api/queries';
@@ -430,9 +431,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                     <TableCell className='text-xs text-muted-foreground whitespace-nowrap'>
                       {asset.nextMaintenanceDate ? (
                         <span>
-                          {new Date(asset.nextMaintenanceDate).toLocaleDateString(
-                            c('en-US', 'vi-VN')
-                          )}
+                          {formatDisplayDate(new Date(asset.nextMaintenanceDate))}
                         </span>
                       ) : (
                         <span className='text-muted-foreground/50'>

@@ -1,3 +1,4 @@
+import type { CancellationRule } from '@/features/workspaces/api/types';
 export type SpaceCategory = 'coworking_hub' | 'business_lounge' | 'creative_studio';
 
 export interface BasicInfoValues {
@@ -133,6 +134,7 @@ export interface OnboardingDraftState {
   basicInfo: BasicInfoValues;
   location: LocationValues;
   operatingHours: OperatingHoursValues;
+  cancellationRules?: CancellationRule[];
   amenities: string[];
   amenityAddonRates?: Record<string, number>;
   media: MediaGalleryValues;

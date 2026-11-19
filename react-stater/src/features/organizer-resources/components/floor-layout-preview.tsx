@@ -1,3 +1,5 @@
+import { useCanvasMultiSelection, type GroupEditPhase } from './use-canvas-multi-selection';
+import { floorCornerRadius } from '../utils/floor-outline';
 import { useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from 'react';
 import {
   ZoomIn,
@@ -73,6 +75,13 @@ export function FloorLayoutPreview({
   previewChanges,
   collisionKeys,
   onObjectDrag,
+  onGroupChange,
+  onGroupDelete,
+  onGroupCopy,
+  onGroupDuplicate,
+  onGroupPaste,
+  groupCanPaste,
+  groupSelection,
   actions,
   onToggleFullscreen,
   fullscreenActive = false
@@ -89,6 +98,13 @@ export function FloorLayoutPreview({
   actions?: ReactNode;
   onToggleFullscreen?: () => void;
   fullscreenActive?: boolean;
+  onGroupChange?: (layout: FloorLayout, phase: GroupEditPhase) => void;
+  onGroupDelete?: (keys: string[]) => void;
+  onGroupCopy?: (keys: string[]) => void;
+  onGroupDuplicate?: (keys: string[]) => void;
+  onGroupPaste?: () => void;
+  groupCanPaste?: boolean;
+  groupSelection?: string[];
   onObjectDrag?: (
     key: string,
     fields: PlacementFields,
@@ -100,8 +116,22 @@ export function FloorLayoutPreview({
   const shared = useSharedFloorContext(layout, presentation === 'workspace');
   const width = Number.isFinite(requestedWidth) && requestedWidth > 0 ? requestedWidth : 1200;
   const height = Number.isFinite(requestedHeight) && requestedHeight > 0 ? requestedHeight : 800;
+  const cornerRadius = floorCornerRadius(layout.floor.location, width, height);
   const id = useId().replaceAll(':', '');
   const svg = useRef<SVGSVGElement>(null);
+  const [groupSelectMode, setGroupSelectMode] = useState(true);
+  const multi = useCanvasMultiSelection({
+    svgRef: svg,
+    layout,
+    selectionHint: groupSelection,
+    enabled: !!onGroupChange && groupSelectMode,
+    onChange: onGroupChange,
+    onDelete: onGroupDelete,
+    onCopy: onGroupCopy,
+    onDuplicate: onGroupDuplicate,
+    onPaste: onGroupPaste,
+    canPaste: groupCanPaste
+  });
   const drag = useRef<{
     pointerId: number;
     start: DOMPoint;
@@ -130,7 +160,8 @@ export function FloorLayoutPreview({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && document.fullscreenElement !== container.current)
+      if (event.key === 'Escape' && !event.defaultPrevented && document.fullscreenElement !== container.current &&
+          !document.querySelector('[role="dialog"][data-state="open"]'))
         setExpanded(false);
     };
     document.addEventListener('keydown', escape);
@@ -369,9 +400,31 @@ export function FloorLayoutPreview({
             : 'overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
+      {multi.confirmation}
       {!objectHover && <SharedFloorTooltip context={shared} />}
-      {actions && (
-        <div className='flex shrink-0 flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-2'>
+      {(actions || onGroupChange) && (
+        <div className='flex shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-b border-border bg-card px-4 py-2'>
+          {onGroupChange && (
+            <>
+              <Button
+                type='button'
+                size='sm'
+                variant={groupSelectMode ? 'default' : 'outline'}
+                onClick={() => setGroupSelectMode(true)}
+              >
+                {c('Select area', 'Chọn vùng')}
+              </Button>
+              <Button
+                type='button'
+                size='sm'
+                variant={!groupSelectMode ? 'default' : 'outline'}
+                onClick={() => setGroupSelectMode(false)}
+              >
+                {c('Pan view', 'Kéo xem')}
+              </Button>
+              {multi.toolbar}
+            </>
+          )}
           {actions}
         </div>
       )}
@@ -395,9 +448,17 @@ export function FloorLayoutPreview({
               : ''}
           </p>
           <p className='mt-2 text-xs font-medium text-primary'>
-            {onObjectDrag
-              ? c('Drag to move · Click for properties', 'Kéo để di chuyển · Click xem thuộc tính')
-              : c('Click for properties', 'Click xem thuộc tính')}
+            {onGroupChange && groupSelectMode
+              ? c(
+                  'Drag background to select · Drag a selected object to move the group',
+                  'Kéo nền để chọn nhóm · Kéo đối tượng đã chọn để di chuyển nhóm'
+                )
+              : onObjectDrag
+                ? c(
+                    'Drag to move · Click for properties',
+                    'Kéo để di chuyển · Click xem thuộc tính'
+                  )
+                : c('Click for properties', 'Click xem thuộc tính')}
           </p>
         </div>
       )}
@@ -519,8 +580,9 @@ export function FloorLayoutPreview({
         <svg
           data-floor-canvas='true'
           ref={svg}
+          tabIndex={0}
           viewBox={`${camera.x} ${camera.y} ${camera.width} ${camera.height}`}
-          className={`block w-full touch-none select-none ${presentation === 'workspace' || expanded ? 'absolute inset-0 h-full' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : 'cursor-grab'}`}
+          className={`block w-full touch-none select-none ${presentation === 'workspace' || expanded ? 'absolute inset-0 h-full' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : onGroupChange && groupSelectMode ? 'cursor-crosshair' : 'cursor-grab'}`}
           aria-label={c('Zoomable floor preview', 'Sơ đồ tầng có thể phóng to thu nhỏ')}
           onPointerDown={(event) => {
             shared.clearHover();
@@ -605,13 +667,14 @@ export function FloorLayoutPreview({
           <rect
             width={width}
             height={height}
+            rx={cornerRadius}
             className={
               shared.bounds ? 'fill-background stroke-primary' : 'fill-background stroke-border'
             }
             strokeWidth='1'
             vectorEffect='non-scaling-stroke'
           />
-          <rect width={width} height={height} fill={`url(#${id})`} />
+          <rect width={width} height={height} rx={cornerRadius} fill={`url(#${id})`} />
           {resources.filter((item) => item.category === 'ROOM').map(resource)}
           <DecorationLayer items={decorations} />
           {decorations.map((item) => (
@@ -671,6 +734,7 @@ export function FloorLayoutPreview({
             />
           )}
           {resources.filter((item) => item.category !== 'ROOM').map(resource)}
+          {onGroupChange && multi.overlay}
         </svg>
       </div>
       <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 text-xs'>

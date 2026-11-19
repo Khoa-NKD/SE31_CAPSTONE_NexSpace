@@ -1,3 +1,4 @@
+import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Search, Calendar, Filter, ChevronDown, RotateCcw, Building2 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -234,10 +235,10 @@ export function BookingsFilterBar({
 
         {/* Custom Date Input (shown when Custom Date is selected) */}
         {dateRangeLabel === 'Custom Date' && onCustomDateChange && (
-          <Input
+          <DateInput
             type='date'
             value={customDate || ''}
-            onChange={(e) => onCustomDateChange(e.target.value)}
+            onValueChange={(dateValue) => onCustomDateChange(dateValue)}
             className='h-9 w-auto text-xs bg-background'
           />
         )}

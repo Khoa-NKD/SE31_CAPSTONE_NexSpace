@@ -456,10 +456,10 @@ export function StepMediaGalleryView({
         />
 
         {/* Wizard Header Bar */}
-        <WizardHeader currentStep={4} />
+        <WizardHeader currentStep={6} />
 
         {/* Wizard Stepper */}
-        <WizardStepper currentStep={4} />
+        <WizardStepper currentStep={6} />
 
         {/* Page Title & Subtitle Banner */}
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>

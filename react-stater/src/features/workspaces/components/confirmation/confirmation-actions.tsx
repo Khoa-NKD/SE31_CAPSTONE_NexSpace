@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Calendar, Download, ArrowLeft, Check, Loader2 } from 'lucide-react';
+import { Calendar, Download, ArrowLeft, Check, Loader2, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { paymentService } from '@/features/payments/api/service';
 import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
+import { BookingChatDialog } from '@/features/chat/components/booking-chat-dialog';
 
 interface ConfirmationActionsProps {
   orderRef?: string;
@@ -19,6 +20,7 @@ export function ConfirmationActions({
   const isVi = language === 'vi';
   const [downloading, setDownloading] = useState(false);
   const [downloaded, setDownloaded] = useState(false);
+  const [chatOpen, setChatOpen] = useState(false);
 
   const handleDownloadInvoice = async () => {
     if (!bookingId) {
@@ -77,6 +79,25 @@ export function ConfirmationActions({
           )}
         </Button>
       </div>
+
+      {bookingId && (
+        <Button
+          type='button'
+          variant='secondary'
+          onClick={() => setChatOpen(true)}
+          className='w-full h-10 rounded-xl cursor-pointer flex items-center justify-center gap-2 text-xs sm:text-sm font-semibold bg-muted/70 hover:bg-muted border border-border/80 text-foreground transition-all'
+        >
+          <MessageSquare className='h-4 w-4 text-primary' />
+          <span>{isVi ? 'Nhắn tin hỗ trợ với Chủ không gian' : 'Chat with Space Manager'}</span>
+        </Button>
+      )}
+
+      {/* Booking Support Chat Dialog */}
+      <BookingChatDialog
+        bookingId={bookingId ?? null}
+        open={chatOpen}
+        onOpenChange={setChatOpen}
+      />
 
       {/* Return / Book Another Workspace Link */}
       <div className='text-center pt-1'>

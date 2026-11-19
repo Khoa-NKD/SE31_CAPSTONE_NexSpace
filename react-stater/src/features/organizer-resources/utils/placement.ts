@@ -99,7 +99,7 @@ function extent(width: number, height: number, angle: number) {
 /** Clamp a floor-absolute position, preserving the complete rotated rectangle in its bounds. */
 export function constrainPlacement(
   item: Placement,
-  canvas: { width: number; height: number },
+  canvas: { width: number; height: number; cornerRadius?: number },
   room?: Placement
 ): Placement | null {
   if (
@@ -141,7 +141,7 @@ export function constrainPlacement(
 /** Preview validation is advisory; server validation remains authoritative on save. */
 export function placementFits(
   item: Placement,
-  canvas: { width: number; height: number },
+  canvas: { width: number; height: number; cornerRadius?: number },
   room?: Placement
 ) {
   if (
@@ -165,6 +165,17 @@ export function placementFits(
     cy + half.y > canvas.height + epsilon
   )
     return false;
+  const radius = canvas.cornerRadius ?? 0;
+  if (radius > 0) {
+    const angle = radians(item.rotation);
+    for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
+      const x = cx + sx * item.width / 2 * Math.cos(angle) - sy * item.height / 2 * Math.sin(angle);
+      const y = cy + sx * item.width / 2 * Math.sin(angle) + sy * item.height / 2 * Math.cos(angle);
+      const dx = x - clamp(x, radius, canvas.width - radius);
+      const dy = y - clamp(y, radius, canvas.height - radius);
+      if (dx * dx + dy * dy > radius * radius + epsilon) return false;
+    }
+  }
   if (!room) return true;
   const angle = radians(room.rotation);
   const dx = cx - room.x - room.width / 2,

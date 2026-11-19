@@ -1,3 +1,4 @@
+import { formatDateLabel } from '@/lib/format';
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
@@ -168,7 +169,7 @@ export function CommissionRulesTable({
 
                   {/* Effective Period */}
                   <td className='py-3.5 px-5 text-muted-foreground font-mono text-[11px]'>
-                    {rule.effectiveFrom} — {rule.effectiveTo}
+                    {formatDateLabel(rule.effectiveFrom)} — {formatDateLabel(rule.effectiveTo)}
                   </td>
 
                   {/* Status */}

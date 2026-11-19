@@ -1,3 +1,4 @@
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { MousePointer, ArrowRight, Clock } from 'lucide-react';
@@ -54,12 +55,7 @@ function formatDateDisplay(dateStr: string): string {
   try {
     const [y, m, d] = dateStr.split('-').map(Number);
     const dateObj = new Date(y, m - 1, d);
-    return dateObj.toLocaleDateString('en-US', {
-      weekday: 'long',
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric'
-    });
+    return formatDisplayDate(dateObj);
   } catch {
     return dateStr;
   }

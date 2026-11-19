@@ -2,11 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { BuildingAllocationFields } from './building-allocation-fields';
 import { FloorAllocationDialog } from './floor-allocation-dialog';
-import { buildingsOptions, allocationError, type AllocationInput } from '../api/buildings';
+import {
+  buildingsOptions,
+  workspaceSiteOptions,
+  allocationError,
+  type AllocationInput
+} from '../api/buildings';
 import { floorLayoutOptions } from '../api/resources';
 import { useState } from 'react';
 import { copyDisplayName } from '../utils/copy-names';
-import { MoreHorizontal, Pencil, Copy, Trash2, LoaderCircle } from 'lucide-react';
+import { MoreHorizontal, Pencil, Copy, LoaderCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -36,6 +41,7 @@ export function FloorActions({
   floor,
   floors,
   disabled,
+  compact = false,
   onSaved,
   onDeleted,
   onCopied
@@ -44,6 +50,7 @@ export function FloorActions({
   floor: FloorOption;
   floors: FloorOption[];
   disabled?: boolean;
+  compact?: boolean;
   onSaved: () => Promise<void>;
   onDeleted?: () => void;
   onCopied?: (floor: FloorOption) => void;
@@ -73,6 +80,8 @@ export function FloorActions({
     );
   };
   const actor = useAuthStore((s) => s.user?.id ?? 0);
+  const site = useQuery(workspaceSiteOptions(actor, workspaceId));
+  const workspaceOwned = !!site.data?.workspaceId;
   const [area, setArea] = useState<AllocationInput | null>(null);
   const locations = useQuery({ ...buildingsOptions(actor), enabled: action === 'copy' });
   const source = useQuery({
@@ -148,46 +157,41 @@ export function FloorActions({
       setBusy(false);
     }
   }
+  if (site.isPending || site.isError || workspaceOwned) return null;
   return (
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
-            variant='outline'
-            size='sm'
-            className='rounded-xl'
+            variant={compact ? 'ghost' : 'outline'}
+            size={compact ? 'icon' : 'sm'}
+            className={compact ? 'size-8 shrink-0 rounded-lg' : 'rounded-xl'}
             disabled={disabled || busy}
             aria-label={c('Floor actions', 'Thao tác tầng')}
           >
             <MoreHorizontal className='size-4' />
-            {c('Floor actions', 'Thao tác tầng')}
+            {!compact && c('Floor actions', 'Thao tác tầng')}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align='end'>
-          {floor.location && (
+          {!workspaceOwned && floor.location && (
             <DropdownMenuItem onSelect={() => open('map')}>
               <Pencil className='size-4' />
               {c('Edit workspace area', 'Chỉnh vùng workspace')}
             </DropdownMenuItem>
           )}
-          {!floor.location && (
+          {!workspaceOwned && !floor.location && (
             <DropdownMenuItem onSelect={() => open('map')}>
               <Pencil className='size-4' />
               {c('Link physical floor', 'Liên kết tầng vật lý')}
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem onSelect={() => open('rename')}>
-            <Pencil className='size-4' />
-            {c('Rename workspace layout', 'Đổi tên sơ đồ workspace')}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={() => open('copy')}>
-            <Copy className='size-4' />
-            {c('Copy to a new floor', 'Sao chép sang tầng mới')}
-          </DropdownMenuItem>
-          <DropdownMenuItem className='text-destructive' onSelect={() => open('delete')}>
-            <Trash2 className='size-4' />
-            {c('Remove workspace area from floor', 'Gỡ khu vực khỏi tầng')}
-          </DropdownMenuItem>
+          {!workspaceOwned && (
+            <DropdownMenuItem onSelect={() => open('copy')}>
+              <Copy className='size-4' />
+              {c('Copy to a new floor', 'Sao chép sang tầng mới')}
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
       {action === 'map' && (

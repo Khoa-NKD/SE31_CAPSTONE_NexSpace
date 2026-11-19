@@ -1,3 +1,5 @@
+import { formatDateLabel } from '@/lib/format';
+import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useEffect, useState, useRef } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -96,7 +98,7 @@ export function UserDetailsDrawer({
   const displayDate = user.registeredDate && user.registeredDate !== '—'
     ? user.registeredDate
     : user.createdAt
-    ? new Date(user.createdAt).toLocaleDateString('vi-VN')
+    ? formatDisplayDate(new Date(user.createdAt))
     : '—';
   const displayTime = user.registeredTimeUtc || (user.createdAt
     ? new Date(user.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
@@ -444,7 +446,7 @@ export function UserDetailsDrawer({
                   <div className='flex-1 min-w-0'>
                     <p className='font-medium text-foreground leading-snug'>{log.title}</p>
                     <span className='text-[11px] text-muted-foreground font-mono block mt-0.5'>
-                      {log.timestamp}
+                      {formatDateLabel(log.timestamp)}
                     </span>
                   </div>
                 </div>

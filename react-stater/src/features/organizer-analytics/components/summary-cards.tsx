@@ -1,0 +1,201 @@
+import { ArrowUpRight, CalendarCheck, Clock3, Info, Receipt, Users, Wallet } from 'lucide-react';
+import type { AnalyticsSummary, OrganizerEarnings } from '../api';
+import { change, money } from '../format';
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
+
+export function SummaryCards({
+  current,
+  earnings,
+  previousEarnings,
+  onMoney
+}: {
+  current: AnalyticsSummary;
+  earnings?: OrganizerEarnings;
+  previousEarnings?: OrganizerEarnings;
+  onMoney: (kind: string) => void;
+}) {
+  const c = useOrganizerCopy();
+  const locale = c('en-US', 'vi-VN');
+  const cards = [
+    {
+      key: 'organizerAmount',
+      label: c('Total payable to you', 'Tổng tiền bạn được nhận'),
+      description: c('Includes VAT · after refunds and fees', 'Gồm VAT · đã trừ tiền hoàn và phí'),
+      icon: Wallet,
+      tone: 'text-primary bg-primary/10',
+      help: c(
+        'Customer funds allocated to you after refunds and the recorded platform fee. Includes rental VAT; this is not confirmation of a bank transfer.',
+        'Tiền khách đã trả, trừ tiền hoàn và phí nền tảng. Số này gồm cả VAT, chưa có nghĩa đã chuyển vào tài khoản của bạn. Xem số đã chuyển ở dòng bên dưới.'
+      )
+    },
+    {
+      key: 'rentalEarningsAmount',
+      label: c('Rental income after fees', 'Tiền thuê sau khi trừ phí'),
+      description: c('Excludes VAT · after refunds', 'Không gồm VAT · đã trừ tiền hoàn'),
+      icon: CalendarCheck,
+      tone: 'text-emerald-600 bg-emerald-500/10 dark:text-emerald-400',
+      help: c(
+        'Your allocation minus rental VAT. Operating costs are not deducted, so this is not profit.',
+        'Tổng tiền bạn được nhận trừ phần VAT. Đây là tiền thuê sau khi trừ tiền hoàn và phí nền tảng; chưa trừ chi phí vận hành nên chưa phải lợi nhuận.'
+      )
+    },
+    {
+      key: 'vatAmount',
+      label: c('VAT included in your total', 'VAT trong tiền được nhận'),
+      description: c('Tax portion · after refunds', 'Phần thuế VAT · đã trừ VAT hoàn lại'),
+      icon: Receipt,
+      tone: 'text-sky-600 bg-sky-500/10 dark:text-sky-400',
+      help: c(
+        'Rental VAT retained after processed refunds, allocated to the organizer for tax handling. Uses the original booking amount, not a current tax rate.',
+        'Phần VAT nằm trong tổng tiền bạn được nhận để xử lý nghĩa vụ thuế, không phải tiền thuê hay lợi nhuận. Đã trừ VAT tương ứng với tiền hoàn cho khách; dùng số thuế đã chốt trên đơn.'
+      )
+    },
+    {
+      key: 'platformFeeAmount',
+      label: c('Platform fees', 'Phí nền tảng'),
+      description: c('Deducted from your rental income', 'Khoản phí trừ khỏi tiền thuê của bạn'),
+      icon: Receipt,
+      tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
+      help: c(
+        'Recorded booking commission, reduced in proportion to refunds. A full refund reverses the full fee.',
+        'Khoản nền tảng thu trên đơn, đã trừ khi tính tổng tiền bạn được nhận. Nếu có hoàn tiền, phí giảm tương ứng với tỷ lệ hoàn; hoàn toàn bộ thì không thu phí. Bạn không cần trừ phí này thêm lần nữa.'
+      )
+    }
+  ] as const;
+  return (
+    <section
+      aria-label={c('Key business metrics', 'Chỉ số kinh doanh chính')}
+      className='space-y-3'
+    >
+      <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
+        {cards.map((card) => {
+          const value = earnings?.[card.key];
+          const oldValue = previousEarnings?.[card.key];
+          const comparison = value != null && oldValue != null ? change(value, oldValue) : null;
+          const Icon = card.icon;
+          return (
+            <div
+              key={card.key}
+              className={`rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5 ${card.key === 'organizerAmount' ? 'border-primary/25 bg-gradient-to-br from-primary/5 to-card' : ''}`}
+            >
+              <div className='mb-4 flex items-center justify-between gap-2'>
+                <span
+                  className={`flex size-9 shrink-0 items-center justify-center rounded-xl ${card.tone}`}
+                >
+                  <Icon className='size-4' />
+                </span>
+                <details className='relative'>
+                  <summary
+                    aria-label={c('Metric definition', 'Giải thích chỉ số')}
+                    className='cursor-pointer list-none rounded p-1 text-muted-foreground hover:text-foreground focus-visible:outline-2 focus-visible:outline-primary'
+                  >
+                    <Info className='size-4' />
+                  </summary>
+                  <p className='absolute right-0 top-8 z-20 w-60 rounded-xl border bg-popover p-3 text-xs leading-relaxed text-popover-foreground shadow-lg'>
+                    {card.help}
+                  </p>
+                </details>
+              </div>
+              <h2 className='text-sm text-muted-foreground'>{card.label}</h2>
+              <p className='mt-1 text-xs text-muted-foreground'>{card.description}</p>
+              <p className='mt-2 break-words text-[clamp(1.35rem,2vw,1.75rem)] font-semibold tracking-tight tabular-nums'>
+                {value == null ? c('Not verified', 'Chưa đủ căn cứ') : money(value, locale)}
+              </p>
+              <div className='mt-3 flex items-center justify-between gap-2'>
+                <span
+                  className={`rounded-md px-1.5 py-1 text-xs font-medium tabular-nums ${!comparison ? 'bg-muted text-muted-foreground' : card.key === 'platformFeeAmount' ? 'bg-muted text-foreground' : comparison.startsWith('−') ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'}`}
+                >
+                  {comparison ?? c('No baseline', 'Chưa có cơ sở')}
+                </span>
+              </div>
+              <p className='mt-2 text-[11px] text-muted-foreground'>
+                {c('vs previous period of equal length', 'so với kỳ trước cùng độ dài')}
+              </p>
+            </div>
+          );
+        })}
+      </div>
+      <div className='grid grid-cols-2 rounded-2xl border border-border/70 bg-card py-1 xl:grid-cols-5'>
+        {[
+          {
+            label: c('Paid bookings', 'Đơn đã thanh toán'),
+            value: current.paidBookings.toLocaleString(locale),
+            icon: CalendarCheck
+          },
+          {
+            label: c('Bookings created', 'Đơn đặt mới'),
+            value: current.createdBookings.toLocaleString(locale),
+            icon: CalendarCheck
+          },
+          {
+            label: c('Paying customers', 'Khách đã thanh toán'),
+            value: current.payingCustomers.toLocaleString(locale),
+            icon: Users
+          },
+          {
+            label: c('Returning customers', 'Khách quay lại'),
+            value: current.returningCustomers.toLocaleString(locale),
+            icon: Users
+          },
+          {
+            label: c('Reserved resource-hours', 'Giờ chỗ được đặt'),
+            value: Number(current.bookedHours).toLocaleString(locale, { maximumFractionDigits: 2 }),
+            icon: Clock3
+          }
+        ].map(({ label, value, icon: Icon }) => (
+          <div key={label} className='flex items-center gap-3 px-4 py-3'>
+            <Icon className='hidden size-4 shrink-0 text-muted-foreground sm:block' />
+            <div>
+              <p className='text-xs text-muted-foreground'>{label}</p>
+              <p className='mt-1 text-lg font-semibold tabular-nums'>{value}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className='flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 text-sm'>
+        <div>
+          <span className='text-muted-foreground'>
+            {c(
+              'Transferred to you in the selected period: ',
+              'Đã chuyển cho bạn trong thời gian đã chọn: '
+            )}
+          </span>
+          <strong className='tabular-nums'>
+            {earnings?.transferredAmount != null
+              ? money(earnings.transferredAmount, locale)
+              : earnings?.transferTrackingAvailable
+                ? c('Needs reconciliation', 'Cần đối soát chi trả')
+                : c('No transfer records yet', 'Chưa có bản ghi chi trả')}
+          </strong>
+        </div>
+        <button
+          type='button'
+          onClick={() => onMoney('')}
+          className='flex items-center gap-1 text-xs text-primary hover:underline'
+        >
+          {c('Customer payments and refunds', 'Xem tiền khách và hoàn tiền')}
+          <ArrowUpRight className='size-3.5' />
+        </button>
+      </div>
+      {earnings?.unallocatedAmount != null && earnings.unallocatedAmount !== '0.00' && (
+        <p className='rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400'>
+          {c(
+            'Cash movement outside organizer allocation: ',
+            'Tiền khách chưa tính vào phần bạn được nhận: '
+          )}
+          {money(earnings.unallocatedAmount, locale)}.{' '}
+          {c(
+            'Includes surplus/duplicate payments, their refunds and incomplete settlements.',
+            'Gồm tiền trả dư/trùng, hoàn các khoản đó hoặc đơn chưa thanh toán đủ; không cộng vào thu nhập.'
+          )}
+        </p>
+      )}
+      <p className='text-xs leading-relaxed text-muted-foreground'>
+        {c(
+          'Allocations follow cash events in the selected period. Refunds can reverse earlier-period tax and fees. Transfers are counted separately by transfer date; these figures are not a withdrawable account balance.',
+          'Các khoản trên tính theo tiền thanh toán và tiền hoàn trong thời gian đã chọn. Tổng tiền bạn được nhận = tiền thuê sau khi trừ phí + VAT. Tiền hoàn có thể thuộc đơn của thời gian trước. Tiền đã chuyển tính riêng theo ngày chuyển; các số trên không phải số dư có thể rút ngay.'
+        )}
+      </p>
+    </section>
+  );
+}

@@ -96,8 +96,8 @@ export function FloorBatchSelector({
         </p>
         <p className='mt-1 text-xs'>
           {c(
-            'Workspaces can share a floor when their areas do not overlap. Enter a layout name for each selected floor.',
-            'Nhiều workspace có thể dùng chung một tầng nếu các khu vực không chồng nhau. Nhập tên sơ đồ cho từng tầng đã chọn.'
+            'Workspaces can share a floor when their areas do not overlap. Choose the area for each selected floor.',
+            'Nhiều workspace có thể dùng chung một tầng nếu các khu vực không chồng nhau. Chọn khu vực cho từng tầng đã chọn.'
           )}
         </p>
       </div>
@@ -140,7 +140,7 @@ export function FloorBatchSelector({
             <option value={0}>{c('Choose a floor', 'Chọn tầng')}</option>
             {building.floors.map((f) => (
               <option key={f.id} value={f.id}>
-                {f.floorNumber} · {f.name} · {f.occupants.length} workspace
+                {c('Floor', 'Tầng')} {f.floorNumber} · {f.occupants.length} workspace
               </option>
             ))}
           </select>
@@ -158,7 +158,7 @@ export function FloorBatchSelector({
                 <option value=''>{c('Select', 'Chọn tầng')}</option>
                 {building.floors.map((f) => (
                   <option key={f.id} value={f.floorNumber}>
-                    {f.floorNumber} · {f.name}
+                    {c('Floor', 'Tầng')} {f.floorNumber}
                   </option>
                 ))}
               </select>
@@ -183,7 +183,7 @@ export function FloorBatchSelector({
                   })
                 }
               />
-              {f.name}
+              {c('Floor', 'Tầng')} {f.floorNumber}
             </label>
           ))}
         </div>
@@ -248,7 +248,7 @@ export function FloorBatchSelector({
                       ) : (
                         <CheckCircle2 className='size-4 text-emerald-500' />
                       )}
-                      {floor.name}
+                      {c('Floor', 'Tầng')} {floor.floorNumber}
                     </h4>
                     <span className='text-[11px] text-muted-foreground'>
                       {floor.realWidthM != null && floor.realLengthM != null ? `${floor.realWidthM} × ${floor.realLengthM} m` : `${floor.width} × ${floor.height} px`}
@@ -257,15 +257,6 @@ export function FloorBatchSelector({
                   <PhysicalFloorMeasurements buildingId={value.buildingId} floor={floor} disabled={disabled} onEditingChange={onMeasurementEditingChange} onSaved={() => {
                     if (floor.geometryVersion !== 2) set({ overrides: { ...value.overrides, [floor.id]: { name: custom.name } } });
                   }} />
-                  <label className='block space-y-1 text-xs text-muted-foreground'>
-                    {c('Layout name', 'Tên sơ đồ')}
-                    <Input
-                      className='h-9 text-sm'
-                      value={allocation.name}
-                      maxLength={100}
-                      onChange={(e) => patch({ name: e.target.value })}
-                    />
-                  </label>
                   {areaInputs(
                     {
                       x: custom.x ?? String(allocation.x),

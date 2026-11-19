@@ -1,3 +1,4 @@
+import { cancellationPolicyError, defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
@@ -46,6 +47,8 @@ export function useWizardDraftSync() {
   const saveDraftToServer = useCallback(
     async (options?: { silent?: boolean }): Promise<CanonicalWorkspace | null> => {
       const currentState = useWizardStore.getState();
+      const policyError = cancellationPolicyError(currentState.cancellationRules ?? defaultCancellationRules(), c);
+      if (policyError) { toast.error(policyError); return null; }
       if (!currentState.canonicalWorkspaceId && !currentState.basicInfo.name.trim()) {
         toast.error(
           c(
