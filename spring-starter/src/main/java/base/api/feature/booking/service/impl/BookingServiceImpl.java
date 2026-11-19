@@ -10,6 +10,7 @@ import base.api.feature.booking.dto.response.PriceCalculationResponseDto;
 import base.api.feature.booking.dto.response.ResourceAvailabilityDto;
 import base.api.feature.booking.mapper.BookingMapper;
 import base.api.feature.booking.repository.IBookingRepository;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
@@ -104,6 +105,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final CurrentUserProvider currentUserProvider;
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final INotificationService notificationService;
     private final IResourceStateSyncService resourceStateSyncService;
 
     @Override
@@ -269,6 +271,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking created successfully: code={}, customerId={}, resourceId={}, status={}",
                 savedBooking.getBookingCode(), customerId, resource.getId(), savedBooking.getStatus());
+
+        if (initialStatus == BookingStatus.PENDING_APPROVAL) {
+            notificationService.sendBookingPendingApprovalToOrganizerNotification(savedBooking);
+        }
 
         return BookingMapper.toDto(savedBooking);
     }
@@ -680,7 +686,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                         refund.setBankAccountNumber(requestDto.getBankAccountNumber());
                         refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
                     }
-                    refundRequestRepository.save(refund);
+                    RefundRequestModel savedRefund = refundRequestRepository.save(refund);
+                    notificationService.sendRefundRequestedNotification(savedRefund);
                 }
             } catch (Exception e) {
                 log.warn("Failed to create refund request record for cancelled booking {}: {}", updated.getId(), e.getMessage());
@@ -705,6 +712,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         // Đồng bộ trạng thái giải phóng tài nguyên thời gian thực
         if (resourceStateSyncService != null) {
             resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
+
+        // Gửi thông báo hủy đặt chỗ (In-App + Email) cho khách hàng
+        notificationService.sendBookingCancelledNotification(updated, refundAmount, updated.getCancelReason());
+
+        // Nếu người hủy không phải là Organizer, gửi thông báo cho Organizer của không gian
+        if (cancelSource != CancelSource.ORGANIZER) {
+            notificationService.sendBookingCancelledToOrganizerNotification(updated, updated.getCancelReason());
         }
 
         return BookingMapper.toDto(updated, refundPercent, refundAmount);
@@ -812,6 +827,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             resourceStateSyncService.syncOnBookingCancelled(updated);
         }
 
+        // Gửi thông báo từ chối đặt chỗ (In-App + Email)
+        notificationService.sendBookingCancelledNotification(updated, BigDecimal.ZERO, updated.getCancelReason());
+
         return BookingMapper.toDto(updated);
     }
 
@@ -831,6 +849,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             b.setStatus(BookingStatus.EXPIRED);
             bookingRepository.save(b);
             count++;
+
+            notificationService.sendPaymentFailedNotification(null, b, "Hết thời gian giữ chỗ tạm thời (Hold Expiry)");
 
             auditService.log(
                     b.getCustomer(),
