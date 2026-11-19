@@ -19,6 +19,7 @@ import base.api.feature.resource.dto.FloorManagement.AvailabilityState;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.repository.ResourceUsageRepository;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.resource.service.PublishedGeometry;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
@@ -104,6 +105,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final CurrentUserProvider currentUserProvider;
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final IResourceStateSyncService resourceStateSyncService;
 
     @Override
     @Transactional
@@ -681,6 +683,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         log.info("Booking cancelled successfully: id={}, code={}, source={}, previousStatus={}, refundPercent={}%, refundAmount={}",
                 updated.getId(), updated.getBookingCode(), cancelSource, previousStatus, refundPercent, refundAmount);
 
+        // Đồng bộ trạng thái giải phóng tài nguyên thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
+
         return BookingMapper.toDto(updated, refundPercent, refundAmount);
     }
 
@@ -728,6 +735,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         log.info("Booking approved successfully: id={}, code={}, newStatus={}",
                 updated.getId(), updated.getBookingCode(), targetStatus);
 
+        if (resourceStateSyncService != null) {
+            if (targetStatus == BookingStatus.CONFIRMED) {
+                resourceStateSyncService.syncOnBookingConfirmed(updated);
+            } else if (targetStatus == BookingStatus.PENDING_PAYMENT) {
+                resourceStateSyncService.syncOnHoldCreated(updated);
+            }
+        }
+
         return BookingMapper.toDto(updated);
     }
 
@@ -773,6 +788,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking rejected successfully: id={}, code={}, reason={}",
                 updated.getId(), updated.getBookingCode(), reason);
+
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
 
         return BookingMapper.toDto(updated);
     }
