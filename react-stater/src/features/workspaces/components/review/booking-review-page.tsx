@@ -29,6 +29,18 @@ export interface BookingReviewPageProps {
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
 }
 
+function extractSeconds(source: unknown): number | undefined {
+  if (!source || typeof source !== 'object') return undefined;
+  const record = source as Record<string, unknown>;
+  if (typeof record.remainingSeconds === 'number' && record.remainingSeconds > 0) {
+    return record.remainingSeconds;
+  }
+  if (typeof record.ttlSeconds === 'number' && record.ttlSeconds > 0) {
+    return record.ttlSeconds;
+  }
+  return undefined;
+}
+
 export function BookingReviewPage({
   workspaceId,
   resourceId,
@@ -86,11 +98,10 @@ export function BookingReviewPage({
     (resourceId ? `Seat #${resourceId}` : effectiveHoldData?.seatCode || 'Desk A-01');
 
   const effectiveExpiresAt = effectiveBooking?.holdExpiresAt || effectiveHoldData?.holdExpiresAt;
-  const effectiveInitialSeconds = effectiveBooking?.remainingSeconds
-    ? Number(effectiveBooking.remainingSeconds)
-    : effectiveHoldData?.remainingSeconds
-      ? Number(effectiveHoldData.remainingSeconds)
-      : 600;
+  const effectiveInitialSeconds =
+    extractSeconds(effectiveBooking) ??
+    extractSeconds(effectiveHoldData) ??
+    undefined;
 
   if (!workspaceId || !resourceId) {
     return (

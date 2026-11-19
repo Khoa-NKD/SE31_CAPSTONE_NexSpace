@@ -31,7 +31,7 @@ export function HoldUrgencyBanner({
   bookingId,
   seatCode = 'Selected Station',
   expiresAt,
-  initialSeconds = 600,
+  initialSeconds,
   holdExpiresAt,
   serverTime,
   remainingHoldAttempts = 3,
@@ -46,30 +46,57 @@ export function HoldUrgencyBanner({
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
+  // Khởi tạo tổng thời gian ban đầu của phiên giữ chỗ (đồng bộ với DB, không fix cứng 600s/10p)
+  const [initialHoldDuration] = useState<number>(() => {
+    if (initialSeconds && initialSeconds > 0) {
+      return initialSeconds;
+    }
+    const targetExpiresAt = holdExpiresAt || expiresAt;
+    if (targetExpiresAt) {
+      const expTime = new Date(targetExpiresAt).getTime();
+      const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
+      const initialDiff = Math.ceil((expTime - (Date.now() + offset)) / 1000);
+      return Math.max(initialDiff, 1);
+    }
+    return 600;
+  });
+
   const releaseHoldMutation = useReleaseHoldMutation();
 
+  // Cập nhật timer tần số cao (100ms) kết hợp CSS linear transition để thanh thời gian trượt siêu mượt mà
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTimestamp(Date.now());
-    }, 1000);
+    }, 100);
 
     return () => clearInterval(timer);
   }, []);
 
   const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
-  const secondsRemaining = expiryTimestamp > 0
-    ? Math.max(0, Math.floor((expiryTimestamp - (currentTimestamp + serverOffset)) / 1000))
-    : initialSeconds;
 
-  const isExpired = secondsRemaining <= 0;
+  // Tính mili-giây còn lại chính xác cao
+  const remainingMs = expiryTimestamp > 0
+    ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
+    : (initialSeconds ?? 600) * 1000;
+
+  const secondsRemaining = Math.max(0, Math.ceil(remainingMs / 1000));
+  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : secondsRemaining <= 0;
+
+  // Tổng thời gian cơ sở (nếu server gia hạn hold dài hơn ban đầu, tự động mở rộng theo secondsRemaining)
+  const baseTotalSeconds = Math.max(initialHoldDuration, secondsRemaining, 1);
+  const totalHoldMinutes = Math.max(1, Math.round(baseTotalSeconds / 60));
+
+  // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%
+  const totalMs = baseTotalSeconds * 1000;
+  const progressPercentage = Math.min(100, Math.max(0, (remainingMs / totalMs) * 100));
 
   useEffect(() => {
     if (isExpired && !expiredNotifiedRef.current) {
       expiredNotifiedRef.current = true;
       onExpired?.();
-      toast.warning('Phiên giữ chỗ của bạn đã hết hạn do quá 10 phút. Chỗ ngồi đã được tự động giải phóng.');
+      toast.warning(`Phiên giữ chỗ của bạn đã hết hạn do quá ${totalHoldMinutes} phút. Chỗ ngồi đã được tự động giải phóng.`);
     }
-  }, [isExpired, onExpired]);
+  }, [isExpired, onExpired, totalHoldMinutes]);
 
   const handleConfirmRelease = () => {
     if (!bookingId) return;
@@ -93,9 +120,6 @@ export function HoldUrgencyBanner({
       ? `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
       : '00:00 (Hết hạn)';
 
-  const baseTotalSeconds = Math.max(initialSeconds || 600, secondsRemaining, 600);
-  const progressPercentage = Math.min(100, Math.max(0, (secondsRemaining / baseTotalSeconds) * 100));
-
   if (isExpired) {
     return (
       <div className='relative mb-8 overflow-hidden rounded-xl border border-red-300 bg-red-50/80 p-4 shadow-xs dark:border-red-500/30 dark:bg-red-500/10'>
@@ -115,7 +139,7 @@ export function HoldUrgencyBanner({
               </div>
               <p className='mt-0.5 text-xs text-red-900/90 dark:text-red-300/90 sm:text-sm'>
                 Chỗ <span className='font-semibold text-red-950 dark:text-red-100'>{seatCode}</span>{' '}
-                đã hết thời gian giữ chỗ 10 phút và được giải phóng tự động để đảm bảo công bằng cho người dùng khác. Vui lòng quay lại chọn lại chỗ ngồi.
+                đã hết thời gian giữ chỗ {totalHoldMinutes} phút và được giải phóng tự động để đảm bảo công bằng cho người dùng khác. Vui lòng quay lại chọn lại chỗ ngồi.
               </p>
             </div>
           </div>
@@ -203,11 +227,11 @@ export function HoldUrgencyBanner({
           </div>
         </div>
 
-        {/* Dynamic Animated Progress Bar */}
-        <div className='absolute right-0 bottom-0 left-0 h-1 bg-amber-200/50 dark:bg-amber-950/40'>
+        {/* Dynamic Animated Progress Bar: trượt siêu mượt (100ms ease-linear), không bị khựng/giật */}
+        <div className='absolute right-0 bottom-0 left-0 h-1.5 bg-amber-200/50 dark:bg-amber-950/40 overflow-hidden'>
           <div
-            className='h-full bg-amber-500 transition-all duration-1000 dark:bg-amber-400'
-            style={{ width: `${progressPercentage}%` }}
+            className='h-full bg-amber-500 transition-[width] duration-100 ease-linear will-change-[width] dark:bg-amber-400'
+            style={{ width: `${progressPercentage.toFixed(2)}%` }}
           />
         </div>
       </div>
