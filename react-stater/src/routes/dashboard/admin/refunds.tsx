@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
+import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
@@ -10,8 +11,15 @@ import {
   INITIAL_REFUNDS_DATA,
   MOCK_REFUND_KPIS,
   RefundRecord,
-  RefundStatus
+  RefundStatus,
+  RefundSummaryKpis,
+  fromDtoToRecord
 } from '@/features/admin-refunds/data/mock-refunds';
+import { adminRefundQueries } from '@/features/admin-refunds/api/queries';
+import {
+  useApproveRefundMutation,
+  useRejectRefundMutation
+} from '@/features/admin-refunds/api/mutations';
 import { RefundsKpiGrid } from '@/features/admin-refunds/components/refunds-kpi-grid';
 import { RefundsFilterBar } from '@/features/admin-refunds/components/refunds-filter-bar';
 import { RefundsLedgerTable } from '@/features/admin-refunds/components/refunds-ledger-table';
@@ -57,19 +65,6 @@ function RefundManagementPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
 
-  const [refunds, setRefunds] = useState<RefundRecord[]>(INITIAL_REFUNDS_DATA);
-  const [selectedRefund, setSelectedRefund] = useState<RefundRecord | null>(() => {
-    if (searchParams.refundId) {
-      return (
-        INITIAL_REFUNDS_DATA.find((r) => r.id === searchParams.refundId || r.id === `#${searchParams.refundId}`) ||
-        null
-      );
-    }
-    return null;
-  });
-  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(
-    () => Boolean(searchParams.refundId)
-  );
   const [page, setPage] = useState(1);
   const pageSize = 8;
 
@@ -78,6 +73,52 @@ function RefundManagementPage() {
   const statusFilter = searchParams.status || 'all';
   const selectedHub = searchParams.hub || 'all';
   const timeRange = searchParams.timeRange || '30d';
+
+  // Backend queries & mutations
+  const { data: refundsPage } = useQuery(
+    adminRefundQueries.list({
+      status: statusFilter,
+      search: searchQuery,
+      page,
+      size: pageSize
+    })
+  );
+
+  const { data: kpisData } = useQuery(adminRefundQueries.kpis());
+
+  const approveMutation = useApproveRefundMutation();
+  const rejectMutation = useRejectRefundMutation();
+
+  const refunds: RefundRecord[] = useMemo(() => {
+    if (refundsPage?.content && refundsPage.content.length > 0) {
+      return refundsPage.content.map(fromDtoToRecord);
+    }
+    if (refundsPage && refundsPage.totalElements === 0) {
+      return [];
+    }
+    return INITIAL_REFUNDS_DATA;
+  }, [refundsPage]);
+
+  const [selectedRefundId, setSelectedRefundId] = useState<string | null>(
+    () => (searchParams.refundId ? searchParams.refundId.replace('#', '') : null)
+  );
+  const [isDrawerOpen, setIsDrawerOpen] = useState<boolean>(
+    () => Boolean(searchParams.refundId)
+  );
+
+  const selectedRefund = useMemo(() => {
+    const idToFind = selectedRefundId || (searchParams.refundId ? searchParams.refundId.replace('#', '') : null);
+    if (!idToFind) return null;
+    return (
+      refunds.find(
+        (r) => r.id.replace('#', '') === idToFind || (r.numericId && String(r.numericId) === idToFind)
+      ) ||
+      INITIAL_REFUNDS_DATA.find(
+        (r) => r.id.replace('#', '') === idToFind || (r.numericId && String(r.numericId) === idToFind)
+      ) ||
+      null
+    );
+  }, [selectedRefundId, searchParams.refundId, refunds]);
 
   // Handlers for URL search sync
   const handleSearchChange = (value: string) => {
@@ -112,7 +153,7 @@ function RefundManagementPage() {
   };
 
   const handleSelectRefund = (refund: RefundRecord) => {
-    setSelectedRefund(refund);
+    setSelectedRefundId(refund.id.replace('#', ''));
     setIsDrawerOpen(true);
     navigate({
       search: (prev) => ({ ...prev, refundId: refund.id.replace('#', '') }),
@@ -123,7 +164,7 @@ function RefundManagementPage() {
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
-    setSelectedRefund(null);
+    setSelectedRefundId(null);
     navigate({
       search: (prev) => ({ ...prev, refundId: undefined }),
       replace: true,
@@ -158,77 +199,64 @@ function RefundManagementPage() {
 
   // Counts for tabs
   const counts = useMemo(() => {
+    if (kpisData) {
+      return {
+        all: kpisData.pendingCount + kpisData.processedCount + kpisData.rejectedCount,
+        pending: kpisData.pendingCount,
+        processed: kpisData.processedCount,
+        rejected: kpisData.rejectedCount
+      };
+    }
     return {
       all: refunds.length,
       pending: refunds.filter((r) => r.status === 'pending').length,
       processed: refunds.filter((r) => r.status === 'processed').length,
       rejected: refunds.filter((r) => r.status === 'rejected').length
     };
-  }, [refunds]);
+  }, [kpisData, refunds]);
 
-  // Simulated state updates
+  const kpis: RefundSummaryKpis = useMemo(() => {
+    if (kpisData) {
+      const usdRate = 25450;
+      return {
+        pendingCount: kpisData.pendingCount,
+        pendingVolumeUsd: (kpisData.pendingVolume || 0) / usdRate,
+        processedCount: kpisData.processedCount,
+        processedVolumeUsd: (kpisData.processedVolume || 0) / usdRate,
+        rejectedCount: kpisData.rejectedCount,
+        rejectedVolumeUsd: (kpisData.rejectedVolume || 0) / usdRate
+      };
+    }
+    return MOCK_REFUND_KPIS;
+  }, [kpisData]);
+
   const handleApproveRefund = (targetRefund: RefundRecord, note: string) => {
-    setRefunds((prev) =>
-      prev.map((item) =>
-        item.id === targetRefund.id
-          ? {
-              ...item,
-              status: 'processed',
-              statusBadge: 'Processed & Disbursed',
-              adminResolutionNote: note,
-              slaRemaining: 'Closed',
-              triggeredAt: 'Completed via PayOS Escrow Auto-Payout'
-            }
-          : item
-      )
-    );
-    setSelectedRefund((prev) =>
-      prev && prev.id === targetRefund.id
-        ? {
-            ...prev,
-            status: 'processed',
-            statusBadge: 'Processed & Disbursed',
-            adminResolutionNote: note,
-            slaRemaining: 'Closed',
-            triggeredAt: 'Completed via PayOS Escrow Auto-Payout'
-          }
-        : prev
-    );
-    toast.success(`Refund Claim ${targetRefund.id} Approved (Simulated)`, {
-      description: `Disbursed $${targetRefund.calculatedRefundUsd.toFixed(2)} (${targetRefund.calculatedRefundVnd.toLocaleString()} VND) via PayOS Escrow Reserve #${targetRefund.escrowReserveCode}.`
-    });
+    const numericId = targetRefund.numericId || parseInt(targetRefund.id.replace(/\D/g, ''), 10);
+    if (numericId && targetRefund.numericId) {
+      approveMutation.mutate({
+        id: numericId,
+        data: {
+          approvedAmount: targetRefund.calculatedRefundVnd,
+          adminNote: note
+        }
+      });
+    } else {
+      toast.success(`Refund Claim ${targetRefund.id} Approved (Simulated)`, {
+        description: `Disbursed $${targetRefund.calculatedRefundUsd.toFixed(2)} (${targetRefund.calculatedRefundVnd.toLocaleString()} VND) via PayOS Escrow Reserve #${targetRefund.escrowReserveCode}.`
+      });
+    }
   };
 
   const handleRejectRefund = (targetRefund: RefundRecord, note: string) => {
-    setRefunds((prev) =>
-      prev.map((item) =>
-        item.id === targetRefund.id
-          ? {
-              ...item,
-              status: 'rejected',
-              statusBadge: 'Claim Rejected',
-              adminResolutionNote: note,
-              slaRemaining: 'Closed',
-              triggeredAt: 'Rejected by Administrator'
-            }
-          : item
-      )
-    );
-    setSelectedRefund((prev) =>
-      prev && prev.id === targetRefund.id
-        ? {
-            ...prev,
-            status: 'rejected',
-            statusBadge: 'Claim Rejected',
-            adminResolutionNote: note,
-            slaRemaining: 'Closed',
-            triggeredAt: 'Rejected by Administrator'
-          }
-        : prev
-    );
-    toast.error(`Refund Claim ${targetRefund.id} Denied (Simulated)`, {
-      description: `Dispute rejection notice appended to SOC-2 compliance audit log.`
-    });
+    const numericId = targetRefund.numericId || parseInt(targetRefund.id.replace(/\D/g, ''), 10);
+    if (numericId && targetRefund.numericId) {
+      rejectMutation.mutate({
+        id: numericId,
+        data: { reason: note || 'Không đủ điều kiện hoàn tiền' }
+      });
+    } else {
+      toast.error(`Refund Claim ${targetRefund.id} Denied (Simulated)`);
+    }
   };
 
   return (
@@ -260,7 +288,7 @@ function RefundManagementPage() {
       </div>
 
       {/* KPI Cards Row */}
-      <RefundsKpiGrid kpis={MOCK_REFUND_KPIS} />
+      <RefundsKpiGrid kpis={kpis} />
 
       {/* Filter Bar */}
       <RefundsFilterBar

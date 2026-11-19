@@ -12,6 +12,8 @@ export interface RefundEvidence {
 
 export interface RefundRecord {
   id: string; // e.g. "#RF-102"
+  numericId?: number;
+  bookingId?: number;
   bookingRef: string; // e.g. "#NX-9801"
   customerName: string;
   customerEmail: string;
@@ -36,6 +38,74 @@ export interface RefundRecord {
   triggeredAt: string;
   escrowReserveCode: string;
   adminResolutionNote?: string;
+  bankName?: string;
+  bankBin?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+  refundReference?: string;
+}
+
+export function fromDtoToRecord(dto: import('../api/types').RefundRequestResponseDto): RefundRecord {
+  const usdRate = 25450;
+  const originalVnd = dto.originalPaidAmount || 0;
+  const refundVnd = dto.approvedAmount || dto.requestedAmount || 0;
+  const originalUsd = originalVnd / usdRate;
+  const refundUsd = refundVnd / usdRate;
+
+  let statusBadge = 'Pending Review';
+  let clientStatus: RefundStatus = 'pending';
+  if (dto.status === 'PROCESSED' || dto.status === 'APPROVED') {
+    clientStatus = 'processed';
+    statusBadge = 'Processed & Disbursed (PayOS)';
+  } else if (dto.status === 'REJECTED') {
+    clientStatus = 'rejected';
+    statusBadge = 'Claim Rejected';
+  } else {
+    clientStatus = 'pending';
+    statusBadge = 'Pending Adjudication';
+  }
+
+  const initials = dto.customerName
+    ? dto.customerName
+        .split(' ')
+        .map((n) => n[0])
+        .slice(-2)
+        .join('')
+        .toUpperCase()
+    : 'KH';
+
+  return {
+    id: `#RF-${dto.id}`,
+    numericId: dto.id,
+    bookingId: dto.bookingId,
+    bookingRef: dto.bookingCode ? (dto.bookingCode.startsWith('#') ? dto.bookingCode : `#${dto.bookingCode}`) : `#BK-${dto.bookingId}`,
+    customerName: dto.customerName || 'Khách hàng',
+    customerEmail: dto.customerEmail || 'no-email@nexspace.vn',
+    avatarInitials: initials,
+    workspaceHub: dto.workspaceName || 'Không gian làm việc',
+    spaceDetails: dto.resourceName || 'Bàn làm việc / Phòng họp',
+    originalPaidUsd: originalUsd,
+    originalPaidVnd: originalVnd,
+    calculatedRefundUsd: refundUsd,
+    calculatedRefundVnd: refundVnd,
+    policyTierLabel: `${Math.round((refundVnd / (originalVnd || 1)) * 100)}% Policy Tier`,
+    policyClause: dto.source || 'Chính sách hủy đơn',
+    gatewayFeeDeductionUsd: Math.max(0, originalUsd - refundUsd),
+    gatewayFeeDeductionVnd: Math.max(0, originalVnd - refundVnd),
+    claimReason: dto.reason || 'Khách hàng yêu cầu hủy đơn',
+    customerStatement: dto.reason || 'Yêu cầu hoàn tiền theo chính sách',
+    status: clientStatus,
+    statusBadge,
+    slaRemaining: clientStatus === 'pending' ? 'Cần xử lý' : 'Đã đóng',
+    triggeredAt: dto.createdAt ? new Date(dto.createdAt).toLocaleString('vi-VN') : 'Gần đây',
+    escrowReserveCode: dto.refundReference || `#ESC-${dto.bookingId}`,
+    adminResolutionNote: dto.adminNote,
+    bankName: dto.bankName,
+    bankBin: dto.bankBin,
+    bankAccountNumber: dto.bankAccountNumber,
+    bankAccountName: dto.bankAccountName,
+    refundReference: dto.refundReference
+  };
 }
 
 export interface RefundSummaryKpis {

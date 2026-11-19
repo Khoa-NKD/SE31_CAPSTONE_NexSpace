@@ -677,9 +677,21 @@ export const workspaceService = {
   /**
    * Hủy đơn đặt chỗ hoặc hủy giữ chỗ 10 phút.
    */
-  async cancelBooking(bookingId: number | string, reason?: string): Promise<BookingDto> {
+  async cancelBooking(
+    bookingId: number | string,
+    reason?: string,
+    bankPayload?: {
+      bankName?: string;
+      bankBin?: string;
+      bankAccountNumber?: string;
+      bankAccountName?: string;
+    }
+  ): Promise<BookingDto> {
     const url = `/bookings/${bookingId}/cancel${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`;
-    return apiClient.post<BookingDto>(url);
+    return apiClient.post<BookingDto>(url, {
+      reason,
+      ...bankPayload
+    });
   },
 
   /**

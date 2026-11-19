@@ -40,6 +40,7 @@ export function BookingChatPanel({
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const isSendingRef = useRef(false);
   const isComposingRef = useRef(false);
+  const lastSentAtRef = useRef<number>(0);
 
   // Realtime WebSocket STOMP listener
   const { isConnected } = useChatSocket(conversationId);
@@ -85,14 +86,18 @@ export function BookingChatPanel({
     scrollToBottom('auto');
   }, [messages.length, scrollToBottom]);
 
-  const handleSend = (e?: React.FormEvent) => {
+  const handleSend = (e?: React.FormEvent | React.MouseEvent) => {
     if (e) {
       e.preventDefault();
       e.stopPropagation();
     }
     const trimmed = content.trim();
+    const now = Date.now();
+    // Chặn gửi rỗng, chặn gửi trùng lặp hoặc gửi liên tiếp trong vòng 600ms
     if (!trimmed || isSendingRef.current || sendMessageMutation.isPending) return;
+    if (now - lastSentAtRef.current < 600) return;
 
+    lastSentAtRef.current = now;
     isSendingRef.current = true;
     setContent(''); // Xóa nội dung trong ô nhập ngay lập tức (optimistic)
 
@@ -293,7 +298,7 @@ export function BookingChatPanel({
       </div>
 
       {/* Input Composer */}
-      <form onSubmit={handleSend} className='p-3 sm:p-4 border-t border-border/60 bg-card flex items-end gap-2 shrink-0'>
+      <div className='p-3 sm:p-4 border-t border-border/60 bg-card flex items-end gap-2 shrink-0'>
         <Textarea
           value={content}
           onChange={(e) => setContent(e.target.value)}
@@ -301,15 +306,18 @@ export function BookingChatPanel({
           onCompositionStart={() => {
             isComposingRef.current = true;
           }}
-          onCompositionEnd={() => {
+          onCompositionEnd={(e) => {
             isComposingRef.current = false;
+            // Đảm bảo cập nhật chuỗi ký tự tiếng Việt sau khi kết thúc gõ bộ gõ Telex / VNI
+            setContent(e.currentTarget.value);
           }}
           placeholder='Nhập tin nhắn hỗ trợ (Nhấn Enter để gửi)...'
           rows={1}
           className='min-h-[42px] max-h-32 text-xs sm:text-sm resize-none rounded-xl border-border/80 focus-visible:ring-primary/40'
         />
         <Button
-          type='submit'
+          type='button'
+          onClick={handleSend}
           disabled={!content.trim() || sendMessageMutation.isPending}
           size='icon'
           className='h-[42px] w-[42px] rounded-xl shrink-0 cursor-pointer shadow-xs'
@@ -320,7 +328,7 @@ export function BookingChatPanel({
             <Send className='h-4 w-4' />
           )}
         </Button>
-      </form>
+      </div>
     </div>
   );
 }
