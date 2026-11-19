@@ -59,7 +59,6 @@ class PaymentServiceImplTest {
     private IPlatformSettingRepository platformSettingRepository;
 
     @Mock
-    @Mock
     private INotificationService notificationService;
 
     @Mock
