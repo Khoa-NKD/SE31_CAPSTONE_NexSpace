@@ -20,6 +20,7 @@ import base.api.feature.resource.dto.FloorManagement.AvailabilityState;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.repository.ResourceUsageRepository;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.resource.service.PublishedGeometry;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
@@ -106,10 +107,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
     private final INotificationService notificationService;
+    private final IResourceStateSyncService resourceStateSyncService;
 
     @Override
     @Transactional
     public BookingResponseDto createBooking(Long customerId, CreateBookingRequestDto dto) {
+        base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType());
         // 1. Identify Customer
         UserModel customer = userRepository.findById(customerId)
                 .orElseThrow(() -> new NotFoundException("Khách hàng không tồn tại"));
@@ -169,6 +172,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 customerId, resource.getId(), startTime, endTime, now);
         if (existingHold.isPresent()) {
             BookingModel reused = existingHold.get();
+            if (base.api.feature.pricing.service.BookingBaseRates.supported(reused.getPriceType())
+                    != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
+                throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
             if (reused.getHoldExpiresAt() != null && reused.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
                 reused.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
                 reused = bookingRepository.save(reused);
@@ -596,8 +602,18 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     @Transactional
     public BookingResponseDto cancelBooking(Long customerId, Long bookingId, String cancelReason) {
+        return cancelBooking(customerId, bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto.builder()
+                .reason(cancelReason)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDto cancelBooking(Long customerId, Long bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto) {
         BookingModel booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
+
+        String cancelReason = requestDto != null ? requestDto.getReason() : null;
 
         boolean isOwner = booking.getCustomer() != null && booking.getCustomer().getId().equals(customerId);
         boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
@@ -665,6 +681,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     refund.setReason(updated.getCancelReason());
                     refund.setRequestedAmount(refundAmount);
                     refund.setStatus(RefundStatus.PENDING);
+                    if (requestDto != null) {
+                        refund.setBankName(requestDto.getBankName());
+                        refund.setBankBin(requestDto.getBankBin());
+                        refund.setBankAccountNumber(requestDto.getBankAccountNumber());
+                        refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
+                    }
                     RefundRequestModel savedRefund = refundRequestRepository.save(refund);
                     notificationService.sendRefundRequestedNotification(savedRefund);
                 }
@@ -687,6 +709,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking cancelled successfully: id={}, code={}, source={}, previousStatus={}, refundPercent={}%, refundAmount={}",
                 updated.getId(), updated.getBookingCode(), cancelSource, previousStatus, refundPercent, refundAmount);
+
+        // Đồng bộ trạng thái giải phóng tài nguyên thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
 
         // Gửi thông báo hủy đặt chỗ (In-App + Email) cho khách hàng
         notificationService.sendBookingCancelledNotification(updated, refundAmount, updated.getCancelReason());
@@ -743,6 +770,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         log.info("Booking approved successfully: id={}, code={}, newStatus={}",
                 updated.getId(), updated.getBookingCode(), targetStatus);
 
+        if (resourceStateSyncService != null) {
+            if (targetStatus == BookingStatus.CONFIRMED) {
+                resourceStateSyncService.syncOnBookingConfirmed(updated);
+            } else if (targetStatus == BookingStatus.PENDING_PAYMENT) {
+                resourceStateSyncService.syncOnHoldCreated(updated);
+            }
+        }
+
         return BookingMapper.toDto(updated);
     }
 
@@ -788,6 +823,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking rejected successfully: id={}, code={}, reason={}",
                 updated.getId(), updated.getBookingCode(), reason);
+
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
 
         // Gửi thông báo từ chối đặt chỗ (In-App + Email)
         notificationService.sendBookingCancelledNotification(updated, BigDecimal.ZERO, updated.getCancelReason());
@@ -926,41 +965,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             WorkspaceModel workspace, BookableResourceModel resource,
             LocalDateTime startTime, LocalDateTime endTime, PriceType priceType) {
 
-        PriceType effectivePriceType = priceType != null ? priceType : PriceType.HOURLY;
+        var baseQuote = base.api.feature.pricing.service.BookingBaseRates.quote(resource, startTime, endTime, priceType);
+        PriceType effectivePriceType = baseQuote.priceType();
+        BigDecimal unitPrice = baseQuote.unitPrice();
+        BigDecimal durationHours = baseQuote.durationHours();
+        BigDecimal baseAmount = baseQuote.baseAmount();
 
-        BigDecimal unitPrice = BigDecimal.ZERO;
-        if (effectivePriceType == PriceType.HOURLY) {
-            if (resource.getPricePerHour() != null) {
-                unitPrice = resource.getPricePerHour();
-            } else if (resource.getResourceType() != null && resource.getResourceType().getPricePerHour() != null) {
-                unitPrice = resource.getResourceType().getPricePerHour();
-            }
-        } else if (effectivePriceType == PriceType.DAILY && resource.getResourceType() != null) {
-            unitPrice = resource.getResourceType().getPricePerDay() != null
-                    ? resource.getResourceType().getPricePerDay()
-                    : BigDecimal.ZERO;
-        }
-
-        long totalMinutes = Duration.between(startTime, endTime).toMinutes();
-        BigDecimal durationHours = BigDecimal.valueOf(totalMinutes)
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-
-        BigDecimal baseAmount = unitPrice.multiply(durationHours).setScale(2, RoundingMode.HALF_UP);
-
-        // Check active pricing rules
-        BigDecimal surchargeAmount = BigDecimal.ZERO;
-        List<PricingRuleModel> rules = pricingRuleRepository.findByWorkspaceId(workspace.getId());
-        for (PricingRuleModel rule : rules) {
-            if (!rule.isActive()) continue;
-            if (rule.getMultiplier() != null && rule.getMultiplier().compareTo(BigDecimal.ONE) > 0) {
-                BigDecimal ruleSurcharge = baseAmount.multiply(rule.getMultiplier().subtract(BigDecimal.ONE));
-                surchargeAmount = surchargeAmount.add(ruleSurcharge);
-            }
-            if (rule.getFixedAmount() != null && rule.getFixedAmount().compareTo(BigDecimal.ZERO) > 0) {
-                surchargeAmount = surchargeAmount.add(rule.getFixedAmount());
-            }
-        }
-        surchargeAmount = surchargeAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal surchargeAmount = base.api.feature.pricing.service.PricingAdjustments.surcharge(
+                pricingRuleRepository.findByWorkspaceId(workspace.getId()), resource, startTime, endTime, baseAmount);
 
         BigDecimal discountAmount = BigDecimal.ZERO;
 

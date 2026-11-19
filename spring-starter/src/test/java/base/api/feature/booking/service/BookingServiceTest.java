@@ -359,6 +359,28 @@ class BookingServiceTest {
     }
 
     @Test
+    void dailyPreviewChargesOneDayInsteadOfMultiplyingByHours() {
+        mockResourceType.setPricePerDay(new BigDecimal("300000.00"));
+        when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
+        when(resourceRepository.findById(mockResource.getId())).thenReturn(Optional.of(mockResource));
+        var request=CalculatePriceRequestDto.builder().workspaceId(mockWorkspace.getId()).resourceId(mockResource.getId())
+                .startTime(futureMondayStart).endTime(futureMondayEnd).priceType(PriceType.DAILY).build();
+        var result=bookingService.calculatePrice(request);
+        assertThat(result.getBaseAmount()).isEqualByComparingTo("300000.00");
+        assertThat(result.getUnitPrice()).isEqualByComparingTo("300000.00");
+        assertThat(result.getDurationHours()).isEqualByComparingTo("4.00");
+    }
+
+    @Test
+    void monthlyCreateCannotReuseAHoldOrCreateAFreeBooking() {
+        var request=CreateBookingRequestDto.builder().workspaceId(mockWorkspace.getId()).resourceId(mockResource.getId())
+                .startTime(futureMondayStart).endTime(futureMondayEnd).priceType(PriceType.MONTHLY).build();
+        assertThatThrownBy(()->bookingService.createBooking(mockCustomer.getId(),request)).isInstanceOf(BadRequestException.class).hasMessageContaining("tháng");
+        verify(bookingRepository,never()).findActiveHoldByCustomerAndResource(any(),any(),any(),any(),any());
+        verify(bookingRepository,never()).save(any());
+    }
+
+    @Test
     @DisplayName("Tạm tính chi phí calculatePrice ném BadRequestException khi chọn khung giờ ngoài giờ mở cửa")
     void testCalculatePrice_ThrowsBadRequest_WhenOutsideOperatingHours() {
         LocalDateTime earlyStart = futureMondayStart.withHour(6);

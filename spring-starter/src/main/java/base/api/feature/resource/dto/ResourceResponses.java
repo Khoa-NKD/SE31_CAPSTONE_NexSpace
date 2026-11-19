@@ -46,7 +46,11 @@ public final class ResourceResponses {
             boolean active,
             ResourceCurrency currency,
             String revision, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM,
-            List<String> photoUrls) {
+            List<String> photoUrls, @jakarta.validation.Valid Visual3d visual3d) {
+        public TypeOption(Long id, String name, ResourceCategory category, int capacity, BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth, boolean active, ResourceCurrency currency, String revision, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM, List<String> photoUrls) {
+            this(id, name, category, capacity, pricePerHour, pricePerDay, pricePerMonth, active, currency, revision, usageKind, standardWidthM, standardLengthM, photoUrls, null);
+        }
+
         public TypeOption(Long id, String name, ResourceCategory category, int capacity, BigDecimal pricePerHour,
                 BigDecimal pricePerDay, BigDecimal pricePerMonth, boolean active, ResourceCurrency currency, String revision,
                 ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
@@ -86,7 +90,11 @@ public final class ResourceResponses {
             BookableResourceStatus status,
             String revision,
             ResourceCategory category,
-            Long parentRoomId, Long resourceTypeId, Integer capacity) {
+            Long parentRoomId, Long resourceTypeId, Integer capacity, @jakarta.validation.Valid Visual3d visual3d) {
+        public LayoutItem(Long id, String code, String name, BigDecimal posX, BigDecimal posY, BigDecimal width, BigDecimal height, BigDecimal rotation, BookableResourceStatus status, String revision, ResourceCategory category, Long parentRoomId, Long resourceTypeId, Integer capacity) {
+            this(id, code, name, posX, posY, width, height, rotation, status, revision, category, parentRoomId, resourceTypeId, capacity, null);
+        }
+
         public LayoutItem(Long id, String code, String name, BigDecimal posX, BigDecimal posY,
                 BigDecimal width, BigDecimal height, BigDecimal rotation, BookableResourceStatus status,
                 String revision, ResourceCategory category, Long parentRoomId) {

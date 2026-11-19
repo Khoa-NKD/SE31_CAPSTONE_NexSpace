@@ -1,7 +1,9 @@
 package base.api.feature.payment.controller;
 
-import base.api.feature.payment.dto.request.ProcessRefundRequestDTO;
-import base.api.feature.payment.dto.response.RefundResponseDTO;
+import base.api.feature.payment.dto.refund.ApproveRefundRequestDto;
+import base.api.feature.payment.dto.refund.RefundKpisDto;
+import base.api.feature.payment.dto.refund.RefundRequestResponseDto;
+import base.api.feature.payment.dto.refund.RejectRefundRequestDto;
 import base.api.feature.payment.service.IRefundService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
@@ -12,63 +14,63 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
-import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.ModelAttribute;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping({"/api/v1/admin/refunds", "/api/admin/refunds"})
 @RequiredArgsConstructor
-@Tag(name = "Admin Refunds", description = "Quản lý và xử lý các yêu cầu hoàn tiền trên sàn cho Admin")
+@Tag(name = "Admin Refunds", description = "Endpoints cho Quản trị viên kiểm tra, phê duyệt chi tiền PayOS hoặc từ chối các yêu cầu hoàn tiền")
 public class AdminRefundController extends BaseAPIController {
 
     private final IRefundService refundService;
 
     @GetMapping
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    @Operation(summary = "Xem danh sách yêu cầu hoàn tiền toàn sàn")
-    public ResponseEntity<ApiResponse<PageResponseDTO<RefundResponseDTO>>> getRefunds(
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lấy danh sách yêu cầu hoàn tiền phân trang và lọc theo trạng thái, không gian, từ khóa")
+    public ResponseEntity<ApiResponse<PageResponseDTO<RefundRequestResponseDto>>> getRefunds(
             @RequestParam(required = false) RefundStatus status,
+            @RequestParam(required = false) Long workspaceId,
+            @RequestParam(required = false) String search,
             @Valid @ModelAttribute PageRequestDTO pageRequest) {
-        Page<RefundResponseDTO> page = refundService.getRefunds(status, pageRequest);
-        return successPage(page);
+        PageResponseDTO<RefundRequestResponseDto> response = refundService.getAdminRefunds(status, workspaceId, search, pageRequest);
+        return success(response);
+    }
+
+    @GetMapping("/kpis")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Lấy số liệu thống kê KPI hoàn tiền (chờ duyệt, đã xử lý, từ chối)")
+    public ResponseEntity<ApiResponse<RefundKpisDto>> getRefundKpis() {
+        RefundKpisDto kpis = refundService.getAdminRefundKpis();
+        return success(kpis);
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    @Operation(summary = "Xem chi tiết một yêu cầu hoàn tiền theo ID")
-    public ResponseEntity<ApiResponse<RefundResponseDTO>> getRefundById(@PathVariable Long id) {
-        RefundResponseDTO response = refundService.getRefundById(id);
-        return success(response, "Lấy thông tin yêu cầu hoàn tiền thành công");
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Xem chi tiết một yêu cầu hoàn tiền")
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> getRefundDetails(@PathVariable Long id) {
+        RefundRequestResponseDto details = refundService.getRefundDetails(id);
+        return success(details);
     }
 
-    @PostMapping("/{id}/process")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
-    @Operation(summary = "Xử lý duyệt và hoàn tiền cho khách hàng, tự động kích hoạt thông báo")
-    public ResponseEntity<ApiResponse<RefundResponseDTO>> processRefund(
+    @PostMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "Phê duyệt yêu cầu hoàn tiền và thực hiện lệnh chi tiền qua cổng PayOS Payouts")
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> approveRefund(
             @PathVariable Long id,
-            @Valid @RequestBody(required = false) ProcessRefundRequestDTO dto) {
-        Long adminUserId = getCurrentUserId();
-        RefundResponseDTO response = refundService.processRefund(adminUserId, id, dto);
-        return success(response, "Xử lý hoàn tiền thành công và đã gửi thông báo đến khách hàng");
+            @Valid @RequestBody(required = false) ApproveRefundRequestDto dto) {
+        RefundRequestResponseDto result = refundService.approveRefund(getCurrentUserId(), id, dto);
+        return success(result, "Phê duyệt và chuyển tiền hoàn qua PayOS thành công");
     }
 
     @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ADMIN', 'SUPER_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "Từ chối yêu cầu hoàn tiền")
-    public ResponseEntity<ApiResponse<RefundResponseDTO>> rejectRefund(
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> rejectRefund(
             @PathVariable Long id,
-            @RequestParam(required = false) String note) {
-        Long adminUserId = getCurrentUserId();
-        RefundResponseDTO response = refundService.rejectRefund(adminUserId, id, note);
-        return success(response, "Đã từ chối yêu cầu hoàn tiền");
+            @Valid @RequestBody RejectRefundRequestDto dto) {
+        RefundRequestResponseDto result = refundService.rejectRefund(getCurrentUserId(), id, dto);
+        return success(result, "Từ chối yêu cầu hoàn tiền thành công");
     }
 }

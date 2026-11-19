@@ -138,7 +138,11 @@ public final class ResourceRequests {
             boolean legacyCurrencyConfirmed,
             ResourceUsageKind usageKind,
             @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardWidthM,
-            @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardLengthM) {
+            @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardLengthM, @jakarta.validation.Valid Visual3d visual3d) {
+        public Type(String name, ResourceCategory category, ResourceCurrency currency, int capacity, BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth, String expectedRevision, boolean legacyCurrencyConfirmed, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
+            this(name, category, currency, capacity, pricePerHour, pricePerDay, pricePerMonth, expectedRevision, legacyCurrencyConfirmed, usageKind, standardWidthM, standardLengthM, null);
+        }
+
         public Type(String name, ResourceCategory category, ResourceCurrency currency, int capacity,
                 BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth,
                 String expectedRevision, boolean legacyCurrencyConfirmed) {

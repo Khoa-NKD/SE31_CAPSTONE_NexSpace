@@ -13,6 +13,8 @@ public interface IBookableResourceRepository
         extends JpaRepository<BookableResourceModel, Long>,
                 org.springframework.data.jpa.repository.JpaSpecificationExecutor<
                         BookableResourceModel> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths={"resourceType", "floorPlan", "parentRoom"})
+    List<BookableResourceModel> findByFloorPlanWorkspaceId(Long workspaceId);
     @org.springframework.data.jpa.repository.EntityGraph(
             attributePaths = {"resourceType", "parentRoom", "parentRoom.resourceType"})
     List<BookableResourceModel> findByFloorPlanId(Long floorPlanId);

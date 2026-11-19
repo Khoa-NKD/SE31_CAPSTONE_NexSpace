@@ -17,6 +17,7 @@ import base.api.feature.pricing.repository.IPricingRuleRepository;
 import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.service.IResourceLockService;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.shared.entity.UserModel;
@@ -81,6 +82,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final ObjectMapper objectMapper;
     private final IPaymentTransactionRepository paymentTransactionRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final IResourceStateSyncService resourceStateSyncService;
     private final PayOS payOS;
     private final INotificationService notificationService;
 
@@ -109,6 +111,8 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             throw new BadRequestException("Thông tin giữ chỗ không được để trống");
         }
 
+        base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType());
+
         // 1. Thẩm định khách hàng
         UserModel customer = userRepository.findById(customerId)
                 .orElseThrow(() -> new NotFoundException("Khách hàng không tồn tại"));
@@ -132,6 +136,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
         if (existingHoldOpt.isPresent()) {
             BookingModel existing = existingHoldOpt.get();
+            if (base.api.feature.pricing.service.BookingBaseRates.supported(existing.getPriceType())
+                    != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
+                throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
             // Phòng vệ Rolling Hold Attack: Áp trần thời gian giữ chỗ tối đa (Hard Ceiling) tính từ createdAt
             LocalDateTime createdAt = existing.getCreatedAt() != null ? existing.getCreatedAt() : now;
             LocalDateTime maxAllowedExpiry = createdAt.plusMinutes(maxHoldLifetimeMinutes);
@@ -268,6 +275,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         + " cho tài nguyên " + resource.getLabel() + " đến " + holdExpiresAt
         );
 
+        // 13. Đồng bộ trạng thái thời gian thực và phát sự kiện miền
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldCreated(savedBooking);
+        }
+
         log.info("Temporary Hold created successfully: code={}, customerId={}, resourceId={}, expiresAt={}",
                 savedBooking.getBookingCode(), customerId, resource.getId(), holdExpiresAt);
 
@@ -343,8 +355,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 "Khách hàng chủ động nhả phiên giữ chỗ mã " + saved.getBookingCode() + " từ trạng thái " + prevStatus
         );
 
-        // Phát sự kiện nội bộ ResourceHoldReleasedEvent
-        publishHoldReleasedEvent(saved, now);
+        // Phát sự kiện đồng bộ trạng thái thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldReleased(saved);
+        } else {
+            publishHoldReleasedEvent(saved, now);
+        }
 
         // Gửi thông báo hủy giữ chỗ (In-App + Email)
         notificationService.sendBookingCancelledNotification(saved, BigDecimal.ZERO, "Khách hàng chủ động nhả phiên giữ chỗ");
@@ -412,7 +428,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         null
                 );
 
-                publishHoldExpiredEvent(saved, now);
+                if (resourceStateSyncService != null) {
+                    resourceStateSyncService.syncOnHoldExpired(saved);
+                } else {
+                    publishHoldExpiredEvent(saved, now);
+                }
                 releasedCount++;
 
                 log.info("Hold expired and released automatically: bookingId={}, code={}", saved.getId(), saved.getBookingCode());
@@ -517,40 +537,14 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             WorkspaceModel workspace, BookableResourceModel resource,
             LocalDateTime startTime, LocalDateTime endTime, PriceType priceType) {
 
-        PriceType effectivePriceType = priceType != null ? priceType : PriceType.HOURLY;
+        var baseQuote = base.api.feature.pricing.service.BookingBaseRates.quote(resource, startTime, endTime, priceType);
+        PriceType effectivePriceType = baseQuote.priceType();
+        BigDecimal unitPrice = baseQuote.unitPrice();
+        BigDecimal durationHours = baseQuote.durationHours();
+        BigDecimal baseAmount = baseQuote.baseAmount();
 
-        BigDecimal unitPrice = BigDecimal.ZERO;
-        if (effectivePriceType == PriceType.HOURLY) {
-            if (resource.getPricePerHour() != null) {
-                unitPrice = resource.getPricePerHour();
-            } else if (resource.getResourceType() != null && resource.getResourceType().getPricePerHour() != null) {
-                unitPrice = resource.getResourceType().getPricePerHour();
-            }
-        } else if (effectivePriceType == PriceType.DAILY && resource.getResourceType() != null) {
-            unitPrice = resource.getResourceType().getPricePerDay() != null
-                    ? resource.getResourceType().getPricePerDay()
-                    : BigDecimal.ZERO;
-        }
-
-        long totalMinutes = Duration.between(startTime, endTime).toMinutes();
-        BigDecimal durationHours = BigDecimal.valueOf(totalMinutes)
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-
-        BigDecimal baseAmount = unitPrice.multiply(durationHours).setScale(2, RoundingMode.HALF_UP);
-
-        BigDecimal surchargeAmount = BigDecimal.ZERO;
-        List<PricingRuleModel> rules = pricingRuleRepository.findByWorkspaceId(workspace.getId());
-        for (PricingRuleModel rule : rules) {
-            if (!rule.isActive()) continue;
-            if (rule.getMultiplier() != null && rule.getMultiplier().compareTo(BigDecimal.ONE) > 0) {
-                BigDecimal ruleSurcharge = baseAmount.multiply(rule.getMultiplier().subtract(BigDecimal.ONE));
-                surchargeAmount = surchargeAmount.add(ruleSurcharge);
-            }
-            if (rule.getFixedAmount() != null && rule.getFixedAmount().compareTo(BigDecimal.ZERO) > 0) {
-                surchargeAmount = surchargeAmount.add(rule.getFixedAmount());
-            }
-        }
-        surchargeAmount = surchargeAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal surchargeAmount = base.api.feature.pricing.service.PricingAdjustments.surcharge(
+                pricingRuleRepository.findByWorkspaceId(workspace.getId()), resource, startTime, endTime, baseAmount);
 
         BigDecimal discountAmount = BigDecimal.ZERO;
 

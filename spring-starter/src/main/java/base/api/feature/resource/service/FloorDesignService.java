@@ -200,6 +200,7 @@ public class FloorDesignService {
             throw new ConflictException("The library has reached its 500-template limit");
         item.setOrganizerId(actor); item.setName(input.name().trim()); item.setKind(input.kind());
         item.setWidthM(input.widthM()); item.setLengthM(input.lengthM()); item.setColor(input.color()); item.setIcon(input.icon()); item.setActive(true);
+        if (id == null || input.visual3d() != null) item.setVisual3d(input.visual3d());
         templates.saveAndFlush(item); em.refresh(item); return view(item);
     }
     @Transactional
@@ -212,6 +213,6 @@ public class FloorDesignService {
     }
     private FloorDesign.Template view(LayoutTemplateModel item) {
         return new FloorDesign.Template(item.getId(), item.getName(), item.getKind(), item.getWidthM(), item.getLengthM(),
-                item.getColor(), item.isActive(), ResourceResponses.revision(item), item.getIcon());
+                item.getColor(), item.isActive(), ResourceResponses.revision(item), item.getIcon(), item.getVisual3d());
     }
 }

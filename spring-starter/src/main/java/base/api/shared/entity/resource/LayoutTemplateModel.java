@@ -33,4 +33,8 @@ public class LayoutTemplateModel extends BaseModel {
     private FloorDecorations.Icon icon;
     @Column(nullable = false)
     private boolean active = true;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "visual_3d_json")
+    private base.api.feature.resource.dto.Visual3d visual3d;
 }

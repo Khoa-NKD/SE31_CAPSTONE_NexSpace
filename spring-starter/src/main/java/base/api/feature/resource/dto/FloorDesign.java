@@ -43,13 +43,21 @@ public final class FloorDesign {
             @NotNull @DecimalMin("0.01") @DecimalMax("1000") @Digits(integer = 4, fraction = 2) BigDecimal widthM,
             @NotNull @DecimalMin("0.01") @DecimalMax("1000") @Digits(integer = 4, fraction = 2) BigDecimal lengthM,
             @NotBlank @Pattern(regexp = "#[0-9a-fA-F]{6}") String color,
-            @Size(max = 100) String expectedRevision, FloorDecorations.Icon icon) {
+            @Size(max = 100) String expectedRevision, FloorDecorations.Icon icon, @jakarta.validation.Valid Visual3d visual3d) {
+        public TemplateInput(String name, FloorDecorations.Kind kind, BigDecimal widthM, BigDecimal lengthM, String color, String expectedRevision, FloorDecorations.Icon icon) {
+            this(name, kind, widthM, lengthM, color, expectedRevision, icon, null);
+        }
+
         public TemplateInput(String name, FloorDecorations.Kind kind, BigDecimal widthM, BigDecimal lengthM, String color, String expectedRevision) {
             this(name, kind, widthM, lengthM, color, expectedRevision, null);
         }
     }
     public record Template(Long id, String name, FloorDecorations.Kind kind, BigDecimal widthM,
-            BigDecimal lengthM, String color, boolean active, String revision, FloorDecorations.Icon icon) {}
+            BigDecimal lengthM, String color, boolean active, String revision, FloorDecorations.Icon icon, @jakarta.validation.Valid Visual3d visual3d) {
+        public Template(Long id, String name, FloorDecorations.Kind kind, BigDecimal widthM, BigDecimal lengthM, String color, boolean active, String revision, FloorDecorations.Icon icon) {
+            this(id, name, kind, widthM, lengthM, color, active, revision, icon, null);
+        }
+}
     public enum Scope { WORKSPACE, ROOM, OBJECT }
     /** Images are request-scoped input and are never retained with cached proposals. */
     public record ImageInput(@NotBlank @Pattern(regexp = "image/(jpeg|png)") String mimeType,
@@ -107,7 +115,11 @@ public final class FloorDesign {
             @DecimalMin("0.01") @Digits(integer = 16, fraction = 2) BigDecimal pricePerMonth,
             @NotNull ResourceUsageKind usageKind,
             @NotNull @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardWidthM,
-            @NotNull @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardLengthM) {
+            @NotNull @DecimalMin("0.01") @DecimalMax("10000") @Digits(integer = 5, fraction = 2) BigDecimal standardLengthM, @jakarta.validation.Valid Visual3d visual3d) {
+        public NewType(Long tempId, String name, ResourceCategory category, ResourceCurrency currency, int capacity, BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth, ResourceUsageKind usageKind, BigDecimal standardWidthM, BigDecimal standardLengthM) {
+            this(tempId, name, category, currency, capacity, pricePerHour, pricePerDay, pricePerMonth, usageKind, standardWidthM, standardLengthM, null);
+        }
+
         public NewType(Long tempId, String name, ResourceCategory category, ResourceCurrency currency, int capacity,
                 BigDecimal pricePerHour, BigDecimal pricePerDay, BigDecimal pricePerMonth) {
             this(tempId, name, category, currency, capacity, pricePerHour, pricePerDay, pricePerMonth, null, null, null);

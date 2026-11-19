@@ -13,6 +13,7 @@ import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
 import base.api.feature.payment.dto.response.PaymentTransactionResponseDTO;
 import base.api.feature.payment.mapper.PaymentTransactionMapper;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.repository.IRefundRequestRepository;
 import base.api.feature.payment.service.IPaymentService;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
@@ -21,6 +22,7 @@ import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.governance.PlatformSettingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
+import base.api.shared.entity.payment.RefundRequestModel;
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.workspace.WorkspaceModel;
 import base.api.shared.enums.BookingSource;
@@ -28,6 +30,7 @@ import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.PaymentStatus;
 import base.api.shared.enums.PriceType;
 import base.api.shared.enums.ReconciliationStatus;
+import base.api.shared.enums.RefundStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
@@ -64,6 +67,7 @@ public class PaymentServiceImpl implements IPaymentService {
     private final IOrganizerProfileRepository organizerProfiles;
     private final IBookableResourceRepository bookableResourceRepository;
     private final IPlatformSettingRepository platformSettingRepository;
+    private final IRefundRequestRepository refundRequestRepository;
     private final PayOS payOS;
     private final INotificationService notificationService;
 
@@ -398,7 +402,15 @@ public class PaymentServiceImpl implements IPaymentService {
                 : org.springframework.data.domain.PageRequest.of(0, 10, Sort.by(Sort.Direction.DESC, "createdAt"));
 
         Page<BookingModel> bookings = bookingRepository.findCustomerBookingsWithDetails(customerId, status, pageable);
-        return bookings.map(this::mapToCustomerBookingItem);
+        List<Long> bookingIds = bookings.getContent().stream().map(BookingModel::getId).toList();
+        Map<Long, RefundRequestModel> refundMap = bookingIds.isEmpty() ? Map.of() :
+                refundRequestRepository.findByBookingIdIn(bookingIds).stream()
+                        .collect(java.util.stream.Collectors.toMap(
+                                r -> r.getBooking().getId(),
+                                r -> r,
+                                (existing, replacement) -> (replacement.getCreatedAt() != null && existing.getCreatedAt() != null && replacement.getCreatedAt().isAfter(existing.getCreatedAt())) ? replacement : existing
+                        ));
+        return bookings.map(b -> mapToCustomerBookingItem(b, refundMap.get(b.getId())));
     }
 
     @Override
@@ -411,10 +423,11 @@ public class PaymentServiceImpl implements IPaymentService {
             throw new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId);
         }
 
-        return mapToCustomerBookingItem(booking);
+        RefundRequestModel refund = refundRequestRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId).orElse(null);
+        return mapToCustomerBookingItem(booking, refund);
     }
 
-    private CustomerBookingItemResponseDTO mapToCustomerBookingItem(BookingModel booking) {
+    private CustomerBookingItemResponseDTO mapToCustomerBookingItem(BookingModel booking, RefundRequestModel refund) {
         String pinCode = null;
         if (booking.getStatus() == BookingStatus.CONFIRMED && StringUtils.hasText(booking.getBookingCode())) {
             int hash = Math.abs(booking.getBookingCode().hashCode());
@@ -436,6 +449,15 @@ public class PaymentServiceImpl implements IPaymentService {
                 ? booking.getResource().getFloorPlan().getId()
                 : null;
 
+        RefundStatus refundStatus = refund != null ? refund.getStatus() : null;
+        BigDecimal refundAmount = refund != null
+                ? (refund.getApprovedAmount() != null ? refund.getApprovedAmount() : refund.getRequestedAmount())
+                : null;
+        String refundRef = refund != null ? refund.getRefundReference() : null;
+        String refundBankName = refund != null ? refund.getBankName() : null;
+        String refundAcc = refund != null ? refund.getBankAccountNumber() : null;
+        LocalDateTime refundProcessedAt = refund != null ? refund.getProcessedAt() : null;
+
         return CustomerBookingItemResponseDTO.builder()
                 .bookingId(booking.getId())
                 .bookingCode(booking.getBookingCode())
@@ -453,6 +475,12 @@ public class PaymentServiceImpl implements IPaymentService {
                 .qrTokenHash(booking.getQrTokenHash())
                 .pinCode(pinCode)
                 .createdAt(booking.getCreatedAt())
+                .refundStatus(refundStatus)
+                .refundAmount(refundAmount)
+                .refundReference(refundRef)
+                .refundBankName(refundBankName)
+                .refundAccountNumber(refundAcc)
+                .refundProcessedAt(refundProcessedAt)
                 .build();
     }
 

@@ -198,7 +198,7 @@ public class FloorAiService {
                             throw new BadRequestException("Enter at least one base price for every new resource type");
                         var request = new ResourceRequests.Type(type.name(), type.category(), type.currency(),
                                 type.capacity(), type.pricePerHour(), type.pricePerDay(), type.pricePerMonth(),
-                                null, false, type.usageKind(), type.standardWidthM(), type.standardLengthM());
+                                null, false, type.usageKind(), type.standardWidthM(), type.standardLengthM(), type.visual3d());
                         var created = resources.createType(actor, workspace, request, photoOrder.get(type.tempId()), photos);
                         typeIds.put(type.tempId(), created.id());
                     }
