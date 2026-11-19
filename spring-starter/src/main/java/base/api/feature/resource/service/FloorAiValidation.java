@@ -107,7 +107,8 @@ public final class FloorAiValidation {
                         && !changes.contains("r_" + child.id())) fail("Moving a room must include its child desks in the preview; use room scope");
             }
         }
-        var bounds = new ResourceCanvas.Bounds(layout.width(), layout.height());
+        var bounds = new ResourceCanvas.Bounds(layout.width(), layout.height(), layout.floor().location() == null
+                ? BigDecimal.ZERO : MetricGeometry.pixels(layout.floor().location().cornerRadiusM()));
         for (var item : shapes) {
             ResourceCanvas.fits(item, bounds, true);
             if (item.getParentRoom() != null) ResourceCanvas.fitsInsideRoom(item, item.getParentRoom());
@@ -183,7 +184,7 @@ public final class FloorAiValidation {
                 && type.standardLengthM() != null && type.standardLengthM().signum() > 0;
     }
 
-    /** Gemini selects a type and position. The workspace catalog owns its configuration. */
+    /** Normalize catalog references and offer a configurable type for incompatible new resources. */
     static FloorDesign.Design normalizeProposal(FloorDesign.Design proposal, ResourceResponses.Options options,
             FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
         if (proposal.question() != null && !proposal.question().isBlank()) return proposal;
@@ -199,16 +200,28 @@ public final class FloorAiValidation {
                 continue;
             }
             var type = configured.get(change.resourceTypeId());
-            if (type != null && (change.usageKind() == null || change.usageKind() == type.usageKind())) {
+            if (type != null && (change.usageKind() == null || change.usageKind() == type.usageKind())
+                    && (type.category() == ResourceCategory.DESK || change.capacity() == null
+                        || change.capacity() == type.capacity())) {
                 changes.add(withType(change, type.id(), type.usageKind(), type.capacity(), type.standardWidthM(),
                         type.standardLengthM(), metrics, layout));
                 continue;
             }
             var proposed = proposedTypes.stream()
                     .filter(candidate -> candidate.tempId().equals(change.resourceTypeId())).findFirst().orElse(null);
-            if (proposed == null && change.usageKind() != null && options.types().stream()
-                    .noneMatch(candidate -> candidate.category() == change.usageKind().category())) {
-                proposed = inferMissingCategoryType(change, proposedTypes, options, metrics, layout);
+            if (proposed == null && change.usageKind() != null) {
+                var reusable = configured.values().stream()
+                        .filter(candidate -> matchesRequestedType(change, candidate, metrics, layout))
+                        .min(Comparator.comparing(ResourceResponses.TypeOption::id)).orElse(null);
+                if (reusable != null) {
+                    changes.add(withType(change, reusable.id(), reusable.usageKind(), reusable.capacity(),
+                            reusable.standardWidthM(), reusable.standardLengthM(), metrics, layout));
+                    continue;
+                }
+                if (type != null || options.types().stream()
+                        .noneMatch(candidate -> candidate.category() == change.usageKind().category())) {
+                    proposed = inferType(change, proposedTypes, options, metrics, layout);
+                }
             }
             changes.add(proposed == null ? change
                     : withType(change, proposed.tempId(), proposed.usageKind(), proposed.capacity(),
@@ -218,7 +231,18 @@ public final class FloorAiValidation {
                 proposal.decorations(), proposal.templates(), proposedTypes);
     }
 
-    private static FloorDesign.NewType inferMissingCategoryType(FloorDesign.ResourceChange change,
+    private static boolean matchesRequestedType(FloorDesign.ResourceChange change, ResourceResponses.TypeOption type,
+            FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
+        return type.usageKind() == change.usageKind()
+                && (type.category() == ResourceCategory.DESK || change.capacity() == null
+                    || change.capacity() == type.capacity())
+                && ResourceCanvas.matchesStandardDimension(change.width(), metrics.widthM(), layout.width(),
+                        type.standardWidthM())
+                && ResourceCanvas.matchesStandardDimension(change.height(), metrics.lengthM(), layout.height(),
+                        type.standardLengthM());
+    }
+
+    private static FloorDesign.NewType inferType(FloorDesign.ResourceChange change,
             List<FloorDesign.NewType> types, ResourceResponses.Options options,
             FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
         var usage = change.usageKind();
@@ -229,8 +253,7 @@ public final class FloorAiValidation {
                 || width.compareTo(BigDecimal.valueOf(10000)) > 0 || length.compareTo(BigDecimal.valueOf(10000)) > 0)
             return null;
         var category = usage.category();
-        if (category == ResourceCategory.ROOM && change.capacity() == null) return null;
-        int capacity = category == ResourceCategory.DESK ? 1 : change.capacity();
+        int capacity = category == ResourceCategory.DESK || change.capacity() == null ? 1 : change.capacity();
         var currencies = options.types().stream().filter(ResourceResponses.TypeOption::active)
                 .map(ResourceResponses.TypeOption::currency).filter(Objects::nonNull).distinct().toList();
         var currency = currencies.size() == 1 ? currencies.get(0) : ResourceCurrency.VND;

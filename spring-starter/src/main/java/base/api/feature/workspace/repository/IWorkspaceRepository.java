@@ -16,6 +16,10 @@ import java.util.List;
 
 @Repository
 public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long> {
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("select w from WorkspaceModel w where w.id=:workspaceId and w.organizer.id=:organizerId")
+    java.util.Optional<WorkspaceModel> lockOwnedPolicy(@org.springframework.data.repository.query.Param("workspaceId") Long workspaceId,
+            @org.springframework.data.repository.query.Param("organizerId") Long organizerId);
     List<WorkspaceModel> findByOrganizerIdOrderByIdDesc(Long organizerId);
 
     @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
@@ -735,5 +739,7 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             @Param("status") WorkspaceStatus status,
             @Param("query") String query,
             Pageable pageable);
+
+    List<WorkspaceModel> findByStatus(WorkspaceStatus status);
 }
 

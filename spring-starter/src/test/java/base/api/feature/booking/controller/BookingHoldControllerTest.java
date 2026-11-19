@@ -130,4 +130,28 @@ class BookingHoldControllerTest {
                 .andExpect(jsonPath("$.data.bookingId").value(999))
                 .andExpect(jsonPath("$.data.resourceId").value(101));
     }
+
+    @Test
+    @DisplayName("POST /api/bookings/{id}/release-hold -> 200 OK và giải phóng phiên giữ chỗ")
+    void releaseHold_ShouldReturn200() throws Exception {
+        when(currentUserProvider.getCurrentUserId()).thenReturn(CUSTOMER_ID);
+
+        HoldResourceResponseDto responseDto = HoldResourceResponseDto.builder()
+                .bookingId(999L)
+                .bookingCode("BK-20261125-HOLD01")
+                .resourceId(101L)
+                .resourceName("Desk A-01")
+                .workspaceId(1L)
+                .workspaceName("NexSpace Da Nang")
+                .isReused(false)
+                .build();
+
+        when(resourceHoldService.releaseHold(eq(CUSTOMER_ID), eq(999L))).thenReturn(responseDto);
+
+        mockMvc.perform(post("/api/bookings/999/release-hold"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Giải phóng phiên giữ chỗ thành công"))
+                .andExpect(jsonPath("$.data.bookingId").value(999));
+    }
 }

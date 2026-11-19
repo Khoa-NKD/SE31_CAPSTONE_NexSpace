@@ -18,8 +18,8 @@ class FloorDesignImageTest {
     }
     @Test void normalizesRasterAndDoesNotRetainImageInDraftRequest() throws Exception {
         var image = FloorDesignImage.normalize(png());
-        assertThat(image.mimeType()).isEqualTo("image/jpeg");
-        assertThat(Base64.getDecoder().decode(image.base64())).startsWith((byte)255, (byte)216, (byte)255);
+        assertThat(image.mimeType()).isEqualTo("image/png");
+        assertThat(Base64.getDecoder().decode(image.base64())).startsWith((byte)137, (byte)80, (byte)78, (byte)71);
         var request = new FloorDesign.Propose("Arrange", "revision", FloorDesign.Scope.WORKSPACE,null,"vi",null,null,image);
         assertThat(request.withoutImage().image()).isNull();
         assertThat(request.withoutImage().prompt()).isEqualTo("Arrange");

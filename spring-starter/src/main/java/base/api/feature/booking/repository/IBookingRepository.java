@@ -11,6 +11,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
@@ -18,6 +19,14 @@ import java.util.Optional;
 
 @Repository
 public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
+    /** Cash received in VND, including receipts on subsequently cancelled bookings. */
+    @Query("""
+            SELECT COALESCE(SUM(p.receivedAmount), 0) FROM PaymentTransactionModel p
+            WHERE p.status = base.api.shared.enums.PaymentStatus.SUCCESS
+              AND p.paidAt IS NOT NULL AND p.receivedAmount >= 0
+              AND p.booking.workspace.organizer.id = :organizerId
+            """)
+    java.math.BigDecimal sumReceivedPayments(@Param("organizerId") Long organizerId);
     long countByWorkspaceOrganizerIdAndStatusInAndEndTimeAfter(
             Long organizerId, Collection<BookingStatus> statuses, LocalDateTime now);
 
@@ -354,4 +363,70 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("endTime") LocalDateTime endTime,
             @Param("now") LocalDateTime now
     );
+
+    long countByCreatedAtAfter(LocalDateTime since);
+
+    long countByStatusInAndCreatedAtAfter(Collection<BookingStatus> statuses, LocalDateTime since);
+
+    List<BookingModel> findByCreatedAtAfterOrderByCreatedAtAsc(LocalDateTime since);
+
+    @Query("""
+            SELECT b.workspace.id, COUNT(b.id), COALESCE(SUM(b.finalPrice), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses
+            GROUP BY b.workspace.id
+            ORDER BY SUM(b.finalPrice) DESC
+            """)
+    List<Object[]> findTopWorkspacesByRevenue(@Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("""
+            SELECT COALESCE(SUM(b.platformFeeAmount), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses AND b.createdAt >= :since
+            """)
+    BigDecimal sumPlatformFeeByStatusInAndCreatedAtAfter(
+            @Param("statuses") Collection<BookingStatus> statuses,
+            @Param("since") LocalDateTime since);
+
+    @Query("""
+            SELECT COALESCE(SUM(b.finalPrice), 0)
+            FROM BookingModel b
+            WHERE b.status IN :statuses AND b.createdAt >= :since
+            """)
+    BigDecimal sumFinalPriceByStatusInAndCreatedAtAfter(
+            @Param("statuses") Collection<BookingStatus> statuses,
+            @Param("since") LocalDateTime since);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
+            FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.resource.id = :resourceId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
+              AND b.updatedAt >= :since
+            """)
+    boolean existsRecentReleasedOrExpiredHold(
+            @Param("customerId") Long customerId,
+            @Param("resourceId") Long resourceId,
+            @Param("since") LocalDateTime since
+    );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
+              AND b.updatedAt >= :since
+            ORDER BY b.updatedAt DESC
+            """)
+    List<BookingModel> findRecentUnpaidHolds(
+            @Param("customerId") Long customerId,
+            @Param("since") LocalDateTime since
+    );
+
+    @Query("""
+            SELECT MAX(b.createdAt) FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CONFIRMED, base.api.shared.enums.BookingStatus.CHECKED_IN, base.api.shared.enums.BookingStatus.COMPLETED)
+            """)
+    Optional<LocalDateTime> findLatestSuccessfulBookingCreatedAt(@Param("customerId") Long customerId);
 }

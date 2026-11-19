@@ -5,5 +5,6 @@ public enum BookingSource {
     RECOMMENDATION,
     FAVORITE,
     DIRECT,
-    MANUAL
+    MANUAL,
+    WEB
 }

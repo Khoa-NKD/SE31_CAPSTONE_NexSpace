@@ -133,7 +133,9 @@ public final class MetricFloorGeometry {
                     && a.y().compareTo(b.y().add(b.length())) < 0 && a.y().add(a.length()).compareTo(b.y()) > 0)
                 issues.add(a.floor().getName() + " / " + b.floor().getName() + ": workspace areas overlap");
         }
-        for (var area : areas) validatePreviewScene(area, issues);
+        if (physical.getCornerRadiusM().multiply(BigDecimal.valueOf(2)).compareTo(widthM.min(lengthM)) > 0)
+            issues.add("The corner radius exceeds half the shorter floor dimension. Review the floor shape first");
+        for (var area : areas) validatePreviewScene(area, physical, issues);
         return new Plan(new Review(convert, issues.isEmpty(), allocations.size(), resources.size(), List.copyOf(issues),
                 "m", MetricGeometry.PIXELS_PER_METRE, areas.stream().map(area -> preview(area, physical, widthM, lengthM)).toList(), mode, widthM, lengthM), areas);
     }
@@ -257,8 +259,9 @@ public final class MetricFloorGeometry {
                 + Math.sin(angle) * localX + Math.cos(angle) * localY).setScale(6, RoundingMode.HALF_UP));
     }
 
-    private static void validatePreviewScene(Area area, List<String> issues) {
+    private static void validatePreviewScene(Area area, BuildingFloorModel sourcePhysical, List<String> issues) {
         var physical = new BuildingFloorModel(); physical.setGeometryVersion(2);
+        physical.setOutline(sourcePhysical.getOutline()); physical.setCornerRadiusM(sourcePhysical.getCornerRadiusM());
         var floor = new FloorPlanModel(); floor.setBuildingFloor(physical);
         floor.setUsageWidth(MetricGeometry.pixels(area.width())); floor.setUsageHeight(MetricGeometry.pixels(area.length()));
         floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor,

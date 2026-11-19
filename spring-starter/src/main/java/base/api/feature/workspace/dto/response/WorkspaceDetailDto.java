@@ -11,7 +11,7 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class WorkspaceDetailDto {
     Long id;
     String name;
@@ -45,6 +45,7 @@ public class WorkspaceDetailDto {
     Long bookingCount;
     Long totalBookings;
     List<WorkspaceOperatingHourDto> operatingHours;
+    List<CancellationRuleDto> cancellationRules;
     LocalDateTime createdAt;
     LocalDateTime updatedAt;
 }

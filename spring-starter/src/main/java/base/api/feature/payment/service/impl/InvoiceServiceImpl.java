@@ -4,6 +4,7 @@ import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.payment.dto.response.InvoiceResponseDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
+import base.api.shared.config.EmailService;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.enums.BookingStatus;
@@ -43,6 +44,7 @@ public class InvoiceServiceImpl implements IInvoiceService {
 
     private final IBookingRepository bookingRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final EmailService emailService;
 
     @Value("${cloudinary.cloud-name:}")
     private String cloudName;
@@ -306,5 +308,109 @@ public class InvoiceServiceImpl implements IInvoiceService {
 
     private boolean isCloudinaryConfigured() {
         return StringUtils.hasText(cloudName) && StringUtils.hasText(apiKey) && StringUtils.hasText(apiSecret);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public void sendInvoiceEmail(Long bookingId) {
+        try {
+            BookingModel booking = bookingRepository.findById(bookingId).orElse(null);
+            if (booking == null) {
+                log.warn("Không tìm thấy đơn đặt chỗ id={} để gửi hóa đơn email", bookingId);
+                return;
+            }
+            if (booking.getCustomer() == null || !StringUtils.hasText(booking.getCustomer().getEmail())) {
+                log.warn("Đơn đặt chỗ id={} không có email khách hàng để gửi hóa đơn", bookingId);
+                return;
+            }
+
+            String customerEmail = booking.getCustomer().getEmail();
+            String customerName = StringUtils.hasText(booking.getCustomer().getFirstName())
+                    ? (booking.getCustomer().getFirstName() + " " + (booking.getCustomer().getLastName() != null ? booking.getCustomer().getLastName() : "")).trim()
+                    : booking.getCustomer().getUserName();
+
+            PaymentTransactionModel tx = paymentTransactionRepository.findTopByBookingIdOrderByCreatedAtDesc(bookingId).orElse(null);
+            byte[] pdfBytes = createPdfDocument(booking, tx);
+
+            String workspaceName = booking.getWorkspace() != null ? booking.getWorkspace().getName() : "NexSpace";
+            String spaceName = booking.getResource() != null ? booking.getResource().getName() : "Không gian làm việc";
+            String bookingCode = booking.getBookingCode();
+            String amountStr = formatCurrency(booking.getFinalPrice()) + " VNĐ";
+
+            String startTimeStr = booking.getStartTime() != null ? booking.getStartTime().format(DATE_FORMATTER) : "";
+            String endTimeStr = booking.getEndTime() != null ? booking.getEndTime().format(DATE_FORMATTER) : "";
+
+            String htmlBody = String.format("""
+                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
+                    <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;">
+                        <h2 style="color: #4f46e5; margin: 0 0 6px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">NexSpace</h2>
+                        <span style="display: inline-block; padding: 4px 12px; background-color: #ecfdf5; color: #059669; border-radius: 9999px; font-size: 12px; font-weight: 700;">Thanh Toán Thành Công</span>
+                        <p style="color: #64748b; font-size: 13px; margin: 10px 0 0 0;">Hóa đơn điện tử & Xác nhận đặt chỗ dịch vụ</p>
+                    </div>
+
+                    <div style="background-color: #f8fafc; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
+                        <p style="margin: 0 0 8px 0; font-size: 14px; color: #334155;">Kính gửi <strong>%s</strong>,</p>
+                        <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.6;">
+                            Hệ thống đã nhận thanh toán thành công qua PayOS cho đơn đặt chỗ <strong>#%s</strong> tại NexSpace. Chi tiết đơn đặt chỗ và biên lai giao dịch được cập nhật như sau:
+                        </p>
+                    </div>
+
+                    <div style="border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px;">
+                        <table style="width: 100%%; border-collapse: collapse; font-size: 13px;">
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Mã đơn:</td>
+                                <td style="padding: 10px 0; font-weight: 700; color: #0f172a; text-align: right; font-family: monospace;">#%s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Không gian:</td>
+                                <td style="padding: 10px 0; font-weight: 600; color: #0f172a; text-align: right;">%s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Vị trí / Chỗ ngồi:</td>
+                                <td style="padding: 10px 0; font-weight: 600; color: #4f46e5; text-align: right;">%s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Khung giờ:</td>
+                                <td style="padding: 10px 0; color: #0f172a; text-align: right;">%s – %s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Tổng tiền đã trả:</td>
+                                <td style="padding: 10px 0; font-size: 16px; font-weight: 800; color: #059669; text-align: right;">%s</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 10px 0; color: #64748b;">Cổng thanh toán:</td>
+                                <td style="padding: 10px 0; color: #0f172a; text-align: right;">VietQR Live (PayOS)</td>
+                            </tr>
+                        </table>
+                    </div>
+
+                    <div style="background-color: #f0fdf4; border: 1px dashed #86efac; border-radius: 10px; padding: 14px; margin-bottom: 24px; text-align: center;">
+                        <span style="color: #166534; font-size: 13px; font-weight: 600;">📎 File hóa đơn PDF chính thức đã được đính kèm cùng email này.</span>
+                    </div>
+
+                    <div style="font-size: 11px; color: #94a3b8; text-align: center; border-top: 1px solid #f1f5f9; padding-top: 20px; line-height: 1.5;">
+                        Cần hỗ trợ? Quý khách vui lòng gửi email về <strong>nexspace305@gmail.com</strong>.<br/>
+                        © 2026 NexSpace Technologies Inc. All rights reserved.
+                    </div>
+                </div>
+            """,
+                    customerName,
+                    bookingCode,
+                    bookingCode,
+                    workspaceName,
+                    spaceName,
+                    startTimeStr,
+                    endTimeStr,
+                    amountStr
+            );
+
+            String subject = "[NexSpace] Hóa đơn điện tử & Xác nhận thanh toán #" + bookingCode;
+            String pdfFilename = "Hoa_Don_NexSpace_" + bookingCode + ".pdf";
+
+            emailService.sendHtmlEmailWithAttachment(customerEmail, subject, htmlBody, pdfFilename, pdfBytes, "application/pdf");
+            log.info("Đã kích hoạt gửi hóa đơn PDF qua email cho bookingId={} tới {}", bookingId, customerEmail);
+        } catch (Exception e) {
+            log.error("Lỗi khi gửi email hóa đơn cho bookingId={}: {}", bookingId, e.getMessage(), e);
+        }
     }
 }

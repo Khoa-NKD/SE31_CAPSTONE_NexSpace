@@ -22,6 +22,7 @@ import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.math.BigDecimal;
 import java.time.Clock;
@@ -43,6 +44,7 @@ public class OrganizerResourceService {
     private final BuildingService buildings;
     private final EntityManager em;
     private final Clock organizerApplicationClock;
+    private final ResourceTypePhotos typePhotos;
 
     public List<WorkspaceOption> workspaces(Long actorId) {
         eligible(actorId);
@@ -75,7 +77,7 @@ public class OrganizerResourceService {
                                                 t.getPricePerMonth(),
                                                 t.isActive(),
                                                 t.getCurrency(),
-                                                ResourceResponses.revision(t), t.getUsageKind(), t.getStandardWidthM(), t.getStandardLengthM()))
+                                                ResourceResponses.revision(t), t.getUsageKind(), t.getStandardWidthM(), t.getStandardLengthM(), photoUrls(t)))
                         .toList(),
                 resources
                         .findByFloorPlanWorkspaceIdAndResourceTypeCategoryAndStatusNot(
@@ -212,7 +214,7 @@ public class OrganizerResourceService {
         if (!floorLayout(actorId, workspaceId, floorId).editableLayout())
             throw new ConflictException(
                     "This floor uses another layout format; it cannot be overwritten here");
-        var bounds = new ResourceCanvas.Bounds(request.width(), request.height());
+        var bounds = ResourceCanvas.withOutline(floor, new ResourceCanvas.Bounds(request.width(), request.height()));
         ResourceCanvas.validateDecorations(request.decorations(), bounds);
         var placedResources = resources.findByFloorPlanId(floorId);
         ResourceCanvas.validateDecorationResources(request.decorations(), placedResources);
@@ -262,7 +264,7 @@ public class OrganizerResourceService {
             throw new ConflictException(
                     "The floor resource set changed. Reload and review positions before"
                             + " publishing");
-        var bounds = new ResourceCanvas.Bounds(request.width(), request.height());
+        var bounds = ResourceCanvas.withOutline(floor, new ResourceCanvas.Bounds(request.width(), request.height()));
         for (var resource : current) {
             ResourceCanvas.fits(resource, bounds, true);
             if (resource.getParentRoom() != null)
@@ -328,7 +330,7 @@ public class OrganizerResourceService {
         for (var item : request.items())
             if (item.parentClientId() != null && !byClient.containsKey(item.parentClientId()))
                 throw new BadRequestException("Temporary parent room not found");
-        // A canvas draft edits the final scene, so swaps must not be rejected against intermediate positions.
+        // Evaluate placement and room membership together against the final scene.
         if (request.items().stream().allMatch(item -> item.id() != null && item.parentClientId() == null
                 && geometryOnly(resources.findById(item.id()).orElseThrow(), item.input()))) {
             var changes = request.items().stream().map(item -> {
@@ -394,8 +396,7 @@ public class OrganizerResourceService {
                 && Objects.equals(resource.getNoiseLevel(), input.noiseLevel())
                 && Objects.equals(resource.getCapacityOverride(), input.capacityOverride())
                 && (resource.getPricePerHour() == null ? input.pricePerHour() == null : input.pricePerHour() != null && resource.getPricePerHour().compareTo(input.pricePerHour()) == 0)
-                && Objects.toString(resource.getDescription(), "").equals(Objects.toString(input.description(), ""))
-                && Objects.equals(resource.getParentRoom() == null ? null : resource.getParentRoom().getId(), input.parentRoomId());
+                && Objects.toString(resource.getDescription(), "").equals(Objects.toString(input.description(), ""));
     }
     @Transactional
     public Detail update(Long actorId, Long id, Input request) {
@@ -505,7 +506,7 @@ public class OrganizerResourceService {
         resources.flush();
         removed.sort(Comparator.comparing(r -> r.getResourceType().getCategory() == ResourceCategory.ROOM ? 1 : 0));
         removed.forEach(resources::delete); resources.flush();
-        for (var item : finalState) if (item.getStatus() == BookableResourceStatus.ACTIVE) activation(item);
+        for (var item : finalState) validatePublishedActivation(item);
         var now = LocalDateTime.ofInstant(organizerApplicationClock.instant(),ZoneOffset.UTC);
         for (var room : changedRooms) if (!removed.contains(room)) room.setUpdatedAt(room.getUpdatedAt() != null && !now.isAfter(room.getUpdatedAt()) ? room.getUpdatedAt().plusSeconds(1) : now);
         floor.setUpdatedAt(floor.getUpdatedAt() != null && !now.isAfter(floor.getUpdatedAt()) ? floor.getUpdatedAt().plusSeconds(1) : now);
@@ -547,13 +548,57 @@ public class OrganizerResourceService {
             throw new ConflictException(
                     "This room still contains desks. Move or delete the desks before deleting the"
                             + " room");
-        if (usage.hasAnyBooking(id) || usage.hasOtherDependencies(id))
-            throw new ConflictException(
-                    "This resource has booking history or linked data. Disable it instead of"
-                            + " deleting it");
+        requireDeletable(resource);
         touchRoom(resource.getParentRoom());
         resources.delete(resource);
         resources.flush();
+    }
+
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public List<Long> deleteRoomWithSeats(Long actorId, Long id, String expectedRevision) {
+        eligible(actorId);
+        var room = lockOwned(actorId, id);
+        revision(room, expectedRevision);
+        if (room.getResourceType().getCategory() != ResourceCategory.ROOM)
+            throw new BadRequestException("Select a room to delete with its seats");
+        var seats = children(room).stream()
+                .sorted(Comparator.comparing(BookableResourceModel::getId)).toList();
+        requireDeletable(room);
+        for (var seat : seats) {
+            em.refresh(seat, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            if (seat.getResourceType().getCategory() != ResourceCategory.DESK
+                    || !seat.getFloorPlan().getId().equals(room.getFloorPlan().getId()))
+                throw new ConflictException("The room has an invalid seat link");
+            requireDeletable(seat);
+        }
+        var deletedIds = new ArrayList<>(seats.stream().map(BookableResourceModel::getId).toList());
+        deletedIds.add(room.getId());
+        var floor = room.getFloorPlan();
+        if (floor.getDraftLayoutJson() != null && !floor.getDraftLayoutJson().isBlank()
+                && !ResourceCanvas.ownsDraft(floor))
+            throw new ConflictException("This floor uses another draft layout format");
+        var decorations = ResourceCanvas.decorations(floor, true);
+        var kept = decorations.stream()
+                .filter(item -> !ResourceCanvas.contained(ResourceCanvas.shape(item), room))
+                .toList();
+        if (kept.size() != decorations.size()) {
+            var bounds = ResourceCanvas.editorBounds(floor);
+            if (bounds == null) throw new ConflictException("The floor needs canvas dimensions first");
+            floor.setDraftLayoutJson(ResourceCanvas.writeDecorations(floor, bounds, kept));
+        }
+        // Flush the dependent rows first; both deletes still commit or roll back together.
+        resources.deleteAll(seats);
+        resources.flush();
+        resources.delete(room);
+        resources.flush();
+        return deletedIds;
+    }
+
+    private void requireDeletable(BookableResourceModel resource) {
+        if (usage.hasAnyBooking(resource.getId()) || usage.hasOtherDependencies(resource.getId()))
+            throw new ConflictException(
+                    "This resource has booking history or linked data. Disable it instead of"
+                            + " deleting it");
     }
 
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -792,6 +837,12 @@ public class OrganizerResourceService {
 
     @Transactional
     public TypeOption createType(Long actorId, Long workspaceId, Type request) {
+        return createType(actorId, workspaceId, request, null, List.of());
+    }
+
+    @Transactional
+    public TypeOption createType(Long actorId, Long workspaceId, Type request, List<String> photoOrder,
+                                 List<MultipartFile> files) {
         eligible(actorId);
         var workspace = owned(actorId, workspaceId, true);
         if (request.usageKind() == null || request.standardWidthM() == null || request.standardLengthM() == null)
@@ -817,6 +868,7 @@ public class OrganizerResourceService {
         type.setPricePerHour(request.pricePerHour());
         type.setPricePerDay(request.pricePerDay());
         type.setPricePerMonth(request.pricePerMonth());
+        type.setPhotos(typePhotos.save(actorId, workspaceId, null, photoOrder, files));
         types.saveAndFlush(type);
         em.refresh(type);
         return new TypeOption(
@@ -829,7 +881,7 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM());
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type));
     }
 
     @Transactional
@@ -880,10 +932,17 @@ public class OrganizerResourceService {
             throw new ConflictException("This resource type is linked to pricing or discount rules");
         types.delete(type);
         types.flush();
+        typePhotos.remove(actorId, type.getPhotos());
     }
 
     @Transactional
     public TypeOption updateType(Long actorId, Long workspaceId, Long typeId, Type request) {
+        return updateType(actorId, workspaceId, typeId, request, null, List.of());
+    }
+
+    @Transactional
+    public TypeOption updateType(Long actorId, Long workspaceId, Long typeId, Type request,
+                                 List<String> photoOrder, List<MultipartFile> files) {
         eligible(actorId);
         owned(actorId, workspaceId, true);
         var type =
@@ -950,6 +1009,8 @@ public class OrganizerResourceService {
         type.setPricePerHour(request.pricePerHour());
         type.setPricePerDay(request.pricePerDay());
         type.setPricePerMonth(request.pricePerMonth());
+        if (photoOrder != null)
+            type.setPhotos(typePhotos.save(actorId, workspaceId, type.getPhotos(), photoOrder, files));
         types.saveAndFlush(type);
         em.refresh(type);
         return new TypeOption(
@@ -962,7 +1023,11 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM());
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type));
+    }
+
+    private static List<String> photoUrls(ResourceTypeModel type) {
+        return type.getPhotos() == null ? List.of() : type.getPhotos().stream().map(ResourceTypeModel.Photo::url).toList();
     }
 
     private static boolean sameDimension(BigDecimal a, BigDecimal b) {
@@ -1207,7 +1272,13 @@ public class OrganizerResourceService {
                 else floor.setLayoutJson(json);
             }
         }
-        if (resource.getStatus() == BookableResourceStatus.ACTIVE) activation(resource);
+        validatePublishedActivation(resource);
+    }
+
+    /** Draft placement is validated on save; booking requires the current placement to be published. */
+    private void validatePublishedActivation(BookableResourceModel resource) {
+        if (resource.getStatus() == BookableResourceStatus.ACTIVE
+                && PublishedGeometry.isCurrentPublishedPlacement(resource)) activation(resource);
     }
 
     private boolean different(BigDecimal a, BigDecimal b) {

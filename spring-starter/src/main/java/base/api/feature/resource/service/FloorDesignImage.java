@@ -32,18 +32,34 @@ public final class FloorDesignImage {
                     int width = reader.getWidth(0), height = reader.getHeight(0);
                     if (width < 1 || height < 1 || width > 10000 || height > 10000 || (long)width * height > 20000000) throw invalid();
                     var params = reader.getDefaultReadParam();
-                    int sample = Math.max(1, (int)Math.ceil(Math.max(width, height) / 2000.0));
+                    int sample = Math.max(1, Math.max(width, height) / 3072);
                     params.setSourceSubsampling(sample, sample, 0, 0);
                     var decoded = reader.read(0, params);
-                    var clean = new BufferedImage(decoded.getWidth(), decoded.getHeight(), BufferedImage.TYPE_INT_RGB);
+                    double scale = Math.min(1, 3072.0 / Math.max(decoded.getWidth(), decoded.getHeight()));
+                    var clean = new BufferedImage(Math.max(1, (int) Math.round(decoded.getWidth() * scale)),
+                            Math.max(1, (int) Math.round(decoded.getHeight() * scale)), BufferedImage.TYPE_INT_RGB);
                     var graphics = clean.createGraphics();
-                    try { graphics.setColor(Color.WHITE); graphics.fillRect(0,0,clean.getWidth(),clean.getHeight()); graphics.drawImage(decoded,0,0,null); }
+                    try {
+                        graphics.setColor(Color.WHITE);
+                        graphics.fillRect(0, 0, clean.getWidth(), clean.getHeight());
+                        graphics.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                                java.awt.RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+                        graphics.drawImage(decoded, 0, 0, clean.getWidth(), clean.getHeight(), null);
+                    }
                     finally { graphics.dispose(); decoded.flush(); }
                     var output = new ByteArrayOutputStream();
-                    try { if (!ImageIO.write(clean, "jpeg", output)) throw invalid(); }
+                    String format = png ? "png" : "jpeg";
+                    try {
+                        if (!ImageIO.write(clean, format, output)) throw invalid();
+                        if (png && output.size() > 5 * 1024 * 1024) {
+                            output.reset();
+                            format = "jpeg";
+                            if (!ImageIO.write(clean, format, output)) throw invalid();
+                        }
+                    }
                     finally { clean.flush(); }
                     if (output.size() > 5 * 1024 * 1024) throw invalid();
-                    return new FloorDesign.ImageInput("image/jpeg", Base64.getEncoder().encodeToString(output.toByteArray()));
+                    return new FloorDesign.ImageInput("image/" + format, Base64.getEncoder().encodeToString(output.toByteArray()));
                 } finally { reader.dispose(); }
             }
         } catch (BadRequestException e) { throw e; }

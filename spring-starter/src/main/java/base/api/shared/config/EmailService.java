@@ -5,6 +5,7 @@ import jakarta.mail.internet.MimeMessage;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
@@ -61,6 +62,30 @@ public class EmailService {
             mailSender.send(message);
         } catch (MessagingException | MailException e) {
             log.error("Gửi email '{}' tới {} thất bại: {}", subject, to, e.getMessage(), e);
+        }
+    }
+
+    /** Gửi email kèm file đính kèm bất đồng bộ; lỗi SMTP chỉ được log, không làm gián đoạn transaction. */
+    @Async("emailExecutor")
+    public void sendHtmlEmailWithAttachment(String to, String subject, String htmlContent, String attachmentFilename, byte[] attachmentBytes, String contentType) {
+        if (fromEmail == null || fromEmail.isBlank()) {
+            log.warn("SMTP chưa cấu hình (spring.mail.username). Bỏ qua email '{}' tới {}", subject, to);
+            return;
+        }
+        try {
+            MimeMessage message = mailSender.createMimeMessage();
+            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
+            helper.setTo(to);
+            helper.setSubject(subject);
+            helper.setText(htmlContent, true);
+            helper.setFrom(fromEmail);
+            if (attachmentBytes != null && attachmentBytes.length > 0) {
+                helper.addAttachment(attachmentFilename, new ByteArrayResource(attachmentBytes), contentType != null ? contentType : "application/pdf");
+            }
+            mailSender.send(message);
+            log.info("Đã gửi email '{}' kèm hóa đơn tới {}", subject, to);
+        } catch (MessagingException | MailException e) {
+            log.error("Gửi email kèm hóa đơn '{}' tới {} thất bại: {}", subject, to, e.getMessage(), e);
         }
     }
 }

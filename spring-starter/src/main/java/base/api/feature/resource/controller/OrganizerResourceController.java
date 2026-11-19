@@ -13,9 +13,11 @@ import jakarta.validation.constraints.*;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -102,6 +104,13 @@ public class OrganizerResourceController extends BaseAPIController {
         return success(null, "Resource deleted");
     }
 
+    @DeleteMapping("/resources/{id}/with-seats")
+    public ResponseEntity<ApiResponse<List<Long>>> deleteRoomWithSeats(
+            @PathVariable @Positive Long id,
+            @RequestParam @NotBlank @Size(max = 100) String expectedRevision) {
+        return success(service.deleteRoomWithSeats(getCurrentUserId(), id, expectedRevision));
+    }
+
     @PostMapping("/workspaces/{workspaceId}/resource-floors")
     public ResponseEntity<ApiResponse<FloorOption>> floor(
             @PathVariable @Positive Long workspaceId, @Valid @RequestBody Floor input) {
@@ -111,12 +120,21 @@ public class OrganizerResourceController extends BaseAPIController {
                         + " resources");
     }
 
-    @PostMapping("/workspaces/{workspaceId}/resource-types")
+    @PostMapping(value = "/workspaces/{workspaceId}/resource-types", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<TypeOption>> type(
             @PathVariable @Positive Long workspaceId, @Valid @RequestBody Type input) {
         return created(
                 service.createType(getCurrentUserId(), workspaceId, input),
                 "Resource type created");
+    }
+
+    @PostMapping(value = "/workspaces/{workspaceId}/resource-types", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<TypeOption>> typeWithPhotos(
+            @PathVariable @Positive Long workspaceId, @Valid @RequestPart("input") Type input,
+            @RequestPart("photoOrder") List<String> photoOrder,
+            @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
+        return created(service.createType(getCurrentUserId(), workspaceId, input, photoOrder,
+                photos == null ? List.of() : photos), "Resource type created");
     }
 
     @DeleteMapping("/workspaces/{workspaceId}/resource-types/{typeId}")
@@ -128,12 +146,21 @@ public class OrganizerResourceController extends BaseAPIController {
         return success(null, "Unused resource type deleted");
     }
 
-    @PutMapping("/workspaces/{workspaceId}/resource-types/{typeId}")
+    @PutMapping(value = "/workspaces/{workspaceId}/resource-types/{typeId}", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<ApiResponse<TypeOption>> updateType(
             @PathVariable @Positive Long workspaceId,
             @PathVariable @Positive Long typeId,
             @Valid @RequestBody Type input) {
         return success(service.updateType(getCurrentUserId(), workspaceId, typeId, input));
+    }
+
+    @PutMapping(value = "/workspaces/{workspaceId}/resource-types/{typeId}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<ApiResponse<TypeOption>> updateTypeWithPhotos(
+            @PathVariable @Positive Long workspaceId, @PathVariable @Positive Long typeId,
+            @Valid @RequestPart("input") Type input, @RequestPart("photoOrder") List<String> photoOrder,
+            @RequestPart(value = "photos", required = false) List<MultipartFile> photos) {
+        return success(service.updateType(getCurrentUserId(), workspaceId, typeId, input, photoOrder,
+                photos == null ? List.of() : photos));
     }
 
     @PutMapping("/workspaces/{workspaceId}/resource-floors/{floorId}")

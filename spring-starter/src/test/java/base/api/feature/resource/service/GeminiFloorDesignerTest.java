@@ -105,8 +105,8 @@ class GeminiFloorDesignerTest {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
                 .thenReturn(response(404, "{\"error\":{\"status\":\"NOT_FOUND\"}}"), response(200, """
                         {"models":[
-                          {"name":"models/gemini-first","supportedGenerationMethods":["generateContent"]},
-                          {"name":"models/gemini-second","supportedGenerationMethods":["generateContent"]}
+                          {"name":"models/gemini-first-flash-lite","supportedGenerationMethods":["generateContent"]},
+                          {"name":"models/gemini-second-flash","supportedGenerationMethods":["generateContent"]}
                         ]}
                         """), response(429, "{}"), response(200, successfulBody()),
                         response(200, successfulBody()));
@@ -114,9 +114,9 @@ class GeminiFloorDesignerTest {
         assertThat(designer.design(Map.of("prompt", "Next design")).message()).isEqualTo("Preview only");
         var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
         verify(http, times(5)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
-        assertThat(requests.getAllValues().get(2).uri().getPath()).endsWith("/gemini-first:generateContent");
-        assertThat(requests.getAllValues().get(3).uri().getPath()).endsWith("/gemini-second:generateContent");
-        assertThat(requests.getAllValues().get(4).uri().getPath()).endsWith("/gemini-second:generateContent");
+        assertThat(requests.getAllValues().get(2).uri().getPath()).endsWith("/gemini-first-flash-lite:generateContent");
+        assertThat(requests.getAllValues().get(3).uri().getPath()).endsWith("/gemini-second-flash:generateContent");
+        assertThat(requests.getAllValues().get(4).uri().getPath()).endsWith("/gemini-second-flash:generateContent");
     }
     @Test void discoversPagedDesignModelsAndSendsOnlyAnAvailableSelection() throws Exception {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
@@ -152,7 +152,8 @@ class GeminiFloorDesignerTest {
                         {"models":[{"name":"models/gemini-2.5-flash-lite","supportedGenerationMethods":["generateContent"]}]}
                         """), response(404, "{\"error\":{\"status\":\"NOT_FOUND\"}}"));
         assertThat(designer.statusWithModels().models()).extracting(FloorDesign.ModelOption::id).containsExactly(model);
-        assertThatThrownBy(() -> designer.design(Map.of(), null, model)).hasMessageContaining("No Gemini model");
+        assertThatThrownBy(() -> designer.design(Map.of(), null, model))
+                .hasMessageContaining("HTTP 404").hasMessageContaining("NOT_FOUND");
         assertThat(designer.statusWithModels().models()).isEmpty();
         assertThatThrownBy(() -> designer.design(Map.of(), null, model)).hasMessageContaining("unavailable");
         verify(http, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));

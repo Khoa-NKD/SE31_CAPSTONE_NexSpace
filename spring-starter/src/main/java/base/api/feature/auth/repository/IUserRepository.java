@@ -58,6 +58,8 @@ public interface IUserRepository extends JpaRepository<UserModel, Long> {
     @Query("SELECT COUNT(u) FROM UserModel u WHERE u.roleEntity.name = :roleName AND u.status = :status")
     long countByRoleNameAndStatus(@Param("roleName") String roleName, @Param("status") UserStatus status);
 
+    long countByCreatedAtAfter(LocalDateTime since);
+
     @Query("""
             SELECT u FROM UserModel u
             WHERE u.status = base.api.shared.enums.UserStatus.ACTIVE
