@@ -262,6 +262,13 @@ export const organizerNavGroups: NavGroup[] = [
         label: '8 Active'
       },
       {
+        title: 'Messages',
+        url: '/dashboard/organizer/messages',
+        icon: 'chat',
+        shortcut: ['m', 'm'],
+        isActive: false
+      },
+      {
         title: 'Schedule (Gantt)',
         url: '/dashboard/organizer/schedule',
         icon: 'gantt',
