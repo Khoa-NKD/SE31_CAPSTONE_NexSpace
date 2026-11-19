@@ -48,9 +48,6 @@ export interface BookingDto {
   holdExpiresAt?: string | null;
   remainingSeconds?: number;
   serverTime?: string;
-  remainingHoldAttempts?: number;
-  maxHoldAttempts?: number;
-  penaltyBlockMinutes?: number;
   createdAt: string;
 
   // Workspace
