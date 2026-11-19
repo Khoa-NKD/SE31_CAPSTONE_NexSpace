@@ -21,6 +21,8 @@ export interface SeatDetailPageProps {
   date?: string;
   startTime?: string;
   endTime?: string;
+  bookingId?: number;
+  bookingCode?: string;
 }
 
 export function SeatDetailPage({
@@ -29,7 +31,9 @@ export function SeatDetailPage({
   floorId,
   date,
   startTime,
-  endTime
+  endTime,
+  bookingId,
+  bookingCode
 }: SeatDetailPageProps) {
   const [monitorAddonSelected, setMonitorAddonSelected] = useState(false);
 
@@ -126,6 +130,8 @@ export function SeatDetailPage({
             <SeatReservationWidget
               workspaceId={workspaceId}
               floorId={floorId}
+              bookingId={bookingId}
+              bookingCode={bookingCode}
               monitorAddonSelected={monitorAddonSelected}
               resource={effectiveResource}
               workspace={workspace}

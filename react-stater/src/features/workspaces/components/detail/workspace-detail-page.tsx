@@ -216,7 +216,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
           </p>
           <Link
             to='/workspaces'
-            className='inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-white text-sm font-semibold hover:bg-primary/90 transition-colors'
+            className='inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold hover:bg-primary/90 transition-colors'
           >
             <ArrowLeft className='size-4' />
             {language === 'vi' ? 'Quay lại danh sách' : 'Back to Workspaces'}
@@ -262,7 +262,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                       className={cn(
                         'shrink-0 px-3.5 py-1.5 rounded-lg text-xs sm:text-sm font-semibold transition-all cursor-pointer whitespace-nowrap',
                         isActive
-                          ? 'bg-primary text-white shadow-xs'
+                          ? 'bg-primary text-primary-foreground font-bold shadow-xs'
                           : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
                       )}
                     >

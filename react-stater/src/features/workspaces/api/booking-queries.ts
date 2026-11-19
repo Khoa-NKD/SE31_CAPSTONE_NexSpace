@@ -177,6 +177,7 @@ export function useCreateBookingMutation() {
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -193,6 +194,7 @@ export function useCancelBookingMutation() {
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -209,6 +211,7 @@ export function useApproveBookingMutation() {
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }
@@ -225,6 +228,7 @@ export function useRejectBookingMutation() {
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
+      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }

@@ -34,6 +34,7 @@ import { useCurrency } from '../context/currency-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
+import { NotificationCenter } from '@/features/notifications/components/notification-center';
 
 interface NavbarProps {
   sticky?: boolean;
@@ -277,6 +278,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                   <span>{t('nav.organizerPortal')}</span>
                 </button>
               )}
+              <NotificationCenter />
               <UserNav />
             </div>
           ) : (
@@ -448,6 +450,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                           </span>
                         </div>
                       </div>
+                      <NotificationCenter />
                     </div>
                   ) : (
                     <Button
