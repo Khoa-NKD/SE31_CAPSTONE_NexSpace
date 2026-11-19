@@ -120,34 +120,41 @@ export function SummaryCards({
           {
             label: c('Paid bookings', 'Đơn đã thanh toán'),
             value: current.paidBookings.toLocaleString(locale),
+            unit: c(current.paidBookings === 1 ? 'booking' : 'bookings', 'đơn'),
             icon: CalendarCheck
           },
           {
             label: c('Bookings created', 'Đơn đặt mới'),
             value: current.createdBookings.toLocaleString(locale),
+            unit: c(current.createdBookings === 1 ? 'booking' : 'bookings', 'đơn'),
             icon: CalendarCheck
           },
           {
             label: c('Paying customers', 'Khách đã thanh toán'),
             value: current.payingCustomers.toLocaleString(locale),
+            unit: c(current.payingCustomers === 1 ? 'person' : 'people', 'người'),
             icon: Users
           },
           {
             label: c('Returning customers', 'Khách quay lại'),
             value: current.returningCustomers.toLocaleString(locale),
+            unit: c(current.returningCustomers === 1 ? 'person' : 'people', 'người'),
             icon: Users
           },
           {
             label: c('Reserved resource-hours', 'Giờ chỗ được đặt'),
             value: Number(current.bookedHours).toLocaleString(locale, { maximumFractionDigits: 2 }),
+            unit: c(Number(current.bookedHours) === 1 ? 'hour' : 'hours', 'giờ'),
             icon: Clock3
           }
-        ].map(({ label, value, icon: Icon }) => (
+        ].map(({ label, value, unit, icon: Icon }) => (
           <div key={label} className='flex items-center gap-3 px-4 py-3'>
             <Icon className='hidden size-4 shrink-0 text-muted-foreground sm:block' />
             <div>
               <p className='text-xs text-muted-foreground'>{label}</p>
-              <p className='mt-1 text-lg font-semibold tabular-nums'>{value}</p>
+              <p className='mt-1 text-lg font-semibold tabular-nums'>
+                {value} <span className='text-sm font-normal text-muted-foreground'>{unit}</span>
+              </p>
             </div>
           </div>
         ))}

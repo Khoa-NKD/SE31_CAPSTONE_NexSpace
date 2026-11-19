@@ -3,6 +3,7 @@ import { insideRoom, layoutGeometry, withSpatialParents } from './layout-placeme
 import { floorCornerRadius } from './floor-outline.ts';
 import { placementFits, placementsOverlap, type Placement } from './placement.ts';
 import { copyDisplayName, copyResourceCode } from './copy-names.ts';
+import { decorationBelongsToRoom } from './room-door.ts';
 
 export function selectableShapes(layout: FloorLayout) {
   return [
@@ -40,7 +41,17 @@ export function expandCanvasSelection(layout: FloorLayout, keys: readonly string
   const selected = new Set(keys.filter((key) => available.has(key)));
   const rooms = shapes.filter((item) => item.room && selected.has(item.key));
   for (const item of shapes)
-    if (!item.room && rooms.some((room) => insideRoom(item.shape, room.shape)))
+    if (
+      !item.room &&
+      rooms.some((room) => {
+        const decoration = layout.decorations?.find(
+          (object) => `decoration:${object.id}` === item.key
+        );
+        return decoration
+          ? decorationBelongsToRoom(decoration, room.shape, insideRoom)
+          : insideRoom(item.shape, room.shape);
+      })
+    )
       selected.add(item.key);
   return [...selected];
 }

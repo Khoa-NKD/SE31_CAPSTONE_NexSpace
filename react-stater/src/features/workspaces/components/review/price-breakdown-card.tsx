@@ -90,6 +90,8 @@ export function PriceBreakdownCard({
   const durationHours = priceData?.durationHours || 4;
   const unitPrice = priceData?.unitPrice || 2.5;
   const baseRate = priceData?.baseAmount || durationHours * unitPrice;
+  const dailyRate = priceData?.priceType === 'DAILY';
+  const billingUnits = dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
   const platformFee = priceData?.serviceFeeAmount || 1.0;
   const vat = priceData?.taxAmount || baseRate * 0.08;
   const promoDiscount = discountApplied ? 1.0 : 0;
@@ -231,7 +233,7 @@ export function PriceBreakdownCard({
         <div className='border-border/60 space-y-3 border-b py-2 text-xs sm:text-sm'>
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Base Rate ({durationHours} hrs × {formatPrice(unitPrice)})
+              Base Rate ({billingUnits} {dailyRate ? 'days' : 'hrs'} × {formatPrice(unitPrice)})
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
             <span className='font-medium font-mono'>

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, RefreshCw, ArrowUpRight, PackageOpen } from 'lucide-react';
+import { Search, RefreshCw, ArrowUpRight, PackageOpen, Plus, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,11 +12,18 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { useLanguage } from '@/features/landing/context/language-context';
-import { templateOptions, designMetricsOptions } from '../api/floor-design';
+import {
+  templateOptions,
+  designMetricsOptions,
+  type LayoutTemplate,
+  type LayoutTemplateInput
+} from '../api/floor-design';
 import type { FloorLayout, FloorDecoration } from '../api/resources';
 import { decorationPresets } from '../utils/decoration-presets';
 import { furnishingPresetKey } from '../utils/furnishing-preset-key';
 import { DecorationIcon, furnishingIcon } from './decoration-visual';
+import { FurnishingPresetEditor } from './furnishing-preset-editor';
+import { pixelsToMetres } from '../utils/metric-units';
 
 const normalize = (value: string) =>
   value
@@ -27,7 +34,7 @@ const normalize = (value: string) =>
 
 /** Built-in categories have one palette entry; custom furnishings retain their reusable type. */
 const paletteKey = (kind: FloorDecoration['kind'], name: string, icon?: FloorDecoration['icon']) =>
-  kind === 'OTHER' ? furnishingPresetKey(kind, name, icon) : 'default:' + kind;
+  furnishingPresetKey(kind, name, icon);
 
 /** Saved presets are shared across workspaces; placed instances remain separate objects. */
 export function FurnishingPalette({
@@ -49,6 +56,10 @@ export function FurnishingPalette({
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
+  const [editor, setEditor] = useState<{
+    current?: LayoutTemplate;
+    initial: LayoutTemplateInput;
+  } | null>(null);
   const library = useQuery(templateOptions(actorId));
   const metrics = useQuery({
     ...designMetricsOptions(actorId, workspaceId, floorId),
@@ -59,14 +70,16 @@ export function FurnishingPalette({
     object: Omit<FloorDecoration, 'id' | 'posX' | 'posY'>;
     saved?: boolean;
     measured?: boolean;
+    template?: LayoutTemplate;
   };
   const canvasWidth = layout?.width ?? 0;
   const canvasHeight = layout?.height ?? 0;
   const entries = new Map<string, Entry>();
   for (const [kind, preset] of Object.entries(decorationPresets)) {
     const category = kind as FloorDecoration['kind'];
-    entries.set('default:' + kind, {
-      key: 'default:' + kind,
+    const key = paletteKey(category, c(preset.en, preset.vi));
+    entries.set(key, {
+      key,
       object: {
         kind: category,
         label: c(preset.en, preset.vi),
@@ -86,12 +99,14 @@ export function FurnishingPalette({
     entries.set(key, {
       key,
       saved: true,
+      template: item,
       measured,
       object: {
         kind: item.kind,
         label: item.name,
         icon,
         color: item.color,
+        visual3d: item.visual3d,
         rotation: 0,
         width: measured ? (item.widthM / metrics.data!.widthM!) * canvasWidth : 0,
         height: measured ? (item.lengthM / metrics.data!.lengthM!) * canvasHeight : 0
@@ -111,8 +126,8 @@ export function FurnishingPalette({
     if (entry.saved && !entry.measured) {
       toast.error(
         c(
-          'Set floor dimensions in AI assistant → Dimensions first.',
-          'Cần cấu hình kích thước tầng ở Trợ lý AI → Kích thước trước.'
+          'Configure this floor’s real dimensions in the workspace location and floor setup first.',
+          'Cần cấu hình kích thước thực của tầng tại phần Địa điểm & tầng của workspace trước.'
         )
       );
       return;
@@ -135,6 +150,20 @@ export function FurnishingPalette({
       posY: Number(((canvasHeight - height) / 2).toFixed(2))
     });
   }
+  function edit(entry: Entry) {
+    setEditor({
+      current: entry.template,
+      initial: entry.template ?? {
+        name: entry.object.label,
+        kind: entry.object.kind,
+        icon: entry.object.icon,
+        color: entry.object.color,
+        visual3d: entry.object.visual3d,
+        widthM: Number(pixelsToMetres(entry.object.width).toFixed(2)),
+        lengthM: Number(pixelsToMetres(entry.object.height).toFixed(2))
+      }
+    });
+  }
   function tile(entry: Entry, compact = false) {
     return (
       <button
@@ -146,7 +175,7 @@ export function FurnishingPalette({
         className={
           compact
             ? 'flex h-10 min-w-0 items-center justify-center rounded-xl border border-border bg-background/70 text-primary transition hover:border-primary/50 hover:bg-primary/10 disabled:opacity-40'
-            : 'group flex min-w-0 flex-col items-start gap-3 rounded-2xl border border-border bg-card p-4 text-left transition hover:border-primary/50 hover:bg-primary/5 disabled:opacity-40'
+            : 'group flex min-h-48 w-full shrink-0 flex-col items-start gap-3 bg-card p-4 text-left transition hover:bg-primary/5 disabled:opacity-40'
         }
       >
         <span
@@ -165,6 +194,11 @@ export function FurnishingPalette({
         {!compact && (
           <>
             <span className='line-clamp-2 text-sm font-semibold'>{entry.object.label}</span>
+            <span className='text-[11px] tabular-nums text-muted-foreground'>
+              {c('L × W', 'Dài × Rộng')}:{' '}
+              {(entry.template?.widthM ?? pixelsToMetres(entry.object.width)).toFixed(2)} ×{' '}
+              {(entry.template?.lengthM ?? pixelsToMetres(entry.object.height)).toFixed(2)} m
+            </span>
             <span className='mt-auto text-xs text-muted-foreground'>
               {c('Add to floor', 'Đặt vào sơ đồ')} ↗
             </span>
@@ -202,6 +236,20 @@ export function FurnishingPalette({
               )}
             </DialogDescription>
           </DialogHeader>
+          <div className='flex justify-end'>
+            <Button
+              size='sm'
+              disabled={disabled || library.isPending || library.isError}
+              onClick={() =>
+                setEditor({
+                  initial: { name: '', kind: 'OTHER', widthM: 1, lengthM: 1, color: '#94a3b8' }
+                })
+              }
+            >
+              <Plus className='size-4' />
+              {c('Create furnishing', 'Tạo vật dụng')}
+            </Button>
+          </div>
           <div className='relative shrink-0'>
             <Search className='absolute left-3 top-3 size-4 text-muted-foreground' />
             <Input
@@ -230,8 +278,30 @@ export function FurnishingPalette({
               {c('Retry library', 'Tải lại kho đồ')}
             </Button>
           )}
-          <div className='grid min-h-0 grid-cols-2 gap-3 overflow-y-auto p-1 sm:grid-cols-3 lg:grid-cols-4'>
-            {visible.map((entry) => tile(entry))}
+          <div className='min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1'>
+            <div className='grid auto-rows-max grid-cols-2 content-start items-start gap-3 p-1 sm:grid-cols-3 lg:grid-cols-4'>
+              {visible.map((entry) => (
+                <div
+                  key={entry.key}
+                  className='flex min-w-0 flex-col rounded-2xl border border-border bg-card'
+                >
+                  {tile(entry)}
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant='ghost'
+                    className='mx-2 mb-2 justify-start text-xs'
+                    disabled={disabled || library.isPending || library.isError}
+                    onClick={() => edit(entry)}
+                  >
+                    <Pencil className='size-3.5' />
+                    {entry.template
+                      ? c('Edit preset', 'Sửa mẫu')
+                      : c('Save as preset', 'Lưu thành mẫu')}
+                  </Button>
+                </div>
+              ))}
+            </div>
           </div>
           {!visible.length && (
             <p className='py-12 text-center text-sm text-muted-foreground'>
@@ -240,6 +310,16 @@ export function FurnishingPalette({
           )}
         </DialogContent>
       </Dialog>
+      {editor && (
+        <FurnishingPresetEditor
+          actorId={actorId}
+          current={editor.current}
+          initial={editor.initial}
+          library={library.data ?? []}
+          disabled={disabled}
+          onClose={() => setEditor(null)}
+        />
+      )}
     </div>
   );
 }

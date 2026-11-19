@@ -2,6 +2,7 @@ import type { AiProposal } from '../api/floor-design';
 import type { FloorLayout, ResourceOptions } from '../api/resources';
 import { moveWithRoom, type Placement } from './placement.ts';
 import { insideRoom, layoutGeometry, withSpatialParents } from './layout-placement.ts';
+import { decorationBelongsToRoom } from './room-door.ts';
 
 const poseFields = (p: Placement) => ({
   posX: p.x,
@@ -134,6 +135,11 @@ export function aiDesignPreview(
             proposal.design.newTypes?.find((type) => type.tempId === change.resourceTypeId)
               ?.capacity,
           code: old?.code ?? 'AI',
+          visual3d:
+            old?.visual3d ??
+            options.types.find((type) => type.id === change.resourceTypeId)?.visual3d ??
+            proposal.design.newTypes?.find((type) => type.tempId === change.resourceTypeId)
+              ?.visual3d,
           category:
             options.types.find((type) => type.id === change.resourceTypeId)?.category ??
             proposal.design.newTypes?.find((type) => type.tempId === change.resourceTypeId)
@@ -216,7 +222,7 @@ export function adjustAiProposal(
         });
       decorations = decorations.map((object) => {
         const position = layoutGeometry(object)!;
-        return insideRoom(position, before)
+        return decorationBelongsToRoom(object, before, insideRoom)
           ? { ...object, ...poseFields(moveWithRoom(position, before, pose)) }
           : object;
       });

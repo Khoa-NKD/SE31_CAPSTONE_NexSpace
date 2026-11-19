@@ -1,3 +1,4 @@
+import type { Visual3d } from '../utils/visual-3d';
 import { queryOptions } from '@tanstack/react-query';
 import { backendRequest } from '../../auth/api/session';
 import { resourceTypePhotoBody } from './resource-type-photos';
@@ -25,6 +26,7 @@ export interface DesignMetrics {
   allAreasMeasured: boolean;
 }
 export interface LayoutTemplateInput {
+  visual3d?: Visual3d | null;
   name: string;
   kind: DecorationKind;
   widthM: number;
@@ -72,6 +74,7 @@ export interface AiProposal {
   };
 }
 export interface AiNewType {
+  visual3d?: Visual3d | null;
   usageKind: ResourceUsageKind;
   standardWidthM: number;
   standardLengthM: number;
@@ -154,11 +157,8 @@ export interface GeometryPreviewShape {
 }
 export const previewDesignMetrics = (workspace: number, floor: number, input: MetricsInput) =>
   backendRequest<GeometryReview>(`${path(workspace, floor)}/design-metrics/preview`, 'POST', input);
-export const saveDesignMetrics = (
-  workspace: number,
-  floor: number,
-  input: MetricsInput
-) => backendRequest<DesignMetrics>(`${path(workspace, floor)}/design-metrics`, 'PUT', input);
+export const saveDesignMetrics = (workspace: number, floor: number, input: MetricsInput) =>
+  backendRequest<DesignMetrics>(`${path(workspace, floor)}/design-metrics`, 'PUT', input);
 export const templateOptions = (actor: number) =>
   queryOptions({
     queryKey: ['organizer-resources', actor, 'layout-templates'],
@@ -184,6 +184,7 @@ export const saveLayoutTemplate = (input: LayoutTemplateInput, current?: LayoutT
       lengthM: input.lengthM,
       color: input.color,
       icon: input.icon ?? null,
+      visual3d: input.visual3d ?? null,
       ...(current ? { expectedRevision: current.revision } : {})
     }
   );
@@ -255,16 +256,26 @@ export interface SavedAiDraft {
   lengthM: number;
   savedAt: string;
 }
-export const savedAiDraftOptions = (actor: number, workspace: number, floor: number) => queryOptions({
-  queryKey: ['organizer-resources', actor, workspace, 'ai-draft', floor],
-  queryFn: async ({ signal }) => {
-    const draft = await backendRequest<SavedAiDraft | null>(`${path(workspace, floor)}/ai/draft`, 'GET', undefined, true, signal);
-    // The API omits the envelope's data key when no draft exists.
-    return draft?.version === 1 && draft.design ? draft : null;
-  },
-  retry: false
-});
+export const savedAiDraftOptions = (actor: number, workspace: number, floor: number) =>
+  queryOptions({
+    queryKey: ['organizer-resources', actor, workspace, 'ai-draft', floor],
+    queryFn: async ({ signal }) => {
+      const draft = await backendRequest<SavedAiDraft | null>(
+        `${path(workspace, floor)}/ai/draft`,
+        'GET',
+        undefined,
+        true,
+        signal
+      );
+      // The API omits the envelope's data key when no draft exists.
+      return draft?.version === 1 && draft.design ? draft : null;
+    },
+    retry: false
+  });
 export const saveAiDraft = (workspace: number, floor: number, proposal: AiProposal) =>
   backendRequest<SavedAiDraft>(`${path(workspace, floor)}/ai/draft`, 'PUT', {
-    proposalId: proposal.proposalId, saveTemplates: false, design: proposal.design, confirmNewTypes: false
+    proposalId: proposal.proposalId,
+    saveTemplates: false,
+    design: proposal.design,
+    confirmNewTypes: false
   });

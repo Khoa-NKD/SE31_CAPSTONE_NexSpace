@@ -2,7 +2,7 @@ import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, Download, Plus, Building2, Radio, Calendar } from 'lucide-react';
+import { ChevronRight, Download, Plus, Radio, Calendar } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface BookingsHeaderBarProps {
@@ -29,19 +29,9 @@ export function BookingsHeaderBar({
         aria-label={c('Breadcrumb', 'Điều hướng')}
         className='flex items-center gap-1.5 text-xs text-muted-foreground select-none'
       >
-        <Link
-          to='/dashboard/organizer/workspaces'
-          className='hover:text-foreground transition-colors'
-        >
-          {c('Workspaces', 'Không gian')}
+        <Link to='/dashboard/organizer' className='hover:text-foreground transition-colors'>
+          {c('Overview', 'Tổng quan')}
         </Link>
-        <ChevronRight className='w-3 h-3 text-muted-foreground/60' />
-        <span>District 1, HCMC</span>
-        <ChevronRight className='w-3 h-3 text-muted-foreground/60' />
-        <span className='flex items-center gap-1 text-muted-foreground'>
-          <Building2 className='w-3 h-3' />
-          NexSpace Saigon Prime Hub
-        </span>
         <ChevronRight className='w-3 h-3 text-muted-foreground/60' />
         <span className='font-semibold text-foreground'>
           {c('Bookings Ledger', 'Danh sách đặt chỗ')}
@@ -49,6 +39,7 @@ export function BookingsHeaderBar({
       </nav>
 
       <OrganizerPageHeader
+        icon={<Calendar />}
         title={c('Bookings Ledger & Reservations', 'Quản lý đặt chỗ')}
         description={c(
           'Review reservations, payments and check-ins.',
