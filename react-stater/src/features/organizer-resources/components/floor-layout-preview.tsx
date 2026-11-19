@@ -1,6 +1,16 @@
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- The interactive SVG map receives keyboard selection and clipboard events. */
 import { useCanvasMultiSelection, type GroupEditPhase } from './use-canvas-multi-selection';
 import { floorCornerRadius } from '../utils/floor-outline';
-import { useEffect, useId, useRef, useState, type PointerEvent, type ReactNode } from 'react';
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+  type PointerEvent,
+  type ReactNode
+} from 'react';
 import {
   ZoomIn,
   ZoomOut,
@@ -19,6 +29,7 @@ import type { FloorLayout, LayoutItem, AvailabilityState } from '../api/resource
 import { availabilityColors, availabilityLabel } from '../utils/availability';
 import { DecorationLayer } from './decoration-visual';
 import { ResourceMapSymbol } from './resource-map-symbol';
+import { RoomWallLines } from './room-wall-lines';
 import type { PlacementFields } from '../utils/placement';
 
 import { useCanvasWheel } from './use-canvas-wheel';
@@ -27,6 +38,8 @@ import {
   SharedFloorTooltip,
   useSharedFloorContext
 } from './shared-floor-context';
+
+const Floor3dPreview = lazy(() => import('./floor-3d-preview'));
 
 interface Box {
   x: number;
@@ -120,11 +133,12 @@ export function FloorLayoutPreview({
   const id = useId().replaceAll(':', '');
   const svg = useRef<SVGSVGElement>(null);
   const [groupSelectMode, setGroupSelectMode] = useState(true);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const multi = useCanvasMultiSelection({
     svgRef: svg,
     layout,
     selectionHint: groupSelection,
-    enabled: !!onGroupChange && groupSelectMode,
+    enabled: viewMode === '2d' && !!onGroupChange && groupSelectMode,
     onChange: onGroupChange,
     onDelete: onGroupDelete,
     onCopy: onGroupCopy,
@@ -160,8 +174,12 @@ export function FloorLayoutPreview({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && document.fullscreenElement !== container.current &&
-          !document.querySelector('[role="dialog"][data-state="open"]'))
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        document.fullscreenElement !== container.current &&
+        !document.querySelector('[role="dialog"][data-state="open"]')
+      )
         setExpanded(false);
     };
     document.addEventListener('keydown', escape);
@@ -237,7 +255,7 @@ export function FloorLayoutPreview({
       height: nextHeight
     });
   };
-  useCanvasWheel(svg, zoomBy, true);
+  useCanvasWheel(svg, zoomBy, viewMode === '2d');
   function stop() {
     const pointerId = drag.current?.pointerId;
     drag.current = null;
@@ -362,6 +380,18 @@ export function FloorLayoutPreview({
             color ? { fill: color, fillOpacity: active ? 0.28 : 0.13, stroke: color } : undefined
           }
         />
+        {item.category === 'ROOM' && (
+          <RoomWallLines
+            room={{
+              x: item.posX,
+              y: item.posY,
+              width: item.width,
+              height: item.height,
+              rotation: item.rotation || 0
+            }}
+            decorations={decorations}
+          />
+        )}
         {item.category !== 'ROOM' && (
           <ResourceMapSymbol
             category={item.category ?? 'DESK'}
@@ -400,389 +430,456 @@ export function FloorLayoutPreview({
             : 'overflow-hidden rounded-2xl border border-border/80 bg-background shadow-sm'
       }
     >
-      {multi.confirmation}
-      {!objectHover && <SharedFloorTooltip context={shared} />}
-      {(actions || onGroupChange) && (
-        <div className='flex shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-b border-border bg-card px-4 py-2'>
-          {onGroupChange && (
-            <>
-              <Button
-                type='button'
-                size='sm'
-                variant={groupSelectMode ? 'default' : 'outline'}
-                onClick={() => setGroupSelectMode(true)}
-              >
-                {c('Select area', 'Chọn vùng')}
-              </Button>
-              <Button
-                type='button'
-                size='sm'
-                variant={!groupSelectMode ? 'default' : 'outline'}
-                onClick={() => setGroupSelectMode(false)}
-              >
-                {c('Pan view', 'Kéo xem')}
-              </Button>
-              {multi.toolbar}
-            </>
-          )}
-          {actions}
-        </div>
-      )}
-      {objectHover && (hoveredResource || hoveredObject) && (
-        <div
-          role='tooltip'
-          className='pointer-events-none fixed z-[110] w-64 rounded-xl border border-primary/20 bg-popover p-3 text-popover-foreground shadow-xl'
-          style={{ left: objectHover.left, top: objectHover.top }}
-        >
-          <p className='text-sm font-semibold'>{hoveredResource?.name ?? hoveredObject?.label}</p>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            {hoveredResource
-              ? `${hoveredResource.code} · ${hoveredResource.category === 'ROOM' ? c('Room', 'Phòng') : c('Seat', 'Ghế')}`
-              : c('Layout object · Not bookable', 'Đồ bố trí · Không đặt chỗ')}
-          </p>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            {hoveredResource?.width ?? hoveredObject?.width} ×{' '}
-            {hoveredResource?.height ?? hoveredObject?.height} px
-            {hoveredResource?.capacity
-              ? ` · ${hoveredResource.capacity} ${c('people', 'người')}`
-              : ''}
-          </p>
-          <p className='mt-2 text-xs font-medium text-primary'>
-            {onGroupChange && groupSelectMode
-              ? c(
-                  'Drag background to select · Drag a selected object to move the group',
-                  'Kéo nền để chọn nhóm · Kéo đối tượng đã chọn để di chuyển nhóm'
-                )
-              : onObjectDrag
-                ? c(
-                    'Drag to move · Click for properties',
-                    'Kéo để di chuyển · Click xem thuộc tính'
-                  )
-                : c('Click for properties', 'Click xem thuộc tính')}
-          </p>
-        </div>
-      )}
-      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background px-4 py-2.5'>
-        <div>
-          <p className='flex items-center gap-2 text-sm font-semibold'>
-            <span className='flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary'>
-              <Layers3 className='size-4' />
-            </span>
-            {c('Floor overview', 'Toàn cảnh tầng')}
-          </p>
-          <p
-            className={
-              presentation === 'workspace' ? 'sr-only' : 'mt-1.5 text-[11px] text-muted-foreground'
-            }
-          >
-            {c(
-              'Drag to pan. Select an object or use the list to focus.',
-              'Kéo để xem xung quanh. Chọn đối tượng hoặc bấm Xem trong danh sách để phóng tới.'
-            )}
-          </p>
-        </div>
+      <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-card px-4 py-2'>
         <div
           role='group'
-          aria-label={c('Map view controls', 'Điều khiển xem sơ đồ')}
-          className='flex items-center gap-1 rounded-xl border border-border/70 bg-background/80 p-1'
+          aria-label={c('Floor view mode', 'Chế độ xem tầng')}
+          className='flex gap-1 rounded-xl border bg-muted/40 p-1'
         >
-          <Button
-            type='button'
-            size='icon'
-            variant='ghost'
-            className='size-8 rounded-lg'
-            aria-label={c('Zoom out', 'Thu nhỏ')}
-            title={c('Zoom out', 'Thu nhỏ')}
-            disabled={zoom <= 0.5}
-            onClick={() => zoomBy(1 / 1.25)}
-          >
-            <ZoomOut className='size-4' />
-          </Button>
-          <span className='min-w-12 text-center text-xs font-medium tabular-nums'>
-            {Math.round(zoom * 100)}%
-          </span>
-          <Button
-            type='button'
-            size='icon'
-            variant='ghost'
-            className='size-8 rounded-lg'
-            aria-label={c('Zoom in', 'Phóng to')}
-            title={c('Zoom in', 'Phóng to')}
-            disabled={zoom >= 12}
-            onClick={() => zoomBy(1.25)}
-          >
-            <ZoomIn className='size-4' />
-          </Button>
-          <span className='mx-1 h-4 border-l border-border' />
-          <Button
-            type='button'
-            size='icon'
-            variant='ghost'
-            className='size-8 rounded-lg'
-            aria-label={c('Fit all objects', 'Vừa toàn bộ đối tượng')}
-            title={c('Fit all objects', 'Vừa toàn bộ đối tượng')}
-            onClick={() =>
-              setCamera(
-                frame(
-                  objects.map((object) => object.box),
-                  floor
-                )
-              )
-            }
-          >
-            <Focus className='size-4' />
-          </Button>
-          <Button
-            type='button'
-            size='icon'
-            variant='ghost'
-            className='size-8 rounded-lg'
-            aria-label={
-              expanded || fullscreenActive
-                ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
-                : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
-            }
-            title={
-              expanded || fullscreenActive
-                ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
-                : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
-            }
-            aria-pressed={expanded || fullscreenActive}
-            onClick={() => void toggleFullscreen()}
-          >
-            {expanded || fullscreenActive ? (
-              <Minimize2 className='size-4' />
-            ) : (
-              <Maximize2 className='size-4' />
-            )}
-          </Button>
-          {expanded && (
-            <span className='px-2 text-xs text-muted-foreground'>
-              {c('Esc to exit', 'Esc để thu gọn')}
-            </span>
-          )}
+          {(['2d', '3d'] as const).map((mode) => (
+            <Button
+              key={mode}
+              type='button'
+              size='sm'
+              variant={viewMode === mode ? 'default' : 'ghost'}
+              className='h-7 min-w-12 rounded-lg text-xs'
+              aria-pressed={viewMode === mode}
+              onClick={() => {
+                stop();
+                shared.clearHover();
+                setObjectHover(null);
+                setViewMode(mode);
+              }}
+            >
+              {mode.toUpperCase()}
+            </Button>
+          ))}
         </div>
+        <span className='text-[11px] text-muted-foreground'>
+          {viewMode === '3d'
+            ? c('View only · Return to 2D to edit', 'Chỉ xem · Chuyển về 2D để chỉnh sửa')
+            : c('2D floor plan', 'Mặt bằng 2D')}
+        </span>
       </div>
-      <div
-        className={`relative overflow-hidden bg-muted/30 ${presentation === 'workspace' || expanded ? 'flex min-h-0 flex-1' : ''}`}
-      >
-        <div className='pointer-events-none absolute left-3 top-3 z-10 flex gap-2'>
-          <span className='flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur'>
-            <Hand className='size-3' />
-            {onObjectDrag
-              ? c(
-                  'Drag objects to move · Drag background to pan',
-                  'Kéo đồ vật để di chuyển · Kéo nền để xem'
-                )
-              : c('Pan view', 'Kéo để xem')}
-          </span>
-        </div>
-        <svg
-          data-floor-canvas='true'
-          ref={svg}
-          tabIndex={0}
-          viewBox={`${camera.x} ${camera.y} ${camera.width} ${camera.height}`}
-          className={`block w-full touch-none select-none ${presentation === 'workspace' || expanded ? 'absolute inset-0 h-full' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : onGroupChange && groupSelectMode ? 'cursor-crosshair' : 'cursor-grab'}`}
-          aria-label={c('Zoomable floor preview', 'Sơ đồ tầng có thể phóng to thu nhỏ')}
-          onPointerDown={(event) => {
-            shared.clearHover();
-            point(event);
-          }}
-          onPointerLeave={() => {
-            shared.clearHover();
-            setObjectHover(null);
-          }}
-          onWheel={shared.clearHover}
-          onPointerUp={() => {
-            const current = drag.current;
-            stop();
-            if (current?.editing && current.moved && current.target) {
-              const fields = current.fields ?? current.initial;
-              if (fields) onObjectDrag?.(current.target, fields, 'end');
-            } else if (current?.target && !current.moved) onFocus(current.target);
-          }}
-          onPointerCancel={() => {
-            const current = drag.current;
-            if (current?.editing && current.moved && current.target) {
-              const fields = dragFields(current.target, 0, 0);
-              if (fields) onObjectDrag?.(current.target, fields, 'cancel');
-            }
-            stop();
-          }}
-          onLostPointerCapture={() => {
-            const current = drag.current;
-            if (current?.editing && current.moved && current.target) {
-              const fields = dragFields(current.target, 0, 0);
-              if (fields) onObjectDrag?.(current.target, fields, 'cancel');
-            }
-            stop();
-          }}
-          onPointerMove={(event) => {
-            shared.inspectArea(event);
-            const current = drag.current;
-            if (!current) {
-              const key = (event.target as Element)
-                .closest('[data-preview-key]')
-                ?.getAttribute('data-preview-key');
-              setObjectHover(
-                key
-                  ? {
-                      key,
-                      left: Math.max(8, Math.min(event.clientX + 16, window.innerWidth - 280)),
-                      top: Math.max(8, Math.min(event.clientY + 16, window.innerHeight - 160))
-                    }
-                  : null
-              );
-            }
-            if (!current || event.pointerId !== current.pointerId) return;
-            const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(
-              current.inverse
-            );
-            const dx = cursor.x - current.start.x,
-              dy = cursor.y - current.start.y;
-            if (Math.abs(dx) + Math.abs(dy) > current.camera.width / 250) {
-              if (!current.moved && current.editing && current.target) {
-                const fields = dragFields(current.target, 0, 0);
-                if (fields) onObjectDrag?.(current.target, fields, 'start');
-              }
-              current.moved = true;
-              moved.current = true;
-            }
-            if (current.moved && current.editing && current.target) {
-              const fields = dragFields(current.target, dx, dy);
-              if (fields) {
-                current.fields = fields;
-                onObjectDrag?.(current.target, fields, 'move');
-              }
-            } else if (current.moved)
-              setCamera({ ...current.camera, x: current.camera.x - dx, y: current.camera.y - dy });
-          }}
+      {viewMode === '3d' ? (
+        <Suspense
+          fallback={
+            <div
+              role='status'
+              className='flex min-h-64 flex-1 items-center justify-center text-sm text-muted-foreground'
+            >
+              {c('Loading 3D view…', 'Đang tải chế độ 3D…')}
+            </div>
+          }
         >
-          <defs>
-            <pattern id={id} width='25' height='25' patternUnits='userSpaceOnUse'>
-              <path d='M25 0H0V25' fill='none' className='stroke-border/45' strokeWidth='.6' />
-            </pattern>
-          </defs>
-          <SharedFloorLayer context={shared} />
-          <rect
+          <Floor3dPreview
+            key={layout.floor.id}
+            layout={layout}
             width={width}
             height={height}
-            rx={cornerRadius}
-            className={
-              shared.bounds ? 'fill-background stroke-primary' : 'fill-background stroke-border'
-            }
-            strokeWidth='1'
-            vectorEffect='non-scaling-stroke'
+            radius={cornerRadius}
+            availability={availability}
+            stretch={presentation === 'workspace' || expanded}
+            expanded={expanded || fullscreenActive}
+            onFullscreen={() => void toggleFullscreen()}
           />
-          <rect width={width} height={height} rx={cornerRadius} fill={`url(#${id})`} />
-          {resources.filter((item) => item.category === 'ROOM').map(resource)}
-          <DecorationLayer items={decorations} />
-          {decorations.map((item) => (
-            <rect
-              key={`target-${item.id}`}
-              data-preview-key={`decoration:${item.id}`}
-              x={item.posX}
-              y={item.posY}
-              width={item.width}
-              height={item.height}
-              transform={`rotate(${item.rotation} ${item.posX + item.width / 2} ${item.posY + item.height / 2})`}
-              fill='transparent'
-              stroke={
-                collisionKeys?.has(`decoration:${item.id}`)
-                  ? '#ef4444'
-                  : previewChanges?.[`decoration:${item.id}`] === 'ADD'
-                    ? '#10b981'
-                    : previewChanges?.[`decoration:${item.id}`] === 'UPDATE'
-                      ? '#f59e0b'
-                      : undefined
-              }
-              strokeWidth={
-                collisionKeys?.has(`decoration:${item.id}`) ||
-                previewChanges?.[`decoration:${item.id}`]
-                  ? 2
-                  : undefined
-              }
-              strokeDasharray={previewChanges?.[`decoration:${item.id}`] ? '5 3' : undefined}
-              vectorEffect='non-scaling-stroke'
-              role='button'
-              tabIndex={0}
-              className='cursor-pointer outline-none focus:stroke-primary'
-              aria-label={`${c('Focus', 'Phóng tới')} ${item.label}`}
-              onClick={() => {
-                if (!moved.current) onFocus(`decoration:${item.id}`);
-              }}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault();
-                  onFocus(`decoration:${item.id}`);
-                }
-              }}
-            />
-          ))}
-          {selected?.key.startsWith('decoration:') && (
-            <rect
-              x={selected.box.x - 3}
-              y={selected.box.y - 3}
-              width={selected.box.width + 6}
-              height={selected.box.height + 6}
-              rx='5'
-              fill='none'
-              className='stroke-primary'
-              strokeWidth='2'
-              strokeDasharray='4 3'
-              vectorEffect='non-scaling-stroke'
-            />
+        </Suspense>
+      ) : (
+        <>
+          {multi.confirmation}
+          {!objectHover && <SharedFloorTooltip context={shared} />}
+          {(actions || onGroupChange) && (
+            <div className='flex shrink-0 items-center gap-2 overflow-x-auto whitespace-nowrap border-b border-border bg-card px-4 py-2'>
+              {onGroupChange && (
+                <>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={groupSelectMode ? 'default' : 'outline'}
+                    onClick={() => setGroupSelectMode(true)}
+                  >
+                    {c('Select area', 'Chọn vùng')}
+                  </Button>
+                  <Button
+                    type='button'
+                    size='sm'
+                    variant={!groupSelectMode ? 'default' : 'outline'}
+                    onClick={() => setGroupSelectMode(false)}
+                  >
+                    {c('Pan view', 'Kéo xem')}
+                  </Button>
+                  {multi.toolbar}
+                </>
+              )}
+              {actions}
+            </div>
           )}
-          {resources.filter((item) => item.category !== 'ROOM').map(resource)}
-          {onGroupChange && multi.overlay}
-        </svg>
-      </div>
-      <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 text-xs'>
-        <div className='flex flex-wrap gap-3 text-muted-foreground'>
-          <span className='flex items-center gap-1.5'>
-            <DoorOpen className='size-3.5' />
-            {c('Room', 'Phòng')}
-          </span>
-          <span className='flex items-center gap-1.5'>
-            <Armchair className='size-3.5 text-primary' />
-            {c('Seat', 'Ghế')}
-          </span>
-          <span>
-            {width} × {height} px
-          </span>
-        </div>
-        <div className='flex gap-2'>
-          <Button
-            type='button'
-            size='sm'
-            variant='ghost'
-            className='h-7 rounded-lg text-xs'
-            onClick={() => setCamera(floor)}
+          {objectHover && (hoveredResource || hoveredObject) && (
+            <div
+              role='tooltip'
+              className='pointer-events-none fixed z-[110] w-64 rounded-xl border border-primary/20 bg-popover p-3 text-popover-foreground shadow-xl'
+              style={{ left: objectHover.left, top: objectHover.top }}
+            >
+              <p className='text-sm font-semibold'>
+                {hoveredResource?.name ?? hoveredObject?.label}
+              </p>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {hoveredResource
+                  ? `${hoveredResource.code} · ${hoveredResource.category === 'ROOM' ? c('Room', 'Phòng') : c('Seat', 'Ghế')}`
+                  : c('Layout object · Not bookable', 'Đồ bố trí · Không đặt chỗ')}
+              </p>
+              <p className='mt-1 text-xs text-muted-foreground'>
+                {hoveredResource?.width ?? hoveredObject?.width} ×{' '}
+                {hoveredResource?.height ?? hoveredObject?.height} px
+                {hoveredResource?.capacity
+                  ? ` · ${hoveredResource.capacity} ${c('people', 'người')}`
+                  : ''}
+              </p>
+              <p className='mt-2 text-xs font-medium text-primary'>
+                {onGroupChange && groupSelectMode
+                  ? c(
+                      'Drag background to select · Drag a selected object to move the group',
+                      'Kéo nền để chọn nhóm · Kéo đối tượng đã chọn để di chuyển nhóm'
+                    )
+                  : onObjectDrag
+                    ? c(
+                        'Drag to move · Click for properties',
+                        'Kéo để di chuyển · Click xem thuộc tính'
+                      )
+                    : c('Click for properties', 'Click xem thuộc tính')}
+              </p>
+            </div>
+          )}
+          <div className='flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border bg-gradient-to-br from-primary/[0.07] to-background px-4 py-2.5'>
+            <div>
+              <p className='flex items-center gap-2 text-sm font-semibold'>
+                <span className='flex size-8 items-center justify-center rounded-xl bg-primary/10 text-primary'>
+                  <Layers3 className='size-4' />
+                </span>
+                {c('Floor overview', 'Toàn cảnh tầng')}
+              </p>
+              <p
+                className={
+                  presentation === 'workspace'
+                    ? 'sr-only'
+                    : 'mt-1.5 text-[11px] text-muted-foreground'
+                }
+              >
+                {c(
+                  'Drag to pan. Select an object or use the list to focus.',
+                  'Kéo để xem xung quanh. Chọn đối tượng hoặc bấm Xem trong danh sách để phóng tới.'
+                )}
+              </p>
+            </div>
+            <div
+              role='group'
+              aria-label={c('Map view controls', 'Điều khiển xem sơ đồ')}
+              className='flex items-center gap-1 rounded-xl border border-border/70 bg-background/80 p-1'
+            >
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-8 rounded-lg'
+                aria-label={c('Zoom out', 'Thu nhỏ')}
+                title={c('Zoom out', 'Thu nhỏ')}
+                disabled={zoom <= 0.5}
+                onClick={() => zoomBy(1 / 1.25)}
+              >
+                <ZoomOut className='size-4' />
+              </Button>
+              <span className='min-w-12 text-center text-xs font-medium tabular-nums'>
+                {Math.round(zoom * 100)}%
+              </span>
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-8 rounded-lg'
+                aria-label={c('Zoom in', 'Phóng to')}
+                title={c('Zoom in', 'Phóng to')}
+                disabled={zoom >= 12}
+                onClick={() => zoomBy(1.25)}
+              >
+                <ZoomIn className='size-4' />
+              </Button>
+              <span className='mx-1 h-4 border-l border-border' />
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-8 rounded-lg'
+                aria-label={c('Fit all objects', 'Vừa toàn bộ đối tượng')}
+                title={c('Fit all objects', 'Vừa toàn bộ đối tượng')}
+                onClick={() =>
+                  setCamera(
+                    frame(
+                      objects.map((object) => object.box),
+                      floor
+                    )
+                  )
+                }
+              >
+                <Focus className='size-4' />
+              </Button>
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-8 rounded-lg'
+                aria-label={
+                  expanded || fullscreenActive
+                    ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
+                    : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
+                }
+                title={
+                  expanded || fullscreenActive
+                    ? c('Exit fullscreen (Esc)', 'Thoát toàn màn hình (Esc)')
+                    : c('Fullscreen preview', 'Xem sơ đồ toàn màn hình')
+                }
+                aria-pressed={expanded || fullscreenActive}
+                onClick={() => void toggleFullscreen()}
+              >
+                {expanded || fullscreenActive ? (
+                  <Minimize2 className='size-4' />
+                ) : (
+                  <Maximize2 className='size-4' />
+                )}
+              </Button>
+              {expanded && (
+                <span className='px-2 text-xs text-muted-foreground'>
+                  {c('Esc to exit', 'Esc để thu gọn')}
+                </span>
+              )}
+            </div>
+          </div>
+          <div
+            className={`relative overflow-hidden bg-muted/30 ${presentation === 'workspace' || expanded ? 'flex min-h-0 flex-1' : ''}`}
           >
-            {c('Entire floor', 'Toàn tầng')}
-          </Button>
-          <Button
-            type='button'
-            size='sm'
-            variant='secondary'
-            className='h-7 rounded-lg text-xs'
-            onClick={() =>
-              setCamera(
-                frame(
-                  objects.map((object) => object.box),
-                  floor
-                )
-              )
-            }
-          >
-            {c('Fit layout', 'Vừa bố trí')}
-          </Button>
-        </div>
-      </div>
-      {selected && (
-        <p className='border-t border-border bg-primary/5 px-4 py-2 text-xs font-medium text-primary'>
-          {c('Viewing', 'Đang xem')}: {selected.name}
-        </p>
+            <div className='pointer-events-none absolute left-3 top-3 z-10 flex gap-2'>
+              <span className='flex items-center gap-1.5 rounded-lg border border-border/70 bg-background/90 px-2.5 py-1.5 text-[11px] text-muted-foreground shadow-sm backdrop-blur'>
+                <Hand className='size-3' />
+                {onObjectDrag
+                  ? c(
+                      'Drag objects to move · Drag background to pan',
+                      'Kéo đồ vật để di chuyển · Kéo nền để xem'
+                    )
+                  : c('Pan view', 'Kéo để xem')}
+              </span>
+            </div>
+            <svg
+              data-floor-canvas='true'
+              role='application'
+              ref={svg}
+              tabIndex={0}
+              viewBox={`${camera.x} ${camera.y} ${camera.width} ${camera.height}`}
+              className={`block w-full touch-none select-none ${presentation === 'workspace' || expanded ? 'absolute inset-0 h-full' : 'h-[25rem]'} ${panning ? 'cursor-grabbing' : onGroupChange && groupSelectMode ? 'cursor-crosshair' : 'cursor-grab'}`}
+              aria-label={c('Zoomable floor preview', 'Sơ đồ tầng có thể phóng to thu nhỏ')}
+              onPointerDown={(event) => {
+                shared.clearHover();
+                point(event);
+              }}
+              onPointerLeave={() => {
+                shared.clearHover();
+                setObjectHover(null);
+              }}
+              onWheel={shared.clearHover}
+              onPointerUp={() => {
+                const current = drag.current;
+                stop();
+                if (current?.editing && current.moved && current.target) {
+                  const fields = current.fields ?? current.initial;
+                  if (fields) onObjectDrag?.(current.target, fields, 'end');
+                } else if (current?.target && !current.moved) onFocus(current.target);
+              }}
+              onPointerCancel={() => {
+                const current = drag.current;
+                if (current?.editing && current.moved && current.target) {
+                  const fields = dragFields(current.target, 0, 0);
+                  if (fields) onObjectDrag?.(current.target, fields, 'cancel');
+                }
+                stop();
+              }}
+              onLostPointerCapture={() => {
+                const current = drag.current;
+                if (current?.editing && current.moved && current.target) {
+                  const fields = dragFields(current.target, 0, 0);
+                  if (fields) onObjectDrag?.(current.target, fields, 'cancel');
+                }
+                stop();
+              }}
+              onPointerMove={(event) => {
+                shared.inspectArea(event);
+                const current = drag.current;
+                if (!current) {
+                  const key = (event.target as Element)
+                    .closest('[data-preview-key]')
+                    ?.getAttribute('data-preview-key');
+                  setObjectHover(
+                    key
+                      ? {
+                          key,
+                          left: Math.max(8, Math.min(event.clientX + 16, window.innerWidth - 280)),
+                          top: Math.max(8, Math.min(event.clientY + 16, window.innerHeight - 160))
+                        }
+                      : null
+                  );
+                }
+                if (!current || event.pointerId !== current.pointerId) return;
+                const cursor = new DOMPoint(event.clientX, event.clientY).matrixTransform(
+                  current.inverse
+                );
+                const dx = cursor.x - current.start.x,
+                  dy = cursor.y - current.start.y;
+                if (Math.abs(dx) + Math.abs(dy) > current.camera.width / 250) {
+                  if (!current.moved && current.editing && current.target) {
+                    const fields = dragFields(current.target, 0, 0);
+                    if (fields) onObjectDrag?.(current.target, fields, 'start');
+                  }
+                  current.moved = true;
+                  moved.current = true;
+                }
+                if (current.moved && current.editing && current.target) {
+                  const fields = dragFields(current.target, dx, dy);
+                  if (fields) {
+                    current.fields = fields;
+                    onObjectDrag?.(current.target, fields, 'move');
+                  }
+                } else if (current.moved)
+                  setCamera({
+                    ...current.camera,
+                    x: current.camera.x - dx,
+                    y: current.camera.y - dy
+                  });
+              }}
+            >
+              <defs>
+                <pattern id={id} width='25' height='25' patternUnits='userSpaceOnUse'>
+                  <path d='M25 0H0V25' fill='none' className='stroke-border/45' strokeWidth='.6' />
+                </pattern>
+              </defs>
+              <SharedFloorLayer context={shared} />
+              <rect
+                width={width}
+                height={height}
+                rx={cornerRadius}
+                className={
+                  shared.bounds ? 'fill-background stroke-primary' : 'fill-background stroke-border'
+                }
+                strokeWidth='1'
+                vectorEffect='non-scaling-stroke'
+              />
+              <rect width={width} height={height} rx={cornerRadius} fill={`url(#${id})`} />
+              {resources.filter((item) => item.category === 'ROOM').map(resource)}
+              <DecorationLayer items={decorations} />
+              {decorations.map((item) => (
+                <rect
+                  key={`target-${item.id}`}
+                  data-preview-key={`decoration:${item.id}`}
+                  x={item.posX}
+                  y={item.posY}
+                  width={item.width}
+                  height={item.height}
+                  transform={`rotate(${item.rotation} ${item.posX + item.width / 2} ${item.posY + item.height / 2})`}
+                  fill='transparent'
+                  stroke={
+                    collisionKeys?.has(`decoration:${item.id}`)
+                      ? '#ef4444'
+                      : previewChanges?.[`decoration:${item.id}`] === 'ADD'
+                        ? '#10b981'
+                        : previewChanges?.[`decoration:${item.id}`] === 'UPDATE'
+                          ? '#f59e0b'
+                          : undefined
+                  }
+                  strokeWidth={
+                    collisionKeys?.has(`decoration:${item.id}`) ||
+                    previewChanges?.[`decoration:${item.id}`]
+                      ? 2
+                      : undefined
+                  }
+                  strokeDasharray={previewChanges?.[`decoration:${item.id}`] ? '5 3' : undefined}
+                  vectorEffect='non-scaling-stroke'
+                  role='button'
+                  tabIndex={0}
+                  className='cursor-pointer outline-none focus:stroke-primary'
+                  aria-label={`${c('Focus', 'Phóng tới')} ${item.label}`}
+                  onClick={() => {
+                    if (!moved.current) onFocus(`decoration:${item.id}`);
+                  }}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      onFocus(`decoration:${item.id}`);
+                    }
+                  }}
+                />
+              ))}
+              {selected?.key.startsWith('decoration:') && (
+                <rect
+                  x={selected.box.x - 3}
+                  y={selected.box.y - 3}
+                  width={selected.box.width + 6}
+                  height={selected.box.height + 6}
+                  rx='5'
+                  fill='none'
+                  className='stroke-primary'
+                  strokeWidth='2'
+                  strokeDasharray='4 3'
+                  vectorEffect='non-scaling-stroke'
+                />
+              )}
+              {resources.filter((item) => item.category !== 'ROOM').map(resource)}
+              {onGroupChange && multi.overlay}
+            </svg>
+          </div>
+          <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-t border-border bg-card px-4 py-3 text-xs'>
+            <div className='flex flex-wrap gap-3 text-muted-foreground'>
+              <span className='flex items-center gap-1.5'>
+                <DoorOpen className='size-3.5' />
+                {c('Room', 'Phòng')}
+              </span>
+              <span className='flex items-center gap-1.5'>
+                <Armchair className='size-3.5 text-primary' />
+                {c('Seat', 'Ghế')}
+              </span>
+              <span>
+                {width} × {height} px
+              </span>
+            </div>
+            <div className='flex gap-2'>
+              <Button
+                type='button'
+                size='sm'
+                variant='ghost'
+                className='h-7 rounded-lg text-xs'
+                onClick={() => setCamera(floor)}
+              >
+                {c('Entire floor', 'Toàn tầng')}
+              </Button>
+              <Button
+                type='button'
+                size='sm'
+                variant='secondary'
+                className='h-7 rounded-lg text-xs'
+                onClick={() =>
+                  setCamera(
+                    frame(
+                      objects.map((object) => object.box),
+                      floor
+                    )
+                  )
+                }
+              >
+                {c('Fit layout', 'Vừa bố trí')}
+              </Button>
+            </div>
+          </div>
+          {selected && (
+            <p className='border-t border-border bg-primary/5 px-4 py-2 text-xs font-medium text-primary'>
+              {c('Viewing', 'Đang xem')}: {selected.name}
+            </p>
+          )}
+        </>
       )}
     </div>
   );

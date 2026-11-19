@@ -20,8 +20,10 @@ import {
   XCircle,
   Clock3,
   ChevronRight,
-  MessageSquare
+  MessageSquare,
+  Ban
 } from 'lucide-react';
+import { useCancellationPreviewQuery, useCancelBookingMutation } from '@/features/workspaces/api/booking-queries';
 import { BookingChatDialog } from '@/features/chat/components/booking-chat-dialog';
 import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -32,7 +34,8 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogDescription
+  DialogDescription,
+  DialogFooter
 } from '@/components/ui/dialog';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useCustomerBookings } from '@/features/payments/api/queries';
@@ -46,6 +49,17 @@ function formatCurrency(val: number) {
   return new Intl.NumberFormat('vi-VN').format(val) + ' ₫';
 }
 
+const POPULAR_BANKS = [
+  { bin: '970422', name: 'MBBank (Ngân hàng Quân Đội)' },
+  { bin: '970436', name: 'Vietcombank (Ngoại thương Việt Nam)' },
+  { bin: '970415', name: 'VietinBank (Công thương Việt Nam)' },
+  { bin: '970407', name: 'Techcombank (Kỹ thương Việt Nam)' },
+  { bin: '970418', name: 'BIDV (Đầu tư và Phát triển VN)' },
+  { bin: '970416', name: 'ACB (Á Châu)' },
+  { bin: '970423', name: 'TPBank (Tiên Phong)' },
+  { bin: '970432', name: 'VPBank (Việt Nam Thịnh Vượng)' }
+];
+
 export function MyBookingsPage() {
   const { language } = useLanguage();
   const navigate = useNavigate();
@@ -57,6 +71,47 @@ export function MyBookingsPage() {
   const [revealedPins, setRevealedPins] = useState<Record<number, boolean>>({});
   const [selectedPass, setSelectedPass] = useState<CustomerBookingItemResponse | null>(null);
   const [chatBookingId, setChatBookingId] = useState<number | null>(null);
+
+  // Cancellation and Refund states
+  const [bookingToCancel, setBookingToCancel] = useState<CustomerBookingItemResponse | null>(null);
+  const [cancelReason, setCancelReason] = useState<string>('');
+  const [bankBin, setBankBin] = useState<string>('970422');
+  const [bankName, setBankName] = useState<string>('MBBank (Ngân hàng Quân Đội)');
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>('');
+  const [bankAccountName, setBankAccountName] = useState<string>('');
+
+  const cancelMutation = useCancelBookingMutation();
+  const { data: cancelPreview, isLoading: isPreviewLoading } = useCancellationPreviewQuery(
+    bookingToCancel?.bookingId,
+    { enabled: Boolean(bookingToCancel) }
+  );
+
+  const handleConfirmCancel = async () => {
+    if (!bookingToCancel) return;
+    try {
+      await cancelMutation.mutateAsync({
+        id: bookingToCancel.bookingId,
+        reason: cancelReason || (isVi ? 'Khách hàng hủy đơn từ trang Đơn đặt chỗ của tôi' : 'Customer cancelled from my bookings page'),
+        bankName,
+        bankBin,
+        bankAccountNumber: bankAccountNumber.trim(),
+        bankAccountName: bankAccountName.trim().toUpperCase()
+      });
+      toast.success(
+        isVi
+          ? 'Đã hủy đơn đặt chỗ thành công. Yêu cầu hoàn tiền đã được gửi tới Admin xử lý chi tiền qua PayOS.'
+          : 'Booking cancelled successfully. Refund request submitted.'
+      );
+      setBookingToCancel(null);
+      setCancelReason('');
+      setBankAccountNumber('');
+      setBankAccountName('');
+      refetch();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Lỗi khi hủy đơn';
+      toast.error(isVi ? 'Không thể hủy đơn' : 'Failed to cancel booking', { description: msg });
+    }
+  };
 
   // Status mapping for API filter
   const apiStatus = activeTab === 'ALL' || activeTab === 'OTHER' ? undefined : (activeTab as BookingStatus);
@@ -119,7 +174,7 @@ export function MyBookingsPage() {
     }
   };
 
-  const renderStatusBadge = (status: BookingStatus) => {
+  const renderStatusBadge = (status: BookingStatus, refundStatus?: string | null) => {
     switch (status) {
       case 'CONFIRMED':
         return (
@@ -150,6 +205,30 @@ export function MyBookingsPage() {
           </Badge>
         );
       case 'CANCELLED':
+        if (refundStatus === 'PROCESSED' || refundStatus === 'APPROVED') {
+          return (
+            <Badge className='bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+              <CheckCircle2 className='h-3 w-3 text-purple-600 dark:text-purple-400' />
+              <span>{isVi ? 'Đã hoàn tiền' : 'Refunded'}</span>
+            </Badge>
+          );
+        }
+        if (refundStatus === 'PENDING') {
+          return (
+            <Badge className='bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+              <Clock3 className='h-3 w-3 text-amber-600 dark:text-amber-400' />
+              <span>{isVi ? 'Chờ duyệt hoàn tiền' : 'Refund Pending'}</span>
+            </Badge>
+          );
+        }
+        if (refundStatus === 'REJECTED') {
+          return (
+            <Badge className='bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+              <XCircle className='h-3 w-3 text-rose-600' />
+              <span>{isVi ? 'Từ chối hoàn tiền' : 'Refund Rejected'}</span>
+            </Badge>
+          );
+        }
         return (
           <Badge className='bg-rose-500/10 text-rose-700 dark:text-rose-400 border-rose-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
             <XCircle className='h-3 w-3 text-rose-600' />
@@ -326,7 +405,7 @@ export function MyBookingsPage() {
                       <span className='font-mono text-xs font-bold text-foreground bg-muted/80 px-2 py-0.5 rounded-md border border-border/60'>
                         #{b.bookingCode}
                       </span>
-                      {renderStatusBadge(b.status)}
+                      {renderStatusBadge(b.status, b.refundStatus)}
                       <span className='text-muted-foreground text-xs'>•</span>
                       <span className='text-muted-foreground text-xs'>
                         {schedule.date}
@@ -451,7 +530,56 @@ export function MyBookingsPage() {
                             <span>{isVi ? 'Xem chi tiết' : 'Details'}</span>
                             <ArrowRight className='h-3.5 w-3.5' />
                           </Button>
+
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={() => setBookingToCancel(b)}
+                            className='cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl border-red-500/30 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30'
+                          >
+                            <Ban className='h-3.5 w-3.5 text-red-600' />
+                            <span>{isVi ? 'Hủy & Hoàn tiền' : 'Cancel & Refund'}</span>
+                          </Button>
                         </>
+                      )}
+
+                      {b.status === 'CANCELLED' && (
+                        b.refundStatus === 'PROCESSED' || b.refundStatus === 'APPROVED' ? (
+                          <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-400 text-xs font-medium border border-purple-500/25'>
+                            <CheckCircle2 className='size-3.5 shrink-0 text-purple-600 dark:text-purple-400' />
+                            <div>
+                              <span>
+                                {isVi
+                                  ? `Đã hoàn tiền ${formatCurrency(b.refundAmount || 0)} qua PayOS`
+                                  : `Refunded ${formatCurrency(b.refundAmount || 0)} via PayOS`}
+                              </span>
+                              {b.refundBankName && b.refundAccountNumber && (
+                                <span className='text-[11px] text-muted-foreground ml-1.5'>
+                                  ({b.refundBankName} ••••{b.refundAccountNumber.slice(-4)})
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ) : b.refundStatus === 'PENDING' ? (
+                          <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-medium border border-amber-500/25'>
+                            <Clock3 className='size-3.5 shrink-0 text-amber-600' />
+                            <span>
+                              {isVi
+                                ? `Đang chờ duyệt hoàn ${formatCurrency(b.refundAmount || 0)}`
+                                : `Pending refund review ${formatCurrency(b.refundAmount || 0)}`}
+                            </span>
+                          </div>
+                        ) : b.refundStatus === 'REJECTED' ? (
+                          <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-500/20'>
+                            <XCircle className='size-3.5 shrink-0' />
+                            <span>{isVi ? 'Yêu cầu hoàn tiền bị từ chối' : 'Refund Request Rejected'}</span>
+                          </div>
+                        ) : (
+                          <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium border border-red-500/20'>
+                            <XCircle className='size-3.5 shrink-0' />
+                            <span>{isVi ? 'Đơn đã hủy' : 'Cancelled'}</span>
+                          </div>
+                        )
                       )}
 
                       {isPending && (
@@ -610,6 +738,149 @@ export function MyBookingsPage() {
         open={Boolean(chatBookingId)}
         onOpenChange={(open) => !open && setChatBookingId(null)}
       />
+
+      {/* Cancel Booking & Request Refund Modal */}
+      {bookingToCancel && (
+        <Dialog open={Boolean(bookingToCancel)} onOpenChange={(open) => !open && setBookingToCancel(null)}>
+          <DialogContent className='sm:max-w-md'>
+            <DialogHeader>
+              <DialogTitle className='text-base font-bold flex items-center gap-2'>
+                <Ban className='size-4 text-red-500' />
+                <span>{isVi ? 'Hủy đặt chỗ & Hoàn tiền' : 'Cancel Booking & Refund'}</span>
+              </DialogTitle>
+              <DialogDescription className='text-xs text-muted-foreground'>
+                {isVi
+                  ? `Bạn có chắc muốn hủy đơn #${bookingToCancel.bookingCode} tại ${bookingToCancel.workspaceName}?`
+                  : `Are you sure you want to cancel booking #${bookingToCancel.bookingCode}?`}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className='space-y-3 py-2 text-xs'>
+              {/* Cancellation Policy Preview */}
+              {isPreviewLoading ? (
+                <div className='flex items-center gap-2 p-3 rounded-xl bg-muted/40 text-xs text-muted-foreground'>
+                  <Loader2 className='size-4 animate-spin text-primary' />
+                  <span>{isVi ? 'Đang tính toán chính sách hoàn tiền...' : 'Calculating refund preview...'}</span>
+                </div>
+              ) : cancelPreview ? (
+                <div className='space-y-2 rounded-xl border border-border/80 bg-muted/30 p-3 text-xs'>
+                  <div className='flex items-center justify-between'>
+                    <span className='font-semibold text-foreground'>{isVi ? 'Số tiền hoàn dự kiến:' : 'Estimated Refund:'}</span>
+                    <span className='font-bold text-sm text-emerald-600 dark:text-emerald-400'>
+                      {formatCurrency(cancelPreview.refundAmount || 0)}
+                      <span className='ml-1 text-[11px] font-normal text-muted-foreground'>
+                        ({cancelPreview.refundPercent}%)
+                      </span>
+                    </span>
+                  </div>
+                  <p className='text-[11px] text-muted-foreground leading-normal'>
+                    {cancelPreview.cancellationPolicyExplanation}
+                  </p>
+                  {cancelPreview.rules && cancelPreview.rules.length > 0 && (
+                    <div className='border-t border-border/60 pt-1.5 text-[10px] text-muted-foreground space-y-0.5'>
+                      <span className='font-semibold text-foreground'>{isVi ? 'Mốc hoàn tiền quy định:' : 'Policy Tiers:'}</span>
+                      {cancelPreview.rules.map((r, idx) => (
+                        <div key={idx} className='flex justify-between'>
+                          <span>{isVi ? `Trước ${r.minHoursBeforeStart} giờ:` : `>= ${r.minHoursBeforeStart}h prior:`}</span>
+                          <span className='font-medium text-foreground'>{isVi ? `Hoàn ${r.refundPercent}%` : `${r.refundPercent}% refund`}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : null}
+
+              {/* Bank Information Form */}
+              {cancelPreview && cancelPreview.refundAmount > 0 && (
+                <div className='space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs'>
+                  <span className='font-semibold text-foreground block'>
+                    {isVi ? 'Tài khoản nhận tiền hoàn (Napas 24/7):' : 'Bank Account for Refund:'}
+                  </span>
+                  <div className='space-y-2'>
+                    <div>
+                      <label className='text-[11px] text-muted-foreground block mb-0.5'>{isVi ? 'Ngân hàng:' : 'Bank:'}</label>
+                      <select
+                        value={bankBin}
+                        onChange={(e) => {
+                          const selected = POPULAR_BANKS.find((b) => b.bin === e.target.value);
+                          setBankBin(e.target.value);
+                          if (selected) setBankName(selected.name);
+                        }}
+                        className='w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary'
+                      >
+                        {POPULAR_BANKS.map((b) => (
+                          <option key={b.bin} value={b.bin}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className='grid grid-cols-2 gap-2'>
+                      <div>
+                        <label className='text-[11px] text-muted-foreground block mb-0.5'>{isVi ? 'Số tài khoản (*):' : 'Account Number (*):'}</label>
+                        <input
+                          type='text'
+                          value={bankAccountNumber}
+                          onChange={(e) => setBankAccountNumber(e.target.value)}
+                          placeholder='VD: 0123456789'
+                          className='w-full rounded-lg border border-border bg-background p-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary'
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className='text-[11px] text-muted-foreground block mb-0.5'>{isVi ? 'Tên chủ tài khoản (*):' : 'Account Holder (*):'}</label>
+                        <input
+                          type='text'
+                          value={bankAccountName}
+                          onChange={(e) => setBankAccountName(e.target.value)}
+                          placeholder='VD: NGUYEN VAN A'
+                          className='w-full rounded-lg border border-border bg-background p-2 text-xs uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary'
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Cancel Reason Input */}
+              <div className='space-y-1.5'>
+                <label className='text-xs font-semibold text-foreground'>
+                  {isVi ? 'Lý do hủy (không bắt buộc):' : 'Reason for cancellation:'}
+                </label>
+                <textarea
+                  value={cancelReason}
+                  onChange={(e) => setCancelReason(e.target.value)}
+                  placeholder={isVi ? 'Nhập lý do thay đổi kế hoạch...' : 'Reason for cancellation...'}
+                  rows={2}
+                  className='w-full rounded-xl border border-border bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary'
+                />
+              </div>
+            </div>
+
+            <DialogFooter className='gap-2 sm:gap-0'>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => setBookingToCancel(null)}
+                disabled={cancelMutation.isPending}
+                className='text-xs h-9 cursor-pointer'
+              >
+                {isVi ? 'Giữ lại đơn' : 'Keep Booking'}
+              </Button>
+              <Button
+                size='sm'
+                onClick={handleConfirmCancel}
+                disabled={cancelMutation.isPending}
+                className='bg-red-600 hover:bg-red-700 text-white text-xs h-9 font-semibold gap-1.5 cursor-pointer'
+              >
+                {cancelMutation.isPending && <Loader2 className='size-3.5 animate-spin' />}
+                <span>{isVi ? 'Xác nhận hủy & Hoàn tiền' : 'Confirm Cancel & Refund'}</span>
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
       <Footer />
     </div>

@@ -184,17 +184,33 @@ export function useCreateBookingMutation() {
   });
 }
 
+export interface CancelBookingMutationPayload {
+  id: number | string;
+  reason?: string;
+  bankName?: string;
+  bankBin?: string;
+  bankAccountNumber?: string;
+  bankAccountName?: string;
+}
+
 export function useCancelBookingMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<BookingDto, Error, { id: number | string; reason?: string }>({
-    mutationFn: ({ id, reason }) => workspaceService.cancelBooking(id, reason),
+  return useMutation<BookingDto, Error, CancelBookingMutationPayload>({
+    mutationFn: ({ id, reason, bankName, bankBin, bankAccountNumber, bankAccountName }) =>
+      workspaceService.cancelBooking(id, reason, {
+        bankName,
+        bankBin,
+        bankAccountNumber,
+        bankAccountName
+      }),
     onSuccess: (booking) => {
       queryClient.invalidateQueries({ queryKey: bookingKeys.all });
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-refunds'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }

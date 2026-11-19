@@ -47,44 +47,48 @@ export function RefundActionDialog({
               </div>
             )}
             <DialogTitle className='text-base font-bold'>
-              {isApprove ? 'Confirm Refund Approval' : 'Confirm Claim Rejection'}
+              {isApprove ? 'Xác nhận phê duyệt & Chi tiền PayOS' : 'Xác nhận từ chối hoàn tiền'}
             </DialogTitle>
           </div>
           <DialogDescription className='text-xs text-muted-foreground'>
             {isApprove
-              ? `You are about to authorize an escrow refund of $${refund.calculatedRefundUsd.toFixed(2)} to ${refund.customerName} for claim ${refund.id}.`
-              : `You are rejecting claim ${refund.id} submitted by ${refund.customerName}. No disbursement will be initiated.`}
+              ? `Hệ thống sẽ thực hiện lệnh chi ${refund.calculatedRefundVnd.toLocaleString()} đ trực tiếp qua cổng PayOS đến tài khoản ngân hàng của khách hàng ${refund.customerName}.`
+              : `Bạn đang từ chối yêu cầu hoàn tiền ${refund.id} của khách hàng ${refund.customerName}. Không có khoản tiền nào được chi trả.`}
           </DialogDescription>
         </DialogHeader>
 
         <div className='space-y-3 py-2 text-xs'>
           <div className='p-3 rounded-lg bg-muted/60 space-y-1.5 border border-border'>
             <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Booking Reference:</span>
+              <span className='text-muted-foreground'>Mã đơn đặt chỗ:</span>
               <span className='font-mono font-semibold'>{refund.bookingRef}</span>
             </div>
             <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Customer:</span>
+              <span className='text-muted-foreground'>Khách hàng:</span>
               <span className='font-medium'>{refund.customerName}</span>
             </div>
-            <div className='flex justify-between'>
-              <span className='text-muted-foreground'>Original Paid:</span>
-              <span className='font-mono'>${refund.originalPaidUsd.toFixed(2)}</span>
-            </div>
+            {refund.bankAccountNumber && (
+              <div className='flex justify-between border-t border-border/60 pt-1'>
+                <span className='text-muted-foreground'>Tài khoản nhận:</span>
+                <span className='font-mono font-semibold text-foreground text-right'>
+                  {refund.bankName} • {refund.bankAccountNumber}
+                </span>
+              </div>
+            )}
             <div className='flex justify-between border-t border-border pt-1 font-bold'>
-              <span>{isApprove ? 'Net Escrow Payout:' : 'Disbursement Amount:'}</span>
+              <span>{isApprove ? 'Số tiền hoàn qua PayOS:' : 'Số tiền hoàn trả:'}</span>
               <span className={isApprove ? 'text-emerald-600' : 'text-muted-foreground'}>
-                {isApprove ? `$${refund.calculatedRefundUsd.toFixed(2)}` : '$0.00'}
+                {isApprove ? `${refund.calculatedRefundVnd.toLocaleString()} VND` : '0 VND'}
               </span>
             </div>
           </div>
 
           <div>
             <span className='text-[11px] font-semibold text-muted-foreground uppercase tracking-wider block mb-1'>
-              Recorded Admin Justification
+              Ghi chú xử lý của Quản trị viên
             </span>
             <div className='p-2.5 rounded bg-background border border-border text-foreground italic text-[11px]'>
-              "{adminNote || 'No custom note provided. Default SOC-2 audit resolution record applied.'}"
+              "{adminNote || 'Không có ghi chú thêm.'}"
             </div>
           </div>
         </div>
@@ -94,9 +98,9 @@ export function RefundActionDialog({
             type='button'
             variant='outline'
             onClick={() => onOpenChange(false)}
-            className='text-xs h-9'
+            className='text-xs h-9 cursor-pointer'
           >
-            Cancel
+            Hủy bỏ
           </Button>
           <Button
             type='button'
@@ -105,9 +109,11 @@ export function RefundActionDialog({
               onConfirm();
               onOpenChange(false);
             }}
-            className='text-xs h-9 font-semibold'
+            className={`text-xs h-9 font-semibold cursor-pointer ${
+              isApprove ? 'bg-emerald-600 hover:bg-emerald-700 text-white' : ''
+            }`}
           >
-            {isApprove ? `Authorize $${refund.calculatedRefundUsd.toFixed(2)} Refund` : 'Confirm Rejection'}
+            {isApprove ? 'Phê duyệt & Chi tiền ngay' : 'Xác nhận từ chối'}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -8,13 +8,13 @@ import { chartTrends, localDate, preset, displayAnalyticsDate } from '../format'
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { Button } from '@/components/ui/button';
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { AnalyticsCharts, AnalyticsRankings, BookingBreakdown } from './report-charts';
 import { FinancialLedger } from './financial-ledger';
 import { SummaryCards } from './summary-cards';
 
-const selectClass =
-  'h-10 min-w-0 rounded-lg border border-input bg-background px-3 text-sm focus-visible:outline-2 focus-visible:outline-primary';
-const panelClass = 'rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5';
+const selectClass = 'organizer-control';
+const panelClass = 'organizer-surface p-4 sm:p-5';
 
 export function OrganizerAnalyticsView() {
   const navigate = useNavigate();
@@ -100,23 +100,14 @@ export function OrganizerAnalyticsView() {
 
   return (
     <div className='min-w-0 space-y-5 pb-8'>
-      <header className='flex flex-wrap items-center justify-between gap-3'>
-        <div className='flex items-center gap-3'>
-          <span className='flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary'>
-            <BarChart3 className='size-5' />
-          </span>
-          <div>
-            <h1 className='text-2xl font-semibold tracking-tight'>
-              {c('Business analytics', 'Thống kê kinh doanh')}
-            </h1>
-            <p className='text-sm text-muted-foreground'>
-              {c(
-                'Bookings, cash flow and workspace performance.',
-                'Lượt đặt, dòng tiền và hiệu quả từng không gian.'
-              )}
-            </p>
-          </div>
-        </div>
+      <OrganizerPageHeader
+        icon={<BarChart3 />}
+        title={c('Business analytics', 'Thống kê kinh doanh')}
+        description={c(
+          'Bookings, cash flow and workspace performance.',
+          'Lượt đặt, dòng tiền và hiệu quả từng không gian.'
+        )}
+      >
         <div className='flex gap-2'>
           <Button
             variant='outline'
@@ -135,7 +126,7 @@ export function OrganizerAnalyticsView() {
             {exporting ? c('Exporting…', 'Đang xuất…') : c('Export transactions', 'Xuất giao dịch')}
           </Button>
         </div>
-      </header>
+      </OrganizerPageHeader>
 
       <form
         className={`${panelClass} space-y-3`}

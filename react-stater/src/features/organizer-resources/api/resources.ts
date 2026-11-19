@@ -1,3 +1,4 @@
+import type { Visual3d } from '../utils/visual-3d';
 import type { AllocationInput, FloorLocation } from './buildings';
 import { queryOptions, type QueryClient } from '@tanstack/react-query';
 import { z } from 'zod';
@@ -101,6 +102,7 @@ export type ResourceUsageKind =
   | 'SHARED_ROOM'
   | 'OTHER_ROOM';
 export interface TypeOption {
+  visual3d?: Visual3d | null;
   id: number;
   name: string;
   category: Category;
@@ -371,6 +373,7 @@ export const createResourceFloor = (
     value
   );
 export interface TypeInput {
+  visual3d?: Visual3d | null;
   name: string;
   category: Category;
   currency: Currency;
@@ -385,7 +388,10 @@ export interface TypeInput {
   standardLengthM?: number | null;
 }
 export const saveResourceType = (
-  workspaceId: number, value: TypeInput, current?: TypeOption, photos?: ResourceTypePhoto[]
+  workspaceId: number,
+  value: TypeInput,
+  current?: TypeOption,
+  photos?: ResourceTypePhoto[]
 ) => {
   const input = { ...value, ...(current ? { expectedRevision: current.revision } : {}) };
   return backendRequest<TypeOption>(
@@ -414,6 +420,7 @@ export function resourceMoney(value: string | null, currency: Currency | null, v
   return `${whole.replace(/\B(?=(\d{3})+(?!\d))/g, vi ? '.' : ',')}${fraction ? `${vi ? ',' : '.'}${fraction.padEnd(2, '0')}` : ''} ${currency ?? (vi ? 'chưa rõ tiền tệ' : 'currency unconfirmed')}`;
 }
 export interface LayoutItem {
+  visual3d?: Visual3d | null;
   resourceTypeId?: number | null;
   capacity?: number | null;
   category?: Category;
@@ -478,6 +485,7 @@ export type DecorationIconName =
   | 'CAMERA'
   | 'PHONE';
 export interface FloorDecoration {
+  visual3d?: Visual3d | null;
   id: string;
   kind: DecorationKind;
   label: string;
