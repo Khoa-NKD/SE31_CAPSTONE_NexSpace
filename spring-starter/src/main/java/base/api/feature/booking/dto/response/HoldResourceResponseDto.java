@@ -56,6 +56,15 @@ public class HoldResourceResponseDto {
     @Schema(description = "Tổng tiền thanh toán cuối cùng (VNĐ)", example = "151200.00")
     BigDecimal finalPrice;
 
+    @Schema(description = "Số lượt giữ hoặc hủy chỗ còn lại trước khi bị phạt block 20 phút", example = "3")
+    Integer remainingHoldAttempts;
+
+    @Schema(description = "Ngưỡng số lần giữ/hủy tối đa cho phép trước khi bị phạt", example = "3")
+    Integer maxHoldAttempts;
+
+    @Schema(description = "Thời gian phạt bị khóa quyền đặt chỗ nếu vi phạm spam hold (phút)", example = "20")
+    Integer penaltyBlockMinutes;
+
     @Schema(description = "Đơn vị tiền tệ", example = "VND")
     @Builder.Default
     String currency = "VND";

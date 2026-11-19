@@ -396,4 +396,37 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
     BigDecimal sumFinalPriceByStatusInAndCreatedAtAfter(
             @Param("statuses") Collection<BookingStatus> statuses,
             @Param("since") LocalDateTime since);
+
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN true ELSE false END
+            FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.resource.id = :resourceId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
+              AND b.updatedAt >= :since
+            """)
+    boolean existsRecentReleasedOrExpiredHold(
+            @Param("customerId") Long customerId,
+            @Param("resourceId") Long resourceId,
+            @Param("since") LocalDateTime since
+    );
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
+              AND b.updatedAt >= :since
+            ORDER BY b.updatedAt DESC
+            """)
+    List<BookingModel> findRecentUnpaidHolds(
+            @Param("customerId") Long customerId,
+            @Param("since") LocalDateTime since
+    );
+
+    @Query("""
+            SELECT MAX(b.createdAt) FROM BookingModel b
+            WHERE b.customer.id = :customerId
+              AND b.status IN (base.api.shared.enums.BookingStatus.CONFIRMED, base.api.shared.enums.BookingStatus.CHECKED_IN, base.api.shared.enums.BookingStatus.COMPLETED)
+            """)
+    Optional<LocalDateTime> findLatestSuccessfulBookingCreatedAt(@Param("customerId") Long customerId);
 }

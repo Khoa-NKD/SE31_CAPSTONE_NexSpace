@@ -19,6 +19,7 @@ import base.api.feature.resource.dto.FloorManagement.AvailabilityState;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.repository.ResourceUsageRepository;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.resource.service.PublishedGeometry;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
@@ -76,6 +77,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = new BigDecimal("0.00");
     private static final int DEFAULT_MAX_ADVANCE_DAYS = 90;
     private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
+    private static final int DEFAULT_HOLD_DURATION_MINUTES = 10;
     private static final int DEFAULT_MIN_ADVANCE_MINUTES = 0;
 
     private static final int DEFAULT_HOLD_MINUTES = 10;
@@ -103,12 +105,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final CurrentUserProvider currentUserProvider;
     private final IRefundRequestRepository refundRequestRepository;
     private final IPaymentTransactionRepository paymentTransactionRepository;
-
-    @Value("${app.booking.max-active-holds:3}")
-    private int maxActiveHolds = 3;
-
-    @Value("${app.booking.hold-duration-minutes:10}")
-    private int holdDurationMinutes = 10;
+    private final IResourceStateSyncService resourceStateSyncService;
 
     @Override
     @Transactional
@@ -185,10 +182,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         }
 
         // 5.2. Giới hạn số Hold Active (Anti-Hoarding / Anti-DoS):
-        // Số hold active tối đa linh hoạt qua biến môi trường BOOKING_MAX_ACTIVE_HOLDS
+        // Số hold active tối đa điều khiển động từ bảng platform_setting trong database
         long activeHolds = bookingRepository.countActiveHoldsByCustomer(customerId, now);
-        if (activeHolds >= maxActiveHolds) {
-            throw new BadRequestException("Bạn chỉ được giữ tối đa " + maxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
+        int effectiveMaxActiveHolds = getEffectiveMaxActiveHolds();
+        if (activeHolds >= effectiveMaxActiveHolds) {
+            throw new BadRequestException("Bạn chỉ được giữ tối đa " + effectiveMaxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
         }
 
         // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
@@ -598,8 +596,18 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     @Transactional
     public BookingResponseDto cancelBooking(Long customerId, Long bookingId, String cancelReason) {
+        return cancelBooking(customerId, bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto.builder()
+                .reason(cancelReason)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDto cancelBooking(Long customerId, Long bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto) {
         BookingModel booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
+
+        String cancelReason = requestDto != null ? requestDto.getReason() : null;
 
         boolean isOwner = booking.getCustomer() != null && booking.getCustomer().getId().equals(customerId);
         boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
@@ -667,6 +675,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     refund.setReason(updated.getCancelReason());
                     refund.setRequestedAmount(refundAmount);
                     refund.setStatus(RefundStatus.PENDING);
+                    if (requestDto != null) {
+                        refund.setBankName(requestDto.getBankName());
+                        refund.setBankBin(requestDto.getBankBin());
+                        refund.setBankAccountNumber(requestDto.getBankAccountNumber());
+                        refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
+                    }
                     refundRequestRepository.save(refund);
                 }
             } catch (Exception e) {
@@ -688,6 +702,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking cancelled successfully: id={}, code={}, source={}, previousStatus={}, refundPercent={}%, refundAmount={}",
                 updated.getId(), updated.getBookingCode(), cancelSource, previousStatus, refundPercent, refundAmount);
+
+        // Đồng bộ trạng thái giải phóng tài nguyên thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
 
         return BookingMapper.toDto(updated, refundPercent, refundAmount);
     }
@@ -736,6 +755,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         log.info("Booking approved successfully: id={}, code={}, newStatus={}",
                 updated.getId(), updated.getBookingCode(), targetStatus);
 
+        if (resourceStateSyncService != null) {
+            if (targetStatus == BookingStatus.CONFIRMED) {
+                resourceStateSyncService.syncOnBookingConfirmed(updated);
+            } else if (targetStatus == BookingStatus.PENDING_PAYMENT) {
+                resourceStateSyncService.syncOnHoldCreated(updated);
+            }
+        }
+
         return BookingMapper.toDto(updated);
     }
 
@@ -781,6 +808,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         log.info("Booking rejected successfully: id={}, code={}, reason={}",
                 updated.getId(), updated.getBookingCode(), reason);
+
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnBookingCancelled(updated);
+        }
 
         return BookingMapper.toDto(updated);
     }
@@ -1029,7 +1060,31 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     }
 
     private int getEffectiveHoldMinutes() {
-        return holdDurationMinutes;
+        return platformSettingRepository.findById("booking.hold_ttl_minutes")
+                .or(() -> platformSettingRepository.findById("booking_hold_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_HOLD_DURATION_MINUTES;
+                    }
+                })
+                .orElse(DEFAULT_HOLD_DURATION_MINUTES);
+    }
+
+    private int getEffectiveMaxActiveHolds() {
+        return platformSettingRepository.findById("booking.max_active_holds")
+                .or(() -> platformSettingRepository.findById("booking_max_active_holds"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return DEFAULT_MAX_ACTIVE_HOLDS;
+                    }
+                })
+                .orElse(DEFAULT_MAX_ACTIVE_HOLDS);
     }
 
     private int getIntSetting(String key, int defaultValue) {

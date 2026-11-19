@@ -78,9 +78,11 @@ final class FloorAiFurnishings {
         String text = Normalizer.normalize(label, Normalizer.Form.NFD).replaceAll("\\p{M}", "")
                 .replace('đ', 'd').replace('Đ', 'D').toLowerCase(Locale.ROOT).trim();
         text = text.replaceAll("(?<=\\p{L})(?=\\d)", " ");
-        if (text.matches("^(ghe|cho ngoi|chair|seat|phong|room)\\b.*")) return null;
+        // DESK is also the legacy name for bookable seats; explicit seat labels take precedence.
+        if (text.matches("^(ghe|cho ngoi|chair|seat|phong|room|desk)\\b.*")
+                || text.matches(".*\\bseat\\b.*")) return null;
         if (text.matches("^(ban phim|keyboard|cua so|window)\\b.*")) return FloorDecorations.Icon.BOX;
-        if (text.matches("^(ban|table|desk)\\b.*")) return FloorDecorations.Icon.TABLE;
+        if (text.matches("^(ban|table)\\b.*")) return FloorDecorations.Icon.TABLE;
         if (text.matches("^(cua|door|entrance)\\b.*")) return FloorDecorations.Icon.DOOR;
         if (text.matches("^(tivi|ti vi|tv|television|man hinh|screen|monitor)\\b.*")) return FloorDecorations.Icon.SCREEN;
         if (text.matches("^(cay nuoc|water dispenser)\\b.*")) return FloorDecorations.Icon.WATER_DISPENSER;

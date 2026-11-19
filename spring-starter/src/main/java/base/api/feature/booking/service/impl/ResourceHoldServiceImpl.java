@@ -4,20 +4,25 @@ import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.dto.request.HoldResourceRequestDto;
 import base.api.feature.booking.dto.response.HoldResourceResponseDto;
 import base.api.feature.booking.dto.response.PriceCalculationResponseDto;
+import base.api.feature.booking.event.ResourceHoldExpiredEvent;
+import base.api.feature.booking.event.ResourceHoldReleasedEvent;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.booking.service.IResourceHoldService;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
+import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.pricing.repository.IPricingRuleRepository;
 import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.service.IResourceLockService;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.governance.PlatformSettingModel;
+import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.entity.pricing.PricingRuleModel;
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.workspace.WorkspaceCancellationRuleModel;
@@ -32,8 +37,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import vn.payos.PayOS;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -60,6 +67,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private static final BigDecimal DEFAULT_VAT_PERCENT = BigDecimal.valueOf(8);
     private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = BigDecimal.valueOf(2);
     private static final int DEFAULT_HOLD_DURATION_MINUTES = 10;
+    private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
     private final IUserRepository userRepository;
     private final IBookableResourceRepository resourceRepository;
     private final IBookingRepository bookingRepository;
@@ -71,12 +79,25 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final IPlatformSettingRepository platformSettingRepository;
     private final IAuditService auditService;
     private final ObjectMapper objectMapper;
+    private final IPaymentTransactionRepository paymentTransactionRepository;
+    private final ApplicationEventPublisher applicationEventPublisher;
+    private final IResourceStateSyncService resourceStateSyncService;
+    private final PayOS payOS;
 
-    @Value("${app.booking.max-active-holds:3}")
-    private int maxActiveHolds = 3;
+    @Value("${app.booking.max-hold-lifetime-minutes:15}")
+    private int maxHoldLifetimeMinutes = 15;
 
-    @Value("${app.booking.hold-duration-minutes:10}")
-    private int holdDurationMinutes = 10;
+    @Value("${app.booking.rehold-cooldown-seconds:30}")
+    private int reholdCooldownSeconds = 30;
+
+    @Value("${app.booking.spam-hold.threshold:3}")
+    private int spamHoldThreshold = 3;
+
+    @Value("${app.booking.spam-hold.block-duration-minutes:20}")
+    private int spamHoldBlockMinutes = 20;
+
+    @Value("${app.booking.spam-hold.window-hours:24}")
+    private int spamHoldWindowHours = 24;
 
     @Override
     @Transactional
@@ -116,24 +137,50 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             if (base.api.feature.pricing.service.BookingBaseRates.supported(existing.getPriceType())
                     != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
                 throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
-            // Nếu sắp hết hạn (dưới 2 phút), tự động gia hạn thêm để khách an tâm thanh toán
+            // Phòng vệ Rolling Hold Attack: Áp trần thời gian giữ chỗ tối đa (Hard Ceiling) tính từ createdAt
+            LocalDateTime createdAt = existing.getCreatedAt() != null ? existing.getCreatedAt() : now;
+            LocalDateTime maxAllowedExpiry = createdAt.plusMinutes(maxHoldLifetimeMinutes);
+
+            // Nếu sắp hết hạn (dưới 2 phút) và chưa chạm trần tối đa, tự động gia hạn thêm để khách an tâm thanh toán
             if (existing.getHoldExpiresAt() != null && existing.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
-                existing.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-                existing = bookingRepository.save(existing);
+                LocalDateTime candidateExpiry = now.plusMinutes(getEffectiveHoldMinutes());
+                LocalDateTime finalExpiry = candidateExpiry.isAfter(maxAllowedExpiry) ? maxAllowedExpiry : candidateExpiry;
+                if (finalExpiry.isAfter(existing.getHoldExpiresAt())) {
+                    existing.setHoldExpiresAt(finalExpiry);
+                    existing = bookingRepository.save(existing);
+                    log.info("Idempotent Hold Reuse with capped extension: customerId={}, resourceId={}, bookingCode={}, newExpiry={}",
+                            customerId, dto.getResourceId(), existing.getBookingCode(), finalExpiry);
+                }
             }
             log.info("Idempotent Hold Reuse: customerId={}, resourceId={}, bookingCode={}",
                     customerId, dto.getResourceId(), existing.getBookingCode());
             return toHoldResponseDto(existing, now, true);
         }
 
-        // 4. Giới hạn số Hold Active (Anti-Hoarding / Anti-DoS):
-        // Số lượng hold active tối đa điều khiển trực tiếp qua biến môi trường BOOKING_MAX_ACTIVE_HOLDS
-        long activeHolds = bookingRepository.countActiveHoldsByCustomer(customerId, now);
-        if (activeHolds >= maxActiveHolds) {
-            throw new BadRequestException("Bạn chỉ được giữ tối đa " + maxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
+        // 4. Theo dõi hành vi khách hàng: Nếu hold quá 3 lần mà không thanh toán thì khóa 20 phút (chống spam hold)
+        validateSpamHoldBehavior(customer, now);
+
+        // 5. Phòng vệ Tấn công Re-Hold Churning / Hoarding Loop:
+        // Chặn bot hoặc người dùng xấu liên tục hủy hoặc để hết hạn rồi tạo hold mới ngay lập tức
+        if (reholdCooldownSeconds > 0) {
+            LocalDateTime cooldownSince = now.minusSeconds(reholdCooldownSeconds);
+            boolean isCoolingDown = bookingRepository.existsRecentReleasedOrExpiredHold(
+                    customerId, dto.getResourceId(), cooldownSince);
+            if (isCoolingDown) {
+                throw new BadRequestException("Bạn vừa hủy hoặc để hết hạn phiên giữ chỗ cho chỗ ngồi này. Vui lòng đợi "
+                        + reholdCooldownSeconds + " giây trước khi thử giữ chỗ lại.");
+            }
         }
 
-        // 5. Khóa bi quan có thứ tự (ORDER BY id ASC) và kiểm tra xung đột hai chiều ROOM - DESK qua IResourceLockService
+        // 5. Giới hạn số Hold Active (Anti-Hoarding / Anti-DoS):
+        // Số lượng hold active tối đa điều khiển động từ bảng platform_setting trong database
+        long activeHolds = bookingRepository.countActiveHoldsByCustomer(customerId, now);
+        int effectiveMaxActiveHolds = getEffectiveMaxActiveHolds();
+        if (activeHolds >= effectiveMaxActiveHolds) {
+            throw new BadRequestException("Bạn chỉ được giữ tối đa " + effectiveMaxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
+        }
+
+        // 6. Khóa bi quan có thứ tự (ORDER BY id ASC) và kiểm tra xung đột hai chiều ROOM - DESK qua IResourceLockService
         LockedResourceContext lockContext = resourceLockService.acquireResourceLock(dto.getResourceId(), startTime, endTime);
         BookableResourceModel resource = lockContext.getTargetResource();
 
@@ -226,6 +273,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         + " cho tài nguyên " + resource.getLabel() + " đến " + holdExpiresAt
         );
 
+        // 13. Đồng bộ trạng thái thời gian thực và phát sự kiện miền
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldCreated(savedBooking);
+        }
+
         log.info("Temporary Hold created successfully: code={}, customerId={}, resourceId={}, expiresAt={}",
                 savedBooking.getBookingCode(), customerId, resource.getId(), holdExpiresAt);
 
@@ -250,6 +302,143 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         return toHoldResponseDto(active, now, false);
     }
 
+    @Override
+    @Transactional
+    public HoldResourceResponseDto releaseHold(Long customerId, Long bookingId) {
+        if (customerId == null || bookingId == null) {
+            throw new BadRequestException("Mã khách hàng và mã đơn đặt chỗ không được để trống");
+        }
+
+        BookingModel booking = bookingRepository.findById(bookingId)
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn giữ chỗ với ID: " + bookingId));
+
+        // Strict Ownership Defense: Không thuộc quyền sở hữu -> ném NotFoundException để bảo mật
+        if (booking.getCustomer() == null || !booking.getCustomer().getId().equals(customerId)) {
+            throw new NotFoundException("Không tìm thấy đơn giữ chỗ với ID: " + bookingId);
+        }
+
+        // State Machine Defense:
+        if (booking.getStatus() == BookingStatus.CONFIRMED || booking.getStatus() == BookingStatus.CHECKED_IN
+                || booking.getStatus() == BookingStatus.COMPLETED) {
+            throw new BadRequestException("Đơn đặt chỗ đã thanh toán thành công, vui lòng sử dụng quy trình hủy đặt chỗ thay vì nhả phiên giữ chỗ");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        // Idempotent: Nếu đã CANCELLED hoặc EXPIRED trước đó thì trả về kết quả hiện tại
+        if (booking.getStatus() == BookingStatus.CANCELLED || booking.getStatus() == BookingStatus.EXPIRED) {
+            return toHoldResponseDto(booking, now, false);
+        }
+
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT && booking.getStatus() != BookingStatus.PENDING_APPROVAL) {
+            throw new BadRequestException("Không thể giải phóng phiên giữ chỗ ở trạng thái: " + booking.getStatus());
+        }
+
+        BookingStatus prevStatus = booking.getStatus();
+        booking.setStatus(BookingStatus.CANCELLED);
+        booking.setHoldExpiresAt(null);
+        booking.setCancelledAt(now);
+        booking.setCancelSource(CancelSource.CUSTOMER);
+        booking.setCancelReason("Khách hàng chủ động nhả phiên giữ chỗ");
+
+        BookingModel saved = bookingRepository.save(booking);
+
+        // Ghi Audit Trail
+        auditService.log(
+                saved.getCustomer(),
+                "BOOKING",
+                "RELEASE_HOLD",
+                "Booking",
+                saved.getId(),
+                "Khách hàng chủ động nhả phiên giữ chỗ mã " + saved.getBookingCode() + " từ trạng thái " + prevStatus
+        );
+
+        // Phát sự kiện đồng bộ trạng thái thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldReleased(saved);
+        } else {
+            publishHoldReleasedEvent(saved, now);
+        }
+
+        log.info("Hold released by customer: bookingId={}, code={}, customerId={}",
+                saved.getId(), saved.getBookingCode(), customerId);
+
+        return toHoldResponseDto(saved, now, false);
+    }
+
+    @Override
+    @Transactional
+    public int expireOutdatedHolds() {
+        LocalDateTime now = LocalDateTime.now();
+        List<BookingModel> expiredList = bookingRepository.findExpiredHoldBookings(BookingStatus.PENDING_PAYMENT, now);
+
+        if (expiredList.isEmpty()) {
+            return 0;
+        }
+
+        int releasedCount = 0;
+        for (BookingModel booking : expiredList) {
+            try {
+                // Chống race condition với webhook thanh toán:
+                // Nếu booking đã có giao dịch thanh toán SUCCESS, không expire
+                List<PaymentTransactionModel> txs = paymentTransactionRepository.findByBookingId(booking.getId());
+                boolean hasSuccessfulPayment = txs.stream().anyMatch(tx ->
+                        tx.getStatus() == PaymentStatus.SUCCESS);
+                if (hasSuccessfulPayment) {
+                    log.warn("Booking {} has successful payment transaction. Skipping hold expiration.", booking.getBookingCode());
+                    continue;
+                }
+
+                // Hủy các giao dịch PENDING và PayOS payment link nếu có
+                for (PaymentTransactionModel tx : txs) {
+                    if (tx.getStatus() == PaymentStatus.PENDING) {
+                        tx.setStatus(PaymentStatus.EXPIRED);
+                        tx.setFailureReason("Giao dịch hết hạn thanh toán (quá thời gian giữ chỗ)");
+                        paymentTransactionRepository.save(tx);
+
+                        if (payOS != null && tx.getOrderCode() != null) {
+                            try {
+                                payOS.paymentRequests().cancel(tx.getOrderCode(), "Hết hạn thanh toán");
+                            } catch (Exception e) {
+                                log.debug("PayOS link cancel note for orderCode {}: {}", tx.getOrderCode(), e.getMessage());
+                            }
+                        }
+                    }
+                }
+
+                booking.setStatus(BookingStatus.EXPIRED);
+                booking.setHoldExpiresAt(null);
+                BookingModel saved = bookingRepository.save(booking);
+
+                auditService.log(
+                        saved.getCustomer(),
+                        AuditActorType.SYSTEM,
+                        "BOOKING",
+                        "BOOKING_EXPIRED",
+                        "Booking",
+                        saved.getId(),
+                        BookingStatus.PENDING_PAYMENT.name(),
+                        BookingStatus.EXPIRED.name(),
+                        "Hết thời gian giữ chỗ 10 phút, hệ thống tự động giải phóng",
+                        null
+                );
+
+                if (resourceStateSyncService != null) {
+                    resourceStateSyncService.syncOnHoldExpired(saved);
+                } else {
+                    publishHoldExpiredEvent(saved, now);
+                }
+                releasedCount++;
+
+                log.info("Hold expired and released automatically: bookingId={}, code={}", saved.getId(), saved.getBookingCode());
+            } catch (Exception ex) {
+                log.error("Lỗi khi giải phóng giữ chỗ hết hạn bookingId={}: {}", booking.getId(), ex.getMessage(), ex);
+            }
+        }
+
+        return releasedCount;
+    }
+
     private HoldResourceResponseDto toHoldResponseDto(BookingModel booking, LocalDateTime serverTime, boolean isReused) {
         LocalDateTime expiresAt = booking.getHoldExpiresAt();
         long ttlSeconds = expiresAt != null
@@ -263,6 +452,14 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         Long resourceId = res != null ? res.getId() : null;
         Long workspaceId = ws != null ? ws.getId() : null;
         String workspaceName = ws != null ? ws.getName() : "Không gian làm việc";
+
+        Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+        int remainingAttempts = spamHoldThreshold;
+        if (customerId != null) {
+            LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customerId, serverTime);
+            int unpaidCount = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince).size();
+            remainingAttempts = Math.max(0, spamHoldThreshold - unpaidCount);
+        }
 
         return HoldResourceResponseDto.builder()
                 .bookingId(booking.getId())
@@ -279,6 +476,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .isReused(isReused)
                 .baseAmount(booking.getBaseAmount())
                 .finalPrice(booking.getFinalPrice())
+                .remainingHoldAttempts(remainingAttempts)
+                .maxHoldAttempts(spamHoldThreshold)
+                .penaltyBlockMinutes(spamHoldBlockMinutes)
                 .currency("VND")
                 .build();
     }
@@ -433,8 +633,26 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId));
     }
 
+    private int getIntegerSetting(String primaryKey, String fallbackKey, int defaultValue) {
+        return platformSettingRepository.findById(primaryKey)
+                .or(() -> platformSettingRepository.findById(fallbackKey))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return defaultValue;
+                    }
+                })
+                .orElse(defaultValue);
+    }
+
     private int getEffectiveHoldMinutes() {
-        return holdDurationMinutes;
+        return getIntegerSetting("booking.hold_ttl_minutes", "booking_hold_minutes", DEFAULT_HOLD_DURATION_MINUTES);
+    }
+
+    private int getEffectiveMaxActiveHolds() {
+        return getIntegerSetting("booking.max_active_holds", "booking_max_active_holds", DEFAULT_MAX_ACTIVE_HOLDS);
     }
 
     private BigDecimal getDecimalSetting(String key, BigDecimal defaultValue) {
@@ -448,5 +666,102 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                     }
                 })
                 .orElse(defaultValue);
+    }
+
+    private void publishHoldExpiredEvent(BookingModel booking, LocalDateTime timestamp) {
+        if (applicationEventPublisher != null) {
+            Long resourceId = booking.getResource() != null ? booking.getResource().getId() : null;
+            Long workspaceId = booking.getWorkspace() != null ? booking.getWorkspace().getId() : null;
+            Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+
+            ResourceHoldExpiredEvent event = ResourceHoldExpiredEvent.builder()
+                    .bookingId(booking.getId())
+                    .bookingCode(booking.getBookingCode())
+                    .resourceId(resourceId)
+                    .workspaceId(workspaceId)
+                    .customerId(customerId)
+                    .expiredAt(timestamp)
+                    .build();
+
+            applicationEventPublisher.publishEvent(event);
+        }
+    }
+
+    private void publishHoldReleasedEvent(BookingModel booking, LocalDateTime timestamp) {
+        if (applicationEventPublisher != null) {
+            Long resourceId = booking.getResource() != null ? booking.getResource().getId() : null;
+            Long workspaceId = booking.getWorkspace() != null ? booking.getWorkspace().getId() : null;
+            Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
+
+            ResourceHoldReleasedEvent event = ResourceHoldReleasedEvent.builder()
+                    .bookingId(booking.getId())
+                    .bookingCode(booking.getBookingCode())
+                    .resourceId(resourceId)
+                    .workspaceId(workspaceId)
+                    .customerId(customerId)
+                    .releasedAt(timestamp)
+                    .build();
+
+            applicationEventPublisher.publishEvent(event);
+        }
+    }
+
+    private LocalDateTime calculateEffectiveUnpaidSince(Long customerId, LocalDateTime now) {
+        LocalDateTime windowStart = now.minusHours(spamHoldWindowHours);
+        if (customerId == null) {
+            return windowStart;
+        }
+
+        // Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
+        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
+        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(windowStart)) {
+            return lastSuccessTime.get();
+        }
+
+        return windowStart;
+    }
+
+    private void validateSpamHoldBehavior(UserModel customer, LocalDateTime now) {
+        if (spamHoldThreshold <= 0 || spamHoldBlockMinutes <= 0) {
+            return;
+        }
+
+        LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customer.getId(), now);
+        List<BookingModel> unpaidHolds = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince);
+
+        if (unpaidHolds.size() >= spamHoldThreshold) {
+            BookingModel latestUnpaid = unpaidHolds.get(0);
+            LocalDateTime latestUnpaidTime = latestUnpaid.getUpdatedAt() != null
+                    ? latestUnpaid.getUpdatedAt()
+                    : latestUnpaid.getCreatedAt();
+            if (latestUnpaidTime == null) {
+                latestUnpaidTime = now;
+            }
+
+            LocalDateTime blockUntil = latestUnpaidTime.plusMinutes(spamHoldBlockMinutes);
+            if (now.isBefore(blockUntil)) {
+                long minutesRemaining = Math.max(1, Duration.between(now, blockUntil).toMinutes() + 1);
+                log.warn("Spam hold blocked: customerId={}, unpaidCount={}, minutesRemaining={}",
+                        customer.getId(), unpaidHolds.size(), minutesRemaining);
+
+                auditService.log(
+                        customer,
+                        AuditActorType.SYSTEM,
+                        "BOOKING",
+                        "SPAM_HOLD_BLOCKED",
+                        "User",
+                        customer.getId(),
+                        "ACTIVE",
+                        "BLOCKED_TEMPORARY",
+                        "Khóa tạm thời quyền giữ chỗ trong " + minutesRemaining + " phút do nghi vấn có hành vi spam hold chỗ ("
+                                + unpaidHolds.size() + " lần không thanh toán)",
+                        null
+                );
+
+                throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ trong vòng "
+                        + minutesRemaining + " phút do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
+                        + spamHoldThreshold + " lần mà không thanh toán).");
+            }
+        }
     }
 }

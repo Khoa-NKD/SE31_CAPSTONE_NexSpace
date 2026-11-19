@@ -6,6 +6,7 @@ import base.api.feature.payment.dto.response.WebhookProcessResultDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.impl.PayOSWebhookServiceImpl;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -42,6 +43,7 @@ class PayOSWebhookServiceImplTest {
     private PayOS payOS;
     private WebhooksService webhooksService;
     private IInvoiceService invoiceService;
+    private IResourceStateSyncService resourceStateSyncService;
     private PayOSWebhookServiceImpl webhookService;
 
     @BeforeEach
@@ -52,6 +54,7 @@ class PayOSWebhookServiceImplTest {
         payOS = mock(PayOS.class);
         webhooksService = mock(WebhooksService.class);
         invoiceService = mock(IInvoiceService.class);
+        resourceStateSyncService = mock(IResourceStateSyncService.class);
 
         when(payOS.webhooks()).thenReturn(webhooksService);
 
@@ -60,7 +63,8 @@ class PayOSWebhookServiceImplTest {
                 bookingRepository,
                 auditService,
                 payOS,
-                invoiceService
+                invoiceService,
+                resourceStateSyncService
         );
     }
 

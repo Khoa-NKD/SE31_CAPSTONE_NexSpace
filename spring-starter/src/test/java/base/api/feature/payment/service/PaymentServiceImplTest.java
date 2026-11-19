@@ -5,6 +5,7 @@ import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
+import base.api.feature.payment.repository.IRefundRequestRepository;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.payment.service.impl.PaymentServiceImpl;
 import base.api.shared.entity.UserModel;
@@ -55,6 +56,9 @@ class PaymentServiceImplTest {
 
     @Mock
     private IPlatformSettingRepository platformSettingRepository;
+
+    @Mock
+    private IRefundRequestRepository refundRequestRepository;
 
     @InjectMocks
     private PaymentServiceImpl paymentService;

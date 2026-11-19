@@ -48,6 +48,9 @@ class BookingControllerTest {
     private IBookingService bookingService;
 
     @Mock
+    private base.api.feature.payment.service.IRefundService refundService;
+
+    @Mock
     private CurrentUserProvider currentUserProvider;
 
     @InjectMocks
@@ -270,7 +273,7 @@ class BookingControllerTest {
                 .resourceId(42L)
                 .build();
 
-        when(bookingService.cancelBooking(eq(100L), eq(999L), any()))
+        when(bookingService.cancelBooking(eq(100L), eq(999L), any(base.api.feature.booking.dto.request.CancelBookingRequestDto.class)))
                 .thenReturn(cancelledResponse);
 
         mockMvc.perform(post("/api/v1/bookings/999/cancel")

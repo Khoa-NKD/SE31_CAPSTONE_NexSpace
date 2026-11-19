@@ -1,6 +1,7 @@
 package base.api.feature.payment.dto.response;
 
 import base.api.shared.enums.BookingStatus;
+import base.api.shared.enums.RefundStatus;
 import lombok.Builder;
 import lombok.Value;
 
@@ -23,4 +24,10 @@ public class CustomerBookingItemResponseDTO {
     String qrTokenHash;
     String pinCode;
     LocalDateTime createdAt;
+    RefundStatus refundStatus;
+    BigDecimal refundAmount;
+    String refundReference;
+    String refundBankName;
+    String refundAccountNumber;
+    LocalDateTime refundProcessedAt;
 }

@@ -59,6 +59,18 @@ public class RefundRequestModel extends BaseModel {
     @Column(length = 500)
     private String reason;
 
+    @Column(name = "bank_name", length = 100)
+    private String bankName;
+
+    @Column(name = "bank_bin", length = 20)
+    private String bankBin;
+
+    @Column(name = "bank_account_number", length = 50)
+    private String bankAccountNumber;
+
+    @Column(name = "bank_account_name", length = 150)
+    private String bankAccountName;
+
     /** Tính từ cancellationPolicySnapshot. */
     @Column(name = "requested_amount", nullable = false, precision = 18, scale = 2)
     private BigDecimal requestedAmount;
