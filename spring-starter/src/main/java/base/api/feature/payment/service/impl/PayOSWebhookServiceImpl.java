@@ -2,6 +2,7 @@ package base.api.feature.payment.service.impl;
 
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.WebhookProcessResultDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
@@ -39,6 +40,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
     private final IAuditService auditService;
     private final PayOS payOS;
     private final IInvoiceService invoiceService;
+    private final INotificationService notificationService;
 
     @Override
     @Transactional
@@ -215,6 +217,8 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                 tx.setFailureReason("Số tiền thanh toán không đủ");
                 paymentTransactionRepository.save(tx);
 
+                notificationService.sendPaymentFailedNotification(tx, booking, "Số tiền thanh toán không đủ (" + received + " < " + expected + ")");
+
                 auditService.log(
                         booking != null ? booking.getCustomer() : null,
                         AuditActorType.PAYMENT_WEBHOOK,
@@ -242,6 +246,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
             tx.setReconciliationStatus(ReconciliationStatus.MATCHED);
             paymentTransactionRepository.save(tx);
 
+            // Gửi thông báo thanh toán thành công (In-app + Email)
+            notificationService.sendPaymentSuccessNotification(tx, booking);
+
             if (booking != null) {
                 if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
                     booking.setStatus(BookingStatus.CONFIRMED);
@@ -268,6 +275,12 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
 
                     // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
                     invoiceService.sendInvoiceEmail(booking.getId());
+
+                    // Gửi thông báo đặt chỗ thành công (In-app + Email)
+                    notificationService.sendBookingConfirmedNotification(booking);
+
+                    // Gửi thông báo booking mới cho Organizer của không gian làm việc
+                    notificationService.sendNewBookingToOrganizerNotification(booking);
                 } else {
                     // Late payment after cancellation/expiration
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
@@ -289,6 +302,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
             tx.setFailureReason(StringUtils.hasText(desc) ? desc : "PayOS báo thanh toán thất bại (code=" + code + ")");
             tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
             paymentTransactionRepository.save(tx);
+
+            // Gửi thông báo thanh toán thất bại / hủy (In-app + Email)
+            notificationService.sendPaymentFailedNotification(tx, booking, tx.getFailureReason());
 
             if (booking != null && booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
                 booking.setStatus(BookingStatus.CANCELLED);

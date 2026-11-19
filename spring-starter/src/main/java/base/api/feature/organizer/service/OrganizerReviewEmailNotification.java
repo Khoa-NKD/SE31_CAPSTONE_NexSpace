@@ -1,9 +1,16 @@
 package base.api.feature.organizer.service;
 
+import base.api.feature.auth.repository.IUserRepository;
+import base.api.feature.notification.repository.IUserNotificationRepository;
 import base.api.shared.config.EmailService;
+import base.api.shared.entity.UserModel;
+import base.api.shared.entity.review.UserNotificationModel;
+import base.api.shared.enums.DeliveryStatus;
+import base.api.shared.enums.NotificationType;
 import base.api.shared.enums.OrganizerDocumentType;
 import base.api.shared.enums.OrganizerProfileStatus;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -19,10 +26,23 @@ import java.nio.charset.StandardCharsets;
 public class OrganizerReviewEmailNotification {
     private final EmailService email;
     private final String clientUrl;
+    private final IUserNotificationRepository notificationRepository;
+    private final IUserRepository userRepository;
 
     public OrganizerReviewEmailNotification(EmailService email, @Value("${app.client-url}") String clientUrl) {
+        this(email, clientUrl, null, null);
+    }
+
+    @Autowired
+    public OrganizerReviewEmailNotification(
+            EmailService email,
+            @Value("${app.client-url}") String clientUrl,
+            @Autowired(required = false) IUserNotificationRepository notificationRepository,
+            @Autowired(required = false) IUserRepository userRepository) {
         this.email = email;
         this.clientUrl = clientUrl;
+        this.notificationRepository = notificationRepository;
+        this.userRepository = userRepository;
     }
 
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
@@ -34,6 +54,48 @@ public class OrganizerReviewEmailNotification {
             // A queue/configuration failure must not turn an already-committed decision into a failed API call.
             log.error("Organizer review email could not be queued for application {} ({})",
                     notification.applicationId(), notification.status());
+        }
+
+        // Tạo thông báo In-app cho người nộp đơn (Applicant)
+        try {
+            if (userRepository != null && notificationRepository != null) {
+                var userOpt = userRepository.findByEmailIgnoreCase(notification.recipient());
+                if (userOpt.isPresent()) {
+                    UserModel user = userOpt.get();
+                    String title;
+                    String content;
+                    if (notification.status() == OrganizerProfileStatus.APPROVED) {
+                        title = "Hồ sơ đối tác Organizer đã được phê duyệt";
+                        content = "Chúc mừng! Hồ sơ đối tác " + notification.legalName() + " của bạn đã được phê duyệt. Bạn đã được cấp quyền Organizer để bắt đầu quản lý không gian làm việc.";
+                    } else if (notification.status() == OrganizerProfileStatus.REJECTED) {
+                        title = "Hồ sơ đối tác Organizer chưa được phê duyệt";
+                        content = "Hồ sơ đối tác " + notification.legalName() + " chưa được phê duyệt. Lý do: "
+                                + (notification.feedback() != null && !notification.feedback().isBlank() ? notification.feedback() : "Chưa đáp ứng tiêu chuẩn kiểm duyệt") + ".";
+                    } else if (notification.status() == OrganizerProfileStatus.REVISION_REQUESTED) {
+                        title = "Yêu cầu bổ sung tài liệu hồ sơ Organizer";
+                        content = "Hồ sơ đối tác của bạn cần cập nhật hoặc bổ sung tài liệu. Vui lòng kiểm tra phản hồi chi tiết từ Ban Quản trị.";
+                    } else {
+                        title = "Cập nhật hồ sơ đối tác Organizer";
+                        content = "Hồ sơ đối tác " + notification.legalName() + " của bạn đã được cập nhật trạng thái: " + notification.status();
+                    }
+
+                    UserNotificationModel model = new UserNotificationModel();
+                    model.setUser(user);
+                    model.setType(NotificationType.ORGANIZER_APPLICATION);
+                    model.setTitle(title);
+                    model.setContent(content);
+                    model.setRelatedEntityType("OrganizerProfile");
+                    model.setRelatedEntityId(notification.applicationId());
+                    model.setRead(false);
+                    model.setEmailStatus(DeliveryStatus.SENT);
+                    model.setPushStatus(null);
+                    model.setRetryCount(0);
+                    notificationRepository.save(model);
+                    log.info("Saved in-app review notification for applicant user id={}", user.getId());
+                }
+            }
+        } catch (Exception ex) {
+            log.warn("Failed to create in-app notification for organizer review: {}", ex.getMessage());
         }
     }
 

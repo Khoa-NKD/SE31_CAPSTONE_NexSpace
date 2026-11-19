@@ -2,6 +2,7 @@ package base.api.feature.payment.service.impl;
 
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.BatchReconciliationResponseDTO;
 import base.api.feature.payment.dto.response.ReconciliationResultDTO;
 import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
@@ -40,6 +41,7 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
     private final IAuditService auditService;
     private final PayOS payOS;
     private final IInvoiceService invoiceService;
+    private final INotificationService notificationService;
 
     @Override
     @Transactional
@@ -119,6 +121,8 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                 statusMatched = true;
 
                 BookingModel booking = tx.getBooking();
+                notificationService.sendPaymentSuccessNotification(tx, booking);
+
                 if (booking != null) {
                     booking = bookingRepository.findByIdForUpdate(booking.getId()).orElse(booking);
                     if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
@@ -129,6 +133,10 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
 
                         // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
                         invoiceService.sendInvoiceEmail(booking.getId());
+
+                        // Gửi thông báo đặt chỗ thành công (In-app + Email)
+                        notificationService.sendBookingConfirmedNotification(booking);
+                        notificationService.sendNewBookingToOrganizerNotification(booking);
                     }
                 }
             } else {

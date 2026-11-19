@@ -8,6 +8,7 @@ import base.api.feature.booking.dto.response.BookingResponseDto;
 import base.api.feature.booking.dto.response.PriceCalculationResponseDto;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.booking.service.impl.BookingServiceImpl;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
@@ -108,6 +109,9 @@ class BookingServiceTest {
 
     @Mock
     private CurrentUserProvider currentUserProvider;
+
+    @Mock
+    private INotificationService notificationService;
 
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();

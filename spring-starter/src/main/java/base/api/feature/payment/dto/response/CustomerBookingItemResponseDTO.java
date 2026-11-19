@@ -12,6 +12,9 @@ import java.time.LocalDateTime;
 public class CustomerBookingItemResponseDTO {
     Long bookingId;
     String bookingCode;
+    Long workspaceId;
+    Long resourceId;
+    Long floorId;
     String workspaceName;
     String workspaceAddress;
     String seatCode;

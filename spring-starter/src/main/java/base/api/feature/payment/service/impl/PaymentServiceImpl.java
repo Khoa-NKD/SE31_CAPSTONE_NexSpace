@@ -4,6 +4,7 @@ import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.BookingHoldResponseDTO;
 import base.api.feature.payment.dto.response.CustomerBookingItemResponseDTO;
 import base.api.feature.payment.dto.response.ExchangeRateResponseDTO;
@@ -64,6 +65,7 @@ public class PaymentServiceImpl implements IPaymentService {
     private final IBookableResourceRepository bookableResourceRepository;
     private final IPlatformSettingRepository platformSettingRepository;
     private final PayOS payOS;
+    private final INotificationService notificationService;
 
     @Value("${nexspace.payment.usd-to-vnd-rate:25450}")
     private long usdToVndRate;
@@ -257,6 +259,9 @@ public class PaymentServiceImpl implements IPaymentService {
             tx.setFailureReason(StringUtils.hasText(reason) ? reason : "Người dùng chủ động hủy giữ chỗ");
             paymentTransactionRepository.save(tx);
 
+            // Gửi thông báo thanh toán bị hủy / thất bại (In-app + Email)
+            notificationService.sendPaymentFailedNotification(tx, booking, tx.getFailureReason());
+
             try {
                 payOS.paymentRequests().cancel(orderCode, "Customer cancelled booking checkout");
             } catch (Exception e) {
@@ -425,9 +430,18 @@ public class PaymentServiceImpl implements IPaymentService {
                 ? booking.getWorkspace().getAddress()
                 : "72 Le Thanh Ton, District 1, Ho Chi Minh City";
 
+        Long workspaceId = booking.getWorkspace() != null ? booking.getWorkspace().getId() : null;
+        Long resourceId = booking.getResource() != null ? booking.getResource().getId() : null;
+        Long floorId = (booking.getResource() != null && booking.getResource().getFloorPlan() != null)
+                ? booking.getResource().getFloorPlan().getId()
+                : null;
+
         return CustomerBookingItemResponseDTO.builder()
                 .bookingId(booking.getId())
                 .bookingCode(booking.getBookingCode())
+                .workspaceId(workspaceId)
+                .resourceId(resourceId)
+                .floorId(floorId)
                 .workspaceName(workspaceName)
                 .workspaceAddress(workspaceAddress)
                 .seatCode(seatCode)
