@@ -48,9 +48,6 @@ export interface BookingDto {
   holdExpiresAt?: string | null;
   remainingSeconds?: number;
   serverTime?: string;
-  remainingHoldAttempts?: number;
-  maxHoldAttempts?: number;
-  penaltyBlockMinutes?: number;
   createdAt: string;
 
   // Workspace
@@ -101,6 +98,11 @@ export interface BookingDto {
   cancelledAt?: string;
   refundPercent?: number;
   refundAmount?: number;
+
+  // Anti-spam hold defense metrics
+  remainingHoldAttempts?: number;
+  maxHoldAttempts?: number;
+  penaltyBlockMinutes?: number;
 }
 
 export interface CancellationRuleItemDto {

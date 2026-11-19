@@ -8,6 +8,8 @@ export interface SeatDetailSearch {
   date?: string;
   startTime?: string;
   endTime?: string;
+  bookingId?: number;
+  bookingCode?: string;
 }
 
 export const Route = createFileRoute('/workspaces/seat-detail')({
@@ -26,7 +28,12 @@ export const Route = createFileRoute('/workspaces/seat-detail')({
         : undefined,
     date: typeof search.date === 'string' ? search.date : undefined,
     startTime: typeof search.startTime === 'string' ? search.startTime : undefined,
-    endTime: typeof search.endTime === 'string' ? search.endTime : undefined
+    endTime: typeof search.endTime === 'string' ? search.endTime : undefined,
+    bookingId:
+      Number.isSafeInteger(Number(search.bookingId)) && Number(search.bookingId) > 0
+        ? Number(search.bookingId)
+        : undefined,
+    bookingCode: typeof search.bookingCode === 'string' ? search.bookingCode : undefined
   }),
   component: SeatDetailRoute,
   head: () => ({

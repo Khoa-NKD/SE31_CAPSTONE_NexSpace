@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
-import React, { useMemo } from 'react';
-import { Link } from '@tanstack/react-router';
+import React, { useMemo, useState } from 'react';
+import { Link, useNavigate } from '@tanstack/react-router';
 import {
   Calendar,
   CheckCircle2,
@@ -8,11 +8,16 @@ import {
   ArrowRight,
   ShieldCheck,
   CalendarCheck,
-  QrCode
+  QrCode,
+  Loader2
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCalculatePriceQuery } from '../../api/booking-queries';
+import { useCalculatePriceQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import { formatBookingMoney } from '../../utils/booking-money';
+import { useLanguage } from '@/features/landing/context/language-context';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { useCurrentPendingBooking } from '@/features/payments/api';
+import { toast } from 'sonner';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
@@ -47,6 +52,8 @@ function formatDisplayTime(timeStr?: string): string {
 export interface SeatReservationWidgetProps {
   workspaceId?: number;
   floorId?: number;
+  bookingId?: number;
+  bookingCode?: string;
   monitorAddonSelected?: boolean;
   resource?: MapResource | null;
   workspace?: PublicWorkspaceDetail | null;
@@ -60,6 +67,8 @@ export interface SeatReservationWidgetProps {
 export function SeatReservationWidget({
   workspaceId,
   floorId,
+  bookingId,
+  bookingCode,
   monitorAddonSelected = false,
   resource,
   workspace,
@@ -80,6 +89,13 @@ export function SeatReservationWidget({
   );
   const formatPrice = (amount: number) =>
     quote ? formatBookingMoney(amount, quote.currency) : '—';
+  const navigate = useNavigate();
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const createBookingMutation = useCreateBookingMutation();
+  const { data: currentPendingBooking } = useCurrentPendingBooking();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const effectiveWorkspaceId = workspaceId ?? (workspace?.id ? Number(workspace.id) : 1);
   const effectiveFloorId = floorId ?? floor?.id ?? 1;
@@ -96,6 +112,128 @@ export function SeatReservationWidget({
   const displaySeat = resource
     ? `${resource.name} (${resource.code})`
     : 'Desk A-04 (Executive Hot Desk)';
+
+  // Check if an existing valid hold matches this user and resource
+  const existingHold = useMemo(() => {
+    if (bookingId && bookingCode) {
+      return { bookingId, bookingCode };
+    }
+    if (
+      currentPendingBooking &&
+      resource?.id &&
+      currentPendingBooking.resourceId === resource.id &&
+      (!currentPendingBooking.workspaceId ||
+        currentPendingBooking.workspaceId === effectiveWorkspaceId) &&
+      (currentPendingBooking.remainingSeconds
+        ? Number(currentPendingBooking.remainingSeconds) > 0
+        : true)
+    ) {
+      return {
+        bookingId: currentPendingBooking.bookingId,
+        bookingCode: currentPendingBooking.bookingCode
+      };
+    }
+    return null;
+  }, [bookingId, bookingCode, currentPendingBooking, resource?.id, effectiveWorkspaceId]);
+
+  const handleConfirmAndProceed = async () => {
+    if (!resource) {
+      toast.error(isVi ? 'Không tìm thấy vị trí chỗ ngồi.' : 'Seat information not found.');
+      return;
+    }
+
+    // 1. Guest defense: Redirect to login and return back cleanly
+    if (!isAuthenticated) {
+      toast.info(
+        isVi
+          ? 'Vui lòng đăng nhập để giữ chỗ và tiếp tục'
+          : 'Please sign in to hold this seat and proceed'
+      );
+      const redirectUrl = `/workspaces/seat-detail?workspaceId=${effectiveWorkspaceId}&resourceId=${resource.id}${floorId ? `&floorId=${floorId}` : ''}&date=${encodeURIComponent(displayDate)}&startTime=${encodeURIComponent(startTime || '')}&endTime=${encodeURIComponent(endTime || '')}`;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('nexspace_auth_redirect', redirectUrl);
+      }
+      navigate({
+        to: '/auth/sign-in',
+        search: { redirect: redirectUrl }
+      });
+      return;
+    }
+
+    // 2. Reuse existing hold if already active
+    if (existingHold) {
+      navigate({
+        to: '/workspaces/review',
+        search: {
+          workspaceId: effectiveWorkspaceId,
+          resourceId: resource.id,
+          bookingId: existingHold.bookingId,
+          bookingCode: existingHold.bookingCode,
+          startTime: startTime || undefined,
+          endTime: endTime || undefined,
+          date: displayDate,
+          priceType: 'HOURLY'
+        }
+      });
+      return;
+    }
+
+    if (!quote || quoteError || !startTime || !endTime) {
+      toast.error(
+        isVi
+          ? 'Chọn thời gian và đợi báo giá hợp lệ trước khi giữ chỗ.'
+          : 'Select a time and wait for a valid quote before holding this seat.'
+      );
+      return;
+    }
+
+    // 3. Otherwise hold seat via API (creating a 10-minute hold in DB)
+    try {
+      setIsSubmitting(true);
+      const targetStartTime = startTime;
+      const targetEndTime = endTime;
+
+      const booking = await createBookingMutation.mutateAsync({
+        workspaceId: effectiveWorkspaceId,
+        resourceId: resource.id,
+        startTime: targetStartTime,
+        endTime: targetEndTime,
+        priceType: 'HOURLY',
+        partySize: resource.capacity || 1
+      });
+
+      toast.success(
+        isVi
+          ? `Đã giữ chỗ ${resource.name || resource.code} trong 10 phút!`
+          : `Held ${resource.name || resource.code} for 10 minutes!`
+      );
+
+      navigate({
+        to: '/workspaces/review',
+        search: {
+          workspaceId: effectiveWorkspaceId,
+          resourceId: resource.id,
+          bookingId: booking.id,
+          bookingCode: booking.bookingCode,
+          startTime: targetStartTime,
+          endTime: targetEndTime,
+          date: displayDate,
+          priceType: 'HOURLY'
+        }
+      });
+    } catch (err: unknown) {
+      const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
+      const msg =
+        errorObj?.response?.data?.message ||
+        errorObj?.message ||
+        (isVi
+          ? 'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
+          : 'This seat is currently held or booked by someone else. Please select another seat.');
+      toast.error(isVi ? 'Không thể giữ chỗ' : 'Cannot hold seat', { description: msg });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <aside className='w-full'>
@@ -218,31 +356,29 @@ export function SeatReservationWidget({
                 : 'Chọn ghế/phòng và thời gian để xem giá.'}
           </p>
         )}
-        {quote && resource && startTime && endTime ? (
-          <Button
-            asChild
-            className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
-          >
-            <Link
-              to='/workspaces/review'
-              search={{
-                workspaceId: effectiveWorkspaceId,
-                resourceId: resource.id,
-                startTime,
-                endTime,
-                date: displayDate,
-                priceType: 'HOURLY'
-              }}
-            >
-              <span>Xác nhận vị trí &amp; Tiếp tục</span>
+        {/* Primary Booking Action (holds seat and navigates to /workspaces/review) */}
+        <Button
+          type='button'
+          onClick={handleConfirmAndProceed}
+          disabled={
+            isSubmitting ||
+            createBookingMutation.isPending ||
+            (!existingHold && (!quote || quoteError || !startTime || !endTime))
+          }
+          className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
+        >
+          {isSubmitting || createBookingMutation.isPending ? (
+            <>
+              <Loader2 className='h-4 w-4 animate-spin' />
+              <span>{isVi ? 'Đang giữ chỗ...' : 'Holding Seat...'}</span>
+            </>
+          ) : (
+            <>
+              <span>{isVi ? 'Xác nhận vị trí & Tiếp tục' : 'Confirm & Proceed'}</span>
               <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
-            </Link>
-          </Button>
-        ) : (
-          <Button disabled className='w-full'>
-            Chưa có báo giá hợp lệ
-          </Button>
-        )}
+            </>
+          )}
+        </Button>
 
         {/* Secondary Actions */}
         <div className='grid grid-cols-2 gap-2'>

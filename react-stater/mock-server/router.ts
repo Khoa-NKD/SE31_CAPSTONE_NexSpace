@@ -391,6 +391,32 @@ export async function handleRequest(
     }
   }
 
+  // 19. Public AI Chatbot: POST /api/v1/public/chat
+  if (pathname === '/api/v1/public/chat' && method === 'POST') {
+    const rawBody = (body as Record<string, unknown>) || {};
+    const message = typeof rawBody.message === 'string' ? rawBody.message : '';
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: {
+          reply: `Chào bạn! Tôi là **NexBot** – Trợ lý ảo AI của NexSpace.\n\nCảm ơn bạn đã hỏi về: "${message}".\n\nNexSpace là nền tảng chia sẻ và đặt chỗ không gian làm việc số 1 với tính năng **Giữ chỗ tạm thời 10 phút** chống trùng chỗ (Double Booking) và thanh toán an toàn qua cổng **PayOS** (VietQR).`,
+          suggestedQuestions: [
+            'Quy trình đặt chỗ tại NexSpace như thế nào?',
+            'Cơ chế giữ chỗ tạm thời 10 phút là gì?',
+            'Làm thế nào để trở thành đối tác Organizer?'
+          ],
+          serverTime: new Date().toISOString(),
+          isFallback: false
+        },
+        message: 'Phản hồi câu trả lời thành công',
+        statusCode: 200,
+        errors: null
+      })
+    );
+    return;
+  }
+
   // Fallback 404 Not Found
   res.writeHead(404, { 'Content-Type': 'application/json' });
   res.end(

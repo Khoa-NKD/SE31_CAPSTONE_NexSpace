@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Info, Wallet, Lock, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { formatBookingMoney, snapshotCurrency } from '../../utils/booking-money';
@@ -33,6 +33,7 @@ interface PriceBreakdownCardProps {
   workspaceName?: string;
   activeBooking?: BookingDto | null;
   onBookingCreated?: (booking: BookingDto | null) => void;
+  autoOpen?: boolean;
 }
 
 export function PriceBreakdownCard({
@@ -44,7 +45,8 @@ export function PriceBreakdownCard({
   customerNotes,
   seatCode = 'Desk A-01',
   activeBooking,
-  onBookingCreated
+  onBookingCreated,
+  autoOpen
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
@@ -55,6 +57,7 @@ export function PriceBreakdownCard({
   const [createdBooking, setCreatedBooking] = useState<BookingDto | null>(activeBooking || null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState<PaymentCheckoutResponse | null>(null);
+  const autoOpenedRef = useRef(false);
 
   const effectiveBooking = createdBooking || activeBooking || null;
 
@@ -170,6 +173,22 @@ export function PriceBreakdownCard({
       toast.error('Không thể đặt chỗ', { description: msg });
     }
   };
+
+  // Automatically open VietQR PayOS modal if resumed from my-bookings with autoOpen
+  useEffect(() => {
+    if (autoOpen && effectiveBooking && !checkoutOpen && !autoOpenedRef.current) {
+      autoOpenedRef.current = true;
+      createPaymentMutation.mutate(effectiveBooking.id, {
+        onSuccess: (data: PaymentCheckoutResponse) => {
+          setCheckoutData(data);
+          setCheckoutOpen(true);
+        },
+        onError: () => {
+          setCheckoutOpen(true);
+        }
+      });
+    }
+  }, [autoOpen, effectiveBooking, checkoutOpen, createPaymentMutation]);
 
   const handleCancelHold = async () => {
     const target = effectiveBooking;

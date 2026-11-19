@@ -20,6 +20,7 @@ import { LanguageProvider } from '@/features/landing/context/language-context';
 import { CurrencyProvider } from '@/features/landing/context/currency-context';
 import { AdminPreviewBanner } from '@/components/layout/admin-preview-banner';
 import { SessionHeartbeatProvider } from '@/features/auth/components/session-heartbeat-provider';
+import { FloatingChatWidget } from '@/features/chatbot';
 
 import appCss from '@/styles/globals.css?url';
 
@@ -130,6 +131,7 @@ function RootDocument() {
                   <SessionHeartbeatProvider />
                   <AdminPreviewBanner />
                   <Outlet />
+                  <FloatingChatWidget />
                 </TooltipProvider>
               </CurrencyProvider>
             </LanguageProvider>

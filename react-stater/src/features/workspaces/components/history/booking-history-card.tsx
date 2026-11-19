@@ -323,7 +323,15 @@ export function BookingHistoryCard({
             <Link
               to="/workspaces/review"
               search={{
-                workspaceId: Number(booking.workspaceId) || 1
+                workspaceId: Number(booking.workspaceId) || 1,
+                resourceId: Number(booking.resourceId) || undefined,
+                bookingId: Number(booking.id) || undefined,
+                bookingCode: booking.bookingCode,
+                startTime: booking.startTime ? String(booking.startTime) : undefined,
+                endTime: booking.endTime ? String(booking.endTime) : undefined,
+                date: booking.startTime ? String(booking.startTime).split('T')[0] : undefined,
+                priceType: 'HOURLY',
+                autoOpen: true
               }}
               className="inline-flex"
             >

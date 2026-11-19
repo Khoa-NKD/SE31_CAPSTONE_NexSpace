@@ -55,11 +55,13 @@ export function EmailVerificationModal({
         toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập để tiếp tục.');
         setTimeout(() => {
           onClose();
+          const redirectParam = typeof window !== 'undefined' ? sessionStorage.getItem('nexspace_auth_redirect') : null;
           navigate({
             to: '/auth/sign-in',
             search: {
               verified: 'true',
-              email: event.email || email
+              email: event.email || email,
+              redirect: redirectParam || undefined
             }
           });
         }, 400);
@@ -77,11 +79,13 @@ export function EmailVerificationModal({
           toast.success('Xác thực tài khoản thành công! Vui lòng đăng nhập để tiếp tục.');
           setTimeout(() => {
             onClose();
+            const redirectParam = typeof window !== 'undefined' ? sessionStorage.getItem('nexspace_auth_redirect') : null;
             navigate({
               to: '/auth/sign-in',
               search: {
                 verified: 'true',
-                email
+                email,
+                redirect: redirectParam || undefined
               }
             });
           }, 400);

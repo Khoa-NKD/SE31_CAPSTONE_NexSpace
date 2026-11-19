@@ -172,10 +172,10 @@ export function SearchCard({
       {/* Primary Horizontal Search Form */}
       <form
         onSubmit={handleSearch}
-        className='grid grid-cols-1 gap-3 md:grid-cols-12 md:items-end'
+        className='flex flex-col md:flex-row md:items-end gap-3'
       >
         {/* 1. Location */}
-        <div className='md:col-span-4 space-y-1.5'>
+        <div className='flex-[1.4] min-w-0 space-y-1.5'>
           <label
             htmlFor='search-location'
             className='block text-xs font-semibold text-slate-700 dark:text-slate-300'
@@ -206,7 +206,7 @@ export function SearchCard({
         </div>
 
         {/* 2. Date & Time */}
-        <div className='md:col-span-3 space-y-1.5'>
+        <div className='flex-1 min-w-0 space-y-1.5'>
           <label
             htmlFor='search-datetime'
             className='block text-xs font-semibold text-slate-700 dark:text-slate-300'
@@ -234,7 +234,7 @@ export function SearchCard({
         </div>
 
         {/* 3. Workspace Type */}
-        <div className='md:col-span-3 space-y-1.5'>
+        <div className='flex-1 min-w-0 space-y-1.5'>
           <label
             htmlFor='search-workspace-type'
             className='block text-xs font-semibold text-slate-700 dark:text-slate-300'
@@ -260,12 +260,15 @@ export function SearchCard({
         </div>
 
         {/* 4. Search Action CTA */}
-        <div className='md:col-span-2'>
+        <div className='shrink-0 space-y-1.5'>
+          <label className='invisible hidden md:block text-xs font-semibold select-none' aria-hidden='true'>
+            &nbsp;
+          </label>
           <Button
             type='submit'
-            className='h-11 w-full cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] px-4 text-sm font-semibold text-white shadow-sm transition-all duration-150 active:scale-[0.98]'
+            className='group h-11 w-full md:w-auto cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#3f36c8] px-6 text-sm font-bold text-white shadow-md shadow-[#4b41e1]/25 transition-all duration-150 active:scale-[0.98] flex items-center justify-center gap-2'
           >
-            <Search className='mr-1.5 h-4 w-4 shrink-0' />
+            <Search className='h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110' />
             <span className='whitespace-nowrap'>{t('search.btn')}</span>
           </Button>
         </div>

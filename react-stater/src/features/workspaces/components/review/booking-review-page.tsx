@@ -14,7 +14,7 @@ import { useBookingByIdQuery, useBookingByCodeQuery } from '../../api/booking-qu
 import type { CustomerFloor } from '../detail/public-floor-map';
 import type { BookingDto } from '../../api/booking-types';
 import { useCurrentPendingBooking } from '@/features/payments/api';
-import { Building2 } from 'lucide-react';
+import { Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 
@@ -27,28 +27,37 @@ export interface BookingReviewPageProps {
   endTime?: string;
   date?: string;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  autoOpen?: boolean;
 }
 
 export function BookingReviewPage({
-  workspaceId,
-  resourceId,
+  workspaceId: propWorkspaceId,
+  resourceId: propResourceId,
   bookingId,
   bookingCode,
-  startTime,
-  endTime,
-  date,
-  priceType = 'HOURLY'
+  startTime: propStartTime,
+  endTime: propEndTime,
+  date: propDate,
+  priceType = 'HOURLY',
+  autoOpen
 }: BookingReviewPageProps) {
   const [customerNotes, setCustomerNotes] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingDto | null>(null);
   const { data: holdData } = useCurrentPendingBooking();
 
-  // Load existing held booking if bookingId or bookingCode is provided from seats page
-  const { data: heldBookingById } = useBookingByIdQuery(bookingId);
-  const { data: heldBookingByCode } = useBookingByCodeQuery(bookingCode);
+  // Load existing held booking if bookingId or bookingCode is provided from seats page or resume link
+  const { data: heldBookingById, isLoading: isLoadingBookingById } = useBookingByIdQuery(bookingId);
+  const { data: heldBookingByCode, isLoading: isLoadingBookingByCode } = useBookingByCodeQuery(bookingCode);
   const initialBooking = heldBookingById || heldBookingByCode || null;
 
   const effectiveBooking = activeBooking || initialBooking || null;
+
+  // Resolve effective parameters with fallback to loaded booking
+  const workspaceId = propWorkspaceId ?? effectiveBooking?.workspaceId;
+  const resourceId = propResourceId ?? effectiveBooking?.resourceId;
+  const startTime = propStartTime ?? (effectiveBooking?.startTime ? String(effectiveBooking.startTime) : undefined);
+  const endTime = propEndTime ?? (effectiveBooking?.endTime ? String(effectiveBooking.endTime) : undefined);
+  const date = propDate ?? (startTime ? startTime.split('T')[0] : undefined);
 
   // Fetch workspace details
   const { data: workspace, isLoading: isLoadingWorkspace } = usePublicWorkspaceDetailQuery(
@@ -91,6 +100,27 @@ export function BookingReviewPage({
     : effectiveHoldData?.remainingSeconds
       ? Number(effectiveHoldData.remainingSeconds)
       : 600;
+
+  // If a booking ID or Code was specified but still resolving, show clean loading view
+  const isResolvingBooking = Boolean(bookingId || bookingCode) && !initialBooking && (isLoadingBookingById || isLoadingBookingByCode);
+
+  if (isResolvingBooking) {
+    return (
+      <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
+        <WorkspaceHeader />
+        <main className='mx-auto w-full max-w-[1200px] flex-1 px-6 py-16 lg:px-8 text-center'>
+          <div className='max-w-md mx-auto rounded-2xl border border-border bg-card p-8 shadow-xs flex flex-col items-center justify-center'>
+            <Loader2 className='size-10 animate-spin text-primary mb-4' />
+            <h2 className='text-lg font-bold tracking-tight'>Đang tải thông tin đơn đặt chỗ...</h2>
+            <p className='mt-2 text-xs text-muted-foreground'>
+              Hệ thống đang truy xuất dữ liệu giữ chỗ để bạn tiếp tục hoàn tất thanh toán.
+            </p>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   if (!workspaceId || !resourceId) {
     return (
@@ -179,6 +209,7 @@ export function BookingReviewPage({
               workspaceName={workspace?.name}
               activeBooking={effectiveBooking}
               onBookingCreated={setActiveBooking}
+              autoOpen={autoOpen}
             />
           </div>
         </div>
