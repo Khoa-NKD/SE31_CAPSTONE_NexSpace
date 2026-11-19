@@ -1,6 +1,25 @@
 import { useState, useEffect, useRef } from 'react';
-import { Info, Wallet, Lock, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
+import {
+  Info,
+  Wallet,
+  Lock,
+  FileText,
+  CheckCircle2,
+  Loader2,
+  AlertCircle,
+  AlertTriangle
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog';
 import { formatBookingMoney, snapshotCurrency } from '../../utils/booking-money';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import {
@@ -54,10 +73,15 @@ export function PriceBreakdownCard({
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [createdBooking, setCreatedBooking] = useState<BookingDto | null>(activeBooking || null);
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [checkoutData, setCheckoutData] = useState<PaymentCheckoutResponse | null>(null);
   const autoOpenedRef = useRef(false);
+
+  const remainingAttempts = holdData?.remainingHoldAttempts ?? 3;
+  const maxAttempts = holdData?.maxHoldAttempts ?? 3;
+  const penaltyMinutes = holdData?.penaltyBlockMinutes ?? 20;
 
   const effectiveBooking = createdBooking || activeBooking || null;
 
@@ -196,21 +220,37 @@ export function PriceBreakdownCard({
     try {
       await cancelBookingMutation.mutateAsync({
         id: target.id,
-        reason: 'Customer cancelled during 10-minute hold'
+        reason: 'Customer cancelled during hold session'
       });
+      setIsCancelDialogOpen(false);
       setCreatedBooking(null);
       setCheckoutData(null);
       onBookingCreated?.(null);
-      toast.success('Đã hủy giữ chỗ thành công');
-      if (workspaceId) {
-        navigate({
-          to: '/workspaces/$workspaceId',
-          params: { workspaceId: String(workspaceId) }
-        });
+      queryClient.invalidateQueries({ queryKey: paymentKeys.pendingHold() });
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      const nextRemaining = Math.max(0, remainingAttempts - 1);
+      if (nextRemaining === 0) {
+        toast.error(
+          `Bạn đã dùng hết ${maxAttempts} lần giữ chỗ mà không thanh toán. Tài khoản tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế trong vòng ${penaltyMinutes} phút do vi phạm quy tắc.`,
+          { duration: 8000 }
+        );
       } else {
-        navigate({ to: '/workspaces' });
+        toast.warning(
+          `Đã hủy giữ chỗ thành công. Bạn còn ${nextRemaining} lần hủy/giữ. Nếu quá ${maxAttempts} lần mà không thanh toán, tài khoản sẽ bị tạm khóa đặt chỗ trong vòng ${penaltyMinutes} phút.`
+        );
       }
+      setTimeout(() => {
+        if (workspaceId) {
+          navigate({
+            to: '/workspaces/$workspaceId',
+            params: { workspaceId: String(workspaceId) }
+          });
+        } else {
+          navigate({ to: '/workspaces' });
+        }
+      }, 700);
     } catch (err: unknown) {
+      setIsCancelDialogOpen(false);
       const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
       setBookingError(
         errorObj?.response?.data?.message || errorObj?.message || 'Failed to cancel hold.'
@@ -364,9 +404,9 @@ export function PriceBreakdownCard({
           {effectiveBooking && (
             <Button
               variant='outline'
-              onClick={handleCancelHold}
+              onClick={() => setIsCancelDialogOpen(true)}
               disabled={cancelBookingMutation.isPending}
-              className='h-9 w-full text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 border-border/80'
+              className='h-9 w-full text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 border-border/80 cursor-pointer'
             >
               {cancelBookingMutation.isPending ? (
                 <>
@@ -429,6 +469,55 @@ export function PriceBreakdownCard({
           }
         }}
       />
+
+      {/* Pop-up Xác nhận khi bấm Hủy giữ chỗ ở card dưới */}
+      <AlertDialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className='flex items-center gap-2 text-destructive dark:text-rose-400'>
+              <AlertTriangle className='h-5 w-5 text-destructive dark:text-rose-400' />
+              <span>Xác nhận hủy phiên giữ chỗ</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription className='space-y-2 text-sm text-foreground/90 leading-relaxed pt-2'>
+              <div className='rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200'>
+                <p className='font-medium'>
+                  Bạn hiện còn <span className='font-bold text-amber-900 underline dark:text-amber-100'>{remainingAttempts} lần</span> hủy giữ chỗ.
+                </p>
+                {remainingAttempts <= 1 ? (
+                  <div className='mt-2 rounded-md bg-destructive/15 border border-destructive/30 p-2 text-xs font-semibold text-destructive'>
+                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết 3 lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyMinutes} phút.
+                  </div>
+                ) : (
+                  <p className='mt-1 text-xs text-amber-800 dark:text-amber-300'>
+                    Nếu xác nhận hủy phiên này, bạn sẽ chỉ còn{' '}
+                    <span className='font-bold text-amber-950 underline dark:text-amber-100'>
+                      {Math.max(0, remainingAttempts - 1)} lần
+                    </span>.
+                  </p>
+                )}
+              </div>
+              <p className='text-xs text-muted-foreground pt-1'>
+                <span className='font-semibold text-destructive'>Lưu ý:</span> Nếu bạn hủy hoặc để phiên giữ chỗ hết hạn quá <span className='font-semibold'>{maxAttempts} lần</span> mà không hoàn tất thanh toán, tài khoản sẽ bị <span className='font-bold text-destructive'>TẠM KHÓA đặt chỗ trong vòng {penaltyMinutes} phút</span> (tức là không thể đặt bất kỳ chỗ nào trong {penaltyMinutes} phút tới).
+              </p>
+              <p className='font-medium text-foreground pt-1'>
+                Bạn có chắc chắn muốn hủy phiên giữ chỗ này không?
+              </p>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className='gap-2 sm:gap-0 pt-2'>
+            <AlertDialogCancel disabled={cancelBookingMutation.isPending} className='cursor-pointer'>
+              Không, tiếp tục giữ chỗ
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleCancelHold}
+              disabled={cancelBookingMutation.isPending}
+              className='bg-destructive text-destructive-foreground hover:bg-destructive/90 cursor-pointer'
+            >
+              {cancelBookingMutation.isPending ? 'Đang hủy...' : 'Đồng ý hủy'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

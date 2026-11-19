@@ -14,6 +14,8 @@ export function useHoldResourceMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: availabilityKeys.all });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-hold'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
     }
   });
 }
@@ -29,6 +31,8 @@ export function useReleaseHoldMutation() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: availabilityKeys.all });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['pending-hold'] });
+      queryClient.invalidateQueries({ queryKey: ['payments'] });
     }
   });
 }

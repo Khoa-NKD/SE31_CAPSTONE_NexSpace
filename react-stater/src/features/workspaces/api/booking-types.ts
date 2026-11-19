@@ -138,4 +138,5 @@ export interface ResourceAvailabilityItem {
   selectable: boolean;
   state: 'AVAILABLE' | 'BOOKED' | 'LOCKED' | 'MAINTENANCE';
   flags?: string[];
+  isOccupiedByMe?: boolean;
 }

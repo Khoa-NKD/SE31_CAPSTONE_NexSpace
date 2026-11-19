@@ -170,12 +170,13 @@ export function SeatsListView({
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
           {filteredResources.map((res) => {
             const avail = availabilityMap?.get(res.id);
+            const isHeldByMe = Boolean(avail?.isOccupiedByMe);
             const isBooked = avail?.state === 'BOOKED';
-            const isLocked = avail?.state === 'LOCKED';
-            const isMaintenance = avail?.state === 'MAINTENANCE' || !res.selectable;
+            const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+            const isMaintenance = avail?.state === 'MAINTENANCE' || (!res.selectable && !isHeldByMe);
             const isAvailable =
-              (!avail || avail.state === 'AVAILABLE') &&
-              res.selectable &&
+              (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
+              (res.selectable || isHeldByMe) &&
               !isBooked &&
               !isLocked &&
               !isMaintenance;
@@ -224,7 +225,12 @@ export function SeatsListView({
 
                     {/* Status Indicator Pill */}
                     <div>
-                      {isAvailable ? (
+                      {isHeldByMe ? (
+                        <span className='inline-flex items-center gap-1.5 rounded-full bg-emerald-600/95 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs ring-1 ring-emerald-400/50'>
+                          <span className='size-1.5 rounded-full bg-white animate-pulse' />
+                          {c('Your Hold', 'Bạn đang giữ chỗ')}
+                        </span>
+                      ) : isAvailable ? (
                         <span className='inline-flex items-center gap-1.5 rounded-full bg-emerald-500/90 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs'>
                           <span className='size-1.5 rounded-full bg-white animate-pulse' />
                           {c('Available', 'Còn trống')}

@@ -24,6 +24,8 @@ export interface BookingHoldResponse {
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
   penaltyBlockMinutes?: number;
+  isBookingSuspended?: boolean;
+  bookingSuspendedUntil?: string | null;
 }
 
 export interface CustomerBookingItemResponse {

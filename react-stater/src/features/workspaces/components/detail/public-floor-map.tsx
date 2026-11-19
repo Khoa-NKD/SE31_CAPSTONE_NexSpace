@@ -19,6 +19,7 @@ import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import { backendRequest } from '@/features/auth/api/session';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import { DecorationLayer } from '@/features/organizer-resources/components/decoration-visual';
 import { ResourceMapSymbol } from '@/features/organizer-resources/components/resource-map-symbol';
 import type { FloorDecoration, Category } from '@/features/organizer-resources/api/resources';
@@ -193,6 +194,8 @@ export function PublicFloorMap({
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
   const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
+
+  const { data: holdData } = useCurrentPendingBooking();
 
   const query = useQuery({
     queryKey: ['public-floor-maps', workspaceId],
@@ -383,12 +386,13 @@ export function PublicFloorMap({
 
   function shape(resource: MapResource) {
     const avail = availabilityMap?.get(resource.id);
+    const isHeldByMe = Boolean(avail?.isOccupiedByMe || (holdData?.resourceId === resource.id));
     const isBooked = avail?.state === 'BOOKED';
-    const isLocked = avail?.state === 'LOCKED';
-    const isMaintenance = avail?.state === 'MAINTENANCE' || !resource.selectable;
+    const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+    const isMaintenance = avail?.state === 'MAINTENANCE' || (!resource.selectable && !isHeldByMe);
     const isAvailable =
-      (!avail || avail.state === 'AVAILABLE') &&
-      resource.selectable &&
+      (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
+      (resource.selectable || isHeldByMe) &&
       !isBooked &&
       !isLocked &&
       !isMaintenance;
@@ -431,7 +435,7 @@ export function PublicFloorMap({
         return;
       }
 
-      if (isAvailable) {
+      if (isAvailable || isHeldByMe) {
         setInternalSelectedId(resource.id);
         onSelect?.(resource);
         onSelectResource?.(resource);
@@ -441,6 +445,8 @@ export function PublicFloorMap({
     let fillColor = 'fill-primary/5 stroke-primary';
     if (isCurrentSelected) {
       fillColor = 'fill-primary/25 stroke-primary stroke-[3px]';
+    } else if (isHeldByMe) {
+      fillColor = 'fill-emerald-500/25 stroke-emerald-600 stroke-[2.5px] dark:stroke-emerald-400';
     } else if (isBooked) {
       fillColor = 'fill-rose-500/20 stroke-rose-600 dark:stroke-rose-400';
     } else if (isLocked) {
@@ -463,13 +469,15 @@ export function PublicFloorMap({
 
     const statusLabel = isBooked
       ? c('Booked / Confirmed', 'Đã có người đặt')
-      : isLocked
-        ? c('Holding / In Checkout', 'Đang giữ chỗ')
-        : isMaintenance
-          ? c('Unavailable', 'Tạm ngưng')
-          : hasScheduleSelected
-            ? c('Available for selected time', 'Còn trống khung giờ này')
-            : c('Active space', 'Không gian hoạt động');
+      : isHeldByMe
+        ? c('Your Current Hold', 'Bạn đang giữ chỗ này')
+        : isLocked
+          ? c('Holding / In Checkout', 'Đang giữ chỗ')
+          : isMaintenance
+            ? c('Unavailable', 'Tạm ngưng')
+            : hasScheduleSelected
+              ? c('Available for selected time', 'Còn trống khung giờ này')
+              : c('Active space', 'Không gian hoạt động');
 
     const priceLabel =
       typeof resource.pricePerHour === 'number' && resource.pricePerHour > 0
