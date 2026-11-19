@@ -25,6 +25,7 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
             url.startsWith('/api/organizer/') ||
             url.startsWith('/api/admin/') ||
             url.startsWith('/api/v1/') ||
+            url.startsWith('/api/chat') ||
             url.startsWith('/api/bookings') ||
             url.startsWith('/api/workspaces') ||
             url.startsWith('/api/public/') ||
@@ -77,6 +78,9 @@ export default defineConfig(({ mode }) => {
   const proxyTarget = env.VITE_API_PROXY_TARGET || process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080';
 
   return {
+    define: {
+      global: 'globalThis'
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, './src')
@@ -87,6 +91,11 @@ export default defineConfig(({ mode }) => {
       proxy: {
         '/api': {
           target: proxyTarget,
+          changeOrigin: true
+        },
+        '/ws-chat': {
+          target: proxyTarget,
+          ws: true,
           changeOrigin: true
         }
       }
