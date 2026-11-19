@@ -52,7 +52,9 @@ public class SecurityConfig {
             "/swagger-ui/**",
             "/swagger-ui.html",
             "/v3/api-docs/**",
-            "/uploads/**"
+            "/uploads/**",
+            "/ws/**",
+            "/ws-chat/**"
     };
 
     /** Endpoint GET công khai, không yêu cầu xác thực JWT. */
