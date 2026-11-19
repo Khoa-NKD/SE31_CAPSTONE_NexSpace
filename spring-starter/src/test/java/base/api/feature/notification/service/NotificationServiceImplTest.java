@@ -220,6 +220,29 @@ class NotificationServiceImplTest {
         verify(emailService).sendHtmlEmail(eq("khoashyofme24092004@gmail.com"), anyString(), anyString());
     }
 
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"en-US", "fr-FR", "vi-VN"})
+    @org.junit.jupiter.api.parallel.ResourceLock(org.junit.jupiter.api.parallel.Resources.LOCALE)
+    void cancellationRefundUsesVietnameseMoneyInNotificationsAndEmailOnEveryHost(String languageTag) {
+        var original = java.util.Locale.getDefault();
+        var originalFormat = java.util.Locale.getDefault(java.util.Locale.Category.FORMAT);
+        try {
+            java.util.Locale.setDefault(java.util.Locale.forLanguageTag(languageTag));
+            when(notificationRepository.save(any(UserNotificationModel.class))).thenAnswer(i -> i.getArgument(0));
+            notificationService.sendBookingCancelledNotification(booking, new BigDecimal("50000"), "Đổi lịch");
+
+            var notification = ArgumentCaptor.forClass(UserNotificationModel.class);
+            verify(notificationRepository).save(notification.capture());
+            assertThat(notification.getValue().getContent()).contains("50.000").doesNotContain("50,000");
+            var html = ArgumentCaptor.forClass(String.class);
+            verify(emailService).sendHtmlEmail(anyString(), anyString(), html.capture());
+            assertThat(html.getValue()).contains("50.000").doesNotContain("50,000");
+        } finally {
+            java.util.Locale.setDefault(original);
+            java.util.Locale.setDefault(java.util.Locale.Category.FORMAT, originalFormat);
+        }
+    }
+
     @Test
     @DisplayName("sendBookingCancelledToOrganizerNotification creates in-app notification and email for organizer")
     void sendBookingCancelledToOrganizerNotification_success() {

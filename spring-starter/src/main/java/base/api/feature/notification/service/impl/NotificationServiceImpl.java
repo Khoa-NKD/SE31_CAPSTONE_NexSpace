@@ -42,7 +42,6 @@ public class NotificationServiceImpl implements INotificationService {
     private String clientUrl;
 
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
-    private static final DecimalFormat CURRENCY_FORMATTER = new DecimalFormat("#,###");
 
     @Override
     @Transactional(readOnly = true)
@@ -1111,6 +1110,8 @@ public class NotificationServiceImpl implements INotificationService {
 
     private String formatCurrency(BigDecimal amount) {
         if (amount == null) return "0";
-        return CURRENCY_FORMATTER.format(amount);
+        // Notification text uses Vietnamese separators on every host; formatter instances are not thread-safe.
+        var formatter = new DecimalFormat("#,###", java.text.DecimalFormatSymbols.getInstance(java.util.Locale.forLanguageTag("vi-VN")));
+        return formatter.format(amount);
     }
 }

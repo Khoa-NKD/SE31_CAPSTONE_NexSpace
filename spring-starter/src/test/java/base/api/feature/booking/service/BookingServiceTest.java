@@ -372,6 +372,23 @@ class BookingServiceTest {
     }
 
     @Test
+    void quoteNeverAddsTheObsoleteCustomerServiceFee() {
+        var obsoleteFee = new base.api.shared.entity.governance.PlatformSettingModel();
+        obsoleteFee.setSettingValue("2");
+        lenient().when(platformSettingRepository.findById("payment.service_fee_percent"))
+                .thenReturn(Optional.of(obsoleteFee));
+        when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
+        when(resourceRepository.findById(mockResource.getId())).thenReturn(Optional.of(mockResource));
+        var request = CalculatePriceRequestDto.builder().workspaceId(mockWorkspace.getId()).resourceId(mockResource.getId())
+                .startTime(futureMondayStart).endTime(futureMondayEnd).priceType(PriceType.HOURLY).build();
+
+        var quote = bookingService.calculatePrice(request);
+        assertThat(quote.getServiceFeeAmount()).isZero();
+        assertThat(quote.getTaxAmount()).isEqualByComparingTo("16000");
+        assertThat(quote.getFinalPrice()).isEqualByComparingTo("216000");
+    }
+
+    @Test
     void monthlyCreateCannotReuseAHoldOrCreateAFreeBooking() {
         var request=CreateBookingRequestDto.builder().workspaceId(mockWorkspace.getId()).resourceId(mockResource.getId())
                 .startTime(futureMondayStart).endTime(futureMondayEnd).priceType(PriceType.MONTHLY).build();
