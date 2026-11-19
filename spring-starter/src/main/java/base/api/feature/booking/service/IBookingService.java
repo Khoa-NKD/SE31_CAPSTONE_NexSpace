@@ -36,6 +36,9 @@ public interface IBookingService {
     /** Hủy đơn đặt chỗ hoặc hủy giữ chỗ (giải phóng lock ngay lập tức) */
     BookingResponseDto cancelBooking(Long customerId, Long bookingId, String cancelReason);
 
+    /** Hủy đơn đặt chỗ kèm thông tin tài khoản ngân hàng nhận tiền hoàn */
+    BookingResponseDto cancelBooking(Long customerId, Long bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto);
+
     /** Xem trước chính sách hủy và số tiền hoàn dự kiến trước khi xác nhận hủy */
     base.api.feature.booking.dto.response.BookingCancellationPreviewDto getCancellationPreview(Long currentUserId, Long bookingId);
 

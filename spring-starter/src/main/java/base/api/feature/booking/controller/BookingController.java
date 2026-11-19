@@ -30,6 +30,7 @@ import java.util.List;
 public class BookingController extends BaseAPIController {
 
     private final IBookingService bookingService;
+    private final base.api.feature.payment.service.IRefundService refundService;
 
     @Operation(summary = "Tạo đơn đặt chỗ mới và giữ chỗ tạm thời (mặc định 10 phút)")
     @PostMapping
@@ -78,14 +79,40 @@ public class BookingController extends BaseAPIController {
         return success(preview, "Lấy thông tin chính sách hủy thành công");
     }
 
-    @Operation(summary = "Hủy đơn đặt chỗ hoặc hủy giữ chỗ tạm thời")
+    @Operation(summary = "Hủy đơn đặt chỗ hoặc hủy giữ chỗ tạm thời (kèm thông tin tài khoản hoàn tiền nếu có)")
     @PostMapping("/{id}/cancel")
     @PreAuthorize("isAuthenticated()")
     public ResponseEntity<ApiResponse<BookingResponseDto>> cancelBooking(
             @PathVariable Long id,
-            @RequestParam(required = false) String reason) {
-        BookingResponseDto response = bookingService.cancelBooking(getCurrentUserId(), id, reason);
+            @RequestParam(required = false) String reason,
+            @RequestBody(required = false) base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto) {
+        base.api.feature.booking.dto.request.CancelBookingRequestDto dto = requestDto != null
+                ? requestDto
+                : new base.api.feature.booking.dto.request.CancelBookingRequestDto();
+        if ((dto.getReason() == null || dto.getReason().isBlank()) && reason != null && !reason.isBlank()) {
+            dto.setReason(reason);
+        }
+        BookingResponseDto response = bookingService.cancelBooking(getCurrentUserId(), id, dto);
         return success(response, "Đơn đặt chỗ đã được hủy thành công. Chỗ ngồi đã được giải phóng.");
+    }
+
+    @Operation(summary = "Xem thông tin yêu cầu hoàn tiền của đơn đặt chỗ")
+    @GetMapping("/{id}/refund")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<base.api.feature.payment.dto.refund.RefundRequestResponseDto>> getBookingRefund(
+            @PathVariable Long id) {
+        base.api.feature.payment.dto.refund.RefundRequestResponseDto refund = refundService.getBookingRefund(getCurrentUserId(), id);
+        return success(refund, "Lấy thông tin hoàn tiền thành công");
+    }
+
+    @Operation(summary = "Cập nhật thông tin tài khoản ngân hàng nhận hoàn tiền")
+    @PatchMapping("/{id}/refund-bank-info")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<base.api.feature.payment.dto.refund.RefundRequestResponseDto>> updateBookingRefundBankInfo(
+            @PathVariable Long id,
+            @Valid @RequestBody base.api.feature.payment.dto.refund.UpdateRefundBankInfoDto request) {
+        base.api.feature.payment.dto.refund.RefundRequestResponseDto updated = refundService.updateBookingRefundBankInfo(getCurrentUserId(), id, request);
+        return success(updated, "Cập nhật thông tin tài khoản nhận tiền hoàn thành công");
     }
 
     @Operation(summary = "Organizer phê duyệt đơn đặt chỗ (khi workspace bật chế độ duyệt thủ công)")
