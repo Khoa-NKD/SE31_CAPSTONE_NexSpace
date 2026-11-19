@@ -1,18 +1,13 @@
 import { useState, useEffect, useRef } from 'react';
-import {
-  Info,
-  Wallet,
-  Lock,
-  FileText,
-  CheckCircle2,
-  Tag,
-  Loader2,
-  AlertCircle
-} from 'lucide-react';
+import { Info, Wallet, Lock, FileText, CheckCircle2, Loader2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCurrency } from '@/features/landing/context/currency-context';
+import { formatBookingMoney, snapshotCurrency } from '../../utils/booking-money';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { useCalculatePriceQuery, useCreateBookingMutation, useCancelBookingMutation } from '../../api/booking-queries';
+import {
+  useCalculatePriceQuery,
+  useCreateBookingMutation,
+  useCancelBookingMutation
+} from '../../api/booking-queries';
 import type { BookingDto } from '../../api/booking-types';
 import { PayOSCheckoutDialog } from './payos-checkout-dialog';
 import {
@@ -55,12 +50,9 @@ export function PriceBreakdownCard({
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
-  const { formatPrice, currency } = useCurrency();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
-  const [promoCode, setPromoCode] = useState('');
-  const [discountApplied, setDiscountApplied] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [createdBooking, setCreatedBooking] = useState<BookingDto | null>(activeBooking || null);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -70,10 +62,14 @@ export function PriceBreakdownCard({
   const effectiveBooking = createdBooking || activeBooking || null;
 
   const { data: exchangeRateData } = useExchangeRate();
-  const exchangeRate = exchangeRateData?.exchangeRate || 25450;
+  const exchangeRate = exchangeRateData?.exchangeRate;
 
   // Price calculation query from backend
-  const { data: priceData, isLoading: isCalculating } = useCalculatePriceQuery(
+  const {
+    data: priceData,
+    isLoading: isCalculating,
+    isError: priceError
+  } = useCalculatePriceQuery(
     workspaceId && resourceId && startTime && endTime
       ? {
           workspaceId,
@@ -89,32 +85,35 @@ export function PriceBreakdownCard({
   const cancelBookingMutation = useCancelBookingMutation();
   const createPaymentMutation = useCreatePaymentCheckout();
 
-  // Price calculations
-  const durationHours = priceData?.durationHours || 4;
-  const unitPrice = priceData?.unitPrice || 2.5;
-  const baseRate = priceData?.baseAmount || durationHours * unitPrice;
-  const dailyRate = priceData?.priceType === 'DAILY';
-  const billingUnits = dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
-  const platformFee = priceData?.serviceFeeAmount || 1.0;
-  const vat = priceData?.taxAmount || baseRate * 0.08;
-  const promoDiscount = discountApplied ? 1.0 : 0;
-  const totalAmount = priceData
-    ? Math.max(0, priceData.finalPrice - promoDiscount)
-    : Math.max(0, baseRate + platformFee + vat - promoDiscount);
-
-  const totalAmountVnd = Math.round(totalAmount * exchangeRate);
-
-  const handleApplyPromo = () => {
-    if (promoCode.trim().toUpperCase() === 'NEXFIRST') {
-      setDiscountApplied(true);
-      toast.success('Mã giảm giá NEXFIRST đã được áp dụng (-$1.00)');
-    } else {
-      toast.error('Mã giảm giá không hợp lệ');
-    }
-  };
+  // Existing bookings retain their immutable totals; a later quote must not reprice a held order.
+  const priceSource = effectiveBooking ?? priceData;
+  const sourceCurrency = effectiveBooking
+    ? snapshotCurrency(effectiveBooking.pricingSnapshot)
+    : priceData?.currency;
+  const formatPrice = (amount: number) =>
+    priceSource && sourceCurrency ? formatBookingMoney(amount, sourceCurrency) : '—';
+  const durationHours = priceSource?.durationHours ?? 0;
+  const unitPrice = priceSource?.unitPrice ?? 0;
+  const baseRate = priceSource?.baseAmount ?? 0;
+  const dailyRate = priceSource?.priceType === 'DAILY';
+  const billingUnits =
+    dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
+  const vat = priceSource?.taxAmount ?? 0;
+  const legacyCustomerFee = priceSource?.serviceFeeAmount ?? 0;
+  const totalAmount = priceSource?.finalPrice ?? 0;
+  const totalAmountVnd =
+    sourceCurrency === 'VND'
+      ? Math.round(totalAmount)
+      : sourceCurrency === 'USD' && exchangeRate
+        ? Math.round((totalAmount * exchangeRate) / 1000) * 1000
+        : null;
 
   const handleConfirmBooking = async () => {
     setBookingError(null);
+    if (!priceSource || !sourceCurrency) {
+      setBookingError('Chưa tải được giá hợp lệ. Vui lòng thử lại trước khi thanh toán.');
+      return;
+    }
 
     if (effectiveBooking) {
       // Booking is already held from the seats page, open payment modal
@@ -213,7 +212,9 @@ export function PriceBreakdownCard({
       }
     } catch (err: unknown) {
       const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
-      setBookingError(errorObj?.response?.data?.message || errorObj?.message || 'Failed to cancel hold.');
+      setBookingError(
+        errorObj?.response?.data?.message || errorObj?.message || 'Failed to cancel hold.'
+      );
     }
   };
 
@@ -223,11 +224,11 @@ export function PriceBreakdownCard({
         {/* Header */}
         <div className='border-border/60 flex items-center justify-between border-b pb-4'>
           <h2 className='text-foreground font-sans text-base font-bold tracking-tight sm:text-lg'>
-            Price Breakdown
+            Chi tiết thanh toán
           </h2>
           <div className='text-muted-foreground flex items-center gap-1.5 text-xs font-medium'>
             <span className='h-2 w-2 rounded-full bg-emerald-500' />
-            <span>Guaranteed Rate</span>
+            <span>Giá từ hệ thống</span>
           </div>
         </div>
 
@@ -248,70 +249,41 @@ export function PriceBreakdownCard({
           </div>
         )}
 
+        {!effectiveBooking && priceError && (
+          <p role='alert' className='text-sm text-destructive'>
+            Không tải được giá. Vui lòng kiểm tra thời gian hoặc thử lại.
+          </p>
+        )}
         {/* Line Items */}
         <div className='border-border/60 space-y-3 border-b py-2 text-xs sm:text-sm'>
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Base Rate ({billingUnits} {dailyRate ? 'days' : 'hrs'} × {formatPrice(unitPrice)})
+              Tiền thuê ({billingUnits} {dailyRate ? 'ngày' : 'giờ'} × {formatPrice(unitPrice)})
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
             <span className='font-medium font-mono'>
-              {isCalculating ? <Loader2 className='size-3.5 animate-spin inline' /> : formatPrice(baseRate)}
+              {isCalculating ? (
+                <Loader2 className='size-3.5 animate-spin inline' />
+              ) : (
+                formatPrice(baseRate)
+              )}
             </span>
           </div>
 
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
-              Platform Service Fee
+              {legacyCustomerFee > 0 ? 'Phí khách đã chốt trên đơn cũ' : 'Phí dịch vụ khách'}
               <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
             </span>
-            <span className='font-medium font-mono'>{formatPrice(platformFee)}</span>
+            <span className='font-medium font-mono'>
+              {legacyCustomerFee > 0 ? formatPrice(legacyCustomerFee) : 'Không thu phí'}
+            </span>
           </div>
 
           <div className='flex items-center justify-between text-foreground'>
-            <span className='text-muted-foreground'>VAT (8% standard included)</span>
+            <span className='text-muted-foreground'>VAT theo đơn đặt chỗ</span>
             <span className='text-muted-foreground font-medium font-mono'>{formatPrice(vat)}</span>
           </div>
-
-          {discountApplied && (
-            <div className='flex items-center justify-between text-emerald-600 dark:text-emerald-400 font-medium'>
-              <span className='flex items-center gap-1.5'>
-                <Tag className='h-3.5 w-3.5' />
-                Promo Discount (NEXFIRST)
-              </span>
-              <span className='font-mono'>-{formatPrice(promoDiscount)}</span>
-            </div>
-          )}
-        </div>
-
-        {/* Corporate Promo Code Field */}
-        <div className='border-border/60 space-y-2 border-b py-2'>
-          <label htmlFor='promo-input' className='text-foreground block text-xs font-medium'>
-            Corporate Promo Code
-          </label>
-          <div className='flex gap-2'>
-            <input
-              id='promo-input'
-              type='text'
-              value={promoCode}
-              onChange={(e) => setPromoCode(e.target.value)}
-              placeholder='Enter promo code (e.g. NEXFIRST)'
-              className='bg-card border-border text-foreground placeholder:text-muted-foreground/60 focus:border-primary focus:ring-primary/20 h-10 flex-grow rounded-lg border px-3 text-xs uppercase transition-colors focus:ring-1 focus:outline-none font-mono'
-            />
-            <button
-              type='button'
-              onClick={handleApplyPromo}
-              className='border-border hover:bg-muted text-foreground cursor-pointer rounded-lg border px-4 text-xs font-semibold transition-all active:scale-95'
-            >
-              Apply
-            </button>
-          </div>
-          {discountApplied && (
-            <p className='text-emerald-600 dark:text-emerald-400 flex items-center gap-1 text-[11px] font-medium'>
-              <CheckCircle2 className='h-3.5 w-3.5' />
-              Code NEXFIRST applied successfully (-1.00 USD)
-            </p>
-          )}
         </div>
 
         {/* Total Amount Due */}
@@ -319,10 +291,12 @@ export function PriceBreakdownCard({
           <div className='flex items-baseline justify-between'>
             <div>
               <span className='text-foreground font-sans text-base font-bold sm:text-lg'>
-                Total Amount Due
+                Khách cần thanh toán
               </span>
               <p className='text-muted-foreground text-xs'>
-                ≈ {totalAmountVnd.toLocaleString('vi-VN')} VND (Tỷ giá: 1$ = {exchangeRate.toLocaleString('vi-VN')}đ)
+                {totalAmountVnd == null
+                  ? 'Số tiền chính thức được xác nhận khi tạo thanh toán PayOS.'
+                  : `${sourceCurrency === 'USD' ? 'Quy đổi thanh toán: ' : ''}${formatBookingMoney(totalAmountVnd, 'VND')}`}
               </p>
             </div>
             <div className='text-right'>
@@ -334,7 +308,7 @@ export function PriceBreakdownCard({
                 )}
               </span>
               <span className='text-muted-foreground block text-xs font-semibold'>
-                {priceData?.currency || currency}
+                {sourceCurrency ?? ''}
               </span>
             </div>
           </div>
@@ -347,7 +321,9 @@ export function PriceBreakdownCard({
             disabled={
               createBookingMutation.isPending ||
               createPaymentMutation.isPending ||
-              isCalculating
+              (!effectiveBooking && isCalculating) ||
+              !priceSource ||
+              !sourceCurrency
             }
             className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
           >
@@ -360,9 +336,7 @@ export function PriceBreakdownCard({
               <>
                 <CheckCircle2 className='size-4' />
                 <span>
-                  {effectiveBooking
-                    ? `Xác nhận (${effectiveBooking.bookingCode})`
-                    : 'Xác nhận'}
+                  {effectiveBooking ? `Xác nhận (${effectiveBooking.bookingCode})` : 'Xác nhận'}
                 </span>
               </>
             )}
@@ -373,7 +347,10 @@ export function PriceBreakdownCard({
               onClick={() =>
                 navigate({
                   to: '/workspaces/confirmation',
-                  search: { bookingCode: effectiveBooking.bookingCode, bookingId: effectiveBooking.id }
+                  search: {
+                    bookingCode: effectiveBooking.bookingCode,
+                    bookingId: effectiveBooking.id
+                  }
                 })
               }
               variant='secondary'
@@ -408,7 +385,8 @@ export function PriceBreakdownCard({
           <div className='flex items-center gap-2.5'>
             <Wallet className='text-primary h-4 w-4 shrink-0' />
             <span>
-              <strong className='text-foreground'>Cổng VietQR PayOS:</strong> Quét bằng app MB, VCB, TCB, MoMo...
+              <strong className='text-foreground'>Cổng VietQR PayOS:</strong> Quét bằng app MB, VCB,
+              TCB, MoMo...
             </span>
           </div>
           <div className='flex items-center gap-2.5'>
@@ -430,10 +408,11 @@ export function PriceBreakdownCard({
       <PayOSCheckoutDialog
         open={checkoutOpen}
         onOpenChange={setCheckoutOpen}
-        totalAmountUsd={totalAmount}
         seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
         checkoutData={checkoutData}
-        orderRef={effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : holdData?.bookingCode}
+        orderRef={
+          effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : holdData?.bookingCode
+        }
         isLoading={createPaymentMutation.isPending}
         onRetry={handleConfirmBooking}
         onCancelCheckoutSuccess={() => {
