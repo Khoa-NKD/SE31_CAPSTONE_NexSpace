@@ -21,6 +21,17 @@ import { Link } from '@tanstack/react-router';
 
 type StatusFilterTab = 'ALL' | 'CONFIRMED' | 'PENDING_PAYMENT' | 'COMPLETED' | 'CANCELLED';
 
+const POPULAR_BANKS = [
+  { bin: '970422', name: 'MBBank (Ngân hàng Quân Đội)' },
+  { bin: '970436', name: 'Vietcombank (Ngoại thương Việt Nam)' },
+  { bin: '970415', name: 'VietinBank (Công thương Việt Nam)' },
+  { bin: '970407', name: 'Techcombank (Kỹ thương Việt Nam)' },
+  { bin: '970418', name: 'BIDV (Đầu tư và Phát triển VN)' },
+  { bin: '970416', name: 'ACB (Á Châu)' },
+  { bin: '970423', name: 'TPBank (Tiên Phong)' },
+  { bin: '970432', name: 'VPBank (Việt Nam Thịnh Vượng)' }
+];
+
 export function BookingHistoryPage() {
   const [selectedTab, setSelectedTab] = useState<StatusFilterTab>('ALL');
   const [page, setPage] = useState<number>(1);
@@ -29,6 +40,10 @@ export function BookingHistoryPage() {
   // Booking hold to cancel confirmation modal
   const [bookingToCancel, setBookingToCancel] = useState<BookingDto | null>(null);
   const [cancelReason, setCancelReason] = useState<string>('');
+  const [bankBin, setBankBin] = useState<string>('970422');
+  const [bankName, setBankName] = useState<string>('MBBank (Ngân hàng Quân Đội)');
+  const [bankAccountNumber, setBankAccountNumber] = useState<string>('');
+  const [bankAccountName, setBankAccountName] = useState<string>('');
 
   const cancelMutation = useCancelBookingMutation();
   const { data: cancelPreview, isLoading: isPreviewLoading } = useCancellationPreviewQuery(
@@ -65,10 +80,16 @@ export function BookingHistoryPage() {
     try {
       await cancelMutation.mutateAsync({
         id: bookingToCancel.id,
-        reason: cancelReason || 'Khách hàng yêu cầu hủy từ giao diện lịch sử'
+        reason: cancelReason || 'Khách hàng yêu cầu hủy từ giao diện lịch sử',
+        bankName,
+        bankBin,
+        bankAccountNumber: bankAccountNumber.trim(),
+        bankAccountName: bankAccountName.trim().toUpperCase()
       });
       setBookingToCancel(null);
       setCancelReason('');
+      setBankAccountNumber('');
+      setBankAccountName('');
       refetch();
     } catch (err) {
       console.error('Failed to cancel booking:', err);
@@ -356,6 +377,62 @@ export function BookingHistoryPage() {
                     )}
                   </div>
                 ) : null}
+
+                {/* Bank Information Form for Refund */}
+                {cancelPreview && cancelPreview.refundAmount > 0 && (
+                  <div className="space-y-2 rounded-xl border border-primary/30 bg-primary/5 p-3 text-xs">
+                    <span className="font-semibold text-foreground block">
+                      Tài khoản nhận tiền hoàn (Napas 24/7):
+                    </span>
+                    <div className="space-y-2">
+                      <div>
+                        <label htmlFor="refund-bank-bin" className="text-[11px] text-muted-foreground block mb-0.5">Ngân hàng:</label>
+                        <select
+                          id="refund-bank-bin"
+                          value={bankBin}
+                          onChange={(e) => {
+                            const selected = POPULAR_BANKS.find((b) => b.bin === e.target.value);
+                            setBankBin(e.target.value);
+                            if (selected) setBankName(selected.name);
+                          }}
+                          className="w-full rounded-lg border border-border bg-background p-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                        >
+                          {POPULAR_BANKS.map((b) => (
+                            <option key={b.bin} value={b.bin}>
+                              {b.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label htmlFor="refund-bank-account-number" className="text-[11px] text-muted-foreground block mb-0.5">Số tài khoản (*):</label>
+                          <input
+                            id="refund-bank-account-number"
+                            type="text"
+                            value={bankAccountNumber}
+                            onChange={(e) => setBankAccountNumber(e.target.value)}
+                            placeholder="VD: 0123456789"
+                            className="w-full rounded-lg border border-border bg-background p-2 text-xs font-mono text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            required
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="refund-bank-account-name" className="text-[11px] text-muted-foreground block mb-0.5">Tên chủ tài khoản (*):</label>
+                          <input
+                            id="refund-bank-account-name"
+                            type="text"
+                            value={bankAccountName}
+                            onChange={(e) => setBankAccountName(e.target.value)}
+                            placeholder="VD: NGUYEN VAN A"
+                            className="w-full rounded-lg border border-border bg-background p-2 text-xs uppercase text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                            required
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

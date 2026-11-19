@@ -295,10 +295,57 @@ export function RefundDetailsDrawer({
               <div className='mt-2 pt-2 border-t border-dashed border-border flex items-center gap-2 text-[11px] text-muted-foreground bg-card p-2 rounded border border-border'>
                 <ShieldCheck className='size-4 text-emerald-600 shrink-0' />
                 <span>
-                  PayOS Escrow Reserve:{' '}
-                  <strong className='text-foreground'>{refund.escrowReserveCode}</strong>. Ready for instant webhook payout.
+                  PayOS Payout Gateway:{' '}
+                  <strong className='text-foreground'>{refund.escrowReserveCode}</strong>. Tự động chuyển khoản Napas 24/7 khi phê duyệt.
                 </span>
               </div>
+            </div>
+          </div>
+
+          {/* Section: Customer Payout Bank Account Details */}
+          <div className='space-y-2'>
+            <span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between'>
+              <span>Tài khoản ngân hàng thụ hưởng (PayOS Payout)</span>
+              {refund.bankAccountNumber ? (
+                <span className='text-[10px] text-emerald-600 font-medium flex items-center gap-1'>
+                  <CheckCircle2 className='size-3' /> Sẵn sàng chi tiền
+                </span>
+              ) : (
+                <span className='text-[10px] text-amber-500 font-medium'>
+                  Chưa có thông tin tài khoản
+                </span>
+              )}
+            </span>
+
+            <div className='p-3 rounded-lg border border-border bg-card text-xs space-y-2'>
+              {refund.bankAccountNumber ? (
+                <>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-muted-foreground'>Ngân hàng:</span>
+                    <span className='font-semibold text-foreground'>
+                      {refund.bankName || 'Ngân hàng nội địa'} {refund.bankBin ? `(BIN: ${refund.bankBin})` : ''}
+                    </span>
+                  </div>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-muted-foreground'>Số tài khoản:</span>
+                    <span className='font-mono font-bold text-foreground'>{refund.bankAccountNumber}</span>
+                  </div>
+                  <div className='flex items-center justify-between'>
+                    <span className='text-muted-foreground'>Chủ tài khoản:</span>
+                    <span className='font-semibold text-foreground uppercase'>{refund.bankAccountName || refund.customerName}</span>
+                  </div>
+                  {refund.refundReference && (
+                    <div className='flex items-center justify-between border-t border-border pt-1.5 text-[11px]'>
+                      <span className='text-muted-foreground'>Mã Payout PayOS:</span>
+                      <span className='font-mono font-medium text-emerald-600'>{refund.refundReference}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className='text-amber-600 dark:text-amber-400 text-[11px] italic'>
+                  Khách hàng chưa cung cấp thông tin tài khoản ngân hàng để nhận hoàn tiền. Vui lòng liên hệ khách hàng hoặc chờ khách cập nhật trước khi phê duyệt chi tiền.
+                </p>
+              )}
             </div>
           </div>
 
@@ -337,16 +384,18 @@ export function RefundDetailsDrawer({
                 className='border-red-500/40 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-xs h-9 font-semibold flex items-center gap-1.5'
               >
                 <Ban className='size-4' />
-                Reject Claim
+                Từ chối
               </Button>
 
               <Button
                 type='button'
                 onClick={() => setActionModalType('approve')}
-                className='flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-semibold flex items-center justify-center gap-2 shadow-xs'
+                disabled={!refund.bankAccountNumber}
+                title={!refund.bankAccountNumber ? 'Cần thông tin tài khoản ngân hàng để chi tiền' : undefined}
+                className='flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-semibold flex items-center justify-center gap-2 shadow-xs disabled:opacity-50'
               >
                 <CheckCircle2 className='size-4' />
-                Approve ${refund.calculatedRefundUsd.toFixed(2)} Refund
+                Phê duyệt & Chi tiền PayOS ({refund.calculatedRefundVnd.toLocaleString()} đ)
               </Button>
             </div>
           ) : (

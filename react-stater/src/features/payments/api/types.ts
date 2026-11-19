@@ -21,6 +21,9 @@ export interface BookingHoldResponse {
   holdExpiresAt: string;
   remainingSeconds: number;
   serverTime?: string;
+  remainingHoldAttempts?: number;
+  maxHoldAttempts?: number;
+  penaltyBlockMinutes?: number;
 }
 
 export interface CustomerBookingItemResponse {
@@ -37,6 +40,12 @@ export interface CustomerBookingItemResponse {
   qrTokenHash: string | null;
   pinCode: string | null;
   createdAt: string;
+  refundStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED' | 'FAILED' | null;
+  refundAmount?: number | null;
+  refundReference?: string | null;
+  refundBankName?: string | null;
+  refundAccountNumber?: string | null;
+  refundProcessedAt?: string | null;
 }
 
 export interface PaymentCheckoutResponse {

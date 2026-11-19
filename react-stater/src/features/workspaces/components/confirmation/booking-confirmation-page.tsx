@@ -114,6 +114,12 @@ export function BookingConfirmationPage({
                   ? 'Đơn đặt chỗ đã hoàn tất'
                   : booking.status === 'PENDING_PAYMENT'
                   ? 'Đang giữ chỗ (Chờ thanh toán)'
+                  : booking.status === 'CANCELLED'
+                  ? (booking.refundStatus === 'PROCESSED' || booking.refundStatus === 'APPROVED'
+                      ? `Đã hoàn tiền (${new Intl.NumberFormat('vi-VN').format(booking.refundAmount || 0)} ₫ qua PayOS)`
+                      : booking.refundStatus === 'PENDING'
+                      ? 'Đang chờ duyệt hoàn tiền'
+                      : 'Đơn đã hủy')
                   : `Trạng thái: ${booking.status}`
               }
               dateStr={dateStr}
