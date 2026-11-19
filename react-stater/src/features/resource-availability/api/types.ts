@@ -110,5 +110,38 @@ export interface HoldResourceResponseDto {
   penaltyBlockMinutes?: number;
 }
 
+/**
+ * Kiểu sự kiện thay đổi trạng thái khả dụng của tài nguyên thời gian thực.
+ */
+export type ResourceAvailabilityEventType =
+  | 'HOLD_CREATED'
+  | 'HOLD_EXPIRED'
+  | 'HOLD_RELEASED'
+  | 'BOOKING_CONFIRMED'
+  | 'BOOKING_CANCELLED'
+  | 'RESOURCE_BLOCKED'
+  | 'RESOURCE_UNBLOCKED'
+  | 'RESOURCE_STATUS_CHANGED';
+
+/**
+ * DTO dữ liệu sự kiện thay đổi khả dụng của tài nguyên qua luồng SSE hoặc WebSocket.
+ */
+export interface ResourceAvailabilityEventPayloadDto {
+  workspaceId: number;
+  resourceId: number;
+  resourceLabel: string;
+  parentRoomId: number | null;
+  bookingId: number | null;
+  bookingCode: string | null;
+  customerId: number | null;
+  newStatus: ResourceOccupancyStatus;
+  eventType: ResourceAvailabilityEventType;
+  startTime: string;
+  endTime: string;
+  holdExpiresAt: string | null;
+  occurredAt: string;
+}
+
+
 
 
