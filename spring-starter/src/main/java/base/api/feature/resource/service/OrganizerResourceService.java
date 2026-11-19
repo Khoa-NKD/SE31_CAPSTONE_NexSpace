@@ -77,7 +77,7 @@ public class OrganizerResourceService {
                                                 t.getPricePerMonth(),
                                                 t.isActive(),
                                                 t.getCurrency(),
-                                                ResourceResponses.revision(t), t.getUsageKind(), t.getStandardWidthM(), t.getStandardLengthM(), photoUrls(t)))
+                                                ResourceResponses.revision(t), t.getUsageKind(), t.getStandardWidthM(), t.getStandardLengthM(), photoUrls(t), t.getVisual3d()))
                         .toList(),
                 resources
                         .findByFloorPlanWorkspaceIdAndResourceTypeCategoryAndStatusNot(
@@ -187,7 +187,7 @@ public class OrganizerResourceService {
                                                 r.getParentRoom() == null
                                                         ? null
                                                         : r.getParentRoom().getId(),
-                                                r.getResourceType().getId(), capacity(r)))
+                                                r.getResourceType().getId(), capacity(r), r.getResourceType().getVisual3d()))
                         .toList();
         return new FloorLayout(
                 ResourceResponses.floorOption(floor),
@@ -579,7 +579,7 @@ public class OrganizerResourceService {
             throw new ConflictException("This floor uses another draft layout format");
         var decorations = ResourceCanvas.decorations(floor, true);
         var kept = decorations.stream()
-                .filter(item -> !ResourceCanvas.contained(ResourceCanvas.shape(item), room))
+                .filter(item -> !ResourceCanvas.decorationBelongsToRoom(item, room))
                 .toList();
         if (kept.size() != decorations.size()) {
             var bounds = ResourceCanvas.editorBounds(floor);
@@ -862,6 +862,7 @@ public class OrganizerResourceService {
         type.setCapacity(request.capacity());
         validateTypeConfiguration(request);
         type.setUsageKind(request.usageKind());
+        if (request.visual3d() != null) type.setVisual3d(request.visual3d());
         type.setStandardWidthM(request.standardWidthM());
         type.setStandardLengthM(request.standardLengthM());
         type.setCurrency(request.currency());
@@ -881,7 +882,7 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type));
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type), type.getVisual3d());
     }
 
     @Transactional
@@ -1003,6 +1004,7 @@ public class OrganizerResourceService {
         type.setCapacity(request.capacity());
         validateTypeConfiguration(request);
         type.setUsageKind(request.usageKind());
+        if (request.visual3d() != null) type.setVisual3d(request.visual3d());
         type.setStandardWidthM(request.standardWidthM());
         type.setStandardLengthM(request.standardLengthM());
         type.setCurrency(request.currency());
@@ -1023,7 +1025,7 @@ public class OrganizerResourceService {
                 type.getPricePerMonth(),
                 type.isActive(),
                 type.getCurrency(),
-                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type));
+                ResourceResponses.revision(type), type.getUsageKind(), type.getStandardWidthM(), type.getStandardLengthM(), photoUrls(type), type.getVisual3d());
     }
 
     private static List<String> photoUrls(ResourceTypeModel type) {

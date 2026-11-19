@@ -86,4 +86,8 @@ public class ResourceTypeModel extends BaseModel {
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(length = 3)
     private base.api.shared.enums.ResourceCurrency currency;
+
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "visual_3d_json")
+    private base.api.feature.resource.dto.Visual3d visual3d;
 }

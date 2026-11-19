@@ -110,6 +110,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     @Transactional
     public BookingResponseDto createBooking(Long customerId, CreateBookingRequestDto dto) {
+        base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType());
         // 1. Identify Customer
         UserModel customer = userRepository.findById(customerId)
                 .orElseThrow(() -> new NotFoundException("Khách hàng không tồn tại"));
@@ -169,6 +170,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 customerId, resource.getId(), startTime, endTime, now);
         if (existingHold.isPresent()) {
             BookingModel reused = existingHold.get();
+            if (base.api.feature.pricing.service.BookingBaseRates.supported(reused.getPriceType())
+                    != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
+                throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
             if (reused.getHoldExpiresAt() != null && reused.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
                 reused.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
                 reused = bookingRepository.save(reused);
@@ -941,41 +945,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             WorkspaceModel workspace, BookableResourceModel resource,
             LocalDateTime startTime, LocalDateTime endTime, PriceType priceType) {
 
-        PriceType effectivePriceType = priceType != null ? priceType : PriceType.HOURLY;
+        var baseQuote = base.api.feature.pricing.service.BookingBaseRates.quote(resource, startTime, endTime, priceType);
+        PriceType effectivePriceType = baseQuote.priceType();
+        BigDecimal unitPrice = baseQuote.unitPrice();
+        BigDecimal durationHours = baseQuote.durationHours();
+        BigDecimal baseAmount = baseQuote.baseAmount();
 
-        BigDecimal unitPrice = BigDecimal.ZERO;
-        if (effectivePriceType == PriceType.HOURLY) {
-            if (resource.getPricePerHour() != null) {
-                unitPrice = resource.getPricePerHour();
-            } else if (resource.getResourceType() != null && resource.getResourceType().getPricePerHour() != null) {
-                unitPrice = resource.getResourceType().getPricePerHour();
-            }
-        } else if (effectivePriceType == PriceType.DAILY && resource.getResourceType() != null) {
-            unitPrice = resource.getResourceType().getPricePerDay() != null
-                    ? resource.getResourceType().getPricePerDay()
-                    : BigDecimal.ZERO;
-        }
-
-        long totalMinutes = Duration.between(startTime, endTime).toMinutes();
-        BigDecimal durationHours = BigDecimal.valueOf(totalMinutes)
-                .divide(BigDecimal.valueOf(60), 2, RoundingMode.HALF_UP);
-
-        BigDecimal baseAmount = unitPrice.multiply(durationHours).setScale(2, RoundingMode.HALF_UP);
-
-        // Check active pricing rules
-        BigDecimal surchargeAmount = BigDecimal.ZERO;
-        List<PricingRuleModel> rules = pricingRuleRepository.findByWorkspaceId(workspace.getId());
-        for (PricingRuleModel rule : rules) {
-            if (!rule.isActive()) continue;
-            if (rule.getMultiplier() != null && rule.getMultiplier().compareTo(BigDecimal.ONE) > 0) {
-                BigDecimal ruleSurcharge = baseAmount.multiply(rule.getMultiplier().subtract(BigDecimal.ONE));
-                surchargeAmount = surchargeAmount.add(ruleSurcharge);
-            }
-            if (rule.getFixedAmount() != null && rule.getFixedAmount().compareTo(BigDecimal.ZERO) > 0) {
-                surchargeAmount = surchargeAmount.add(rule.getFixedAmount());
-            }
-        }
-        surchargeAmount = surchargeAmount.setScale(2, RoundingMode.HALF_UP);
+        BigDecimal surchargeAmount = base.api.feature.pricing.service.PricingAdjustments.surcharge(
+                pricingRuleRepository.findByWorkspaceId(workspace.getId()), resource, startTime, endTime, baseAmount);
 
         BigDecimal discountAmount = BigDecimal.ZERO;
 

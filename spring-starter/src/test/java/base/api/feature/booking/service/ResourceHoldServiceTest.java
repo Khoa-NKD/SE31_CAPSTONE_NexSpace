@@ -135,6 +135,46 @@ class ResourceHoldServiceTest {
         baseEndTime = baseStartTime.plusHours(3);
     }
 
+    @Test
+    void monthlyHoldIsRejectedBeforeReusingOrSavingAnything() {
+        var request=HoldResourceRequestDto.builder().resourceId(mockResource.getId()).startTime(baseStartTime)
+                .endTime(baseEndTime).priceType(PriceType.MONTHLY).build();
+        assertThatThrownBy(()->holdService.holdResource(mockCustomer.getId(),request))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("tháng");
+        verify(bookingRepository,never()).findActiveHoldByCustomerAndResource(any(),any(),any(),any(),any());
+        verify(bookingRepository,never()).save(any());
+    }
+
+    @Test
+    void dailyHoldUsesTheSameBaseRateAsThePreview() {
+        mockResource.getResourceType().setPricePerDay(new BigDecimal("200000.00"));
+        var request=HoldResourceRequestDto.builder().resourceId(mockResource.getId()).startTime(baseStartTime)
+                .endTime(baseEndTime).priceType(PriceType.DAILY).build();
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(resourceLockService.acquireResourceLock(mockResource.getId(),baseStartTime,baseEndTime))
+                .thenReturn(LockedResourceContext.builder().targetResource(mockResource).build());
+        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation->{var b=invocation.getArgument(0,BookingModel.class);b.setId(789L);return b;});
+        var response=holdService.holdResource(mockCustomer.getId(),request);
+        assertThat(response.getBaseAmount()).isEqualByComparingTo("200000.00");
+        verify(bookingRepository).save(argThat(b->b.getPriceType()==PriceType.DAILY&&b.getBaseAmount().compareTo(new BigDecimal("200000.00"))==0));
+    }
+
+    @Test
+    void cannotChangePriceTypeWhenReusingAnActiveHold() {
+        var request = HoldResourceRequestDto.builder().resourceId(mockResource.getId())
+                .startTime(baseStartTime).endTime(baseEndTime).priceType(PriceType.DAILY).build();
+        var existing = new BookingModel();
+        existing.setPriceType(PriceType.HOURLY);
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(bookingRepository.findActiveHoldByCustomerAndResource(eq(mockCustomer.getId()),
+                eq(mockResource.getId()), eq(baseStartTime), eq(baseEndTime), any()))
+                .thenReturn(Optional.of(existing));
+
+        assertThatThrownBy(() -> holdService.holdResource(mockCustomer.getId(), request))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("loại giá khác");
+        verify(bookingRepository, never()).save(any());
+    }
+
     private void mockOperatingHours() {
         WorkspaceOperatingHourModel woh = new WorkspaceOperatingHourModel();
         woh.setId(new WorkspaceOperatingHourModel.Key(mockWorkspace.getId(), baseStartTime.getDayOfWeek().getValue() % 7));
