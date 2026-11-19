@@ -11,10 +11,15 @@ import java.util.List;
 
 @Repository
 public interface IResourceBlockedSlotRepository extends JpaRepository<ResourceBlockedSlotModel, Long> {
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths={"resource", "resource.floorPlan", "resource.parentRoom"})
+    @Query("select b from ResourceBlockedSlotModel b where b.resource.floorPlan.workspace.id=:workspaceId and b.startTime < :to and b.endTime > :from order by b.startTime, b.id")
+    List<ResourceBlockedSlotModel> findForWorkspace(@Param("workspaceId") Long workspaceId,
+            @Param("from") LocalDateTime from, @Param("to") LocalDateTime to);
 
     @Query("""
             SELECT s FROM ResourceBlockedSlotModel s
-            WHERE s.resource.id = :resourceId
+            WHERE (s.resource.id = :resourceId OR s.resource.parentRoom.id = :resourceId
+              OR s.resource.id = (SELECT r.parentRoom.id FROM BookableResourceModel r WHERE r.id = :resourceId))
               AND s.startTime < :endTime
               AND s.endTime > :startTime
             """)

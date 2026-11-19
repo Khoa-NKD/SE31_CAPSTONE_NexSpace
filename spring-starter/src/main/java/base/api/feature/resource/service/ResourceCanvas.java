@@ -175,7 +175,7 @@ public final class ResourceCanvas {
                 ? base.api.shared.entity.resource.MetricGeometry::pixels : base.api.shared.entity.resource.MetricGeometry::metres;
         return new base.api.feature.resource.dto.FloorDecorations.Item(item.id(), item.kind(), item.label(),
                 convert.apply(item.posX()), convert.apply(item.posY()), convert.apply(item.width()), convert.apply(item.height()),
-                item.rotation(), item.color(), item.icon());
+                item.rotation(), item.color(), item.icon(), item.visual3d());
     }
 
     /** Every final scene is checked using stable model pixels (one scale on both axes). */
@@ -269,6 +269,10 @@ public final class ResourceCanvas {
         }
     }
 
+    public static boolean decorationBelongsToRoom(base.api.feature.resource.dto.FloorDecorations.Item item, BookableResourceModel room) {
+        return contained(shape(item), room) || RoomDoorGeometry.onBoundary(item, room);
+    }
+
     /** Room containment is spatial only; decorations never acquire booking ownership. */
     public static java.util.List<base.api.feature.resource.dto.FloorDecorations.Item>
             moveDecorations(
@@ -285,9 +289,11 @@ public final class ResourceCanvas {
                 .map(
                         item -> {
                             var object = shape(item);
-                            if (!contained(object, oldRoom)) return item;
+                            if (!decorationBelongsToRoom(item, oldRoom)) return item;
                             moveWithRoom(object, before, room);
-                            if (!contained(object, room))
+                            var moved = new base.api.feature.resource.dto.FloorDecorations.Item(item.id(), item.kind(), item.label(),
+                                    object.getPosX(), object.getPosY(), item.width(), item.height(), object.getRotation(), item.color(), item.icon(), item.visual3d());
+                            if (!decorationBelongsToRoom(moved, room))
                                 throw new ConflictException(
                                         "Resizing the room would leave a layout object outside: "
                                                 + item.label());
@@ -300,7 +306,7 @@ public final class ResourceCanvas {
                                     item.width(),
                                     item.height(),
                                     object.getRotation(),
-                                    item.color(), item.icon());
+                                    item.color(), item.icon(), item.visual3d());
                         })
                 .toList();
     }
@@ -316,7 +322,7 @@ public final class ResourceCanvas {
                 if (overlaps(object, resource)
                         && !(resource.getResourceType().getCategory()
                                         == base.api.shared.enums.ResourceCategory.ROOM
-                                && contained(object, resource)))
+                                && decorationBelongsToRoom(item, resource)))
                     throw new ConflictException(
                             "Layout object "
                                     + item.label()

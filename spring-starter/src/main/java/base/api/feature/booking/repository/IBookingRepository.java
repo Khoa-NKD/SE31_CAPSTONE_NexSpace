@@ -191,7 +191,7 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             WHERE w.organizer.id = :organizerId
               AND (:workspaceId IS NULL OR w.id = :workspaceId)
               AND (:status IS NULL OR b.status = :status)
-              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (:startTimeFrom IS NULL OR b.endTime > :startTimeFrom)
               AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
             ORDER BY b.startTime ASC
             """)
@@ -209,7 +209,7 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             JOIN FETCH b.resource r
             WHERE (:workspaceId IS NULL OR w.id = :workspaceId)
               AND (:status IS NULL OR b.status = :status)
-              AND (b.startTime >= COALESCE(:startTimeFrom, b.startTime))
+              AND (:startTimeFrom IS NULL OR b.endTime > :startTimeFrom)
               AND (b.startTime <= COALESCE(:startTimeTo, b.startTime))
             ORDER BY b.startTime ASC
             """)

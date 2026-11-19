@@ -32,7 +32,11 @@ public final class FloorDecorations {
             @NotNull @DecimalMin("0.01") @Digits(integer = 6, fraction = 2) BigDecimal height,
             @NotNull @DecimalMin("0") @DecimalMax("359.99") @Digits(integer = 3, fraction = 2)
                     BigDecimal rotation,
-            @NotNull @Pattern(regexp = "#[0-9A-Fa-f]{6}") String color, Icon icon) {
+            @NotNull @Pattern(regexp = "#[0-9A-Fa-f]{6}") String color, Icon icon, @jakarta.validation.Valid Visual3d visual3d) {
+        public Item(String id, Kind kind, String label, BigDecimal posX, BigDecimal posY, BigDecimal width, BigDecimal height, BigDecimal rotation, String color, Icon icon) {
+            this(id, kind, label, posX, posY, width, height, rotation, color, icon, null);
+        }
+
         public Item(String id, Kind kind, String label, BigDecimal posX, BigDecimal posY, BigDecimal width, BigDecimal height, BigDecimal rotation, String color) {
             this(id, kind, label, posX, posY, width, height, rotation, color, null);
         }

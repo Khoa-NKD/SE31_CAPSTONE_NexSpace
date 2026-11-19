@@ -107,7 +107,7 @@ public final class MetricFloorGeometry {
                 if (calibrate) {
                     var containingRooms = converted.stream().filter(seat -> seat.resource().getResourceType().getCategory()
                                     == base.api.shared.enums.ResourceCategory.ROOM)
-                            .filter(seat -> ResourceCanvas.contained(ResourceCanvas.shape(item), seat.resource())).toList();
+                            .filter(seat -> ResourceCanvas.decorationBelongsToRoom(item, seat.resource())).toList();
                     if (containingRooms.size() > 1) issues.add(item.label() + ": ambiguous containing room; review before calibration");
                     if (containingRooms.size() == 1) {
                         var room = containingRooms.get(0);
@@ -121,7 +121,7 @@ public final class MetricFloorGeometry {
                 decorations.add(new FloorDecorations.Item(item.id(), item.kind(), item.label(),
                         MetricGeometry.pixels(itemX), MetricGeometry.pixels(itemY),
                         MetricGeometry.pixels(itemWidth), MetricGeometry.pixels(itemLength),
-                        item.rotation(), item.color(), item.icon()));
+                        item.rotation(), item.color(), item.icon(), item.visual3d()));
             }
             areas.add(new Area(floor, x, y, w, h, converted, decorations,
                     resources.stream().filter(r -> Objects.equals(r.getFloorPlan().getId(), floor.getId()))

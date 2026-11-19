@@ -44,7 +44,7 @@ public final class FloorAiValidation {
                 if (selected.getResourceType().getCategory() != ResourceCategory.ROOM) fail("Select a room for room scope");
                 scopeRoom = selected;
                 for (var item : details) if (Objects.equals(item.parentRoomId(), selected.getId())) allowed.add("r_" + item.id());
-                for (var item : layout.decorations()) if (ResourceCanvas.contained(ResourceCanvas.shape(item), selected)) allowedObjects.add(item.id());
+                for (var item : layout.decorations()) if (ResourceCanvas.decorationBelongsToRoom(item, selected)) allowedObjects.add(item.id());
             }
         } else if (request.scope() == FloorDesign.Scope.OBJECT && request.selectedKey() != null && request.selectedKey().startsWith("decoration:")) {
             String id = request.selectedKey().substring(11);
@@ -121,7 +121,7 @@ public final class FloorAiValidation {
             var old = layout.decorations().stream().filter(d -> d.id().equals(item.id())).findFirst().orElse(null);
             if (old != null && !allowedObjects.contains(item.id()) && !old.equals(item)) fail("AI modified an object outside scope");
             if (old == null && request.scope() == FloorDesign.Scope.OBJECT) fail("AI cannot add objects in single-object scope");
-            if (old == null && scopeRoom != null && !ResourceCanvas.contained(ResourceCanvas.shape(item), finalState.get("r_" + scopeRoom.getId()))) fail("New objects must fit inside the selected room");
+            if (old == null && scopeRoom != null && !ResourceCanvas.decorationBelongsToRoom(item, finalState.get("r_" + scopeRoom.getId()))) fail("New objects must fit inside the selected room or be a door on its wall");
         }
         for (var item : layout.decorations()) if (!objectIds.contains(item.id()) && !allowedObjects.contains(item.id())) fail("AI removed an object outside scope");
         if (checkCollisions) {
@@ -153,7 +153,7 @@ public final class FloorAiValidation {
                 fail("Confirm the proposed type's usage and real-world dimensions");
             if (type.category() == ResourceCategory.DESK && type.capacity() != 1) fail("A desk type must have capacity 1");
             if (design.resources().stream().noneMatch(r -> r.id() == null && type.tempId().equals(r.resourceTypeId()))) fail("Every new resource type must be used by a new seat or room");
-            types.add(new ResourceResponses.TypeOption(type.tempId(), type.name(), type.category(), type.capacity(), type.pricePerHour(), type.pricePerDay(), type.pricePerMonth(), true, type.currency(), "draft", type.usageKind(), type.standardWidthM(), type.standardLengthM()));
+            types.add(new ResourceResponses.TypeOption(type.tempId(), type.name(), type.category(), type.capacity(), type.pricePerHour(), type.pricePerDay(), type.pricePerMonth(), true, type.currency(), "draft", type.usageKind(), type.standardWidthM(), type.standardLengthM(), List.of(), type.visual3d()));
         }
         return new ResourceResponses.Options(options.workspaceId(), options.workspaceStatus(), options.floors(), types, options.rooms());
     }
@@ -188,6 +188,7 @@ public final class FloorAiValidation {
     static FloorDesign.Design normalizeProposal(FloorDesign.Design proposal, ResourceResponses.Options options,
             FloorDesign.Metrics metrics, ResourceResponses.FloorLayout layout) {
         if (proposal.question() != null && !proposal.question().isBlank()) return proposal;
+        proposal = FloorAiFurnishings.normalize(proposal);
         var configured = new HashMap<Long, ResourceResponses.TypeOption>();
         for (var type : options.types())
             if (type.active() && type.currency() != null && hasConfirmedConfiguration(type))
@@ -299,7 +300,7 @@ public final class FloorAiValidation {
         if (!design.resources().isEmpty() || !design.newTypes().isEmpty() || !design.templates().isEmpty()) return false;
         for (var item : design.decorations()) {
             var old = layout.decorations().stream().filter(candidate -> candidate.id().equals(item.id())).findFirst().orElse(null);
-            if (old == null || old.kind() != item.kind() || !Objects.equals(old.label(), item.label())
+            if (old == null || !Objects.equals(old.visual3d(), item.visual3d()) || old.kind() != item.kind() || !Objects.equals(old.label(), item.label())
                     || !Objects.equals(old.color(), item.color()) || old.icon() != item.icon()
                     || !same(old.posX(), item.posX()) || !same(old.posY(), item.posY())
                     || !same(old.width(), item.width()) || !same(old.height(), item.height())
