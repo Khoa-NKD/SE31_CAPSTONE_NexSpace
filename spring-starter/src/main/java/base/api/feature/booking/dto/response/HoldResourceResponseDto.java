@@ -65,6 +65,12 @@ public class HoldResourceResponseDto {
     @Schema(description = "Thời gian phạt bị khóa quyền đặt chỗ nếu vi phạm spam hold (phút)", example = "20")
     Integer penaltyBlockMinutes;
 
+    @Schema(description = "Cờ đánh dấu tài khoản có đang bị tạm khóa quyền đặt chỗ/giữ chỗ hay không", example = "false")
+    Boolean isBookingSuspended;
+
+    @Schema(description = "Thời điểm hết hạn tạm khóa quyền đặt chỗ", example = "2026-11-20T02:35:00")
+    LocalDateTime bookingSuspendedUntil;
+
     @Schema(description = "Đơn vị tiền tệ", example = "VND")
     @Builder.Default
     String currency = "VND";

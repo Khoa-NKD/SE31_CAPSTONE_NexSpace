@@ -31,6 +31,7 @@ import base.api.shared.enums.PaymentStatus;
 import base.api.shared.enums.PriceType;
 import base.api.shared.enums.ReconciliationStatus;
 import base.api.shared.enums.RefundStatus;
+import base.api.shared.enums.UserStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.ConflictException;
 import base.api.shared.exception.NotFoundException;
@@ -50,6 +51,7 @@ import vn.payos.model.v2.paymentRequests.CreatePaymentLinkResponse;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -378,6 +380,51 @@ public class PaymentServiceImpl implements IPaymentService {
         String resourceName = (booking.getResource() != null) ? booking.getResource().getName() : "Hot Desk";
         String workspaceName = (booking.getWorkspace() != null) ? booking.getWorkspace().getName() : "NexSpace";
 
+        int spamThreshold = platformSettingRepository.findById("booking.spam_hold_threshold")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_threshold"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try { return Integer.parseInt(val.trim()); } catch (Exception e) { return 3; }
+                }).orElse(3);
+
+        int spamBlockMinutes = platformSettingRepository.findById("booking.spam_hold_block_minutes")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_block_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try { return Integer.parseInt(val.trim()); } catch (Exception e) { return 20; }
+                }).orElse(20);
+
+        int remainingAttempts = spamThreshold;
+        boolean isSuspended = false;
+        LocalDateTime suspendedUntil = null;
+
+        if (customer.getId() != null) {
+            if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+                isSuspended = true;
+                suspendedUntil = customer.getBookingSuspendedUntil();
+            }
+
+            LocalDateTime effectiveSince = now.minusHours(24);
+            Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customer.getId());
+            if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
+                effectiveSince = lastSuccessTime.get();
+            }
+            int unpaidCount = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince).size();
+            remainingAttempts = Math.max(0, spamThreshold - unpaidCount);
+
+            if (unpaidCount >= spamThreshold) {
+                LocalDateTime blockUntil = now.plusMinutes(spamBlockMinutes);
+                if (customer.getBookingSuspendedUntil() == null || customer.getBookingSuspendedUntil().isBefore(now)) {
+                    customer.setBookingSuspendedUntil(blockUntil);
+                    userRepository.save(customer);
+                    isSuspended = true;
+                    suspendedUntil = blockUntil;
+                    log.warn("Customer {} booking suspended until {} in getOrCreatePendingBookingHold due to {} unpaid holds",
+                            customer.getId(), blockUntil, unpaidCount);
+                }
+            }
+        }
+
         return BookingHoldResponseDTO.builder()
                 .bookingId(booking.getId())
                 .bookingCode(booking.getBookingCode())
@@ -387,7 +434,13 @@ public class PaymentServiceImpl implements IPaymentService {
                 .resourceName(resourceName)
                 .workspaceName(workspaceName)
                 .holdExpiresAt(holdExpiresAt)
+                .serverTime(now)
                 .remainingSeconds(remainingSeconds)
+                .remainingHoldAttempts(remainingAttempts)
+                .maxHoldAttempts(spamThreshold)
+                .penaltyBlockMinutes(spamBlockMinutes)
+                .isBookingSuspended(isSuspended)
+                .bookingSuspendedUntil(suspendedUntil)
                 .build();
     }
 

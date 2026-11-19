@@ -95,6 +95,10 @@ public class UserModel extends BaseModel {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    /** Tạm khóa quyền giữ chỗ và đặt chỗ do vi phạm spam hold/hủy (không ảnh hưởng đăng nhập). */
+    @Column(name = "booking_suspended_until")
+    private LocalDateTime bookingSuspendedUntil;
+
     @Column(name = "last_login_at")
     private LocalDateTime lastLoginAt;
 

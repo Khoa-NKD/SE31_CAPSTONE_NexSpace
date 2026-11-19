@@ -403,7 +403,7 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             WHERE b.customer.id = :customerId
               AND b.resource.id = :resourceId
               AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
-              AND b.updatedAt >= :since
+              AND COALESCE(b.cancelledAt, b.updatedAt, b.createdAt) >= :since
             """)
     boolean existsRecentReleasedOrExpiredHold(
             @Param("customerId") Long customerId,
@@ -415,8 +415,8 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             SELECT b FROM BookingModel b
             WHERE b.customer.id = :customerId
               AND b.status IN (base.api.shared.enums.BookingStatus.CANCELLED, base.api.shared.enums.BookingStatus.EXPIRED)
-              AND b.updatedAt >= :since
-            ORDER BY b.updatedAt DESC
+              AND COALESCE(b.cancelledAt, b.updatedAt, b.createdAt) >= :since
+            ORDER BY COALESCE(b.cancelledAt, b.updatedAt, b.createdAt) DESC
             """)
     List<BookingModel> findRecentUnpaidHolds(
             @Param("customerId") Long customerId,

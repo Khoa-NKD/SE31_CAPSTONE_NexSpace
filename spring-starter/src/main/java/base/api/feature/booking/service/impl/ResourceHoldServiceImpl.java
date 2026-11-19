@@ -112,9 +112,21 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
         base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType());
 
+        LocalDateTime now = LocalDateTime.now();
+
         // 1. Thẩm định khách hàng
         UserModel customer = userRepository.findById(customerId)
                 .orElseThrow(() -> new NotFoundException("Khách hàng không tồn tại"));
+
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+
+        if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+            long remainingMinutes = Math.max(1, Duration.between(now, customer.getBookingSuspendedUntil()).toMinutes() + 1);
+            throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ trong vòng "
+                    + remainingMinutes + " phút (đến " + customer.getBookingSuspendedUntil().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                    + ") do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá " + effectiveThreshold + " lần mà không thanh toán).");
+        }
 
         if (customer.getStatus() != UserStatus.ACTIVE) {
             throw new BadRequestException("Tài khoản người dùng hiện đang bị vô hiệu hoá hoặc khoá");
@@ -124,8 +136,6 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         LocalDateTime startTime = dto.getStartTime();
         LocalDateTime endTime = dto.getEndTime();
         validateTimeRange(startTime, endTime);
-
-        LocalDateTime now = LocalDateTime.now();
 
         // 3. Quy tắc Idempotent Active Hold Reuse:
         // Nếu cùng khách hàng yêu cầu giữ cùng tài nguyên trong cùng khung giờ đang còn hiệu lực:
@@ -343,6 +353,24 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         booking.setCancelReason("Khách hàng chủ động nhả phiên giữ chỗ");
 
         BookingModel saved = bookingRepository.save(booking);
+        bookingRepository.flush();
+
+        // Kiểm tra nếu chạm hoặc vượt ngưỡng vi phạm hold thì cập nhật tạm khóa quyền đặt chỗ trong DB (booking_suspended_until = now + blockMinutes, người dùng vẫn ACTIVE đăng nhập bình thường)
+        if (saved.getCustomer() != null) {
+            Long cId = saved.getCustomer().getId();
+            int effectiveThreshold = getEffectiveSpamHoldThreshold();
+            int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+            LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(cId, now);
+            int unpaidCount = bookingRepository.findRecentUnpaidHolds(cId, effectiveSince).size();
+            if (unpaidCount >= effectiveThreshold) {
+                UserModel cust = saved.getCustomer();
+                LocalDateTime blockUntil = now.plusMinutes(effectiveBlockMinutes);
+                cust.setBookingSuspendedUntil(blockUntil);
+                userRepository.save(cust);
+                log.warn("User booking suspended in DB: customerId={}, bookingSuspendedUntil={}, unpaidCount={}",
+                        cId, blockUntil, unpaidCount);
+            }
+        }
 
         // Ghi Audit Trail
         auditService.log(
@@ -415,6 +443,23 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 booking.setStatus(BookingStatus.EXPIRED);
                 booking.setHoldExpiresAt(null);
                 BookingModel saved = bookingRepository.save(booking);
+                bookingRepository.flush();
+
+                if (saved.getCustomer() != null) {
+                    Long cId = saved.getCustomer().getId();
+                    int effectiveThreshold = getEffectiveSpamHoldThreshold();
+                    int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+                    LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(cId, now);
+                    int unpaidCount = bookingRepository.findRecentUnpaidHolds(cId, effectiveSince).size();
+                    if (unpaidCount >= effectiveThreshold) {
+                        UserModel cust = saved.getCustomer();
+                        LocalDateTime blockUntil = now.plusMinutes(effectiveBlockMinutes);
+                        cust.setBookingSuspendedUntil(blockUntil);
+                        userRepository.save(cust);
+                        log.warn("User booking suspended in DB on expiration: customerId={}, bookingSuspendedUntil={}, unpaidCount={}",
+                                cId, blockUntil, unpaidCount);
+                    }
+                }
 
                 auditService.log(
                         saved.getCustomer(),
@@ -459,12 +504,22 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         Long workspaceId = ws != null ? ws.getId() : null;
         String workspaceName = ws != null ? ws.getName() : "Không gian làm việc";
 
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
         Long customerId = booking.getCustomer() != null ? booking.getCustomer().getId() : null;
-        int remainingAttempts = spamHoldThreshold;
+        int remainingAttempts = effectiveThreshold;
+        boolean isSuspended = false;
+        LocalDateTime suspendedUntil = null;
+
         if (customerId != null) {
+            UserModel customer = booking.getCustomer();
+            if (customer != null && customer.getBookingSuspendedUntil() != null && serverTime.isBefore(customer.getBookingSuspendedUntil())) {
+                isSuspended = true;
+                suspendedUntil = customer.getBookingSuspendedUntil();
+            }
             LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customerId, serverTime);
             int unpaidCount = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince).size();
-            remainingAttempts = Math.max(0, spamHoldThreshold - unpaidCount);
+            remainingAttempts = Math.max(0, effectiveThreshold - unpaidCount);
         }
 
         return HoldResourceResponseDto.builder()
@@ -483,8 +538,10 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .baseAmount(booking.getBaseAmount())
                 .finalPrice(booking.getFinalPrice())
                 .remainingHoldAttempts(remainingAttempts)
-                .maxHoldAttempts(spamHoldThreshold)
-                .penaltyBlockMinutes(spamHoldBlockMinutes)
+                .maxHoldAttempts(effectiveThreshold)
+                .penaltyBlockMinutes(effectiveBlockMinutes)
+                .isBookingSuspended(isSuspended)
+                .bookingSuspendedUntil(suspendedUntil)
                 .currency("VND")
                 .build();
     }
@@ -660,6 +717,14 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         return getIntegerSetting("booking.max_active_holds", "booking_max_active_holds", DEFAULT_MAX_ACTIVE_HOLDS);
     }
 
+    private int getEffectiveSpamHoldThreshold() {
+        return getIntegerSetting("booking.spam_hold_threshold", "booking_spam_hold_threshold", spamHoldThreshold);
+    }
+
+    private int getEffectiveSpamHoldBlockMinutes() {
+        return getIntegerSetting("booking.spam_hold_block_minutes", "booking_spam_hold_block_minutes", spamHoldBlockMinutes);
+    }
+
     private BigDecimal getDecimalSetting(String key, BigDecimal defaultValue) {
         return platformSettingRepository.findById(key)
                 .map(PlatformSettingModel::getSettingValue)
@@ -727,14 +792,25 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     }
 
     private void validateSpamHoldBehavior(UserModel customer, LocalDateTime now) {
-        if (spamHoldThreshold <= 0 || spamHoldBlockMinutes <= 0) {
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+
+        if (effectiveThreshold <= 0 || effectiveBlockMinutes <= 0) {
             return;
+        }
+
+        if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+            long minutesRemaining = Math.max(1, Duration.between(now, customer.getBookingSuspendedUntil()).toMinutes() + 1);
+            throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ trong vòng "
+                    + minutesRemaining + " phút (đến " + customer.getBookingSuspendedUntil().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                    + ") do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
+                    + effectiveThreshold + " lần mà không thanh toán).");
         }
 
         LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customer.getId(), now);
         List<BookingModel> unpaidHolds = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince);
 
-        if (unpaidHolds.size() >= spamHoldThreshold) {
+        if (unpaidHolds.size() >= effectiveThreshold) {
             BookingModel latestUnpaid = unpaidHolds.get(0);
             LocalDateTime latestUnpaidTime = latestUnpaid.getUpdatedAt() != null
                     ? latestUnpaid.getUpdatedAt()
@@ -743,8 +819,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 latestUnpaidTime = now;
             }
 
-            LocalDateTime blockUntil = latestUnpaidTime.plusMinutes(spamHoldBlockMinutes);
+            LocalDateTime blockUntil = latestUnpaidTime.plusMinutes(effectiveBlockMinutes);
             if (now.isBefore(blockUntil)) {
+                customer.setBookingSuspendedUntil(blockUntil);
+                userRepository.save(customer);
+
                 long minutesRemaining = Math.max(1, Duration.between(now, blockUntil).toMinutes() + 1);
                 log.warn("Spam hold blocked: customerId={}, unpaidCount={}, minutesRemaining={}",
                         customer.getId(), unpaidHolds.size(), minutesRemaining);
@@ -757,15 +836,17 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         "User",
                         customer.getId(),
                         "ACTIVE",
-                        "BLOCKED_TEMPORARY",
-                        "Khóa tạm thời quyền giữ chỗ trong " + minutesRemaining + " phút do nghi vấn có hành vi spam hold chỗ ("
+                        "ACTIVE",
+                        "Khóa quyền giữ/đặt chỗ tạm thời đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                                + " (" + minutesRemaining + " phút) do nghi vấn có hành vi spam hold chỗ ("
                                 + unpaidHolds.size() + " lần không thanh toán)",
                         null
                 );
 
                 throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ trong vòng "
-                        + minutesRemaining + " phút do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
-                        + spamHoldThreshold + " lần mà không thanh toán).");
+                        + minutesRemaining + " phút (đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                        + ") do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
+                        + effectiveThreshold + " lần mà không thanh toán).");
             }
         }
     }

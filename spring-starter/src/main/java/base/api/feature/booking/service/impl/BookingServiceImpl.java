@@ -28,6 +28,7 @@ import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.dto.PageResponseDTO;
 import base.api.shared.entity.UserModel;
+import java.util.stream.Collectors;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.entity.payment.RefundRequestModel;
 import base.api.shared.security.CurrentUserProvider;
@@ -120,6 +121,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             throw new BadRequestException("Tài khoản người dùng hiện đang bị vô hiệu hoá hoặc khoá");
         }
 
+        LocalDateTime now = LocalDateTime.now();
+        if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+            long remainingMinutes = Math.max(1, java.time.Duration.between(now, customer.getBookingSuspendedUntil()).toMinutes() + 1);
+            throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế đến "
+                    + customer.getBookingSuspendedUntil().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                    + " (còn " + remainingMinutes + " phút) do vi phạm quy tắc giữ chỗ quá số lần quy định mà không thanh toán.");
+        }
+
         // 2. Identify Workspace
         WorkspaceModel workspace = workspaceRepository.findById(dto.getWorkspaceId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + dto.getWorkspaceId()));
@@ -161,8 +170,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         // 5. Validate Workspace Operating Hours
         validateOperatingHours(workspace.getId(), startTime, endTime);
-
-        LocalDateTime now = LocalDateTime.now();
 
         // 5.1. Idempotent Active Hold Reuse:
         // Nếu cùng khách hàng yêu cầu giữ cùng tài nguyên trong cùng khung giờ đang còn hiệu lực:
@@ -485,6 +492,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     public List<ResourceAvailabilityDto> getFloorAvailability(
             Long workspaceId, Long floorId, LocalDateTime startTime, LocalDateTime endTime) {
+        return getFloorAvailability(workspaceId, floorId, startTime, endTime, null);
+    }
+
+    @Override
+    public List<ResourceAvailabilityDto> getFloorAvailability(
+            Long workspaceId, Long floorId, LocalDateTime startTime, LocalDateTime endTime, Long currentUserId) {
 
         validateTimeRange(startTime, endTime);
 
@@ -505,11 +518,22 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 .flatMap(organizer -> organizerProfiles.findByOrganizerId(organizer.getId()))
                 .filter(profile -> profile.isSuspended()).isPresent();
 
+        // Thu thập các ID tài nguyên mà chính người dùng hiện tại đang giữ chỗ còn hiệu lực
+        Set<Long> myHeldResourceIds = currentUserId != null
+                ? bookingRepository.findByCustomerIdAndStatus(currentUserId, BookingStatus.PENDING_PAYMENT).stream()
+                        .filter(b -> b.getHoldExpiresAt() != null && b.getHoldExpiresAt().isAfter(now))
+                        .filter(b -> b.getResource() != null)
+                        .map(b -> b.getResource().getId())
+                        .collect(Collectors.toSet())
+                : Collections.emptySet();
+
         List<ResourceAvailabilityDto> results = new ArrayList<>();
         for (BookableResourceModel res : resources) {
             if (!workspaceId.equals(res.getFloorPlan().getWorkspace().getId())
                     || res.getParentRoom() != null) continue;
             Set<AvailabilityState> flags = occupancyMap.getOrDefault(res.getId(), Collections.emptySet());
+
+            boolean isOccupiedByMe = myHeldResourceIds.contains(res.getId());
 
             AvailabilityState state = AvailabilityState.AVAILABLE;
             if (res.getStatus() != BookableResourceStatus.ACTIVE) {
@@ -530,7 +554,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     ? res.getPricePerHour()
                     : (res.getResourceType() != null ? res.getResourceType().getPricePerHour() : BigDecimal.ZERO);
 
-            boolean selectable = state == AvailabilityState.AVAILABLE
+            // Nếu chính user này đang giữ chỗ (isOccupiedByMe = true), cho phép selectable để họ tiếp tục thanh toán
+            boolean selectable = (state == AvailabilityState.AVAILABLE || (isOccupiedByMe && state == AvailabilityState.LOCKED))
                     && res.getStatus() == BookableResourceStatus.ACTIVE
                     && res.getResourceType() != null && res.getResourceType().isActive();
 
@@ -551,6 +576,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     .selectable(selectable)
                     .state(state)
                     .flags(flags)
+                    .isOccupiedByMe(isOccupiedByMe)
                     .build());
         }
 
