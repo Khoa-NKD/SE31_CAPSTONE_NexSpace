@@ -20,11 +20,18 @@ import { toast } from 'sonner';
 
 function SignUpContent() {
   const { language, setLanguage, t } = useLanguage();
-  const search = useSearch({ strict: false }) as { verified?: boolean | string; email?: string } | undefined;
+  const search = useSearch({ strict: false }) as { verified?: boolean | string; email?: string; redirect?: string } | undefined;
 
   const verifiedParam = search?.verified ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('verified') : undefined);
   const isVerifiedFromUrl = verifiedParam === true || verifiedParam === 'true';
   const emailParam = search?.email ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('email') : undefined);
+  const redirectParam = search?.redirect ?? (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('redirect') || sessionStorage.getItem('nexspace_auth_redirect') : undefined);
+
+  useEffect(() => {
+    if (redirectParam && typeof window !== 'undefined') {
+      sessionStorage.setItem('nexspace_auth_redirect', redirectParam);
+    }
+  }, [redirectParam]);
 
   const router = useRouter();
   const [manualEmail, setManualEmail] = useState<string | null>(null);
@@ -39,16 +46,16 @@ function SignUpContent() {
       // Redirect this verification tab directly to sign-in
       router.navigate({
         to: '/auth/sign-in',
-        search: { verified: 'true', email: emailParam || undefined }
+        search: { verified: 'true', email: emailParam || undefined, redirect: redirectParam || undefined }
       });
       return;
     }
 
     if (verifiedParam === false || verifiedParam === 'false') {
       toast.error('Liên kết xác thực email không hợp lệ hoặc đã hết hạn.');
-      router.navigate({ to: '/auth/sign-in', search: { verified: 'false' } });
+      router.navigate({ to: '/auth/sign-in', search: { verified: 'false', redirect: redirectParam || undefined } });
     }
-  }, [isVerifiedFromUrl, verifiedParam, emailParam, router]);
+  }, [isVerifiedFromUrl, verifiedParam, emailParam, redirectParam, router]);
 
   const handleSuccess = (email: string) => {
     setManualEmail(email);
@@ -138,6 +145,17 @@ function SignUpContent() {
           <div className='mx-auto flex w-full flex-col justify-center space-y-6 max-w-[420px]'>
             {/* Form Component Container */}
             <SignUpForm onSuccess={handleSuccess} />
+
+            <p className='text-center text-xs text-muted-foreground'>
+              {language === 'vi' ? 'Đã có tài khoản?' : 'Already have an account?'}{' '}
+              <Link
+                to='/auth/sign-in'
+                search={redirectParam ? { redirect: redirectParam } : undefined}
+                className='font-semibold text-primary hover:underline cursor-pointer'
+              >
+                {language === 'vi' ? 'Đăng nhập ngay' : 'Sign in'}
+              </Link>
+            </p>
 
             <p className='text-center text-xs text-muted-foreground'>
               {t('auth.signUp.termsPrompt')}{' '}

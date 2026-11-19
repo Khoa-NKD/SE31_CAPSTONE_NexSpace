@@ -29,6 +29,9 @@ export interface BookingHoldResponse {
 export interface CustomerBookingItemResponse {
   bookingId: number;
   bookingCode: string;
+  workspaceId?: number;
+  resourceId?: number;
+  floorId?: number;
   workspaceName: string;
   workspaceAddress: string;
   seatCode: string;

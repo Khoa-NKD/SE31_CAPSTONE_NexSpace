@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
 import { formatDate } from '@/lib/format';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import { backendRequest } from '@/features/auth/api/session';
@@ -39,6 +39,7 @@ import { SeatsListView } from './seats-list-view';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 
 export interface SeatsPageProps {
@@ -253,8 +254,40 @@ export function SeatsPage({
   }, [currentFloor, availabilityMap]);
 
   const createBookingMutation = useCreateBookingMutation();
+  const { data: currentPendingBooking } = useCurrentPendingBooking();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
+  const lastUnavailableIdRef = useRef<number | null>(null);
+
+  // Auto-restore selected resource from initialResourceId if arriving back from login
+  useEffect(() => {
+    if (initialResourceId && loadedFloors.length > 0 && !selectedResource) {
+      for (const fl of loadedFloors) {
+        const found = fl.resources?.find((r) => r.id === initialResourceId);
+        if (found) {
+          setSelectedResource(found);
+          setActiveFloorId(fl.id);
+          break;
+        }
+      }
+    }
+  }, [initialResourceId, loadedFloors, selectedResource]);
+
+  // Real-time defense: If another user locks or books the currently selected resource, notify user
+  useEffect(() => {
+    if (selectedResource && availabilityMap.has(selectedResource.id)) {
+      const avail = availabilityMap.get(selectedResource.id);
+      if ((avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') && lastUnavailableIdRef.current !== selectedResource.id) {
+        lastUnavailableIdRef.current = selectedResource.id;
+        toast.warning(
+          c(
+            'The seat you selected was just held or booked by someone else.',
+            'Vị trí bạn vừa chọn đã được người khác giữ chỗ hoặc đặt chỗ.'
+          )
+        );
+      }
+    }
+  }, [availabilityMap, selectedResource, c]);
   const handleScheduleChange = (schedule: ScheduleSelection) => {
     if (schedule.isoStartTime && schedule.isoEndTime) {
       setCurrentStartTime(schedule.isoStartTime);
@@ -266,6 +299,12 @@ export function SeatsPage({
   };
 
   const handleViewDetail = (res: MapResource) => {
+    const isMatchingHold =
+      currentPendingBooking &&
+      currentPendingBooking.resourceId === res.id &&
+      (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
+      (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
+
     navigate({
       to: '/workspaces/seat-detail',
       search: {
@@ -274,7 +313,9 @@ export function SeatsPage({
         floorId: activeFloorId ?? currentFloor?.id,
         date: currentDateLabel,
         startTime: currentStartTime,
-        endTime: currentEndTime
+        endTime: currentEndTime,
+        bookingId: isMatchingHold ? currentPendingBooking.bookingId : undefined,
+        bookingCode: isMatchingHold ? currentPendingBooking.bookingCode : undefined
       }
     });
   };
@@ -282,6 +323,30 @@ export function SeatsPage({
   const handleProceedToReview = async (targetResource?: MapResource) => {
     const res = targetResource || selectedResource;
     if (!workspaceId || !res) return;
+
+    // Check if user already holds this exact resource
+    const hasActiveHold =
+      currentPendingBooking &&
+      currentPendingBooking.resourceId === res.id &&
+      (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
+      (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
+
+    if (hasActiveHold) {
+      navigate({
+        to: '/workspaces/review',
+        search: {
+          workspaceId,
+          resourceId: res.id,
+          bookingId: currentPendingBooking.bookingId,
+          bookingCode: currentPendingBooking.bookingCode,
+          startTime: currentStartTime,
+          endTime: currentEndTime,
+          date: currentDateLabel,
+          priceType: 'HOURLY'
+        }
+      });
+      return;
+    }
 
     const currentAvail = availabilityMap.get(res.id);
     if (currentAvail?.state === 'BOOKED' || currentAvail?.state === 'LOCKED' || currentAvail?.state === 'MAINTENANCE') {
@@ -296,9 +361,13 @@ export function SeatsPage({
 
     if (!isAuthenticated) {
       toast.info(c('Please sign in to hold this seat and proceed', 'Vui lòng đăng nhập để giữ chỗ và tiếp tục'));
+      const redirectUrl = `/workspaces/seats?workspaceId=${workspaceId}&date=${encodeURIComponent(currentDateLabel)}&startTime=${encodeURIComponent(currentStartTime)}&endTime=${encodeURIComponent(currentEndTime)}${activeFloorId ? `&floorId=${activeFloorId}` : ''}&resourceId=${res.id}`;
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('nexspace_auth_redirect', redirectUrl);
+      }
       navigate({
         to: '/auth/sign-in',
-        search: { redirect: window.location.pathname + window.location.search }
+        search: { redirect: redirectUrl }
       });
       return;
     }

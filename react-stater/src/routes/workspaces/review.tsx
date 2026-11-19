@@ -10,6 +10,7 @@ export interface BookingReviewSearch {
   endTime?: string;
   date?: string;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  autoOpen?: boolean;
 }
 
 export const Route = createFileRoute('/workspaces/review')({
@@ -30,6 +31,7 @@ export const Route = createFileRoute('/workspaces/review')({
     startTime: typeof search.startTime === 'string' ? search.startTime : undefined,
     endTime: typeof search.endTime === 'string' ? search.endTime : undefined,
     date: typeof search.date === 'string' ? search.date : undefined,
+    autoOpen: search.autoOpen === true || search.autoOpen === 'true' ? true : undefined,
     priceType:
       search.priceType === 'DAILY' || search.priceType === 'MONTHLY'
         ? search.priceType

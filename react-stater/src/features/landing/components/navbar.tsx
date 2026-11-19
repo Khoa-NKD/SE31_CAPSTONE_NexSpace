@@ -34,6 +34,7 @@ import { useCurrency } from '../context/currency-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
+import { NotificationCenter } from '@/features/notifications/components/notification-center';
 
 interface NavbarProps {
   sticky?: boolean;
@@ -277,11 +278,19 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                   <span>{t('nav.organizerPortal')}</span>
                 </button>
               )}
+              <NotificationCenter />
               <UserNav />
             </div>
           ) : (
             <Link
               to='/auth/sign-in'
+              search={(() => {
+                const currentPath =
+                  typeof window !== 'undefined' && window.location.pathname !== '/'
+                    ? window.location.pathname + window.location.search
+                    : undefined;
+                return currentPath ? { redirect: currentPath } : undefined;
+              })()}
               className='hidden sm:inline-flex whitespace-nowrap shrink-0 cursor-pointer items-center justify-center rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] px-4 py-2 text-xs sm:text-sm font-semibold text-white shadow-xs transition-all duration-150 active:scale-[0.98] focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none'
             >
               {t('nav.signIn')}
@@ -441,11 +450,20 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                           </span>
                         </div>
                       </div>
+                      <NotificationCenter />
                     </div>
                   ) : (
                     <Button
                       className='w-full cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#4338CA] py-2.5 text-sm font-semibold text-white shadow-xs'
-                      onClick={() => handleMobileNavigate('/auth/sign-in')}
+                      onClick={() => {
+                        const currentPath =
+                          typeof window !== 'undefined' && window.location.pathname !== '/'
+                            ? window.location.pathname + window.location.search
+                            : undefined;
+                        handleMobileNavigate(
+                          currentPath ? `/auth/sign-in?redirect=${encodeURIComponent(currentPath)}` : '/auth/sign-in'
+                        );
+                      }}
                     >
                       {t('nav.signIn')}
                     </Button>

@@ -65,7 +65,7 @@ export function MyBookingsPage() {
   const navigate = useNavigate();
   const isVi = language === 'vi';
 
-  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'PENDING_PAYMENT' | 'OTHER'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'CONFIRMED' | 'PENDING_PAYMENT' | 'COMPLETED' | 'OTHER'>('ALL');
   const [downloadingId, setDownloadingId] = useState<number | null>(null);
   const [copiedPinId, setCopiedPinId] = useState<number | null>(null);
   const [revealedPins, setRevealedPins] = useState<Record<number, boolean>>({});
@@ -126,7 +126,7 @@ export function MyBookingsPage() {
 
   // Filter for OTHER tab locally if needed
   const filteredBookings = activeTab === 'OTHER'
-    ? allBookings.filter((b) => ['EXPIRED', 'CANCELLED', 'COMPLETED'].includes(b.status))
+    ? allBookings.filter((b) => ['EXPIRED', 'CANCELLED', 'NO_SHOW'].includes(b.status))
     : allBookings;
 
   const handleCopyPin = (bookingId: number, pin?: string | null) => {
@@ -181,6 +181,13 @@ export function MyBookingsPage() {
           <Badge className='bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
             <CheckCircle2 className='h-3 w-3 text-emerald-600 dark:text-emerald-400' />
             <span>{isVi ? 'Đã xác nhận' : 'Confirmed'}</span>
+          </Badge>
+        );
+      case 'COMPLETED':
+        return (
+          <Badge className='bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+            <CheckCircle2 className='h-3 w-3 text-blue-600 dark:text-blue-400' />
+            <span>{isVi ? 'Đã hoàn thành' : 'Completed'}</span>
           </Badge>
         );
       case 'PENDING_PAYMENT':
@@ -333,6 +340,12 @@ export function MyBookingsPage() {
                 className='rounded-lg text-xs font-medium px-3.5 py-1.5 data-[state=active]:bg-card data-[state=active]:shadow-xs'
               >
                 {isVi ? 'Chờ thanh toán' : 'Pending Payment'}
+              </TabsTrigger>
+              <TabsTrigger
+                value='COMPLETED'
+                className='rounded-lg text-xs font-medium px-3.5 py-1.5 data-[state=active]:bg-card data-[state=active]:shadow-xs'
+              >
+                {isVi ? 'Đã hoàn thành' : 'Completed'}
               </TabsTrigger>
               <TabsTrigger
                 value='OTHER'
@@ -575,7 +588,20 @@ export function MyBookingsPage() {
                           asChild
                           className='bg-amber-600 hover:bg-amber-500 text-white cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl shadow-xs'
                         >
-                          <Link to='/workspaces/review'>
+                          <Link
+                            to='/workspaces/review'
+                            search={{
+                              bookingId: b.bookingId,
+                              bookingCode: b.bookingCode,
+                              workspaceId: b.workspaceId,
+                              resourceId: b.resourceId,
+                              startTime: b.startTime,
+                              endTime: b.endTime,
+                              date: b.startTime ? b.startTime.split('T')[0] : undefined,
+                              priceType: 'HOURLY',
+                              autoOpen: true
+                            }}
+                          >
                             <span>{isVi ? 'Tiếp tục thanh toán' : 'Resume Payment'}</span>
                             <ArrowRight className='h-3.5 w-3.5' />
                           </Link>

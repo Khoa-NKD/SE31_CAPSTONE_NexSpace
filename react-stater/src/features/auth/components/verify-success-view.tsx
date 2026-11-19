@@ -33,6 +33,7 @@ export default function VerifySuccessViewPage() {
     const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
     const token = params?.get('token');
     const email = params?.get('email') || undefined;
+    const redirectParam = params?.get('redirect') || (typeof window !== 'undefined' ? sessionStorage.getItem('nexspace_auth_redirect') : null);
 
     if (token) {
       // Temporary stub while fetching me
@@ -61,7 +62,10 @@ export default function VerifySuccessViewPage() {
               ? `Xác thực và đăng nhập thành công! Chào mừng ${user.fullName || user.userName}`
               : `Successfully verified and signed in! Welcome ${user.fullName || user.userName}`
           );
-          const target = getSignInReturnPath(null, user) || getRoleHomeUrl(user);
+          const target = getSignInReturnPath(redirectParam, user) || getRoleHomeUrl(user);
+          if (typeof window !== 'undefined' && redirectParam) {
+            sessionStorage.removeItem('nexspace_auth_redirect');
+          }
           setTimeout(() => {
             if (target.startsWith('http')) {
               window.location.replace(target);
@@ -91,7 +95,7 @@ export default function VerifySuccessViewPage() {
     }
 
     const timer = setTimeout(() => {
-      navigate({ to: '/auth/sign-in', search: { verified: 'true', email } });
+      navigate({ to: '/auth/sign-in', search: { verified: 'true', email, redirect: redirectParam || undefined } });
     }, 1200);
 
     return () => clearTimeout(timer);
@@ -104,7 +108,10 @@ export default function VerifySuccessViewPage() {
     } catch {
       // Ignore
     }
-    navigate({ to: '/auth/sign-in', search: { verified: 'true' } });
+    const redirectParam = typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('redirect') || sessionStorage.getItem('nexspace_auth_redirect')
+      : null;
+    navigate({ to: '/auth/sign-in', search: { verified: 'true', redirect: redirectParam || undefined } });
   };
 
   return (

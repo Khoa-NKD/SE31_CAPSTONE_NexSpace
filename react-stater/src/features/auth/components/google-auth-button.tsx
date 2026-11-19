@@ -111,9 +111,13 @@ export default function GoogleSignInButton({
           } else {
             const target =
               typeof window !== 'undefined'
-                ? new URLSearchParams(window.location.search).get('redirect')
+                ? new URLSearchParams(window.location.search).get('redirect') ||
+                  sessionStorage.getItem('nexspace_auth_redirect')
                 : null;
             const returnPath = getSignInReturnPath(target, response.user);
+            if (typeof window !== 'undefined') {
+              sessionStorage.removeItem('nexspace_auth_redirect');
+            }
             if (returnPath) {
               window.location.replace(returnPath);
             } else {

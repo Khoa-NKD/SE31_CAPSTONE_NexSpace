@@ -218,6 +218,14 @@ export default function SignInViewPage() {
               {t('auth.signIn.noAccount')}{' '}
               <Link
                 to='/auth/sign-up'
+                search={(() => {
+                  const redirect =
+                    typeof window !== 'undefined'
+                      ? new URLSearchParams(window.location.search).get('redirect') ||
+                        sessionStorage.getItem('nexspace_auth_redirect')
+                      : null;
+                  return redirect ? { redirect } : undefined;
+                })()}
                 className='font-label-base text-label-base font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors ml-1 cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-indigo-600/50 rounded-sm'
               >
                 {t('auth.signIn.signUp')}

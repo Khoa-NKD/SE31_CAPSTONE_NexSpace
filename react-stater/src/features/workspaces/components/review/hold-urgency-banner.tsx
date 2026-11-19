@@ -45,6 +45,7 @@ export function HoldUrgencyBanner({
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
+  const startTimeRef = useRef(Date.now());
 
   const releaseHoldMutation = useReleaseHoldMutation();
 
@@ -57,9 +58,10 @@ export function HoldUrgencyBanner({
   }, []);
 
   const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
+  const elapsedSeconds = Math.floor((currentTimestamp - startTimeRef.current) / 1000);
   const secondsRemaining = expiryTimestamp > 0
     ? Math.max(0, Math.floor((expiryTimestamp - (currentTimestamp + serverOffset)) / 1000))
-    : initialSeconds;
+    : Math.max(0, initialSeconds - elapsedSeconds);
 
   const isExpired = secondsRemaining <= 0;
 

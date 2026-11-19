@@ -880,7 +880,7 @@ export function WorkspaceInfo({
                             onSelectResource?.(group.sampleResource);
                             onContinueWithResource?.(group.sampleResource, group.floorId);
                           }}
-                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white transition-colors cursor-pointer active:scale-95'
+                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer active:scale-95'
                         >
                           <span>{language === 'vi' ? 'Chọn đặt' : 'Select'}</span>
                           <ArrowUpRight className='size-3.5' />

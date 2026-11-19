@@ -352,7 +352,7 @@ export function WorkspaceBookingCard({
             <Link
               to='/workspaces/seats'
               search={bookingSearchParams}
-              className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-white font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group'
+              className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.99]'
             >
               <span>
                 {selectedResource
@@ -449,7 +449,7 @@ export function WorkspaceBookingCard({
             <Link
               to='/workspaces/seats'
               search={bookingSearchParams}
-              className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5'
+              className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer'
             >
               <span>
                 {selectedResource

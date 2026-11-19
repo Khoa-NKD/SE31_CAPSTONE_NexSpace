@@ -154,8 +154,13 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
       if (onSuccess) {
         onSuccess();
       } else {
-        const target = new URLSearchParams(window.location.search).get('redirect');
+        const target =
+          new URLSearchParams(window.location.search).get('redirect') ||
+          (typeof window !== 'undefined' ? sessionStorage.getItem('nexspace_auth_redirect') : null);
         const returnPath = getSignInReturnPath(target, response.user);
+        if (typeof window !== 'undefined') {
+          sessionStorage.removeItem('nexspace_auth_redirect');
+        }
         if (returnPath) window.location.replace(returnPath);
         else router.navigate({ to: getRoleHomeUrl(response.user) });
       }
