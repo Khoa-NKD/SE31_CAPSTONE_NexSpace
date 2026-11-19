@@ -16,6 +16,7 @@ import base.api.feature.pricing.repository.IPricingRuleRepository;
 import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.service.IResourceLockService;
+import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.workspace.repository.IWorkspaceCancellationRuleRepository;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.shared.entity.UserModel;
@@ -80,6 +81,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final ObjectMapper objectMapper;
     private final IPaymentTransactionRepository paymentTransactionRepository;
     private final ApplicationEventPublisher applicationEventPublisher;
+    private final IResourceStateSyncService resourceStateSyncService;
     private final PayOS payOS;
 
     @Value("${app.booking.max-hold-lifetime-minutes:15}")
@@ -266,6 +268,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         + " cho tài nguyên " + resource.getLabel() + " đến " + holdExpiresAt
         );
 
+        // 13. Đồng bộ trạng thái thời gian thực và phát sự kiện miền
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldCreated(savedBooking);
+        }
+
         log.info("Temporary Hold created successfully: code={}, customerId={}, resourceId={}, expiresAt={}",
                 savedBooking.getBookingCode(), customerId, resource.getId(), holdExpiresAt);
 
@@ -341,8 +348,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 "Khách hàng chủ động nhả phiên giữ chỗ mã " + saved.getBookingCode() + " từ trạng thái " + prevStatus
         );
 
-        // Phát sự kiện nội bộ ResourceHoldReleasedEvent
-        publishHoldReleasedEvent(saved, now);
+        // Phát sự kiện đồng bộ trạng thái thời gian thực
+        if (resourceStateSyncService != null) {
+            resourceStateSyncService.syncOnHoldReleased(saved);
+        } else {
+            publishHoldReleasedEvent(saved, now);
+        }
 
         log.info("Hold released by customer: bookingId={}, code={}, customerId={}",
                 saved.getId(), saved.getBookingCode(), customerId);
@@ -407,7 +418,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         null
                 );
 
-                publishHoldExpiredEvent(saved, now);
+                if (resourceStateSyncService != null) {
+                    resourceStateSyncService.syncOnHoldExpired(saved);
+                } else {
+                    publishHoldExpiredEvent(saved, now);
+                }
                 releasedCount++;
 
                 log.info("Hold expired and released automatically: bookingId={}, code={}", saved.getId(), saved.getBookingCode());

@@ -3,6 +3,7 @@ package base.api.feature.resource.service.impl;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.resource.dto.response.DeskAvailabilityResponseDto;
 import base.api.feature.resource.dto.response.RoomAvailabilityResponseDto;
+import base.api.feature.resource.mapper.ResourceAvailabilityMapper;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.service.IResourceAvailabilityService;
@@ -418,28 +419,12 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
             }
         }
 
-        BigDecimal effectivePricePerHour = desk.getPricePerHour() != null
-                ? desk.getPricePerHour()
-                : (desk.getResourceType() != null ? desk.getResourceType().getPricePerHour() : null);
-
         Long parentRoomId = desk.getParentRoom() != null ? desk.getParentRoom().getId() : null;
 
-        return DeskAvailabilityResponseDto.builder()
-                .resourceId(desk.getId())
-                .label(desk.getLabel())
-                .name(desk.getName())
-                .zoneName(desk.getZoneName())
-                .parentRoomId(parentRoomId)
-                .pricePerHour(effectivePricePerHour)
-                .status(finalStatus)
-                .holdExpiresAt(holdExpiresAt)
-                .isOccupiedByMe(isOccupiedByMe)
-                .posX(desk.getPosX())
-                .posY(desk.getPosY())
-                .width(desk.getWidth())
-                .height(desk.getHeight())
-                .rotation(desk.getRotation())
-                .build();
+        ResourceStateResolver.ResourceResolutionResult finalResolution =
+                new ResourceStateResolver.ResourceResolutionResult(finalStatus, holdExpiresAt, isOccupiedByMe);
+
+        return ResourceAvailabilityMapper.toDeskResponse(desk, finalResolution, parentRoomId);
     }
 
     private RoomAvailabilityResponseDto mapToRoomAvailabilityResponse(
@@ -507,35 +492,17 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
                     .orElse(null);
         }
 
-        Integer effectiveCapacity = room.getCapacityOverride() != null
-                ? room.getCapacityOverride()
-                : (room.getResourceType() != null ? room.getResourceType().getCapacity() : 1);
-
-        BigDecimal effectivePricePerHour = room.getPricePerHour() != null
-                ? room.getPricePerHour()
-                : (room.getResourceType() != null ? room.getResourceType().getPricePerHour() : null);
-
-        return RoomAvailabilityResponseDto.builder()
-                .roomId(room.getId())
-                .label(room.getLabel())
-                .name(room.getName())
-                .zoneName(room.getZoneName())
-                .capacity(effectiveCapacity)
-                .pricePerHour(effectivePricePerHour)
-                .status(finalStatus)
-                .holdExpiresAt(directResolution.holdExpiresAt())
-                .isOccupiedByMe(directResolution.isOccupiedByMe())
-                .hasConflictingDesks(hasConflictingDesks)
-                .occupiedChildDeskCount(occupiedChildDeskCount)
-                .isCleaningInProgress(isCleaningInProgress)
-                .nextAvailableAt(nextAvailableAt)
-                .cleaningBufferMinutes(ROOM_CLEANING_BUFFER_MINUTES)
-                .posX(room.getPosX())
-                .posY(room.getPosY())
-                .width(room.getWidth())
-                .height(room.getHeight())
-                .rotation(room.getRotation())
-                .build();
+        return ResourceAvailabilityMapper.toRoomResponse(
+                room,
+                finalStatus,
+                directResolution.holdExpiresAt(),
+                directResolution.isOccupiedByMe(),
+                hasConflictingDesks,
+                occupiedChildDeskCount,
+                isCleaningInProgress,
+                nextAvailableAt,
+                ROOM_CLEANING_BUFFER_MINUTES
+        );
     }
 
     private String getDayOfWeekVietnamese(DayOfWeek day) {
