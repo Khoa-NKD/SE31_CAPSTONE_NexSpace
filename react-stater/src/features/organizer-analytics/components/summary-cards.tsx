@@ -19,13 +19,13 @@ export function SummaryCards({
   const cards = [
     {
       key: 'organizerAmount',
-      label: c('Total payable to you', 'Tổng tiền bạn được nhận'),
+      label: c('Your earnings including VAT', 'Tổng tiền bạn được hưởng'),
       description: c('Includes VAT · after refunds and fees', 'Gồm VAT · đã trừ tiền hoàn và phí'),
       icon: Wallet,
       tone: 'text-primary bg-primary/10',
       help: c(
         'Customer funds allocated to you after refunds and the recorded platform fee. Includes rental VAT; this is not confirmation of a bank transfer.',
-        'Tiền khách đã trả, trừ tiền hoàn và phí nền tảng. Số này gồm cả VAT, chưa có nghĩa đã chuyển vào tài khoản của bạn. Xem số đã chuyển ở dòng bên dưới.'
+        'Tiền thuê còn lại sau hoàn, cộng VAT còn lại, trừ phí nền tảng. Không thu thêm phí khách trên đơn mới. Đây là khoản được hưởng, chưa phải tiền đã chuyển vào ngân hàng; cũng không phải số dư có thể rút ngay.'
       )
     },
     {
@@ -57,8 +57,8 @@ export function SummaryCards({
       icon: Receipt,
       tone: 'text-amber-600 bg-amber-500/10 dark:text-amber-400',
       help: c(
-        'Recorded booking commission, reduced in proportion to refunds. A full refund reverses the full fee.',
-        'Khoản nền tảng thu trên đơn, đã trừ khi tính tổng tiền bạn được nhận. Nếu có hoàn tiền, phí giảm tương ứng với tỷ lệ hoàn; hoàn toàn bộ thì không thu phí. Bạn không cần trừ phí này thêm lần nữa.'
+        'The total platform charge on rental excluding rental VAT includes applicable platform-fee tax; no additional fee tax is deducted here. Refunds reduce this charge proportionally; full refunds reverse it.',
+        'Tổng phí nền tảng tính trên tiền thuê chưa VAT; mức phí công bố đã gồm VAT của chính phí nền tảng, không trừ thêm thuế phí lần nữa. Phí giảm theo tỷ lệ hoàn; hoàn toàn bộ thì không thu phí. Khoản này đã được trừ khi tính tiền bạn được hưởng.'
       )
     }
   ] as const;
@@ -164,7 +164,7 @@ export function SummaryCards({
           <span className='text-muted-foreground'>
             {c(
               'Transferred to you in the selected period: ',
-              'Đã chuyển cho bạn trong thời gian đã chọn: '
+              'Đã thực chuyển vào ngân hàng trong thời gian đã chọn: '
             )}
           </span>
           <strong className='tabular-nums'>
@@ -200,7 +200,7 @@ export function SummaryCards({
       <p className='text-xs leading-relaxed text-muted-foreground'>
         {c(
           'Allocations follow cash events in the selected period. Refunds can reverse earlier-period tax and fees. Transfers are counted separately by transfer date; these figures are not a withdrawable account balance.',
-          'Các khoản trên tính theo tiền thanh toán và tiền hoàn trong thời gian đã chọn. Tổng tiền bạn được nhận = tiền thuê sau khi trừ phí + VAT. Tiền hoàn có thể thuộc đơn của thời gian trước. Tiền đã chuyển tính riêng theo ngày chuyển; các số trên không phải số dư có thể rút ngay.'
+          'Khách thanh toán → ghi nhận tiền thuê và VAT → xử lý hoàn theo chính sách → tính khoản bạn được hưởng → chi trả khi đủ điều kiện. Tổng được hưởng = tiền thuê còn lại + VAT còn lại − phí nền tảng còn lại. VAT dịch vụ thuê thuộc trách nhiệm hóa đơn, kê khai và nộp thuế của Organizer. Các số tính theo ngày thanh toán/hoàn trong thời gian đã chọn; tiền đã chuyển tính riêng theo ngày chuyển. Chưa có luồng tự động chi trả.'
         )}
       </p>
     </section>

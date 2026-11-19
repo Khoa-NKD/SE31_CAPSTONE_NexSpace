@@ -185,7 +185,7 @@ export function OrganizerOverview() {
       <div className='grid gap-3 sm:grid-cols-2 xl:grid-cols-4'>
         {[
           {
-            label: c('Your total after fees', 'Tổng tiền bạn được nhận'),
+            label: c('Your earnings including VAT', 'Tổng tiền bạn được hưởng'),
             value: report.isPending
               ? '…'
               : amount == null

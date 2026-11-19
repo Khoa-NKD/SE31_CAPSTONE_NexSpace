@@ -11,7 +11,8 @@ import {
   QrCode
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { useCurrency } from '@/features/landing/context/currency-context';
+import { useCalculatePriceQuery } from '../../api/booking-queries';
+import { formatBookingMoney } from '../../utils/booking-money';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
@@ -68,26 +69,33 @@ export function SeatReservationWidget({
   endTime,
   onScheduleChange
 }: SeatReservationWidgetProps) {
-  const { formatPrice } = useCurrency();
+  const {
+    data: quote,
+    isFetching: loadingQuote,
+    isError: quoteError
+  } = useCalculatePriceQuery(
+    workspaceId && resource?.id && startTime && endTime
+      ? { workspaceId, resourceId: resource.id, startTime, endTime, priceType: 'HOURLY' }
+      : null
+  );
+  const formatPrice = (amount: number) =>
+    quote ? formatBookingMoney(amount, quote.currency) : '—';
 
-  const effectiveWorkspaceId =
-    workspaceId ?? (workspace?.id ? Number(workspace.id) : 1);
+  const effectiveWorkspaceId = workspaceId ?? (workspace?.id ? Number(workspace.id) : 1);
   const effectiveFloorId = floorId ?? floor?.id ?? 1;
 
-  const hourlyRate = resource?.pricePerHour || workspace?.pricePerHour || 35000;
+  const hourlyRate = quote?.unitPrice ?? 0;
   const hours = useMemo(() => computeHours(startTime, endTime, 2), [startTime, endTime]);
-  const monitorHourlyRate = 25000;
-  const monitorTotal = monitorAddonSelected ? monitorHourlyRate * hours : 0;
-  const standardTotal = hourlyRate * hours;
-  const subtotal = standardTotal + monitorTotal;
-  const vatAmount = subtotal * 0.08;
-  const totalDue = subtotal + vatAmount;
+  const standardTotal = quote?.baseAmount ?? 0;
+  const vatAmount = quote?.taxAmount ?? 0;
+  const totalDue = quote?.finalPrice ?? 0;
 
   const displayDate = formatDateLabel(date || '19/11/2026');
   const displayStartTime = formatDisplayTime(startTime) || '09:00';
   const displayEndTime = formatDisplayTime(endTime) || '11:00';
-  const displaySeat = resource ? `${resource.name} (${resource.code})` : 'Desk A-04 (Executive Hot Desk)';
-  const dayPassPrice = hourlyRate * 6;
+  const displaySeat = resource
+    ? `${resource.name} (${resource.code})`
+    : 'Desk A-04 (Executive Hot Desk)';
 
   return (
     <aside className='w-full'>
@@ -99,12 +107,6 @@ export function SeatReservationWidget({
               {formatPrice(hourlyRate)}
             </span>
             <span className='text-muted-foreground text-xs font-medium'> / giờ</span>
-          </div>
-          <div className='text-right'>
-            <span className='rounded bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-400'>
-              {formatPrice(dayPassPrice)} / ngày
-            </span>
-            <p className='text-muted-foreground mt-0.5 text-[11px]'>Tiết kiệm 25% trọn ngày</p>
           </div>
         </div>
 
@@ -170,7 +172,7 @@ export function SeatReservationWidget({
         {monitorAddonSelected && (
           <div className='border-border/70 bg-primary/5 flex items-center justify-between rounded-lg border p-2.5 text-xs'>
             <span className='text-foreground font-medium'>Màn hình phụ 4K 27" ({hours}h)</span>
-            <span className='text-primary font-semibold'>{formatPrice(monitorTotal)}</span>
+            <span className='text-muted-foreground'>Chưa tính dịch vụ mua thêm</span>
           </div>
         )}
 
@@ -183,21 +185,14 @@ export function SeatReservationWidget({
             <span className='text-foreground font-medium'>{formatPrice(standardTotal)}</span>
           </div>
 
-          {monitorAddonSelected && (
-            <div className='flex justify-between text-muted-foreground'>
-              <span>Phụ phí màn hình 4K</span>
-              <span className='text-foreground font-medium'>{formatPrice(monitorTotal)}</span>
-            </div>
-          )}
-
           <div className='flex justify-between text-muted-foreground'>
-            <span>Phí dịch vụ &amp; Quản trị (2.5%)</span>
+            <span>Phí dịch vụ khách</span>
             <span className='text-emerald-600 dark:text-emerald-400 font-medium'>Miễn phí</span>
           </div>
 
           <div className='flex justify-between text-muted-foreground'>
             <span className='flex items-center gap-1'>
-              <span>Thuế GTGT / VAT (8%)</span>
+              <span>Thuế GTGT / VAT theo báo giá</span>
               <Info className='h-3 w-3' />
             </span>
             <span className='text-foreground font-medium'>{formatPrice(vatAmount)}</span>
@@ -214,33 +209,44 @@ export function SeatReservationWidget({
         </div>
 
         {/* Primary Booking Action (links to /workspaces/review) */}
-        <Button
-          asChild
-          className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
-        >
-          <Link
-            to='/workspaces/review'
-            search={{
-              workspaceId: effectiveWorkspaceId,
-              resourceId: resource?.id || 1,
-              startTime: startTime || '2026-11-18T09:00:00',
-              endTime: endTime || '2026-11-18T13:00:00',
-              date: displayDate,
-              priceType: 'HOURLY'
-            }}
+        {!quote && (
+          <p role={quoteError ? 'alert' : 'status'} className='text-sm text-muted-foreground'>
+            {loadingQuote
+              ? 'Đang tải giá...'
+              : quoteError
+                ? 'Không tải được giá. Vui lòng thử lại.'
+                : 'Chọn ghế/phòng và thời gian để xem giá.'}
+          </p>
+        )}
+        {quote && resource && startTime && endTime ? (
+          <Button
+            asChild
+            className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
           >
-            <span>Xác nhận vị trí &amp; Tiếp tục</span>
-            <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
-          </Link>
-        </Button>
+            <Link
+              to='/workspaces/review'
+              search={{
+                workspaceId: effectiveWorkspaceId,
+                resourceId: resource.id,
+                startTime,
+                endTime,
+                date: displayDate,
+                priceType: 'HOURLY'
+              }}
+            >
+              <span>Xác nhận vị trí &amp; Tiếp tục</span>
+              <ArrowRight className='h-4 w-4 transition-transform duration-200 group-hover:translate-x-1' />
+            </Link>
+          </Button>
+        ) : (
+          <Button disabled className='w-full'>
+            Chưa có báo giá hợp lệ
+          </Button>
+        )}
 
         {/* Secondary Actions */}
         <div className='grid grid-cols-2 gap-2'>
-          <Button
-            asChild
-            variant='outline'
-            className='cursor-pointer text-xs font-medium h-9'
-          >
+          <Button asChild variant='outline' className='cursor-pointer text-xs font-medium h-9'>
             <Link
               to='/workspaces/seats'
               search={{
@@ -255,11 +261,7 @@ export function SeatReservationWidget({
               Xem các vị trí khác
             </Link>
           </Button>
-          <Button
-            asChild
-            variant='outline'
-            className='cursor-pointer text-xs font-medium h-9'
-          >
+          <Button asChild variant='outline' className='cursor-pointer text-xs font-medium h-9'>
             <Link
               to='/workspaces/seats'
               search={{

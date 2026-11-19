@@ -29,7 +29,6 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from '@tanstack/react-router';
-import { useCurrency } from '@/features/landing/context/currency-context';
 import type { PaymentCheckoutResponse } from '@/features/payments/api/types';
 import { usePaymentStatus, useCancelPayment, paymentService } from '@/features/payments/api';
 import { toast } from 'sonner';
@@ -37,7 +36,6 @@ import { toast } from 'sonner';
 interface PayOSCheckoutDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  totalAmountUsd?: number;
   seatCode?: string;
   orderRef?: string;
   checkoutData?: PaymentCheckoutResponse | null;
@@ -49,7 +47,6 @@ interface PayOSCheckoutDialogProps {
 export function PayOSCheckoutDialog({
   open,
   onOpenChange,
-  totalAmountUsd = 11.0,
   seatCode = 'Desk A-04',
   orderRef = '#NX-8821',
   checkoutData,
@@ -58,7 +55,6 @@ export function PayOSCheckoutDialog({
   onCancelCheckoutSuccess
 }: PayOSCheckoutDialogProps) {
   const navigate = useNavigate();
-  const { formatPrice, currency } = useCurrency();
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isManualSuccess, setIsManualSuccess] = useState(false);
   const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
@@ -78,9 +74,10 @@ export function PayOSCheckoutDialog({
     statusData?.bookingStatus === 'CONFIRMED';
 
   const expiryTimestamp = checkoutData?.expiresAt ? new Date(checkoutData.expiresAt).getTime() : 0;
-  const secondsRemaining = expiryTimestamp > 0
-    ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
-    : 600;
+  const secondsRemaining =
+    expiryTimestamp > 0
+      ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
+      : 600;
 
   const isExpired =
     !isConfirmed &&
@@ -178,9 +175,10 @@ export function PayOSCheckoutDialog({
       ? `#NX-${checkoutData.orderCode % 10000}`
       : orderRef;
 
-  const displayVndAmount = checkoutData?.amount
-    ? checkoutData.amount.toLocaleString('vi-VN') + ' ₫'
-    : Math.round(totalAmountUsd * 25450).toLocaleString('vi-VN') + ' ₫';
+  const displayVndAmount =
+    checkoutData?.amount != null
+      ? checkoutData.amount.toLocaleString('vi-VN') + ' ₫'
+      : 'Đang chờ số tiền từ PayOS';
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -346,20 +344,19 @@ export function PayOSCheckoutDialog({
                       }`}
                     >
                       <Timer className='h-3 w-3 animate-spin [animation-duration:3s]' />
-                      <span>{secondsRemaining > 0 ? `Giữ chỗ: ${timeFormatted}` : 'Hết hạn giữ chỗ'}</span>
+                      <span>
+                        {secondsRemaining > 0 ? `Giữ chỗ: ${timeFormatted}` : 'Hết hạn giữ chỗ'}
+                      </span>
                     </div>
                   </div>
 
                   <div className='text-right'>
-                    <span className='text-muted-foreground text-[10px] block'>Số tiền thanh toán</span>
+                    <span className='text-muted-foreground text-[10px] block'>
+                      Số tiền thanh toán
+                    </span>
                     <span className='text-foreground font-sans text-base sm:text-lg font-bold tracking-tight text-primary'>
                       {displayVndAmount}
                     </span>
-                    {currency !== 'VND' && (
-                      <div className='text-muted-foreground text-[10px] font-mono'>
-                        ≈ {formatPrice(totalAmountUsd)}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -386,7 +383,9 @@ export function PayOSCheckoutDialog({
                     {checkoutData?.qrCode ? (
                       <div
                         className={`relative transition-all duration-300 ${
-                          isExpired ? 'blur-[6px] opacity-20 grayscale pointer-events-none select-none' : ''
+                          isExpired
+                            ? 'blur-[6px] opacity-20 grayscale pointer-events-none select-none'
+                            : ''
                         }`}
                       >
                         <QRCodeSVG
@@ -453,7 +452,12 @@ export function PayOSCheckoutDialog({
                   </div>
                 ) : (
                   <p className='text-muted-foreground mt-2 px-1 text-center text-[11px] leading-tight'>
-                    Mở ứng dụng ngân hàng (<strong className='text-foreground font-medium'>Vietcombank, MB, Techcombank</strong>) hoặc <strong className='text-foreground font-medium'>MoMo</strong> quét mã để thanh toán tự động.
+                    Mở ứng dụng ngân hàng (
+                    <strong className='text-foreground font-medium'>
+                      Vietcombank, MB, Techcombank
+                    </strong>
+                    ) hoặc <strong className='text-foreground font-medium'>MoMo</strong> quét mã để
+                    thanh toán tự động.
                   </p>
                 )}
               </div>
@@ -486,7 +490,9 @@ export function PayOSCheckoutDialog({
                       </span>
                       <button
                         type='button'
-                        onClick={() => handleCopy(checkoutData?.accountNumber || '0987654321', 'accountNumber')}
+                        onClick={() =>
+                          handleCopy(checkoutData?.accountNumber || '0987654321', 'accountNumber')
+                        }
                         className='text-muted-foreground hover:text-foreground cursor-pointer'
                         title='Sao chép số tài khoản'
                       >
@@ -530,14 +536,18 @@ export function PayOSCheckoutDialog({
                 </div>
 
                 <div className='pt-1.5 border-t border-border/40'>
-                  <span className='text-[10px] text-muted-foreground block'>Nội dung chuyển khoản (bắt buộc)</span>
+                  <span className='text-[10px] text-muted-foreground block'>
+                    Nội dung chuyển khoản (bắt buộc)
+                  </span>
                   <div className='flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-md px-2 py-1 mt-0.5'>
                     <span className='font-mono font-bold text-amber-700 dark:text-amber-400 text-xs'>
                       {checkoutData?.description || 'NX8821'}
                     </span>
                     <button
                       type='button'
-                      onClick={() => handleCopy(checkoutData?.description || 'NX8821', 'description')}
+                      onClick={() =>
+                        handleCopy(checkoutData?.description || 'NX8821', 'description')
+                      }
                       className='text-amber-700 dark:text-amber-400 hover:opacity-80 cursor-pointer'
                       title='Sao chép nội dung'
                     >
@@ -549,7 +559,8 @@ export function PayOSCheckoutDialog({
                     </button>
                   </div>
                   <p className='text-[10px] text-amber-600 dark:text-amber-400 mt-1 leading-tight'>
-                    * Vui lòng giữ nguyên nội dung chuyển khoản để hệ thống tự động xác nhận đơn tức thì.
+                    * Vui lòng giữ nguyên nội dung chuyển khoản để hệ thống tự động xác nhận đơn tức
+                    thì.
                   </p>
                 </div>
               </div>
@@ -585,7 +596,8 @@ export function PayOSCheckoutDialog({
               <div className='border-border/60 flex items-center justify-center gap-2 border-t pt-2 text-[11px] text-muted-foreground'>
                 <ShieldCheck className='h-3.5 w-3.5 text-emerald-600 shrink-0' />
                 <span>
-                  <strong className='text-foreground font-medium'>Mã hóa 256-bit SSL</strong> • Xác nhận đơn tự động qua Webhook
+                  <strong className='text-foreground font-medium'>Mã hóa 256-bit SSL</strong> • Xác
+                  nhận đơn tự động qua Webhook
                 </span>
               </div>
             </>
@@ -606,7 +618,9 @@ export function PayOSCheckoutDialog({
                 disabled={cancelMutation.isPending}
                 className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
               >
-                {cancelMutation.isPending ? 'Đang hủy phiên...' : 'Hủy giao dịch và giải phóng giữ chỗ'}
+                {cancelMutation.isPending
+                  ? 'Đang hủy phiên...'
+                  : 'Hủy giao dịch và giải phóng giữ chỗ'}
               </button>
             ) : (
               <span className='text-[10px] text-muted-foreground'>
