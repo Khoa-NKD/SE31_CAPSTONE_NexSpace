@@ -50,4 +50,20 @@ app.organizer.contract.demo-enabled=true
 nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}
 nexspace.floor-ai.model=${GEMINI_MODEL:gemini-3.6-flash}
 
+# ── PayOS Payment Gateway Configuration (Kênh thu tiền thanh toán) ───────────
+# Lấy bộ key kênh thu tại: https://my.payos.vn/
+PAYOS_CLIENT_ID=your-payos-client-id
+PAYOS_API_KEY=your-payos-api-key
+PAYOS_CHECKSUM_KEY=your-payos-checksum-key
+PAYOS_RETURN_URL=http://localhost:3000/workspaces/confirmation
+PAYOS_CANCEL_URL=http://localhost:3000/workspaces/review
+
+# ── PayOS Payout Configuration (Kênh chi tiền hoàn tự động) ──────────────────
+# Lấy bộ key kênh chi riêng biệt tại portal PayOS (Kênh chi).
+# Lưu ý: Bắt buộc cấu hình Whitelist IP máy chủ gọi API trên my.payos.vn.
+PAYOS_PAYOUT_CLIENT_ID=your-payos-payout-client-id
+PAYOS_PAYOUT_API_KEY=your-payos-payout-api-key
+PAYOS_PAYOUT_CHECKSUM_KEY=your-payos-payout-checksum-key
+
+
 

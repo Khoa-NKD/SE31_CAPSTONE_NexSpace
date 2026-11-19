@@ -590,8 +590,18 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     @Transactional
     public BookingResponseDto cancelBooking(Long customerId, Long bookingId, String cancelReason) {
+        return cancelBooking(customerId, bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto.builder()
+                .reason(cancelReason)
+                .build());
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDto cancelBooking(Long customerId, Long bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto) {
         BookingModel booking = bookingRepository.findById(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
+
+        String cancelReason = requestDto != null ? requestDto.getReason() : null;
 
         boolean isOwner = booking.getCustomer() != null && booking.getCustomer().getId().equals(customerId);
         boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
@@ -659,6 +669,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     refund.setReason(updated.getCancelReason());
                     refund.setRequestedAmount(refundAmount);
                     refund.setStatus(RefundStatus.PENDING);
+                    if (requestDto != null) {
+                        refund.setBankName(requestDto.getBankName());
+                        refund.setBankBin(requestDto.getBankBin());
+                        refund.setBankAccountNumber(requestDto.getBankAccountNumber());
+                        refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
+                    }
                     refundRequestRepository.save(refund);
                 }
             } catch (Exception e) {
