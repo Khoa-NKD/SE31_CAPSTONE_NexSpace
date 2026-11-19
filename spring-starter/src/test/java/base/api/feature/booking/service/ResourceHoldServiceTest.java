@@ -136,6 +136,40 @@ class ResourceHoldServiceTest {
     }
 
     @Test
+    void holdChargesRentalAndConfiguredVatWithoutCustomerFees() {
+        mockResource.setPricePerHour(new BigDecimal("500000"));
+        var vat = new base.api.shared.entity.governance.PlatformSettingModel();
+        vat.setSettingValue("10");
+        var obsoleteFee = new base.api.shared.entity.governance.PlatformSettingModel();
+        obsoleteFee.setSettingValue("2");
+        when(platformSettingRepository.findById(anyString())).thenAnswer(invocation -> {
+            String key = invocation.getArgument(0);
+            return switch (key) {
+                case "payment.vat_percent" -> Optional.of(vat);
+                case "payment.service_fee_percent" -> Optional.of(obsoleteFee);
+                default -> Optional.empty();
+            };
+        });
+        var request = HoldResourceRequestDto.builder().resourceId(mockResource.getId()).startTime(baseStartTime)
+                .endTime(baseStartTime.plusHours(2)).priceType(PriceType.HOURLY).build();
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(resourceLockService.acquireResourceLock(mockResource.getId(), request.getStartTime(), request.getEndTime()))
+                .thenReturn(LockedResourceContext.builder().targetResource(mockResource).build());
+        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
+            var booking = invocation.getArgument(0, BookingModel.class);
+            booking.setId(789L);
+            assertThat(booking.getBaseAmount()).isEqualByComparingTo("1000000");
+            assertThat(booking.getTaxAmount()).isEqualByComparingTo("100000");
+            assertThat(booking.getServiceFeeAmount()).isZero();
+            assertThat(booking.getPlatformFeeAmount()).isEqualByComparingTo("100000");
+            return booking;
+        });
+
+        var held = holdService.holdResource(mockCustomer.getId(), request);
+        assertThat(held.getFinalPrice()).isEqualByComparingTo("1100000");
+    }
+
+    @Test
     void monthlyHoldIsRejectedBeforeReusingOrSavingAnything() {
         var request=HoldResourceRequestDto.builder().resourceId(mockResource.getId()).startTime(baseStartTime)
                 .endTime(baseEndTime).priceType(PriceType.MONTHLY).build();

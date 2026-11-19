@@ -74,7 +74,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
     private static final BigDecimal DEFAULT_VAT_PERCENT = new BigDecimal("8.00");
     private static final BigDecimal DEFAULT_COMMISSION_PERCENT = new BigDecimal("10.00");
-    private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = new BigDecimal("0.00");
     private static final int DEFAULT_MAX_ADVANCE_DAYS = 90;
     private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
     private static final int DEFAULT_HOLD_DURATION_MINUTES = 10;
@@ -961,9 +960,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         BigDecimal taxAmount = taxableBase.multiply(vatPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-        BigDecimal serviceFeePercent = getDecimalSetting("payment.service_fee_percent", DEFAULT_SERVICE_FEE_PERCENT);
-        BigDecimal serviceFeeAmount = taxableBase.multiply(serviceFeePercent)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        // NexSpace charges the organizer's commission only; customers pay no platform service fee.
+        BigDecimal serviceFeeAmount = BigDecimal.ZERO.setScale(2);
 
         BigDecimal finalPrice = taxableBase.subtract(discountAmount)
                 .add(taxAmount)

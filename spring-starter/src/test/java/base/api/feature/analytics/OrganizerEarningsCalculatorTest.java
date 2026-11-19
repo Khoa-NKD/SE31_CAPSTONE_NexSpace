@@ -32,6 +32,27 @@ class OrganizerEarningsCalculatorTest {
         assertThat(result.rentalEarnings()).isEqualByComparingTo("90000");
         assertThat(result.excludedBookings()).isZero();
     }
+
+    @Test void tenPercentVatExampleReconcilesFullPartialAndCompleteRefunds() {
+        var basis = new Basis(1, "VND", amount("1100000"), amount("100000"), amount("100000"), BigDecimal.ZERO);
+        var paid = new Event(1, "1", "PAYMENT", START, amount("1100000"), amount("1100000"), "MATCHED", false, 1);
+        var received = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid), START, END);
+        assertThat(received.organizer()).isEqualByComparingTo("1000000");
+        assertThat(received.rentalEarnings()).isEqualByComparingTo("900000");
+        assertThat(received.vat()).isEqualByComparingTo("100000");
+        assertThat(received.organizer().add(received.fee())).isEqualByComparingTo("1100000");
+        var partial = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid,
+                refund("2", "2026-11-02T10:00:00", "550000")), START, END);
+        assertThat(partial.organizer()).isEqualByComparingTo("500000");
+        assertThat(partial.vat()).isEqualByComparingTo("50000");
+        assertThat(partial.fee()).isEqualByComparingTo("50000");
+        assertThat(partial.organizer().add(partial.fee()).add(amount("550000"))).isEqualByComparingTo("1100000");
+        var fullyRefunded = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid,
+                refund("2", "2026-11-02T10:00:00", "1100000")), START, END);
+        assertThat(fullyRefunded.organizer()).isZero();
+        assertThat(fullyRefunded.vat()).isZero();
+        assertThat(fullyRefunded.fee()).isZero();
+    }
     @Test void partialRefundReducesTaxAndFeeByTheSameProportion() {
         var result=calculate(payment("1","2026-11-01T10:00:00","108000"),refund("2","2026-11-02T10:00:00","54000"));
         assertThat(result.organizer()).isEqualByComparingTo("49000");

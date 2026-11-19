@@ -65,7 +65,6 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
     private static final BigDecimal DEFAULT_COMMISSION_PERCENT = BigDecimal.valueOf(10);
     private static final BigDecimal DEFAULT_VAT_PERCENT = BigDecimal.valueOf(8);
-    private static final BigDecimal DEFAULT_SERVICE_FEE_PERCENT = BigDecimal.valueOf(2);
     private static final int DEFAULT_HOLD_DURATION_MINUTES = 10;
     private static final int DEFAULT_MAX_ACTIVE_HOLDS = 3;
     private final IUserRepository userRepository;
@@ -548,9 +547,8 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         BigDecimal taxAmount = taxableBase.multiply(vatPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
-        BigDecimal serviceFeePercent = getDecimalSetting("payment.service_fee_percent", DEFAULT_SERVICE_FEE_PERCENT);
-        BigDecimal serviceFeeAmount = taxableBase.multiply(serviceFeePercent)
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        // Keep hold totals identical to quotes, regardless of obsolete customer-fee settings.
+        BigDecimal serviceFeeAmount = BigDecimal.ZERO.setScale(2);
 
         BigDecimal finalPrice = taxableBase.subtract(discountAmount)
                 .add(taxAmount)
