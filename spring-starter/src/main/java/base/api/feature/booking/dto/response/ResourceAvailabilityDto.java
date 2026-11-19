@@ -24,4 +24,5 @@ public class ResourceAvailabilityDto {
     boolean selectable;
     AvailabilityState state;
     Set<AvailabilityState> flags;
+    Boolean isOccupiedByMe;
 }

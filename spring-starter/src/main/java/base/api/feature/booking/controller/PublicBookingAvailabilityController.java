@@ -29,6 +29,12 @@ public class PublicBookingAvailabilityController extends BaseAPIController {
             @RequestParam(required = false) Long floorId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime startTime,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime endTime) {
-        return success(bookingService.getFloorAvailability(workspaceId, floorId, startTime, endTime));
+        Long currentUserId = null;
+        try {
+            currentUserId = getCurrentUserId();
+        } catch (Exception ignored) {
+            // Khách vãng lai (Guest) chưa đăng nhập
+        }
+        return success(bookingService.getFloorAvailability(workspaceId, floorId, startTime, endTime, currentUserId));
     }
 }

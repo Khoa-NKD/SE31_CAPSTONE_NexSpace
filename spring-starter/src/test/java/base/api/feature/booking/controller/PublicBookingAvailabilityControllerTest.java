@@ -65,7 +65,7 @@ class PublicBookingAvailabilityControllerTest {
                 .selectable(false)
                 .build();
 
-        when(bookingService.getFloorAvailability(eq(1L), any(), any(), any()))
+        when(bookingService.getFloorAvailability(eq(1L), any(), any(), any(), any()))
                 .thenReturn(List.of(item1, item2));
 
         String startTime = "2026-11-20T09:00:00";
@@ -102,7 +102,7 @@ class PublicBookingAvailabilityControllerTest {
         String startTime = "2026-11-20T14:00:00";
         String endTime = "2026-11-20T10:00:00";
 
-        when(bookingService.getFloorAvailability(eq(1L), any(), any(), any()))
+        when(bookingService.getFloorAvailability(eq(1L), any(), any(), any(), any()))
                 .thenThrow(new base.api.shared.exception.BadRequestException("Thời gian kết thúc phải diễn ra sau thời gian bắt đầu"));
 
         mockMvc.perform(get("/api/v1/public/workspaces/1/availability")

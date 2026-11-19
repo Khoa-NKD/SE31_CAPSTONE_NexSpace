@@ -33,6 +33,9 @@ public interface IBookingService {
     /** Tra cứu trạng thái chỗ trống trên sơ đồ sàn trong khung thời gian */
     List<ResourceAvailabilityDto> getFloorAvailability(Long workspaceId, Long floorId, LocalDateTime startTime, LocalDateTime endTime);
 
+    /** Tra cứu trạng thái chỗ trống trên sơ đồ sàn trong khung thời gian có định danh người dùng gọi để xác định ghế của chính mình */
+    List<ResourceAvailabilityDto> getFloorAvailability(Long workspaceId, Long floorId, LocalDateTime startTime, LocalDateTime endTime, Long currentUserId);
+
     /** Hủy đơn đặt chỗ hoặc hủy giữ chỗ (giải phóng lock ngay lập tức) */
     BookingResponseDto cancelBooking(Long customerId, Long bookingId, String cancelReason);
 

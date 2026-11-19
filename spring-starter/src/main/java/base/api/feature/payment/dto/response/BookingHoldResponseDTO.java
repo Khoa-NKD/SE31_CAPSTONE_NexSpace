@@ -17,5 +17,11 @@ public class BookingHoldResponseDTO {
     String workspaceName;
     LocalDateTime holdExpiresAt;
     Long remainingSeconds;
+    LocalDateTime serverTime;
+    Integer remainingHoldAttempts;
+    Integer maxHoldAttempts;
+    Integer penaltyBlockMinutes;
+    Boolean isBookingSuspended;
+    LocalDateTime bookingSuspendedUntil;
 }
 
