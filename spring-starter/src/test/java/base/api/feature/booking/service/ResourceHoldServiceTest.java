@@ -9,6 +9,7 @@ import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.booking.service.impl.ResourceHoldServiceImpl;
 import base.api.feature.governance.repository.IPlatformSettingRepository;
 import base.api.feature.governance.service.IAuditService;
+import base.api.feature.notification.service.INotificationService;
 import base.api.feature.organizer.repository.IOrganizerProfileRepository;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.pricing.repository.IPricingRuleRepository;
@@ -84,6 +85,8 @@ class ResourceHoldServiceTest {
     private ApplicationEventPublisher applicationEventPublisher;
     @Mock
     private PayOS payOS;
+    @Mock
+    private INotificationService notificationService;
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -496,6 +499,7 @@ class ResourceHoldServiceTest {
 
             verify(auditService, times(1)).log(eq(mockCustomer), eq("BOOKING"), eq("RELEASE_HOLD"), eq("Booking"), eq(701L), anyString());
             verify(applicationEventPublisher, times(1)).publishEvent(any(ResourceHoldReleasedEvent.class));
+            verify(notificationService, times(1)).sendBookingCancelledNotification(eq(booking), eq(BigDecimal.ZERO), anyString());
         }
 
         @Test

@@ -363,7 +363,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         }
 
         // Gửi thông báo hủy giữ chỗ (In-App + Email)
-        notificationService.sendBookingCancelledNotification(saved, BigDecimal.ZERO, "Khách hàng chủ động nhả phiên giữ chỗ");
+        if (notificationService != null) {
+            notificationService.sendBookingCancelledNotification(saved, BigDecimal.ZERO, "Khách hàng chủ động nhả phiên giữ chỗ");
+        }
 
         log.info("Hold released by customer: bookingId={}, code={}, customerId={}",
                 saved.getId(), saved.getBookingCode(), customerId);
