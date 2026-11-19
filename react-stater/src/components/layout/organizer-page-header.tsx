@@ -19,14 +19,14 @@ export function OrganizerPageHeader({
   return (
     <header
       className={cn(
-        'flex flex-col gap-3 rounded-xl border border-border bg-gradient-to-r from-primary/5 to-card px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center',
+        'organizer-page-header flex flex-col gap-4 rounded-2xl border border-border px-4 py-4 sm:flex-row sm:flex-wrap sm:items-center sm:px-5 sm:py-5',
         className
       )}
     >
-      <div className='flex min-w-0 flex-1 items-center gap-3 sm:min-w-48'>
+      <div className='flex min-w-0 flex-1 items-center gap-3.5 sm:min-w-48'>
         {leading}
         {icon && (
-          <span className='flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary [&_svg]:size-5'>
+          <span className='flex size-11 shrink-0 items-center justify-center rounded-xl border border-primary/10 bg-primary/10 text-primary [&_svg]:size-5'>
             {icon}
           </span>
         )}
@@ -35,7 +35,9 @@ export function OrganizerPageHeader({
             {title}
           </h1>
           {description && (
-            <p className='mt-0.5 text-sm leading-snug text-muted-foreground'>{description}</p>
+            <p className='mt-1 max-w-2xl text-[13px] leading-relaxed text-muted-foreground'>
+              {description}
+            </p>
           )}
         </div>
       </div>

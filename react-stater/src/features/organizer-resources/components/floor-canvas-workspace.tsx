@@ -20,6 +20,7 @@ import {
   aiProposalWithScene
 } from '../utils/ai-design-preview';
 import { insideRoom, layoutGeometry, withSpatialParents } from '../utils/layout-placement';
+import { decorationBelongsToRoom } from '../utils/room-door';
 import type { AiProposal } from '../api/floor-design';
 import { useEffect, useRef, useState } from 'react';
 import { Link, useBlocker } from '@tanstack/react-router';
@@ -160,20 +161,21 @@ export function FloorCanvasWorkspace({
   const [aiCollapsed, setAiCollapsed] = useState(false);
   const [canvasFullscreen, setCanvasFullscreen] = useState(false);
   useEffect(() => {
-    const sync = () => {
-      if (document.fullscreenElement !== container.current) setCanvasFullscreen(false);
-    };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !event.defaultPrevented && !document.fullscreenElement &&
           !document.querySelector('[role="dialog"][data-state="open"]')) setCanvasFullscreen(false);
     };
-    document.addEventListener('fullscreenchange', sync);
     document.addEventListener('keydown', escape);
     return () => {
-      document.removeEventListener('fullscreenchange', sync);
       document.removeEventListener('keydown', escape);
     };
   }, []);
+  useEffect(() => {
+    if (!canvasFullscreen) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = previousOverflow; };
+  }, [canvasFullscreen]);
   const toggleCanvasFullscreen = async () => {
     if (canvasFullscreen || document.fullscreenElement === container.current) {
       try {
@@ -185,12 +187,9 @@ export function FloorCanvasWorkspace({
       setCanvasFullscreen(false);
       return;
     }
+    // Keep the studio in the document. Native fullscreen can exit and remount portal
+    // contents when an OS file picker opens, interrupting an in-progress type form.
     setCanvasFullscreen(true);
-    try {
-      await container.current?.requestFullscreen();
-    } catch {
-      // Keep the same studio panes available when native fullscreen is denied.
-    }
   };
   const [aiPrecisionEdit, setAiPrecisionEdit] = useState(false);
   const aiDrag = useRef<{ key: string; proposal: AiProposal } | null>(null);
@@ -938,7 +937,7 @@ export function FloorCanvasWorkspace({
     roomToDeletePose
       ? objects.filter((item) => {
           const pose = layoutGeometry(item);
-          return pose && insideRoom(pose, roomToDeletePose);
+          return pose && decorationBelongsToRoom(item, roomToDeletePose, insideRoom);
         }).map((item) => item.id)
       : []
   );
@@ -1002,7 +1001,7 @@ export function FloorCanvasWorkspace({
     (aiProposal?.scope === 'ROOM' &&
       (aiResource?.id === scopeRoomId ||
         aiResource?.parentRoomId === scopeRoomId ||
-        (!!aiObject && !!aiScopePose && insideRoom(layoutGeometry(aiObject)!, aiScopePose))));
+        (!!aiObject && !!aiScopePose && decorationBelongsToRoom(aiObject, aiScopePose, insideRoom))));
   const aiGeometry = aiLayout ? aiPreviewGeometry(aiLayout) : undefined;
   const aiGeometryIssues =
     !aiGeometry || aiGeometry.valid
@@ -1032,7 +1031,7 @@ export function FloorCanvasWorkspace({
       !!aiScopePose &&
       (resource?.id === scopeRoomId ||
         resource?.parentRoomId === scopeRoomId ||
-        (!!object && insideRoom(layoutGeometry(object)!, aiScopePose)))
+        (!!object && decorationBelongsToRoom(object, aiScopePose, insideRoom)))
     );
   }
   function dragAiPreview(
@@ -1221,16 +1220,7 @@ export function FloorCanvasWorkspace({
               variant='ghost'
               title={c('Fullscreen', 'Toàn màn hình')}
               aria-label={c('Fullscreen', 'Toàn màn hình')}
-              onClick={() => {
-                const operation = document.fullscreenElement
-                  ? document.exitFullscreen()
-                  : container.current?.requestFullscreen();
-                operation?.catch(() =>
-                  toast.error(
-                    c('Fullscreen is unavailable.', 'Trình duyệt không hỗ trợ toàn màn hình.')
-                  )
-                );
-              }}
+              onClick={() => void toggleCanvasFullscreen()}
             >
               <Maximize2 className='size-4' />
             </Button>
@@ -1839,7 +1829,12 @@ export function FloorCanvasWorkspace({
                     await onSaved();
                     await query.refetch();
                   }}
-                  onApplied={() => {
+                  onApplied={(saved) => {
+                    queryClient.setQueryData(floorLayoutOptions(actorId, workspaceId, floorId).queryKey, saved);
+                    setSceneDraft(null);
+                    setPendingObjects([]);
+                    setSelection(null);
+                    setGroupSelection([]);
                     setAiProposal(null);
                     setAiOpen(false);
                     setAiUndo([]);

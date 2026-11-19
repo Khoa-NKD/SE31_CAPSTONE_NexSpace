@@ -1,6 +1,7 @@
 import { floorCornerRadius } from './floor-outline';
 import type { Category, FloorDecoration, FloorLayout } from '../api/resources';
 import { moveWithRoom, placementFits, placementsOverlap, type Placement } from './placement.ts';
+import { decorationBelongsToRoom, doorRoomBoundary } from './room-door.ts';
 
 export function layoutGeometry(value: {
   posX: number | null;
@@ -74,7 +75,7 @@ export function previewLayout(
     .filter((object) => object.id !== candidate.decoration?.id)
     .map((object) => {
       const shape = layoutGeometry(object)!;
-      if (!movingRoom || !insideRoom(shape, before)) return object;
+      if (!movingRoom || !decorationBelongsToRoom(object, before, insideRoom)) return object;
       const moved = moveWithRoom(shape, before, item);
       return { ...object, posX: moved.x, posY: moved.y, rotation: moved.rotation };
     });
@@ -97,6 +98,7 @@ export function previewLayout(
         parentId: resource.parentRoomId,
         room: resource.category === 'ROOM',
         decoration: false,
+        door: false,
         label: resource.id < 0 ? resource.name : resource.code,
         shape:
           movingRoom && resource.category === 'DESK' && shape && insideRoom(shape, before)
@@ -111,6 +113,7 @@ export function previewLayout(
       parentId: candidate.parentRoomId ?? null,
       room: candidate.category === 'ROOM',
       decoration: false,
+      door: false,
       label: old && old.id < 0 ? old.name : (old?.code ?? 'New'),
       shape: item
     });
@@ -129,6 +132,7 @@ export function previewLayout(
       parentId: null,
       room: false,
       decoration: true,
+      door: object.icon === 'DOOR',
       label: object.label,
       shape: layoutGeometry(object)
     }))
@@ -160,15 +164,26 @@ export function previewLayout(
     // Furniture already inside a room must remain there after a group resize.
     if (movingRoom && a.decoration) {
       const original = layout.decorations?.find((object) => object.id === a.key);
-      if (original && insideRoom(layoutGeometry(original)!, before) && !insideRoom(a.shape, item))
+      if (
+        original &&
+        decorationBelongsToRoom(original, before, insideRoom) &&
+        !insideRoom(a.shape, item) &&
+        !(a.door && doorRoomBoundary({ icon: 'DOOR' }, a.shape, item))
+      )
         fits = false;
     }
     for (let j = i + 1; j < shapes.length; j++) {
       const b = shapes[j];
       if (!b.shape || !placementsOverlap(a.shape, b.shape)) continue;
       const allowed =
-        (a.room && (b.decoration || b.parentId === a.id) && insideRoom(b.shape, a.shape)) ||
-        (b.room && (a.decoration || a.parentId === b.id) && insideRoom(a.shape, b.shape));
+        (a.room &&
+          (b.decoration || b.parentId === a.id) &&
+          (insideRoom(b.shape, a.shape) ||
+            (b.door && !!doorRoomBoundary({ icon: 'DOOR' }, b.shape, a.shape)))) ||
+        (b.room &&
+          (a.decoration || a.parentId === b.id) &&
+          (insideRoom(a.shape, b.shape) ||
+            (a.door && !!doorRoomBoundary({ icon: 'DOOR' }, a.shape, b.shape))));
       if (!allowed) {
         collisions.add(a.label);
         collisions.add(b.label);

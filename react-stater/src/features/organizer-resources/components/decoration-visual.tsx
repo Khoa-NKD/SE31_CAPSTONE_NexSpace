@@ -173,7 +173,27 @@ export function DecorationVisual({ item }: { item: FloorDecoration }) {
   return (
     <g style={{ color: item.color }} pointerEvents='none'>
       <title>{item.label}</title>
-      {resolvedIcon && resolvedIcon in customIcons ? (
+      {resolvedIcon === 'DOOR' ? (
+        <>
+          <rect
+            x={x}
+            y={y}
+            width={width}
+            height={height}
+            fill='currentColor'
+            fillOpacity='.3'
+            stroke='currentColor'
+            strokeWidth='1'
+            vectorEffect='non-scaling-stroke'
+          />
+          <path
+            d={width >= height ? `M${x} ${cy}H${x + width}` : `M${cx} ${y}V${y + height}`}
+            stroke='currentColor'
+            strokeWidth='2'
+            vectorEffect='non-scaling-stroke'
+          />
+        </>
+      ) : resolvedIcon && resolvedIcon in customIcons ? (
         <>
           <rect
             x={x}

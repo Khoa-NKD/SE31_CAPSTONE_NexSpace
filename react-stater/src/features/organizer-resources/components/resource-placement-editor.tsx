@@ -28,6 +28,8 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ResourceMapSymbol } from './resource-map-symbol';
+import { RoomWallLines } from './room-wall-lines';
+import { decorationBelongsToRoom } from '../utils/room-door';
 import { DecorationLayer, DecorationVisual } from './decoration-visual';
 import { useCanvasWheel } from './use-canvas-wheel';
 import {
@@ -195,8 +197,12 @@ export function ResourcePlacementEditor({
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const escape = (event: globalThis.KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && document.fullscreenElement !== containerRef.current &&
-          !document.querySelector('[role="dialog"][data-state="open"]'))
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        document.fullscreenElement !== containerRef.current &&
+        !document.querySelector('[role="dialog"][data-state="open"]')
+      )
         setExpanded(false);
     };
     document.addEventListener('keydown', escape);
@@ -591,6 +597,12 @@ export function ResourcePlacementEditor({
                   : 'fill-muted/60 stroke-muted-foreground/40'
           }
         />
+        {entry.peer.category === 'ROOM' && (
+          <RoomWallLines
+            room={shape}
+            decorations={preview?.decorations ?? query.data?.decorations}
+          />
+        )}
         {entry.peer.category !== 'ROOM' && (
           <ResourceMapSymbol
             category={entry.peer.category ?? 'DESK'}
@@ -1012,6 +1024,12 @@ export function ResourcePlacementEditor({
                           : 'fill-primary/35 stroke-primary'
                   }
                 />
+                {!decoration && category === 'ROOM' && (
+                  <RoomWallLines
+                    room={item}
+                    decorations={preview?.decorations ?? query.data?.decorations}
+                  />
+                )}
                 {decoration && (
                   <DecorationVisual
                     item={{
@@ -1066,17 +1084,7 @@ export function ResourcePlacementEditor({
                   return (
                     original &&
                     originalRoom &&
-                    placementFits(
-                      {
-                        x: original.posX,
-                        y: original.posY,
-                        width: original.width,
-                        height: original.height,
-                        rotation: original.rotation
-                      },
-                      canvas,
-                      originalRoom
-                    )
+                    decorationBelongsToRoom(original, originalRoom, insideRoom)
                   );
                 })}
                 onSelect={

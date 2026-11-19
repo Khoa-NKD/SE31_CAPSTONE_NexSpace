@@ -292,7 +292,7 @@ export const organizerExtendedNavGroups: NavGroup[] = [
     items: [
       {
         title: 'Overview',
-        url: '/dashboard/overview',
+        url: '/dashboard/organizer',
         icon: 'dashboard',
         isActive: false
       },

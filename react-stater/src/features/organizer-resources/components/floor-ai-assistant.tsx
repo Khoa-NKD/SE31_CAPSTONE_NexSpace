@@ -47,6 +47,8 @@ import {
 } from '../utils/ai-type-preferences';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
 import { decorationPresets } from '../utils/decoration-presets';
+import { pixelsToMetres } from '../utils/metric-units';
+import { floorLayoutOptions } from '../api/resources';
 import { prepareAiReferenceImage, type AiReferenceImage } from '../utils/ai-reference-image';
 import { furnishingPresetKey } from '../utils/furnishing-preset-key';
 import type { DecorationKind } from '../api/resources';
@@ -104,7 +106,7 @@ export function FloorAiAssistant({
   proposal: AiProposal | null;
   onProposal: (proposal: AiProposal | null) => void;
   onSaved: () => Promise<void>;
-  onApplied: () => void;
+  onApplied: (saved: FloorLayout) => void;
   onPlace: (item: FloorDecoration) => void;
   onClose: () => void;
   onMinimize?: () => void;
@@ -135,7 +137,8 @@ export function FloorAiAssistant({
   useEffect(() => {
     if (!expanded) return;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setExpanded(false);
+      if (event.key === 'Escape' && !event.defaultPrevented &&
+          !document.querySelector('[role="dialog"][data-state="open"]')) setExpanded(false);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -177,6 +180,8 @@ export function FloorAiAssistant({
     return () => onBusy(false);
   }, [busy, onBusy]);
   const [error, setError] = useState('');
+  const [retainedProposalId, setRetainedProposalId] = useState<string | null>(null);
+  const isRetainedPreview = !!proposal && retainedProposalId === proposal.proposalId;
   const [saveTemplates, setSaveTemplates] = useState(true);
   const [confirmedTypeDesign, setConfirmedTypeDesign] = useState<AiProposal['design'] | null>(null);
   const [confirmedRemoval, setConfirmedRemoval] = useState<AiProposal['design'] | null>(null);
@@ -281,6 +286,7 @@ export function FloorAiAssistant({
       kind: item.kind,
       icon: furnishingIcon(item.kind, item.label, item.icon),
       color: item.color,
+      visual3d: item.visual3d,
       widthM: Math.max(0.01, Number(((item.width / layout.width) * measured.widthM).toFixed(2))),
       lengthM: Math.max(0.01, Number(((item.height / layout.height) * measured.lengthM).toFixed(2)))
     });
@@ -416,22 +422,22 @@ export function FloorAiAssistant({
     }
   }
 
-  async function generate(event: React.FormEvent) {
-    event.preventDefault();
+  async function generate(event?: React.FormEvent) {
+    event?.preventDefault();
     if (
       !canWrite ||
       !canGenerate ||
       (!image && !proposal && !retainedDraft.data && (!d?.widthM || !d.lengthM)) ||
       (image && confirmedImage !== image) ||
       controller.current ||
-      (!prompt.trim() && !image) ||
+      (!prompt.trim() && !image && !isRetainedPreview) ||
       !scopeValid
     )
       return;
     const abort = new AbortController();
     controller.current = abort;
     const text =
-      prompt.trim() ||
+      prompt.trim() || (isRetainedPreview ? c('Continue the saved draft, preserving its layout and completing outstanding validation.', 'Tiếp tục bản nháp đã lưu, giữ bố cục và hoàn tất các mục cần xác nhận.') : '') ||
       c(
         'Recreate the visible floor plan as closely as possible. Preserve relative size, positions, and counts, and estimate the scale if none is marked.',
         'Dựng lại mặt bằng sát ảnh nhất có thể. Giữ kích thước tương đối, vị trí và số lượng; ước lượng tỷ lệ nếu ảnh không ghi số đo.'
@@ -462,14 +468,14 @@ export function FloorAiAssistant({
             promptWithFloorHistory(text, messages),
             usablePreferences
           ),
-          scope,
-          selectedKey: scope === 'WORKSPACE' ? null : selectedKey,
+          scope: isRetainedPreview ? 'WORKSPACE' : scope,
+          selectedKey: isRetainedPreview || scope === 'WORKSPACE' ? null : selectedKey,
           language: language === 'vi' ? 'vi' : 'en',
           expectedRevision: layout.floor.revision,
           ...(referenceImage
             ? { image: { mimeType: referenceImage.mimeType, base64: referenceImage.base64 } }
             : {}),
-          ...(proposal
+          ...(proposal && !isRetainedPreview
             ? {
                 previousProposalId: proposal.proposalId,
                 ...(proposal.issues.length === 0 ? { draft: proposal.design } : {})
@@ -586,15 +592,20 @@ export function FloorAiAssistant({
           }
         }
       }
-      changeProposal(null);
+      // Seed the committed scene before removing the temporary AI preview.
+      client.setQueryData(floorLayoutOptions(actorId, workspaceId, floorId).queryKey, savedLayout);
+      onApplied(savedLayout);
       appendChat({
         role: 'assistant',
         text: c('Layout saved.', 'Đã lưu sơ đồ.')
       });
       toast.success(c('AI design saved.', 'Đã lưu thiết kế AI.'));
-      await onSaved();
-      await client.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
-      onApplied();
+      try {
+        await onSaved();
+        await client.invalidateQueries({ queryKey: ['organizer-resources', actorId] });
+      } catch {
+        toast.error(c('Layout saved. Could not refresh related data; refresh the page to retry.', 'Sơ đồ đã lưu. Chưa làm mới được dữ liệu liên quan; tải lại trang để thử lại.'));
+      }
     } catch (e) {
       const message =
         c(
@@ -615,7 +626,8 @@ export function FloorAiAssistant({
     setError('');
     try {
       await saveAiDraft(workspaceId, floorId, proposal);
-      changeProposal(null);
+      setRetainedProposalId(proposal.proposalId);
+      setScope('WORKSPACE');
       await onSaved();
       await retainedDraft.refetch();
       toast.success(
@@ -633,7 +645,7 @@ export function FloorAiAssistant({
   }
   async function saveMeasurements(event: React.FormEvent) {
     event.preventDefault();
-    if (!dimensions || !metrics.data || !canWrite || proposal) return;
+    if (!dimensions || !metrics.data || !canWrite || (proposal && !isRetainedPreview)) return;
     setBusy(true);
     setError('');
     try {
@@ -740,6 +752,7 @@ export function FloorAiAssistant({
       height,
       rotation: 0,
       color: item.color,
+      visual3d: item.visual3d,
       icon: furnishingIcon(item.kind, item.name, item.icon)
     });
   }
@@ -1136,7 +1149,7 @@ export function FloorAiAssistant({
             {proposal && (
               <div className='space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-3'>
                 <div className='flex items-center justify-between text-xs font-semibold'>
-                  <span>{c('Draft proposal', 'Đề xuất chưa lưu')}</span>
+                  <span>{isRetainedPreview ? c('Saved design draft · Preview', 'Bản nháp đã lưu · Xem trước') : c('Draft proposal', 'Đề xuất chưa lưu')}</span>
                   <span>
                     {proposal.design.resources.length + proposal.design.removeResourceIds.length}{' '}
                     {c('resource changes', 'thay đổi chỗ')}
@@ -1207,6 +1220,7 @@ export function FloorAiAssistant({
                     <h3 className='text-sm font-semibold'>
                       {c('Confirm new seat / room types', 'Xác nhận loại ghế / phòng mới')}
                     </h3>
+                    {newTypes.some(type => type.visual3d) && <p className='rounded-lg border border-primary/20 bg-background/60 p-2 text-xs text-muted-foreground'>{c('3D designs are saved with these types and reused by their seats/rooms. Switch to 3D to review before applying.', 'Thiết kế 3D được lưu theo loại chỗ và dùng chung cho ghế/phòng thuộc loại đó. Chuyển sang 3D để xem trước khi áp dụng.')}</p>}
                     <p className='text-xs text-muted-foreground'>
                       {c(
                         'Created with the layout only after confirmation. Enter at least one price per type.',
@@ -1553,32 +1567,34 @@ export function FloorAiAssistant({
                 <Button
                   variant='outline'
                   className='w-full'
-                  disabled={busy || !canWrite}
+                  disabled={busy || !canWrite || isRetainedPreview}
                   onClick={() => void retainDraft()}
                 >
                   {c('Save design draft', 'Lưu bản nháp thiết kế')}
                 </Button>
+                {isRetainedPreview && <p className='rounded-lg border border-primary/20 bg-background/60 p-2 text-xs text-muted-foreground'>{c('Your draft is saved and stays visible. Continue from this draft to refresh validation before applying.', 'Bản nháp đã được lưu và vẫn hiển thị. Bấm Tiếp tục từ bản nháp để cập nhật kiểm tra trước khi áp dụng.')}</p>}
                 <Button
                   className='w-full rounded-xl'
                   disabled={
-                    missingIcons.length > 0 ||
-                    previewIssues.length > 0 ||
-                    !canWrite ||
-                    !proposal.applicable ||
-                    needsConfirmedScale ||
-                    !typesConfirmed ||
-                    !removalsConfirmed ||
-                    !typesReady ||
-                    proposal.expectedRevision !== layout.floor.revision
+                    (!isRetainedPreview && (
+                      missingIcons.length > 0 ||
+                      previewIssues.length > 0 ||
+                      !proposal.applicable ||
+                      needsConfirmedScale ||
+                      !typesConfirmed ||
+                      !removalsConfirmed ||
+                      !typesReady ||
+                      proposal.expectedRevision !== layout.floor.revision
+                    )) || busy || !canWrite
                   }
-                  onClick={() => void apply()}
+                  onClick={() => void (isRetainedPreview ? generate() : apply())}
                 >
                   {busy ? (
                     <LoaderCircle className='size-4 animate-spin' />
                   ) : (
                     <Check className='size-4' />
                   )}
-                  {c('Apply & save to database', 'Áp dụng và lưu dữ liệu')}
+                  {isRetainedPreview ? c('Continue saved draft', 'Tiếp tục từ bản nháp') : c('Apply & save to database', 'Áp dụng và lưu dữ liệu')}
                 </Button>
                 <Button
                   variant='ghost'
@@ -1628,7 +1644,7 @@ export function FloorAiAssistant({
               <Button
                 variant='outline'
                 className='w-full'
-                disabled={!canWrite || !!proposal}
+                disabled={!canWrite || (!!proposal && !isRetainedPreview)}
                 onClick={() => {
                   setGeometryReview(null);
                   setMeasurementMode('RESIZE');
@@ -1770,6 +1786,7 @@ export function FloorAiAssistant({
                           <DecorationIcon kind={kind} className='size-5' />
                         </span>
                         <span className='text-xs font-medium'>{c(item.en, item.vi)}</span>
+                        <span className='text-[11px] tabular-nums text-muted-foreground'>{c('Length', 'Dài')} {pixelsToMetres(item.width).toFixed(2)} × {c('Width', 'Rộng')} {pixelsToMetres(item.height).toFixed(2)} m</span>
                         <span className='flex items-center gap-1 text-[10px] text-muted-foreground'>
                           <Plus className='size-3' />
                           {c('Place on floor', 'Đặt vào sơ đồ')}

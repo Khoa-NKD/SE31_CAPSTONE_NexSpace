@@ -19,7 +19,7 @@ export const Route = createFileRoute('/dashboard/overview')({
     const role = getUserRole(auth.user);
     if (role === 'ADMIN') return;
     if (role === 'ORGANIZER') {
-      throw redirect({ to: '/dashboard/organizer/workspaces' });
+      throw redirect({ to: '/dashboard/organizer' });
     }
     // Customer (USER) / Guest: Blocked from Admin Dashboard!
     throw redirect({ to: '/' });
