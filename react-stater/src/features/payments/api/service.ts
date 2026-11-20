@@ -35,7 +35,7 @@ export const paymentService = {
    */
   getCurrentPendingBookingId: async (): Promise<number> => {
     const hold = await apiClient.get<BookingHoldResponse>('/customer/bookings/current-pending');
-    return hold.bookingId;
+    return Number(hold.bookingId) || 0;
   },
 
   /**

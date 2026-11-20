@@ -9,7 +9,8 @@ import {
   ShieldCheck,
   CalendarCheck,
   QrCode,
-  Loader2
+  Loader2,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useCalculatePriceQuery, useCreateBookingMutation } from '../../api/booking-queries';
@@ -95,6 +96,10 @@ export function SeatReservationWidget({
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const createBookingMutation = useCreateBookingMutation();
   const { data: currentPendingBooking } = useCurrentPendingBooking();
+  const isHoldBlocked = Boolean(
+    currentPendingBooking?.isBookingSuspended ||
+      (currentPendingBooking?.remainingHoldAttempts !== undefined && currentPendingBooking.remainingHoldAttempts <= 0)
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const effectiveWorkspaceId = workspaceId ?? (workspace?.id ? Number(workspace.id) : 1);
@@ -120,6 +125,8 @@ export function SeatReservationWidget({
     }
     if (
       currentPendingBooking &&
+      currentPendingBooking.bookingId &&
+      currentPendingBooking.bookingCode &&
       resource?.id &&
       currentPendingBooking.resourceId === resource.id &&
       (!currentPendingBooking.workspaceId ||
@@ -139,6 +146,20 @@ export function SeatReservationWidget({
   const handleConfirmAndProceed = async () => {
     if (!resource) {
       toast.error(isVi ? 'Không tìm thấy vị trí chỗ ngồi.' : 'Seat information not found.');
+      return;
+    }
+
+    if (isHoldBlocked) {
+      toast.error(
+        isVi
+          ? 'Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (3 lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.'
+          : 'Your booking privileges are temporarily suspended or you have reached the maximum hold attempts.',
+        {
+          description: currentPendingBooking?.bookingSuspendedUntil
+            ? `Tạm khóa đến ${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng 20 phút).`
+            : undefined
+        }
+      );
       return;
     }
 
@@ -356,6 +377,23 @@ export function SeatReservationWidget({
                 : 'Chọn ghế/phòng và thời gian để xem giá.'}
           </p>
         )}
+        {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá 3 lần hold không thanh toán hoặc còn 0 lượt */}
+        {isHoldBlocked && (
+          <div className='rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2.5 shadow-2xs animate-in fade-in'>
+            <ShieldAlert className='size-4 shrink-0 text-destructive' />
+            <div className='flex-1'>
+              <p className='font-semibold'>
+                {isVi ? 'Tài khoản đang bị tạm khóa giữ chỗ / đặt chỗ' : 'Booking privileges suspended'}
+              </p>
+              <p className='text-[11px] text-destructive/90 mt-0.5'>
+                {isVi
+                  ? `Bạn đã dùng hết 3 lần giữ chỗ mà không hoàn tất thanh toán. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc thử lại sau${currentPendingBooking?.bookingSuspendedUntil ? ` (${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''}.`
+                  : 'You have reached the maximum 3 hold attempts. Please complete payment or try again later.'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Primary Booking Action (holds seat and navigates to /workspaces/review) */}
         <Button
           type='button'
@@ -363,14 +401,26 @@ export function SeatReservationWidget({
           disabled={
             isSubmitting ||
             createBookingMutation.isPending ||
+            isHoldBlocked ||
             (!existingHold && (!quote || quoteError || !startTime || !endTime))
           }
-          className='group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2'
+          className={`group h-11 w-full cursor-pointer rounded-lg text-sm font-semibold shadow-xs transition-all duration-200 active:scale-95 flex items-center justify-center gap-2 ${
+            isHoldBlocked ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed' : ''
+          }`}
         >
           {isSubmitting || createBookingMutation.isPending ? (
             <>
               <Loader2 className='h-4 w-4 animate-spin' />
               <span>{isVi ? 'Đang giữ chỗ...' : 'Holding Seat...'}</span>
+            </>
+          ) : isHoldBlocked ? (
+            <>
+              <ShieldAlert className='h-4 w-4 text-destructive' />
+              <span>
+                {currentPendingBooking?.isBookingSuspended
+                  ? isVi ? 'Đang bị khóa đặt chỗ (20p)' : 'Privileges Suspended'
+                  : isVi ? 'Hết lượt giữ chỗ (0 lượt)' : 'Hold Limit Exceeded'}
+              </span>
             </>
           ) : (
             <>

@@ -451,7 +451,7 @@ export function PriceBreakdownCard({
         seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
         checkoutData={checkoutData}
         orderRef={
-          effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : holdData?.bookingCode
+          effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : (holdData?.bookingCode ?? undefined)
         }
         isLoading={createPaymentMutation.isPending}
         onRetry={handleConfirmBooking}
