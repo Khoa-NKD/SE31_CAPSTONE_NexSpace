@@ -450,6 +450,8 @@ export function PriceBreakdownCard({
         onOpenChange={setCheckoutOpen}
         seatCode={seatCode || holdData?.seatCode || 'Desk A-12'}
         checkoutData={checkoutData}
+        serverTime={effectiveBooking?.serverTime || holdData?.serverTime}
+        holdExpiresAt={effectiveBooking?.holdExpiresAt || holdData?.holdExpiresAt}
         orderRef={
           effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : (holdData?.bookingCode ?? undefined)
         }

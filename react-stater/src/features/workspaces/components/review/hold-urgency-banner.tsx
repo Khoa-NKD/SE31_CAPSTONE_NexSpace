@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Timer, AlertTriangle, XCircle, RotateCcw, ShieldAlert } from 'lucide-react';
 import { useReleaseHoldMutation } from '@/features/resource-availability';
 import { toast } from 'sonner';
@@ -42,8 +42,6 @@ export function HoldUrgencyBanner({
   onExpired,
   onReleaseSuccess
 }: HoldUrgencyBannerProps) {
-  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
@@ -57,44 +55,73 @@ export function HoldUrgencyBanner({
     ? initialSeconds
     : maxHoldSeconds;
 
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              return Math.max(0, Math.floor((exp - srv) / 1000));
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return initialHoldDuration;
+  });
+
   const releaseHoldMutation = useReleaseHoldMutation();
 
-  // Cập nhật timer tần số cao (100ms) kết hợp CSS linear transition để thanh thời gian trượt siêu mượt mà
+  // Đồng bộ đếm ngược theo mốc hết hạn của máy chủ
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTimestamp(Date.now());
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, []);
-
-  // Tính chênh lệch thời gian máy chủ (serverOffset) dựa trên nhịp timer currentTimestamp
-  const serverOffset = useMemo(() => {
-    if (!serverTime) return 0;
-    try {
-      const sTime = new Date(serverTime).getTime();
-      if (!isNaN(sTime)) {
-        return sTime - currentTimestamp;
+    let targetClientExpiry: number;
+    const clientNow = Date.now();
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              const diffMs = Math.max(0, exp - srv);
+              targetClientExpiry = clientNow + diffMs;
+            } else {
+              targetClientExpiry = exp;
+            }
+          } else {
+            targetClientExpiry = exp;
+          }
+        } else {
+          targetClientExpiry = clientNow + initialHoldDuration * 1000;
+        }
+      } catch {
+        targetClientExpiry = clientNow + initialHoldDuration * 1000;
       }
-    } catch {
-      // fallback
+    } else {
+      targetClientExpiry = clientNow + initialHoldDuration * 1000;
     }
-    return 0;
-  }, [serverTime, currentTimestamp]);
 
-  const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 500);
 
-  // Tính mili-giây còn lại chính xác cao từ mốc hết hạn
-  const remainingMs = expiryTimestamp > 0
-    ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
-    : initialHoldDuration * 1000;
+    return () => clearInterval(interval);
+  }, [effectiveExpiresAt, serverTime, initialHoldDuration]);
 
-  const secondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
-  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : secondsRemaining <= 0;
+  const isExpired = secondsRemaining <= 0;
 
-  // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%
-  const totalMs = Math.max(maxHoldSeconds * 1000, remainingMs);
-  const progressRatio = Math.min(1, Math.max(0, remainingMs / totalMs));
+  // Tính phần trăm tiến trình từ 100% về 0%
+  const totalSeconds = Math.max(maxHoldSeconds, secondsRemaining);
+  const progressRatio = Math.min(1, Math.max(0, secondsRemaining / totalSeconds));
   const progressPercentage = progressRatio * 100;
 
   // Thanh tiến độ chuyển 3 màu tùy mức thời gian còn lại:

@@ -38,6 +38,8 @@ interface PayOSCheckoutDialogProps {
   seatCode?: string;
   orderRef?: string;
   checkoutData?: PaymentCheckoutResponse | null;
+  serverTime?: string | null;
+  holdExpiresAt?: string | null;
   isLoading?: boolean;
   onRetry?: () => void;
   onCancelCheckoutSuccess?: () => void;
@@ -49,6 +51,8 @@ export function PayOSCheckoutDialog({
   seatCode: _seatCode = 'Desk A-04',
   orderRef = '#NX-8821',
   checkoutData,
+  serverTime,
+  holdExpiresAt,
   isLoading = false,
   onRetry,
   onCancelCheckoutSuccess
@@ -57,9 +61,29 @@ export function PayOSCheckoutDialog({
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isManualSuccess, setIsManualSuccess] = useState(false);
   const [isDownloadingInvoice, setIsDownloadingInvoice] = useState(false);
-  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
+
+  const effectiveExpiry = checkoutData?.expiresAt || holdExpiresAt;
   const hasNotifiedSuccessRef = useRef(false);
   const hasNotifiedExpiryRef = useRef(false);
+
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    if (effectiveExpiry) {
+      try {
+        const exp = new Date(effectiveExpiry).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              return Math.max(0, Math.floor((exp - srv) / 1000));
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return 900;
+  });
 
   const cancelMutation = useCancelPayment();
 
@@ -72,11 +96,47 @@ export function PayOSCheckoutDialog({
     statusData?.paymentStatus === 'SUCCESS' ||
     statusData?.bookingStatus === 'CONFIRMED';
 
-  const expiryTimestamp = checkoutData?.expiresAt ? new Date(checkoutData.expiresAt).getTime() : 0;
-  const secondsRemaining =
-    expiryTimestamp > 0
-      ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
-      : 900;
+  // Countdown timer clock đồng bộ mốc thời gian máy chủ
+  useEffect(() => {
+    if (!open || isConfirmed) return;
+
+    let targetClientExpiry: number;
+    const clientNow = Date.now();
+    if (effectiveExpiry) {
+      try {
+        const exp = new Date(effectiveExpiry).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              const diffMs = Math.max(0, exp - srv);
+              targetClientExpiry = clientNow + diffMs;
+            } else {
+              targetClientExpiry = exp;
+            }
+          } else {
+            targetClientExpiry = exp;
+          }
+        } else {
+          targetClientExpiry = clientNow + 900 * 1000;
+        }
+      } catch {
+        targetClientExpiry = clientNow + 900 * 1000;
+      }
+    } else {
+      targetClientExpiry = clientNow + 900 * 1000;
+    }
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [open, isConfirmed, effectiveExpiry, serverTime]);
 
   const isExpired =
     !isConfirmed &&
@@ -104,21 +164,11 @@ export function PayOSCheckoutDialog({
     }
   }, [isExpired, open]);
 
-  // Countdown timer clock
-  useEffect(() => {
-    if (!open || isConfirmed || isExpired) return;
-    const interval = setInterval(() => {
-      setCurrentTimestamp(Date.now());
-    }, 250);
-    return () => clearInterval(interval);
-  }, [open, isConfirmed, isExpired]);
-
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
       setIsManualSuccess(false);
       hasNotifiedSuccessRef.current = false;
       hasNotifiedExpiryRef.current = false;
-      setCurrentTimestamp(Date.now());
     }
     onOpenChange(isOpen);
   };
