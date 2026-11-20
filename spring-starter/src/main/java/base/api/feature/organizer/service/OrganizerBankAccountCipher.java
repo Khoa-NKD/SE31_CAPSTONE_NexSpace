@@ -46,7 +46,11 @@ public class OrganizerBankAccountCipher {
 
     /** Unreadable legacy or tampered values are never exposed as account digits. */
     public String lastFour(Long profileId, String stored) {
-        if (!isConfigured() || stored == null || !stored.startsWith(PREFIX)) return null;
+        if (stored == null || stored.isBlank()) return null;
+        if (!stored.startsWith(PREFIX)) {
+            return stored.matches("[0-9]{6,34}") ? stored.substring(stored.length() - 4) : null;
+        }
+        if (!isConfigured()) return null;
         try {
             String[] parts = stored.substring(PREFIX.length()).split(":", -1);
             if (parts.length != 2) return null;
@@ -55,6 +59,22 @@ public class OrganizerBankAccountCipher {
             String number = new String(cipher(Cipher.DECRYPT_MODE, profileId, iv)
                     .doFinal(Base64.getDecoder().decode(parts[1])), StandardCharsets.UTF_8);
             return number.matches("[0-9]{6,34}") ? number.substring(number.length() - 4) : null;
+        } catch (GeneralSecurityException | IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    public String decrypt(Long profileId, String stored) {
+        if (stored == null || stored.isBlank()) return null;
+        if (!stored.startsWith(PREFIX)) return stored;
+        if (!isConfigured()) throw new ConflictException("Bank decryption is temporarily unavailable");
+        try {
+            String[] parts = stored.substring(PREFIX.length()).split(":", -1);
+            if (parts.length != 2) return null;
+            byte[] iv = Base64.getDecoder().decode(parts[0]);
+            if (iv.length != 12) return null;
+            return new String(cipher(Cipher.DECRYPT_MODE, profileId, iv)
+                    .doFinal(Base64.getDecoder().decode(parts[1])), StandardCharsets.UTF_8);
         } catch (GeneralSecurityException | IllegalArgumentException ex) {
             return null;
         }

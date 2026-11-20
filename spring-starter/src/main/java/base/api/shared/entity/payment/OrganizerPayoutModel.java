@@ -73,6 +73,10 @@ public class OrganizerPayoutModel extends BaseModel {
     @Column(name = "payout_reference", length = 100)
     private String payoutReference;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "withdrawal_batch_id")
+    private OrganizerWithdrawalBatchModel withdrawalBatch;
+
     @Column(name = "paid_at")
     private LocalDateTime paidAt;
 }
