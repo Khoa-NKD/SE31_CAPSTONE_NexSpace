@@ -501,9 +501,10 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
     private HoldResourceResponseDto toHoldResponseDto(BookingModel booking, LocalDateTime serverTime, boolean isReused) {
         LocalDateTime expiresAt = booking.getHoldExpiresAt();
+        int effectiveHoldMinutes = getEffectiveHoldMinutes();
         long ttlSeconds = expiresAt != null
                 ? Math.max(0, Duration.between(serverTime, expiresAt).getSeconds())
-                : (getEffectiveHoldMinutes() * 60L);
+                : (effectiveHoldMinutes * 60L);
 
         BookableResourceModel res = booking.getResource();
         WorkspaceModel ws = booking.getWorkspace();
@@ -543,6 +544,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .holdExpiresAt(expiresAt)
                 .serverTime(serverTime)
                 .ttlSeconds(ttlSeconds)
+                .holdDurationMinutes(effectiveHoldMinutes)
                 .isReused(isReused)
                 .baseAmount(booking.getBaseAmount())
                 .finalPrice(booking.getFinalPrice())
@@ -906,6 +908,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .holdExpiresAt(null)
                 .serverTime(now)
                 .ttlSeconds(0)
+                .holdDurationMinutes(getEffectiveHoldMinutes())
                 .isReused(false)
                 .baseAmount(null)
                 .finalPrice(null)

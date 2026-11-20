@@ -46,6 +46,9 @@ public class HoldResourceResponseDto {
     @Schema(description = "Số giây còn lại của phiên giữ chỗ", example = "600")
     long ttlSeconds;
 
+    @Schema(description = "Thời lượng giữ chỗ cấu hình từ hệ thống / cơ sở dữ liệu (phút)", example = "7")
+    Integer holdDurationMinutes;
+
     @JsonProperty("isReused")
     @Schema(description = "Cờ đánh dấu phiên giữ chỗ này được tái sử dụng (Idempotent Reuse)", example = "false")
     boolean isReused;

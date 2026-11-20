@@ -18,6 +18,7 @@ public class BookingHoldResponseDTO {
     LocalDateTime holdExpiresAt;
     Long remainingSeconds;
     LocalDateTime serverTime;
+    Integer holdDurationMinutes;
     Integer remainingHoldAttempts;
     Integer maxHoldAttempts;
     Integer penaltyBlockMinutes;
