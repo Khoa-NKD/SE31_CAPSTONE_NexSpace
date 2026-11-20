@@ -173,8 +173,8 @@ export function BookingReviewPage({
           seatCode={seatCode || 'Desk A-12'}
           holdExpiresAt={effectiveExpiresAt}
           initialSeconds={effectiveInitialSeconds}
-          serverTime={effectiveHoldData?.serverTime}
-          holdDurationMinutes={effectiveBooking?.holdDurationMinutes ?? (effectiveHoldData?.holdDurationMinutes ?? undefined)}
+          serverTime={effectiveBooking?.serverTime || effectiveHoldData?.serverTime}
+          holdDurationMinutes={effectiveBooking?.holdDurationMinutes ?? effectiveHoldData?.holdDurationMinutes ?? 15}
           remainingHoldAttempts={effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3}
           maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
           penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}

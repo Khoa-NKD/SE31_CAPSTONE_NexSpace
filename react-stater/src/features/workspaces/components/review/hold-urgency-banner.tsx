@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { Timer, AlertTriangle, XCircle, RotateCcw, ShieldAlert } from 'lucide-react';
 import { useReleaseHoldMutation } from '@/features/resource-availability';
 import { toast } from 'sonner';
@@ -43,32 +43,18 @@ export function HoldUrgencyBanner({
   onReleaseSuccess
 }: HoldUrgencyBannerProps) {
   const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
-  const [serverOffset] = useState(() => (serverTime ? new Date(serverTime).getTime() - Date.now() : 0));
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
   // Tổng thời lượng giữ chỗ (phút) được lấy động từ cấu hình Database (thông qua Backend API)
-  const [effectiveTotalMinutes] = useState<number>(() => {
-    if (holdDurationMinutes && holdDurationMinutes > 0) {
-      return holdDurationMinutes;
-    }
-    if (initialSeconds && initialSeconds > 0) {
-      return Math.max(1, Math.round(initialSeconds / 60));
-    }
-    const targetExpiresAt = holdExpiresAt || expiresAt;
-    if (targetExpiresAt) {
-      const expTime = new Date(targetExpiresAt).getTime();
-      const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
-      const initialDiff = Math.max(1, Math.floor((expTime - (Date.now() + offset)) / 1000));
-      return Math.max(1, Math.round(initialDiff / 60));
-    }
-    return 10;
-  });
+  const totalHoldMinutes = holdDurationMinutes && holdDurationMinutes > 0
+    ? holdDurationMinutes
+    : (initialSeconds && initialSeconds > 0 ? Math.ceil(initialSeconds / 60) : 15);
 
-  const maxHoldSeconds = effectiveTotalMinutes * 60;
+  const maxHoldSeconds = totalHoldMinutes * 60;
   const initialHoldDuration = initialSeconds && initialSeconds > 0
-    ? Math.min(initialSeconds, maxHoldSeconds)
+    ? initialSeconds
     : maxHoldSeconds;
 
   const releaseHoldMutation = useReleaseHoldMutation();
@@ -82,25 +68,33 @@ export function HoldUrgencyBanner({
     return () => clearInterval(timer);
   }, []);
 
+  // Tính chênh lệch thời gian máy chủ (serverOffset) dựa trên nhịp timer currentTimestamp
+  const serverOffset = useMemo(() => {
+    if (!serverTime) return 0;
+    try {
+      const sTime = new Date(serverTime).getTime();
+      if (!isNaN(sTime)) {
+        return sTime - currentTimestamp;
+      }
+    } catch {
+      // fallback
+    }
+    return 0;
+  }, [serverTime, currentTimestamp]);
+
   const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
 
-  // Tính mili-giây còn lại chính xác cao
+  // Tính mili-giây còn lại chính xác cao từ mốc hết hạn
   const remainingMs = expiryTimestamp > 0
     ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
     : initialHoldDuration * 1000;
 
-  const rawSecondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
-  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : rawSecondsRemaining <= 0;
-
-  // Tổng thời gian cơ sở chuẩn hóa theo số phút chẵn từ cơ sở dữ liệu
-  const totalHoldMinutes = effectiveTotalMinutes;
-
-  // Chặn trần để không bao giờ vượt quá thời lượng cấu hình trong DB (ví dụ DB cài 7 phút thì đếm từ 07:00, DB cài 10 phút thì đếm từ 10:00)
-  const secondsRemaining = Math.min(rawSecondsRemaining, maxHoldSeconds);
+  const secondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
+  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : secondsRemaining <= 0;
 
   // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%
-  const totalMs = maxHoldSeconds * 1000;
-  const progressRatio = Math.min(1, Math.max(0, Math.min(remainingMs, totalMs) / totalMs));
+  const totalMs = Math.max(maxHoldSeconds * 1000, remainingMs);
+  const progressRatio = Math.min(1, Math.max(0, remainingMs / totalMs));
   const progressPercentage = progressRatio * 100;
 
   // Thanh tiến độ chuyển 3 màu tùy mức thời gian còn lại:
@@ -259,7 +253,7 @@ export function HoldUrgencyBanner({
             hủy hoặc giữ chỗ. Nếu quá {maxHoldAttempts} lần mà không thanh toán, tài khoản sẽ bị phạt tạm khóa đặt chỗ trong vòng{' '}
             <span className='font-extrabold text-rose-700 underline decoration-rose-500 underline-offset-2 dark:text-rose-400'>
               {penaltyBlockMinutes} phút
-            </span>. Trong vòng 24 giờ hoặc sau khi thanh toán thành công, số lần hủy/giữ sẽ được tự động thiết lập lại về ban đầu.
+            </span>. Sau khi hết {penaltyBlockMinutes} phút phạt (hoặc sau 24 giờ đối với trường hợp chưa bị phạt) hoặc sau khi hoàn tất thanh toán, số lần giữ chỗ sẽ được tự động thiết lập lại về ban đầu ({maxHoldAttempts} lần).
           </div>
         </div>
 

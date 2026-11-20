@@ -441,7 +441,7 @@ export function PriceBreakdownCard({
 
         {/* Reassurance pill */}
         <div className='bg-muted/70 text-muted-foreground rounded-lg p-2.5 text-center text-xs'>
-          Miễn phí hủy trong thời gian 10 phút giữ chỗ
+          Miễn phí hủy trong thời gian 15 phút giữ chỗ
         </div>
       </div>
 

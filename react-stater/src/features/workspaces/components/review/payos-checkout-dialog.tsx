@@ -9,7 +9,6 @@ import {
   Copy,
   Check,
   Timer,
-  KeyRound,
   ArrowLeft,
   RefreshCw,
   Loader2,
@@ -47,7 +46,7 @@ interface PayOSCheckoutDialogProps {
 export function PayOSCheckoutDialog({
   open,
   onOpenChange,
-  seatCode = 'Desk A-04',
+  seatCode: _seatCode = 'Desk A-04',
   orderRef = '#NX-8821',
   checkoutData,
   isLoading = false,
@@ -77,7 +76,7 @@ export function PayOSCheckoutDialog({
   const secondsRemaining =
     expiryTimestamp > 0
       ? Math.max(0, Math.floor((expiryTimestamp - currentTimestamp) / 1000))
-      : 600;
+      : 900;
 
   const isExpired =
     !isConfirmed &&
@@ -110,7 +109,7 @@ export function PayOSCheckoutDialog({
     if (!open || isConfirmed || isExpired) return;
     const interval = setInterval(() => {
       setCurrentTimestamp(Date.now());
-    }, 1000);
+    }, 250);
     return () => clearInterval(interval);
   }, [open, isConfirmed, isExpired]);
 

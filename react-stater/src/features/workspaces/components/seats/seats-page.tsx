@@ -453,8 +453,8 @@ export function SeatsPage({
 
       toast.success(
         c(
-          `Held ${res.name || res.code} for 10 minutes!`,
-          `Đã giữ chỗ ${res.name || res.code} trong 10 phút!`
+          `Held ${res.name || res.code} for 15 minutes!`,
+          `Đã giữ chỗ ${res.name || res.code} trong 15 phút!`
         )
       );
 
