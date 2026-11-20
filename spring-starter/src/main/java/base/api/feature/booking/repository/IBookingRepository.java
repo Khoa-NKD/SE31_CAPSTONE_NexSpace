@@ -441,4 +441,15 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
     List<BookingModel> findUpcomingConfirmedBookings(
             @Param("windowStart") LocalDateTime windowStart,
             @Param("windowEnd") LocalDateTime windowEnd);
+
+    @Query("""
+            SELECT b FROM BookingModel b
+            JOIN FETCH b.workspace w
+            JOIN FETCH w.organizer
+            WHERE w.organizer.id = :organizerId
+              AND b.status IN :statuses
+            """)
+    List<BookingModel> findConfirmedBookingsByOrganizerId(
+            @Param("organizerId") Long organizerId,
+            @Param("statuses") Collection<BookingStatus> statuses);
 }

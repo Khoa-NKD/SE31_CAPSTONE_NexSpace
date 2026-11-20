@@ -11,8 +11,13 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface IUserNotificationRepository extends JpaRepository<UserNotificationModel, Long> {
-    Page<UserNotificationModel> findByUserId(Long userId, Pageable pageable);
-    Page<UserNotificationModel> findByUserIdAndReadFalse(Long userId, Pageable pageable);
+    @Query(value = "SELECT n FROM UserNotificationModel n WHERE n.user.id = :userId ORDER BY n.read ASC, n.createdAt DESC",
+           countQuery = "SELECT COUNT(n) FROM UserNotificationModel n WHERE n.user.id = :userId")
+    Page<UserNotificationModel> findByUserId(@Param("userId") Long userId, Pageable pageable);
+
+    @Query(value = "SELECT n FROM UserNotificationModel n WHERE n.user.id = :userId AND n.read = false ORDER BY n.createdAt DESC",
+           countQuery = "SELECT COUNT(n) FROM UserNotificationModel n WHERE n.user.id = :userId AND n.read = false")
+    Page<UserNotificationModel> findByUserIdAndReadFalse(@Param("userId") Long userId, Pageable pageable);
     long countByUserIdAndReadFalse(Long userId);
 
     @Modifying

@@ -32,6 +32,10 @@ public interface INotificationService {
 
     void sendRefundCompletedNotification(RefundRequestModel refund);
 
+    void sendWorkspaceReviewToOrganizerNotification(Long organizerId, String workspaceName, String customerName, int rating, String comment, Long reviewId);
+
+    void sendComplaintToOrganizerNotification(Long organizerId, String workspaceName, String customerName, String complaintTitle, String complaintDetail, Long caseId);
+
     void sendNewBookingToOrganizerNotification(BookingModel booking);
 
     void sendBookingPendingApprovalToOrganizerNotification(BookingModel booking);

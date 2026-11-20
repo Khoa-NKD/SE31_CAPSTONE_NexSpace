@@ -67,6 +67,9 @@ public class OrganizerProfileModel extends BaseModel {
     @Column(name = "bank_name", length = 100)
     private String bankName;
 
+    @Column(name = "bank_bin", length = 20)
+    private String bankBin;
+
     /** Mã hoá; UI hiện 4 số cuối. */
     @Column(name = "bank_account_number")
     private String bankAccountNumber;
