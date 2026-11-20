@@ -87,6 +87,12 @@ export const navGroups: NavGroup[] = [
         label: '3'
       },
       {
+        title: 'Payouts & Ledger',
+        url: '/dashboard/admin/payouts',
+        icon: 'billing',
+        isActive: false
+      },
+      {
         title: 'Commission & Fees',
         url: '/dashboard/admin/commissions',
         icon: 'adjustments',
@@ -280,6 +286,12 @@ export const organizerNavGroups: NavGroup[] = [
         title: 'Analytics',
         url: '/dashboard/organizer/analytics',
         icon: 'trendingUp',
+        isActive: false
+      },
+      {
+        title: 'Payouts & Balance',
+        url: '/dashboard/organizer/payouts',
+        icon: 'billing',
         isActive: false
       }
     ]
