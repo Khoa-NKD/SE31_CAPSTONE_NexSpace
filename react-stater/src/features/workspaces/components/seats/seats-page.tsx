@@ -19,7 +19,8 @@ import {
   Loader2,
   Map as MapIcon,
   LayoutList,
-  Eye
+  Eye,
+  ShieldAlert
 } from 'lucide-react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -110,6 +111,8 @@ export function SeatsPage({
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
   const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
+
+  const { data: holdData } = useCurrentPendingBooking();
 
   const defaults = useMemo(() => getDefaultSchedule(), []);
 
@@ -346,6 +349,21 @@ export function SeatsPage({
     const res = targetResource || selectedResource;
     if (!workspaceId || !res) return;
 
+    if (holdData?.isBookingSuspended) {
+      toast.error(
+        c(
+          'Your account is temporarily suspended from holding or booking spaces.',
+          'Tài khoản của bạn đang bị tạm khóa quyền giữ chỗ và đặt phòng/ghế do vi phạm quy tắc giữ chỗ quá số lần quy định.'
+        ),
+        {
+          description: holdData.bookingSuspendedUntil
+            ? `Tạm khóa đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng 20 phút).`
+            : 'Vui lòng thử lại sau 20 phút.'
+        }
+      );
+      return;
+    }
+
     // Check if user already holds this exact resource
     const hasActiveHold =
       currentPendingBooking &&
@@ -371,11 +389,14 @@ export function SeatsPage({
     }
 
     const currentAvail = availabilityMap.get(res.id);
-    if (currentAvail?.state === 'BOOKED' || currentAvail?.state === 'LOCKED' || currentAvail?.state === 'MAINTENANCE') {
+    const isHeldByMe = Boolean(currentAvail?.isOccupiedByMe || (holdData?.resourceId === res.id));
+    const isLockedByOthers = (currentAvail?.state === 'LOCKED' || currentAvail?.state === 'HOLDING') && !isHeldByMe;
+
+    if (currentAvail?.state === 'BOOKED' || isLockedByOthers || currentAvail?.state === 'MAINTENANCE') {
       toast.error(
         c(
           'This seat is currently held or booked by someone else. Please select another seat.',
-          'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
+          'Vị trí này hiện đang được người khác giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
         )
       );
       return;
@@ -390,6 +411,25 @@ export function SeatsPage({
       navigate({
         to: '/auth/sign-in',
         search: { redirect: redirectUrl }
+      });
+      return;
+    }
+
+    // Nếu người dùng đã giữ chỗ này trước đó (ví dụ sau khi login xong quay lại hoặc đã có pending hold),
+    // chuyển trực tiếp sang trang review mà không cần gọi hold lại hoặc hiển thị warning
+    if (isHeldByMe && holdData?.bookingId) {
+      navigate({
+        to: '/workspaces/review',
+        search: {
+          workspaceId,
+          resourceId: res.id,
+          bookingId: holdData.bookingId,
+          bookingCode: holdData.bookingCode || '',
+          startTime: currentStartTime,
+          endTime: currentEndTime,
+          date: currentDateLabel,
+          priceType: 'HOURLY'
+        }
       });
       return;
     }
@@ -520,6 +560,28 @@ export function SeatsPage({
                 </DateTimePickerModal>
               </div>
             </div>
+
+            {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá 3 lần hold không thanh toán */}
+            {holdData?.isBookingSuspended && (
+              <div className='rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive flex items-center gap-3 shadow-xs animate-in fade-in'>
+                <ShieldAlert className='size-5 shrink-0 text-destructive' />
+                <div className='flex-1'>
+                  <p className='font-bold text-sm'>
+                    {c('Booking privileges temporarily suspended', 'Tài khoản đang bị tạm khóa quyền giữ chỗ và đặt phòng/ghế')}
+                  </p>
+                  <p className='text-xs text-destructive/90 mt-0.5'>
+                    {c(
+                      `You have exceeded the maximum of 3 unpaid hold attempts. You cannot hold or book any desks or rooms for the next 20 minutes${
+                        holdData.bookingSuspendedUntil ? ` (until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
+                      }.`,
+                      `Bạn đã dùng hết 3 lần giữ chỗ mà không thanh toán. Tài khoản bị tạm khóa quyền đặt bất kỳ phòng hay bàn nào trong vòng 20 phút${
+                        holdData.bookingSuspendedUntil ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
+                      } do vi phạm quy tắc.`
+                    )}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Category Filter Tabs & 2 View Modes (Xem sơ đồ & Xem theo List) */}
             <div className='flex flex-wrap items-center justify-between gap-3'>
@@ -743,13 +805,20 @@ export function SeatsPage({
 
                       <Button
                         onClick={() => handleProceedToReview()}
-                        disabled={createBookingMutation.isPending}
-                        className='h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer'
+                        disabled={createBookingMutation.isPending || Boolean(holdData?.isBookingSuspended)}
+                        className={`h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer ${
+                          holdData?.isBookingSuspended ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed' : ''
+                        }`}
                       >
                         {createBookingMutation.isPending ? (
                           <>
                             <Loader2 className='size-4 animate-spin' />
                             <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
+                          </>
+                        ) : holdData?.isBookingSuspended ? (
+                          <>
+                            <ShieldAlert className='size-4 text-destructive' />
+                            <span>{c('Privileges Suspended (20m)', 'Đang bị khóa đặt chỗ (20p)')}</span>
                           </>
                         ) : (
                           <>
