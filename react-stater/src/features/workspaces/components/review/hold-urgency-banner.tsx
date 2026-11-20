@@ -46,19 +46,21 @@ export function HoldUrgencyBanner({
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
-  // Khởi tạo tổng thời gian ban đầu của phiên giữ chỗ (đồng bộ với DB, không fix cứng 600s/10p)
+  // Khởi tạo tổng thời gian ban đầu của phiên giữ chỗ (làm tròn theo phút chẵn, ví dụ 7 phút = 420s)
   const [initialHoldDuration] = useState<number>(() => {
     if (initialSeconds && initialSeconds > 0) {
-      return initialSeconds;
+      const approxMinutes = Math.max(1, Math.round(initialSeconds / 60));
+      return approxMinutes * 60;
     }
     const targetExpiresAt = holdExpiresAt || expiresAt;
     if (targetExpiresAt) {
       const expTime = new Date(targetExpiresAt).getTime();
       const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
-      const initialDiff = Math.ceil((expTime - (Date.now() + offset)) / 1000);
-      return Math.max(initialDiff, 1);
+      const initialDiff = Math.max(1, Math.floor((expTime - (Date.now() + offset)) / 1000));
+      const approxMinutes = Math.max(1, Math.round(initialDiff / 60));
+      return approxMinutes * 60;
     }
-    return 600;
+    return 420;
   });
 
   const releaseHoldMutation = useReleaseHoldMutation();
@@ -77,18 +79,21 @@ export function HoldUrgencyBanner({
   // Tính mili-giây còn lại chính xác cao
   const remainingMs = expiryTimestamp > 0
     ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
-    : (initialSeconds ?? 600) * 1000;
+    : (initialSeconds ?? 420) * 1000;
 
-  const secondsRemaining = Math.max(0, Math.ceil(remainingMs / 1000));
-  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : secondsRemaining <= 0;
+  const rawSecondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
+  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : rawSecondsRemaining <= 0;
 
-  // Tổng thời gian cơ sở (nếu server gia hạn hold dài hơn ban đầu, tự động mở rộng theo secondsRemaining)
-  const baseTotalSeconds = Math.max(initialHoldDuration, secondsRemaining, 1);
-  const totalHoldMinutes = Math.max(1, Math.round(baseTotalSeconds / 60));
+  // Tổng thời gian cơ sở chuẩn hóa theo số phút chẵn
+  const totalHoldMinutes = Math.max(1, Math.round(initialHoldDuration / 60));
+  const maxHoldSeconds = totalHoldMinutes * 60;
+
+  // Chặn trần để không bao giờ vượt quá thời gian ban đầu (ví dụ 7 phút thì bắt đầu đếm từ 07:00, không bị 07:03 hay 07:05)
+  const secondsRemaining = Math.min(rawSecondsRemaining, maxHoldSeconds);
 
   // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%
-  const totalMs = baseTotalSeconds * 1000;
-  const progressRatio = Math.min(1, Math.max(0, remainingMs / totalMs));
+  const totalMs = maxHoldSeconds * 1000;
+  const progressRatio = Math.min(1, Math.max(0, Math.min(remainingMs, totalMs) / totalMs));
   const progressPercentage = progressRatio * 100;
 
   // Thanh tiến độ chuyển 3 màu tùy mức thời gian còn lại:
