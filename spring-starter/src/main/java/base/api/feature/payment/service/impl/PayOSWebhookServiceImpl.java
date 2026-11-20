@@ -4,16 +4,19 @@ import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.WebhookProcessResultDTO;
+import base.api.feature.payment.repository.IOrganizerPayoutRepository;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPayOSWebhookService;
 import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.shared.entity.booking.BookingModel;
+import base.api.shared.entity.payment.OrganizerPayoutModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.CancelSource;
 import base.api.shared.enums.PaymentStatus;
+import base.api.shared.enums.PayoutStatus;
 import base.api.shared.enums.ReconciliationStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
@@ -43,6 +46,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
     private final IInvoiceService invoiceService;
     private final INotificationService notificationService;
     private final IResourceStateSyncService resourceStateSyncService;
+    private final IOrganizerPayoutRepository payoutRepository;
 
     @Override
     @Transactional
@@ -288,6 +292,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
 
                     // Gửi thông báo booking mới cho Organizer của không gian làm việc
                     notificationService.sendNewBookingToOrganizerNotification(booking);
+
+                    // Khởi tạo bản ghi OrganizerPayout ở trạng thái HELD
+                    createHeldPayoutForBooking(booking);
                 } else {
                     // Late payment after cancellation/expiration
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
@@ -339,6 +346,43 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                     .status("FAILED")
                     .message("Giao dịch thanh toán thất bại: " + desc)
                     .build();
+        }
+    }
+
+    private void createHeldPayoutForBooking(BookingModel booking) {
+        try {
+            if (booking.getWorkspace() == null || booking.getWorkspace().getOrganizer() == null) {
+                return;
+            }
+            if (payoutRepository.findByBookingId(booking.getId()).isPresent()) {
+                return;
+            }
+            OrganizerPayoutModel payout = new OrganizerPayoutModel();
+            payout.setOrganizer(booking.getWorkspace().getOrganizer());
+            payout.setBooking(booking);
+
+            BigDecimal base = booking.getBaseAmount() != null ? booking.getBaseAmount() : BigDecimal.ZERO;
+            BigDecimal surcharge = booking.getSurchargeAmount() != null ? booking.getSurchargeAmount() : BigDecimal.ZERO;
+            BigDecimal addon = booking.getAddonAmount() != null ? booking.getAddonAmount() : BigDecimal.ZERO;
+            BigDecimal vat = booking.getTaxAmount() != null ? booking.getTaxAmount() : BigDecimal.ZERO;
+            BigDecimal platformFee = booking.getPlatformFeeAmount() != null ? booking.getPlatformFeeAmount() : BigDecimal.ZERO;
+
+            BigDecimal gross = base.add(surcharge).add(addon);
+            BigDecimal payoutAmount = gross.add(vat).subtract(platformFee);
+
+            payout.setGrossAmount(gross);
+            payout.setPlatformFeeAmount(platformFee);
+            payout.setRefundDeductionAmount(BigDecimal.ZERO);
+            payout.setPayoutAmount(payoutAmount);
+
+            LocalDateTime eligibleAt = booking.getEndTime() != null ? booking.getEndTime().plusDays(1) : LocalDateTime.now().plusDays(1);
+            payout.setEligibleAt(eligibleAt);
+            payout.setStatus(PayoutStatus.HELD);
+
+            payoutRepository.save(payout);
+            log.info("Created HELD OrganizerPayout for booking {}, eligibleAt={}", booking.getBookingCode(), eligibleAt);
+        } catch (Exception e) {
+            log.error("Failed to create OrganizerPayout for booking {}: {}", booking.getBookingCode(), e.getMessage(), e);
         }
     }
 }
