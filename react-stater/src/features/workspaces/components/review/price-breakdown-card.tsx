@@ -53,6 +53,7 @@ interface PriceBreakdownCardProps {
   activeBooking?: BookingDto | null;
   onBookingCreated?: (booking: BookingDto | null) => void;
   autoOpen?: boolean;
+  secondsRemaining?: number;
 }
 
 export function PriceBreakdownCard({
@@ -65,7 +66,8 @@ export function PriceBreakdownCard({
   seatCode = 'Desk A-01',
   activeBooking,
   onBookingCreated,
-  autoOpen
+  autoOpen,
+  secondsRemaining
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
@@ -452,6 +454,7 @@ export function PriceBreakdownCard({
         checkoutData={checkoutData}
         serverTime={effectiveBooking?.serverTime || holdData?.serverTime}
         holdExpiresAt={effectiveBooking?.holdExpiresAt || holdData?.holdExpiresAt}
+        secondsRemaining={secondsRemaining}
         orderRef={
           effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : (holdData?.bookingCode ?? undefined)
         }

@@ -107,10 +107,73 @@ export function BookingReviewPage({
     (resourceId ? `Seat #${resourceId}` : effectiveHoldData?.seatCode || 'Desk A-01');
 
   const effectiveExpiresAt = effectiveBooking?.holdExpiresAt || effectiveHoldData?.holdExpiresAt;
+  const effectiveServerTime = effectiveBooking?.serverTime || effectiveHoldData?.serverTime;
   const effectiveInitialSeconds =
     extractSeconds(effectiveBooking) ??
     extractSeconds(effectiveHoldData) ??
     undefined;
+
+  // Single Source of Truth cho bộ đếm thời gian giữ chỗ - duy trì liên tục bất kể đóng/mở popup QR
+  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        const srv = effectiveServerTime ? new Date(effectiveServerTime).getTime() : Date.now();
+        if (!isNaN(exp) && !isNaN(srv)) {
+          return Math.max(0, Math.floor((exp - srv) / 1000));
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return effectiveInitialSeconds ?? 900;
+  });
+
+  useEffect(() => {
+    let targetClientExpiry: number;
+    const clientNow = Date.now();
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        if (!isNaN(exp)) {
+          if (effectiveServerTime) {
+            const srv = new Date(effectiveServerTime).getTime();
+            if (!isNaN(srv)) {
+              const diffMs = Math.max(0, exp - srv);
+              targetClientExpiry = clientNow + diffMs;
+            } else {
+              targetClientExpiry = exp;
+            }
+          } else {
+            targetClientExpiry = exp;
+          }
+        } else {
+          targetClientExpiry = clientNow + (effectiveInitialSeconds ?? 900) * 1000;
+        }
+      } catch {
+        targetClientExpiry = clientNow + (effectiveInitialSeconds ?? 900) * 1000;
+      }
+    } else {
+      targetClientExpiry = clientNow + (effectiveInitialSeconds ?? 900) * 1000;
+    }
+
+    const updateRemaining = () => {
+      const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
+      setSecondsRemaining(remaining);
+      return remaining;
+    };
+
+    updateRemaining();
+
+    const interval = setInterval(() => {
+      const remaining = updateRemaining();
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [effectiveExpiresAt, effectiveServerTime, effectiveInitialSeconds]);
 
   // If a booking ID or Code was specified but still resolving, show clean loading view
   const isResolvingBooking = Boolean(bookingId || bookingCode) && !initialBooking && (isLoadingBookingById || isLoadingBookingByCode);
@@ -178,6 +241,7 @@ export function BookingReviewPage({
           remainingHoldAttempts={effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3}
           maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
           penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}
+          secondsRemaining={secondsRemaining}
           onReleaseSuccess={() => {
             if (workspaceId) {
               window.location.href = `/workspaces/${workspaceId}`;
@@ -222,6 +286,7 @@ export function BookingReviewPage({
               activeBooking={effectiveBooking}
               onBookingCreated={setActiveBooking}
               autoOpen={autoOpen}
+              secondsRemaining={secondsRemaining}
             />
           </div>
         </div>

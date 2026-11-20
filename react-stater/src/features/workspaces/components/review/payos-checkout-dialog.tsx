@@ -40,6 +40,7 @@ interface PayOSCheckoutDialogProps {
   checkoutData?: PaymentCheckoutResponse | null;
   serverTime?: string | null;
   holdExpiresAt?: string | null;
+  secondsRemaining?: number;
   isLoading?: boolean;
   onRetry?: () => void;
   onCancelCheckoutSuccess?: () => void;
@@ -53,6 +54,7 @@ export function PayOSCheckoutDialog({
   checkoutData,
   serverTime,
   holdExpiresAt,
+  secondsRemaining: propSecondsRemaining,
   isLoading = false,
   onRetry,
   onCancelCheckoutSuccess
@@ -66,7 +68,7 @@ export function PayOSCheckoutDialog({
   const hasNotifiedSuccessRef = useRef(false);
   const hasNotifiedExpiryRef = useRef(false);
 
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+  const [internalSecondsRemaining, setInternalSecondsRemaining] = useState<number>(() => {
     if (effectiveExpiry) {
       try {
         const exp = new Date(effectiveExpiry).getTime();
@@ -96,9 +98,9 @@ export function PayOSCheckoutDialog({
     statusData?.paymentStatus === 'SUCCESS' ||
     statusData?.bookingStatus === 'CONFIRMED';
 
-  // Countdown timer clock đồng bộ mốc thời gian máy chủ
+  // Countdown timer clock đồng bộ mốc thời gian máy chủ (chỉ chạy khi không được truyền secondsRemaining từ component cha)
   useEffect(() => {
-    if (!open || isConfirmed) return;
+    if (propSecondsRemaining != null || !open || isConfirmed) return;
 
     let targetClientExpiry: number;
     const clientNow = Date.now();
@@ -129,14 +131,16 @@ export function PayOSCheckoutDialog({
 
     const interval = setInterval(() => {
       const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
-      setSecondsRemaining(remaining);
+      setInternalSecondsRemaining(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, [open, isConfirmed, effectiveExpiry, serverTime]);
+  }, [propSecondsRemaining, open, isConfirmed, effectiveExpiry, serverTime]);
+
+  const secondsRemaining = propSecondsRemaining != null ? propSecondsRemaining : internalSecondsRemaining;
 
   const isExpired =
     !isConfirmed &&

@@ -24,6 +24,7 @@ interface HoldUrgencyBannerProps {
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
   penaltyBlockMinutes?: number;
+  secondsRemaining?: number;
   onExpired?: () => void;
   onReleaseSuccess?: () => void;
 }
@@ -39,6 +40,7 @@ export function HoldUrgencyBanner({
   remainingHoldAttempts = 3,
   maxHoldAttempts = 3,
   penaltyBlockMinutes = 20,
+  secondsRemaining: propSecondsRemaining,
   onExpired,
   onReleaseSuccess
 }: HoldUrgencyBannerProps) {
@@ -56,7 +58,7 @@ export function HoldUrgencyBanner({
     : maxHoldSeconds;
 
   const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
-  const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
+  const [internalSecondsRemaining, setInternalSecondsRemaining] = useState<number>(() => {
     if (effectiveExpiresAt) {
       try {
         const exp = new Date(effectiveExpiresAt).getTime();
@@ -77,8 +79,10 @@ export function HoldUrgencyBanner({
 
   const releaseHoldMutation = useReleaseHoldMutation();
 
-  // Đồng bộ đếm ngược theo mốc hết hạn của máy chủ
+  // Đồng bộ đếm ngược theo mốc hết hạn của máy chủ (chỉ chạy khi không được truyền secondsRemaining từ cha)
   useEffect(() => {
+    if (propSecondsRemaining != null) return;
+
     let targetClientExpiry: number;
     const clientNow = Date.now();
     if (effectiveExpiresAt) {
@@ -108,15 +112,16 @@ export function HoldUrgencyBanner({
 
     const interval = setInterval(() => {
       const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
-      setSecondsRemaining(remaining);
+      setInternalSecondsRemaining(remaining);
       if (remaining <= 0) {
         clearInterval(interval);
       }
     }, 500);
 
     return () => clearInterval(interval);
-  }, [effectiveExpiresAt, serverTime, initialHoldDuration]);
+  }, [propSecondsRemaining, effectiveExpiresAt, serverTime, initialHoldDuration]);
 
+  const secondsRemaining = propSecondsRemaining != null ? propSecondsRemaining : internalSecondsRemaining;
   const isExpired = secondsRemaining <= 0;
 
   // Tính phần trăm tiến trình từ 100% về 0%
