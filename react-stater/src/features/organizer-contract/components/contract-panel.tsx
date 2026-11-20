@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { Link } from '@tanstack/react-router';
+import { Link, useRouter } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Check,
@@ -28,6 +28,7 @@ import {
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { currentUser } from '@/features/auth/api/session';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 import { invalidateLifecycle } from '@/features/organizer-lifecycle/api/lifecycle';
 import { applicationTimestamp } from '@/features/organizer-application-status/api/status';
 import {
@@ -36,6 +37,7 @@ import {
   requestContractOtp,
   signContract
 } from '../api/contract';
+import { ContractAddenda } from './contract-addenda';
 
 const PdfViewer = lazy(() =>
   import('@/features/admin-organizers/components/pdf-document-viewer').then((m) => ({
@@ -59,6 +61,7 @@ export function ContractPanel({
   const t = (vi: string, en: string) => (language === 'vi' ? vi : en);
   const actor = useAuthStore((s) => s.user);
   const client = useQueryClient();
+  const router = useRouter();
   const options = contractQueryOptions(actor?.id ?? 0, applicationId);
   const query = useQuery({ ...options, enabled: !!actor && !!useAuthStore.getState().accessToken });
   const [consent, setConsent] = useState(false);
@@ -70,6 +73,17 @@ export function ContractPanel({
   const downloadController = useRef<AbortController | null>(null);
   const contract = query.data;
   const signed = contract?.status === 'SIGNED';
+  useEffect(() => {
+    if (
+      signed &&
+      !applicationId &&
+      presentation === 'onboarding' &&
+      getUserRole(actor) === 'ORGANIZER' &&
+      !operation.current
+    ) {
+      void router.navigate({ to: '/dashboard/organizer', replace: true }).catch(() => undefined);
+    }
+  }, [signed, applicationId, presentation, actor, router]);
   useEffect(() => {
     setNow(Date.now());
     if (!contract?.resendAvailableAt || signed) return;
@@ -88,6 +102,7 @@ export function ContractPanel({
     if (!contract || operation.current) return;
     operation.current = true;
     setBusy(action);
+    const signingToken = useAuthStore.getState().accessToken;
     try {
       const result =
         action === 'otp'
@@ -112,10 +127,20 @@ export function ContractPanel({
             'Agreement confirmed. Organizer access is now active.'
           )
         );
-        // A failed session refresh must not turn a committed signature into a signing error.
+        let organizerReady = false;
+        // Confirm the upgraded role before the dashboard guard runs. A failed
+        // refresh must not turn a committed signature into a signing error.
         try {
           const user = await currentUser();
-          if (useAuthStore.getState().user?.id === actor?.id) useAuthStore.getState().setUser(user);
+          const session = useAuthStore.getState();
+          if (
+            session.user?.id === actor?.id &&
+            user.id === actor?.id &&
+            session.accessToken === signingToken
+          ) {
+            session.setUser(user);
+            organizerReady = getUserRole(user) === 'ORGANIZER';
+          }
         } catch {
           toast.info(
             t(
@@ -124,8 +149,22 @@ export function ContractPanel({
             )
           );
         }
-        await invalidateLifecycle(client);
+        // Refresh archived records in the background; navigation does not need
+        // to wait for every onboarding query to finish refetching.
+        void invalidateLifecycle(client).catch(() => undefined);
         onSigned?.();
+        if (organizerReady && !applicationId && presentation === 'onboarding') {
+          try {
+            await router.navigate({ to: '/dashboard/organizer', replace: true });
+          } catch {
+            toast.info(
+              t(
+                'Hợp đồng đã lưu. Bạn có thể mở Dashboard Organizer từ menu.',
+                'Agreement saved. Open the Organizer dashboard from the menu.'
+              )
+            );
+          }
+        }
       }
     } catch (error) {
       toast.error(
@@ -208,7 +247,12 @@ export function ContractPanel({
         <DialogHeader className='border-b px-6 py-4 pr-12'>
           <DialogTitle>{contract.contractNumber}</DialogTitle>
           <DialogDescription>
-            {t('Hợp đồng riêng tư · Bản thử nghiệm Local', 'Private agreement · Local demo')}
+            {contract.demo
+              ? t('Hợp đồng riêng tư · Bản thử nghiệm Local', 'Private agreement · Local demo')
+              : t(
+                  'Hợp đồng riêng tư · Xác nhận qua OTP email',
+                  'Private agreement · Email OTP confirmation'
+                )}
           </DialogDescription>
         </DialogHeader>
         <div className='min-h-0 flex-1 overflow-auto p-3'>
@@ -329,6 +373,7 @@ export function ContractPanel({
             </div>
           </details>
         </div>
+        <ContractAddenda applicationId={applicationId} contract={contract} />
         {pdfDialog}
       </section>
     );
@@ -579,6 +624,7 @@ export function ContractPanel({
           </Button>
         </aside>
       </div>
+      <ContractAddenda applicationId={applicationId} contract={contract} />
       {pdfDialog}
     </section>
   );

@@ -165,11 +165,6 @@ export function FloorLayoutPreview({
   const [expanded, setExpanded] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const sync = () => setExpanded(document.fullscreenElement === container.current);
-    document.addEventListener('fullscreenchange', sync);
-    return () => document.removeEventListener('fullscreenchange', sync);
-  }, []);
-  useEffect(() => {
     if (!expanded) return;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -177,7 +172,8 @@ export function FloorLayoutPreview({
       if (
         event.key === 'Escape' &&
         !event.defaultPrevented &&
-        document.fullscreenElement !== container.current &&
+        !document.fullscreenElement &&
+        !document.querySelector('input[data-file-picker-open="true"]') &&
         !document.querySelector('[role="dialog"][data-state="open"]')
       )
         setExpanded(false);
@@ -195,21 +191,13 @@ export function FloorLayoutPreview({
       return;
     }
     if (expanded) {
-      try {
-        if (document.fullscreenElement === container.current) await document.exitFullscreen();
-        else setExpanded(false);
-      } catch {
-        toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
-      }
+      if (document.fullscreenElement) await document.exitFullscreen();
+      setExpanded(false);
       return;
     }
-    try {
-      if (document.fullscreenEnabled && container.current?.requestFullscreen)
-        await container.current.requestFullscreen();
-      else setExpanded(true);
-    } catch {
-      setExpanded(true);
-    }
+    setExpanded(true);
+    // Use the page root to preserve body portals and their draft state.
+    await document.documentElement.requestFullscreen().catch(() => undefined);
   }
   const [panning, setPanning] = useState(false);
   const floor = shared.bounds ?? { x: 0, y: 0, width, height };
@@ -422,6 +410,7 @@ export function FloorLayoutPreview({
   return (
     <div
       ref={container}
+      data-canvas-expanded={expanded || fullscreenActive ? 'true' : undefined}
       className={
         expanded
           ? 'fixed inset-0 z-[80] flex h-dvh min-h-0 w-full flex-col overflow-hidden bg-background'

@@ -17,8 +17,16 @@ const subscribeToFullscreen = (notify: () => void) => {
   document.addEventListener('fullscreenchange', notify);
   return () => document.removeEventListener('fullscreenchange', notify);
 };
-const fullscreenContainer = () =>
-  document.fullscreenElement instanceof HTMLElement ? document.fullscreenElement : null;
+const fullscreenContainer = () => {
+  const element = document.fullscreenElement;
+  // Page fullscreen already contains the default body portal. Keep that portal
+  // stable when a native file picker causes the browser to leave fullscreen.
+  return element instanceof HTMLElement &&
+    element !== document.documentElement &&
+    element !== document.body
+    ? element
+    : null;
+};
 const serverFullscreenContainer = () => null;
 
 function DialogPortal({

@@ -160,10 +160,23 @@ export function FloorCanvasWorkspace({
   const [aiOpen, setAiOpen] = useState(false);
   const [aiCollapsed, setAiCollapsed] = useState(false);
   const [canvasFullscreen, setCanvasFullscreen] = useState(false);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  useEffect(() => {
+    const syncFullscreen = () => setNativeFullscreen(!!document.fullscreenElement);
+    syncFullscreen();
+    document.addEventListener('fullscreenchange', syncFullscreen);
+    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
+  }, []);
   useEffect(() => {
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !event.defaultPrevented && !document.fullscreenElement &&
-          !document.querySelector('[role="dialog"][data-state="open"]')) setCanvasFullscreen(false);
+      if (
+        event.key === 'Escape' &&
+        !event.defaultPrevented &&
+        !document.fullscreenElement &&
+        !document.querySelector('input[data-file-picker-open="true"]') &&
+        !document.querySelector('[role="dialog"][data-state="open"]')
+      )
+        setCanvasFullscreen(false);
     };
     document.addEventListener('keydown', escape);
     return () => {
@@ -174,12 +187,14 @@ export function FloorCanvasWorkspace({
     if (!canvasFullscreen) return;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = previousOverflow; };
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
   }, [canvasFullscreen]);
   const toggleCanvasFullscreen = async () => {
-    if (canvasFullscreen || document.fullscreenElement === container.current) {
+    if (canvasFullscreen) {
       try {
-        if (document.fullscreenElement === container.current) await document.exitFullscreen();
+        if (document.fullscreenElement) await document.exitFullscreen();
       } catch {
         toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
         return;
@@ -187,9 +202,19 @@ export function FloorCanvasWorkspace({
       setCanvasFullscreen(false);
       return;
     }
-    // Keep the studio in the document. Native fullscreen can exit and remount portal
-    // contents when an OS file picker opens, interrupting an in-progress type form.
+    // Fullscreen the page so body portals stay mounted alongside the studio.
+    // Browser-initiated exits must not reset the editor or its photo form.
     setCanvasFullscreen(true);
+    try {
+      await document.documentElement.requestFullscreen();
+    } catch {
+      toast.error(
+        c(
+          'Browser fullscreen is unavailable. The canvas is expanded in this window.',
+          'Trình duyệt không cho phép toàn màn hình. Canvas đã được mở rộng trong cửa sổ.'
+        )
+      );
+    }
   };
   const [aiPrecisionEdit, setAiPrecisionEdit] = useState(false);
   const aiDrag = useRef<{ key: string; proposal: AiProposal } | null>(null);
@@ -227,14 +252,19 @@ export function FloorCanvasWorkspace({
   const availabilityStatus = (key: string) => {
     const state = calendarState(key);
     const resource = layout?.resources.find((item) => `resource:${item.id}` === key);
-    const room = resource?.category === 'DESK' && resource.parentRoomId
-      ? layout?.resources.find((item) => item.id === resource.parentRoomId)
-      : undefined;
+    const room =
+      resource?.category === 'DESK' && resource.parentRoomId
+        ? layout?.resources.find((item) => item.id === resource.parentRoomId)
+        : undefined;
     return (
       <span className='mt-1.5 block space-y-1'>
         <span
           className='inline-flex max-w-full items-center gap-1.5 rounded-md border px-2 py-1 text-[11px] font-semibold'
-          style={state ? { color: availabilityColors[state], borderColor: availabilityColors[state] } : undefined}
+          style={
+            state
+              ? { color: availabilityColors[state], borderColor: availabilityColors[state] }
+              : undefined
+          }
         >
           {state && <span className='size-1.5 shrink-0 rounded-full bg-current' />}
           {state
@@ -570,7 +600,8 @@ export function FloorCanvasWorkspace({
         rememberAi();
         setAiProposal(nextProposal);
         copiedResourceIds = pasted.resources.map(
-          (_, index) => -(nextProposal.design.resources.length - pasted.resources.length + index + 1)
+          (_, index) =>
+            -(nextProposal.design.resources.length - pasted.resources.length + index + 1)
         );
       } else {
         const sources = await Promise.all(
@@ -689,8 +720,13 @@ export function FloorCanvasWorkspace({
   }
   async function save() {
     if (
-      !layout || busy || loadingSelection || overviewDragging || !editable ||
-      validation.blocked || groupGeometry?.roomEdgeCollisions.size
+      !layout ||
+      busy ||
+      loadingSelection ||
+      overviewDragging ||
+      !editable ||
+      validation.blocked ||
+      groupGeometry?.roomEdgeCollisions.size
     )
       return;
     setBusy(true);
@@ -935,10 +971,12 @@ export function FloorCanvasWorkspace({
     : [];
   const roomObjectIds = new Set(
     roomToDeletePose
-      ? objects.filter((item) => {
-          const pose = layoutGeometry(item);
-          return pose && decorationBelongsToRoom(item, roomToDeletePose, insideRoom);
-        }).map((item) => item.id)
+      ? objects
+          .filter((item) => {
+            const pose = layoutGeometry(item);
+            return pose && decorationBelongsToRoom(item, roomToDeletePose, insideRoom);
+          })
+          .map((item) => item.id)
       : []
   );
   const entries = [
@@ -1001,7 +1039,9 @@ export function FloorCanvasWorkspace({
     (aiProposal?.scope === 'ROOM' &&
       (aiResource?.id === scopeRoomId ||
         aiResource?.parentRoomId === scopeRoomId ||
-        (!!aiObject && !!aiScopePose && decorationBelongsToRoom(aiObject, aiScopePose, insideRoom))));
+        (!!aiObject &&
+          !!aiScopePose &&
+          decorationBelongsToRoom(aiObject, aiScopePose, insideRoom))));
   const aiGeometry = aiLayout ? aiPreviewGeometry(aiLayout) : undefined;
   const aiGeometryIssues =
     !aiGeometry || aiGeometry.valid
@@ -1017,9 +1057,9 @@ export function FloorCanvasWorkspace({
             ? c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ') +
               [...aiGeometry.roomEdgeCollisions].slice(0, 5).join(', ')
             : aiGeometry.collisions.size
-            ? c('Overlapping objects: ', 'Đồ vật chồng lấn: ') +
-              [...aiGeometry.collisions].slice(0, 5).join(', ')
-            : ''
+              ? c('Overlapping objects: ', 'Đồ vật chồng lấn: ') +
+                [...aiGeometry.collisions].slice(0, 5).join(', ')
+              : ''
         ].filter(Boolean);
   function aiKeyEditable(key: string) {
     if (!aiProposal || !aiLayout) return false;
@@ -1094,12 +1134,20 @@ export function FloorCanvasWorkspace({
   return (
     <div
       ref={container}
+      data-canvas-expanded={canvasFullscreen ? 'true' : undefined}
       onKeyDown={(event) => {
         if (
-          event.defaultPrevented || !(event.target instanceof SVGElement) ||
-          !editable || !selection || busy || overviewDragging || resourceEditor ||
-          !(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'z'
-        ) return;
+          event.defaultPrevented ||
+          !(event.target instanceof SVGElement) ||
+          !editable ||
+          !selection ||
+          busy ||
+          overviewDragging ||
+          resourceEditor ||
+          !(event.ctrlKey || event.metaKey) ||
+          event.key.toLowerCase() !== 'z'
+        )
+          return;
         event.preventDefault();
         history(event.shiftKey ? 'redo' : 'undo');
       }}
@@ -1538,14 +1586,35 @@ export function FloorCanvasWorkspace({
                   </Button>
                 )}
                 {canvasFullscreen && (
-                  <Button
-                    size='sm'
-                    variant='ghost'
-                    className='h-8 text-xs'
-                    onClick={() => void toggleCanvasFullscreen()}
-                  >
-                    {c('Exit fullscreen', 'Thoát toàn màn hình')}
-                  </Button>
+                  <>
+                    {!nativeFullscreen && (
+                      <Button
+                        size='sm'
+                        variant='outline'
+                        className='h-8 text-xs'
+                        onClick={() =>
+                          void document.documentElement.requestFullscreen().catch(() => {
+                            toast.error(
+                              c(
+                                'Browser fullscreen is unavailable.',
+                                'Trình duyệt không cho phép toàn màn hình.'
+                              )
+                            );
+                          })
+                        }
+                      >
+                        {c('Restore fullscreen', 'Mở lại toàn màn hình')}
+                      </Button>
+                    )}
+                    <Button
+                      size='sm'
+                      variant='ghost'
+                      className='h-8 text-xs'
+                      onClick={() => void toggleCanvasFullscreen()}
+                    >
+                      {c('Exit fullscreen', 'Thoát toàn màn hình')}
+                    </Button>
+                  </>
                 )}
               </div>
             </div>
@@ -1745,7 +1814,9 @@ export function FloorCanvasWorkspace({
                   }
                   previewChanges={aiProposal ? aiPreviewChanges(layout, aiProposal) : undefined}
                   collisionKeys={
-                    aiGeometry?.collisionKeys ?? validation.result?.collisionKeys ?? groupGeometry?.collisionKeys
+                    aiGeometry?.collisionKeys ??
+                    validation.result?.collisionKeys ??
+                    groupGeometry?.collisionKeys
                   }
                   layout={aiLayout ?? layout}
                   width={layout.width ?? 1200}
@@ -1830,7 +1901,10 @@ export function FloorCanvasWorkspace({
                     await query.refetch();
                   }}
                   onApplied={(saved) => {
-                    queryClient.setQueryData(floorLayoutOptions(actorId, workspaceId, floorId).queryKey, saved);
+                    queryClient.setQueryData(
+                      floorLayoutOptions(actorId, workspaceId, floorId).queryKey,
+                      saved
+                    );
                     setSceneDraft(null);
                     setPendingObjects([]);
                     setSelection(null);
@@ -2040,11 +2114,11 @@ export function FloorCanvasWorkspace({
                               ? c('Seats crossing a room edge: ', 'Ghế đang đè qua mép phòng: ') +
                                 [...validation.result.roomEdgeCollisions].join(', ')
                               : validation.result.collisions.size
-                              ? `${c('Overlapping objects', 'Đối tượng chồng lấn')}: ${[...validation.result.collisions].join(', ')}`
-                              : c(
-                                  'Objects must fit inside the floor and their room.',
-                                  'Đối tượng phải nằm trọn trong tầng/phòng.'
-                                )}
+                                ? `${c('Overlapping objects', 'Đối tượng chồng lấn')}: ${[...validation.result.collisions].join(', ')}`
+                                : c(
+                                    'Objects must fit inside the floor and their room.',
+                                    'Đối tượng phải nằm trọn trong tầng/phòng.'
+                                  )}
                           </p>
                         )}
                         {!!validation.result?.collisionKeys.size && (
@@ -2162,7 +2236,9 @@ export function FloorCanvasWorkspace({
                             {layout?.floor.location?.buildingName ??
                               c('Building not linked', 'Chưa liên kết tòa nhà')}
                           </p>
-                          <p>{c('Floor', 'Tầng')} {layout?.floor.floorNumber}</p>
+                          <p>
+                            {c('Floor', 'Tầng')} {layout?.floor.floorNumber}
+                          </p>
                           {metrics.isPending ? (
                             <p role='status'>{c('Loading dimensions…', 'Đang tải kích thước…')}</p>
                           ) : metrics.isError ? (
@@ -2323,7 +2399,10 @@ export function FloorCanvasWorkspace({
           <Button
             size='sm'
             disabled={
-              busy || loadingSelection || overviewDragging || !editable ||
+              busy ||
+              loadingSelection ||
+              overviewDragging ||
+              !editable ||
               !!groupGeometry?.roomEdgeCollisions.size
             }
             onClick={() => void save()}

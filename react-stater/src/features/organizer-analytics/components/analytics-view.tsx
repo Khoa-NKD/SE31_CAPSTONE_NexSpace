@@ -524,7 +524,10 @@ function ReportNotes({
     )
   };
   const warnings = report.notices.filter(
-    (n) => n.count > 0 && n.code !== 'DUPLICATE_PAYMENTS_REFUNDED'
+    (n) =>
+      n.count > 0 &&
+      n.code !== 'DUPLICATE_PAYMENTS_REFUNDED' &&
+      n.code !== 'EARNINGS_NEED_RECONCILIATION'
   );
   const resolved = report.notices.filter(
     (n) => n.count > 0 && n.code === 'DUPLICATE_PAYMENTS_REFUNDED'
