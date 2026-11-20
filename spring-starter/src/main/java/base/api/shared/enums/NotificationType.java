@@ -8,5 +8,6 @@ public enum NotificationType {
     WORKSPACE_REVIEW,
     MEMBERSHIP,
     PROMOTION,
-    SYSTEM
+    SYSTEM,
+    COMPLAINT
 }

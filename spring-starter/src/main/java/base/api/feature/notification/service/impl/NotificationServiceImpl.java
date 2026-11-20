@@ -13,6 +13,7 @@ import base.api.shared.entity.payment.RefundRequestModel;
 import base.api.shared.entity.review.UserNotificationModel;
 import base.api.shared.enums.DeliveryStatus;
 import base.api.shared.enums.NotificationType;
+import base.api.shared.enums.UserRole;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -585,46 +586,21 @@ public class NotificationServiceImpl implements INotificationService {
         String amountStr = formatCurrency(refund.getRequestedAmount());
         String reasonStr = StringUtils.hasText(refund.getReason()) ? refund.getReason() : "Khách hàng hủy theo chính sách hoàn tiền";
 
-        String title = "Yêu cầu hoàn tiền mới - #" + bookingCode;
+        String title = "Yêu cầu hoàn tiền mới cần xử lý - #" + bookingCode;
         String content = String.format(
-                "Đơn đặt chỗ #%s tại %s có yêu cầu hoàn lại %s đ (Lý do: %s). Vui lòng kiểm tra và xử lý hoàn tiền.",
+                "Đơn đặt chỗ #%s tại %s phát sinh yêu cầu hoàn lại %s đ (Lý do: %s). Vui lòng vào trang Quản lý hoàn tiền để duyệt và xử lý.",
                 bookingCode, workspaceName, amountStr, reasonStr
         );
 
-        // 1. Gửi thông báo In-app cho Organizer của workspace
-        if (booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null) {
-            UserModel organizer = booking.getWorkspace().getOrganizer();
-            saveInAppNotification(organizer, NotificationType.REFUND, title, content, "RefundRequest", refund.getId());
-
-            if (StringUtils.hasText(organizer.getEmail())) {
-                String organizerName = getCustomerFullName(organizer);
-                String manageUrl = clientUrl + "/dashboard/organizer/bookings";
-                String html = String.format("""
-                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
-                        <h2 style="color: #f59e0b; margin: 0 0 12px 0;">Yêu cầu hoàn tiền mới</h2>
-                        <p>Kính gửi Đối tác <strong>%s</strong>,</p>
-                        <p>Đơn đặt chỗ <strong>#%s</strong> tại <strong>%s</strong> vừa phát sinh yêu cầu hoàn lại số tiền <strong>%s đ</strong>.</p>
-                        <p><strong>Lý do:</strong> %s</p>
-                        <p><a href="%s" style="display:inline-block;padding:10px 20px;background:#4f46e5;color:#fff;border-radius:8px;text-decoration:none;">Xem chi tiết đơn</a></p>
-                    </div>
-                    """, organizerName, bookingCode, workspaceName, amountStr, reasonStr, manageUrl);
-                try {
-                    emailService.sendHtmlEmail(organizer.getEmail(), "[NexSpace] " + title, html);
-                } catch (Exception e) {
-                    log.error("Failed to send refund email to organizer {}: {}", organizer.getEmail(), e.getMessage());
-                }
-            }
-        }
-
-        // 2. Gửi thông báo In-app cho toàn bộ Quản trị viên (Admin)
+        // Thông báo hoàn tiền CHỈ gửi cho Quản trị viên (Admin) xử lý hoàn tiền, KHÔNG gửi cho Organizer
         try {
             List<UserModel> admins = userRepository.findActiveUsersByRoleName("ADMIN");
             for (UserModel admin : admins) {
                 saveInAppNotification(
                         admin,
                         NotificationType.REFUND,
-                        "Yêu cầu hoàn tiền mới trên hệ thống - #" + bookingCode,
-                        String.format("Đơn đặt chỗ #%s tại %s phát sinh yêu cầu hoàn tiền %s đ (Lý do: %s).", bookingCode, workspaceName, amountStr, reasonStr),
+                        title,
+                        content,
                         "RefundRequest",
                         refund.getId()
                 );
@@ -853,6 +829,58 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional
+    public void sendWorkspaceReviewToOrganizerNotification(Long organizerId, String workspaceName, String customerName, int rating, String comment, Long reviewId) {
+        if (organizerId == null) {
+            log.warn("Cannot send review notification to organizer: organizerId is null");
+            return;
+        }
+
+        UserModel organizer = userRepository.findById(organizerId).orElse(null);
+        if (organizer == null) {
+            log.warn("Cannot send review notification: organizer {} not found", organizerId);
+            return;
+        }
+
+        String safeCustomer = StringUtils.hasText(customerName) ? customerName : "Khách hàng";
+        String safeWorkspace = StringUtils.hasText(workspaceName) ? workspaceName : "Không gian của bạn";
+        String safeComment = StringUtils.hasText(comment) ? comment : "Đánh giá dịch vụ";
+        String stars = "⭐".repeat(Math.max(1, Math.min(5, rating)));
+
+        String title = String.format("Đánh giá mới (%s) tại %s", stars, safeWorkspace);
+        String content = String.format("Khách hàng %s vừa gửi đánh giá %d sao cho %s: \"%s\".",
+                safeCustomer, rating, safeWorkspace, safeComment);
+
+        saveInAppNotification(organizer, NotificationType.WORKSPACE_REVIEW, title, content, "WorkspaceReview", reviewId);
+    }
+
+    @Override
+    @Transactional
+    public void sendComplaintToOrganizerNotification(Long organizerId, String workspaceName, String customerName, String complaintTitle, String complaintDetail, Long caseId) {
+        if (organizerId == null) {
+            log.warn("Cannot send complaint notification to organizer: organizerId is null");
+            return;
+        }
+
+        UserModel organizer = userRepository.findById(organizerId).orElse(null);
+        if (organizer == null) {
+            log.warn("Cannot send complaint notification: organizer {} not found", organizerId);
+            return;
+        }
+
+        String safeCustomer = StringUtils.hasText(customerName) ? customerName : "Khách hàng";
+        String safeWorkspace = StringUtils.hasText(workspaceName) ? workspaceName : "Không gian làm việc";
+        String safeTitle = StringUtils.hasText(complaintTitle) ? complaintTitle : "Phản ánh dịch vụ";
+        String safeDetail = StringUtils.hasText(complaintDetail) ? complaintDetail : "Khách hàng gửi khiếu nại về cơ sở vật chất/dịch vụ";
+
+        String title = String.format("Khiếu nại mới từ khách hàng - %s", safeWorkspace);
+        String content = String.format("Khách hàng %s đã gửi khiếu nại tại %s: \"%s - %s\". Vui lòng kiểm tra và hỗ trợ khách hàng.",
+                safeCustomer, safeWorkspace, safeTitle, safeDetail);
+
+        saveInAppNotification(organizer, NotificationType.COMPLAINT, title, content, "SupportCase", caseId);
+    }
+
+    @Override
+    @Transactional
     public void seedDemoNotifications(Long userId) {
         UserModel user = userRepository.findById(userId).orElse(null);
         if (user == null) {
@@ -860,68 +888,103 @@ public class NotificationServiceImpl implements INotificationService {
             return;
         }
 
-        saveInAppNotification(
-                user,
-                NotificationType.BOOKING,
-                "Xác nhận đặt chỗ thành công - #BK-20261119-7A5006",
-                "Đơn đặt chỗ #BK-20261119-7A5006 tại Enouvo Space 1 - Dragon Bridge Hub đã được xác nhận thành công. Mã Smart PIN cửa ra vào: 4892.",
-                "Booking",
-                1001L
-        );
+        UserRole role = user.getRole();
 
-        saveInAppNotification(
-                user,
-                NotificationType.PAYMENT,
-                "Thanh toán PayOS thành công - #BK-20261119-7A5006",
-                "Giao dịch thanh toán PayOS thành công số tiền 151.200 đ. Hóa đơn điện tử VAT đã được gửi tới email của bạn.",
-                "Booking",
-                1001L
-        );
-
-        saveInAppNotification(
-                user,
-                NotificationType.BOOKING,
-                "Hủy đặt chỗ thành công - #BK-20261119-719BD7",
-                "Đơn đặt chỗ #BK-20261119-719BD7 tại Enouvo Tech Campus - FPT City Hub (Bàn Kỹ Sư Công Nghệ 01) đã được hủy thành công. Chỗ ngồi đã được giải phóng trên hệ thống.",
-                "Booking",
-                64L
-        );
-
-        saveInAppNotification(
-                user,
-                NotificationType.PAYMENT,
-                "Thanh toán không thành công - #BK-20261119-65CF1F",
-                "Giao dịch đơn đặt chỗ #BK-20261119-65CF1F bị hủy hoặc hết hạn thời gian giữ chỗ (Hold Expiry). Vui lòng thực hiện đặt lại khi có nhu cầu.",
-                "Booking",
-                1002L
-        );
-
-        saveInAppNotification(
-                user,
-                NotificationType.REFUND,
-                "Yêu cầu hoàn tiền mới - #BK-20261119-719BD7",
-                "Đơn đặt chỗ #BK-20261119-719BD7 tại Enouvo Tech Campus có yêu cầu hoàn lại số tiền 132.600 đ (Chính sách linh hoạt). Vui lòng kiểm tra trên hệ thống.",
-                "RefundRequest",
-                201L
-        );
-
-        saveInAppNotification(
-                user,
-                NotificationType.REFUND,
-                "Hoàn tiền hoàn tất - #BK-20261119-719BD7",
-                "Yêu cầu hoàn tiền số tiền 132.600 đ cho đơn đặt chỗ #BK-20261119-719BD7 đã được xử lý hoàn tất thành công. Tiền sẽ được chuyển về tài khoản của bạn.",
-                "Booking",
-                64L
-        );
-
-        saveInAppNotification(
-                user,
-                NotificationType.BOOKING,
-                "Đặt chỗ mới tại không gian của bạn - #BK-20261119-89AB12",
-                "Khách hàng Nguyễn Văn Khoa đã đặt thành công Bàn Hot Desk 01 tại Enouvo Space 1. Thời gian: 20/11/2026 09:00 - 12:00. Doanh thu: 105.000 đ.",
-                "Booking",
-                1003L
-        );
+        if (role == UserRole.ADMIN) {
+            // Admin: Nhận thông báo hoàn tiền (Admin là người xử lý hoàn tiền), KHÔNG nhận hủy đơn/đánh giá/khiếu nại
+            saveInAppNotification(
+                    user,
+                    NotificationType.REFUND,
+                    "Yêu cầu hoàn tiền mới cần xử lý - #BK-20261119-719BD7",
+                    "Đơn đặt chỗ #BK-20261119-719BD7 tại Enouvo Tech Campus có yêu cầu hoàn lại 132.600 đ (Chính sách linh hoạt). Vui lòng vào trang Quản lý hoàn tiền để duyệt và chuyển khoản.",
+                    "RefundRequest",
+                    201L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.REFUND,
+                    "Yêu cầu hoàn tiền mới cần xử lý - #BK-20261119-89AB12",
+                    "Đơn đặt chỗ #BK-20261119-89AB12 tại Dreamplex Nguyen Trung Ngan có yêu cầu hoàn tiền 250.000 đ do hủy trước 24h. Cần phê duyệt hoàn tiền.",
+                    "RefundRequest",
+                    202L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.ORGANIZER_APPLICATION,
+                    "Hồ sơ đối tác mới chờ duyệt - Toong Coworking",
+                    "Công ty TNHH Toong Space vừa gửi hồ sơ đăng ký đối tác mới. Vui lòng thẩm định giấy phép kinh doanh và hợp đồng.",
+                    "OrganizerProfile",
+                    15L
+            );
+        } else if (role == UserRole.ORGANIZER) {
+            // Organizer: Nhận thông báo hủy đơn, đánh giá, khiếu nại, đơn đặt chỗ mới; KHÔNG nhận thông báo hoàn tiền (vì Admin hoàn)
+            saveInAppNotification(
+                    user,
+                    NotificationType.BOOKING,
+                    "Đơn đặt chỗ đã bị hủy - #BK-20261119-719BD7",
+                    "Khách hàng Nguyễn Văn Khoa đã hủy đơn đặt chỗ #BK-20261119-719BD7 tại Enouvo Space 1. Lý do: Thay đổi lịch trình công tác. Chỗ ngồi đã được mở lại cho khách khác.",
+                    "Booking",
+                    64L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.WORKSPACE_REVIEW,
+                    "Đánh giá mới (⭐⭐⭐⭐⭐) - Enouvo Space 1",
+                    "Khách hàng Lê Bảo Anh vừa để lại đánh giá 5 sao cho không gian của bạn: \"Không gian làm việc yên tĩnh, internet tốc độ cao, cà phê miễn phí rất ngon!\".",
+                    "WorkspaceReview",
+                    301L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.COMPLAINT,
+                    "Khiếu nại mới từ khách hàng - Enouvo Space 1",
+                    "Khách hàng Trần Hữu Nam gửi phản ánh: \"Máy lạnh khu vực Focus Desk Tầng 2 đang quá lạnh và chập chờn\". Vui lòng kiểm tra và hỗ trợ khách hàng.",
+                    "SupportCase",
+                    401L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.BOOKING,
+                    "Đặt chỗ mới tại không gian của bạn - #BK-20261119-89AB12",
+                    "Khách hàng Phạm Minh Tuấn đã đặt thành công Bàn Hot Desk 01 tại Enouvo Space 1. Thời gian: 20/11/2026 09:00 - 12:00. Doanh thu: 105.000 đ.",
+                    "Booking",
+                    1003L
+            );
+        } else {
+            // Customer: Thông báo đặt chỗ cá nhân, thanh toán, hoàn tiền hoàn tất, nhắc lịch
+            saveInAppNotification(
+                    user,
+                    NotificationType.BOOKING,
+                    "Xác nhận đặt chỗ thành công - #BK-20261119-7A5006",
+                    "Đơn đặt chỗ #BK-20261119-7A5006 tại Enouvo Space 1 - Dragon Bridge Hub đã được xác nhận thành công. Mã Smart PIN cửa ra vào: 4892.",
+                    "Booking",
+                    1001L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.PAYMENT,
+                    "Thanh toán PayOS thành công - #BK-20261119-7A5006",
+                    "Giao dịch thanh toán PayOS thành công số tiền 151.200 đ. Hóa đơn điện tử VAT đã được lưu vào hệ thống.",
+                    "Booking",
+                    1001L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.BOOKING,
+                    "Hủy đặt chỗ thành công - #BK-20261119-719BD7",
+                    "Đơn đặt chỗ #BK-20261119-719BD7 tại Enouvo Tech Campus đã được hủy thành công. Chỗ ngồi đã được giải phóng trên hệ thống.",
+                    "Booking",
+                    64L
+            );
+            saveInAppNotification(
+                    user,
+                    NotificationType.REFUND,
+                    "Hoàn tiền hoàn tất - #BK-20261119-719BD7",
+                    "Yêu cầu hoàn tiền số tiền 132.600 đ cho đơn đặt chỗ #BK-20261119-719BD7 đã được Admin xử lý hoàn tất thành công. Tiền sẽ được chuyển về tài khoản của bạn.",
+                    "Booking",
+                    64L
+            );
+        }
     }
 
     @Override
