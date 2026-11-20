@@ -1,0 +1,20 @@
+# Organizer identity photo checks
+
+Existing single-side validation distinguishes malformed images, low resolution, oversized decoded images, unreadable text, wrong side, busy OCR workers, missing executable/language data, timeouts and other OCR process failures. Unreadable text suggests focus, glare and crop corrections; it does not claim a specific visual defect was measured. Raw OCR text, identity numbers and process diagnostics are never returned as error messages.
+
+## Pair endpoints
+
+Both endpoints require a verified active owner account with USER/ORGANIZER access and an application allowing document edits. Client-supplied application IDs are checked against the authenticated owner's application.
+
+- `POST /api/organizer/applications/current/identity-photo-pair-check`: multipart `applicationId`, `first`, `second`. Success returns the normal API envelope with `data.firstIsFront`; no identity number is returned.
+- `POST /api/organizer/applications/current/identity-photo-pair`: multipart `applicationId`, `revision`, `first`, `second`. The server rechecks the pair, locks the owner's profile and saves both sides in one transaction. It returns the existing lifecycle context. Current-document revision and requested-replacement restrictions still apply. A failure on either side rolls back both records and compensates newly uploaded files.
+
+OCR must recognize opposite sides and a unique readable 12-digit front number matching the back MRZ number. Duplicate readings of the same number are allowed; ambiguous numbers, OCR-confusable letters and missing numbers are not guessed. Cards whose back-side number cannot be read by this OCR path cannot be automatically matched; the user receives a retry message rather than a false confirmation. This is document-number consistency checking, not identity authenticity, liveness or a government registry check.
+
+For the supported Vietnamese TD1 MRZ first line, the parser skips the nine-digit document number and its check digit after `IDVNM`, then reads the 12-digit personal number in the optional field. It validates the document-number check digit with ICAO weights 7, 3, 1. It does not treat the first twelve digits after the country code as the personal number, and it does not infer a personal number from the shorter document number. Truncated or unsupported layouts fail as unreadable. Reference: [Vietnamese NID field definitions and MRZ layout](https://developer.cake.vn/identity/eid/nid-field-definitions/).
+
+The UI checks two selected photos together, displays a specific mismatch/unreadable reason, and lets the owner keep one photo and choose the other side again. Pair uploads use the atomic endpoint. Existing single-side uploads and replacements also compare against the stored opposite side before accepting a new file, so the pair endpoint cannot be bypassed by uploading separately. Old stored documents are not silently rewritten or retroactively certified.
+
+Before checking identity photos, the browser may encode large JPG/PNG inputs as quality-0.94 JPEG, without cropping or upscaling and with a maximum 2400-pixel long edge. It uses the result only when at least 10% smaller; files outside the existing size/pixel bounds, unsupported inputs, decoding failures and already-small files remain unchanged for ordinary validation. The same optimized file bytes are used for preflight and upload. The UI separately indicates optimization and OCR checking. Pair save still verifies both received files server-side; after that successful comparison, its internal storage path avoids repeating OCR for each individual side. That path has no client-controlled bypass flag and still validates file size, MIME and byte signatures. Pair-save logs contain only check/upload timing, never OCR text or identity numbers.
+
+Tesseract and both `vie`/`eng` language packs are required on the backend host. The Docker image already includes them. For macOS use `bash scripts/setup-local-macos.sh --install-ocr` from `spring-starter/`, then fill the generated local configuration with that developer's own service settings. The helper never replaces an existing local properties file.

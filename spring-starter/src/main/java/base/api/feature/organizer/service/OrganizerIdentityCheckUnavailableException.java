@@ -4,4 +4,8 @@ public final class OrganizerIdentityCheckUnavailableException extends RuntimeExc
     public OrganizerIdentityCheckUnavailableException() {
         super("Identity photo checking is temporarily unavailable. Try again.");
     }
+
+    public OrganizerIdentityCheckUnavailableException(String message) {
+        super(message);
+    }
 }

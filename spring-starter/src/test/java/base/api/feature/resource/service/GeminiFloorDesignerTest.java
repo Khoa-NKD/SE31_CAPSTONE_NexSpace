@@ -82,6 +82,67 @@ class GeminiFloorDesignerTest {
         assertThat(designer.design(Map.of("prompt", "Preview only")).message()).isEqualTo("Preview only");
         verify(http, times(2)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
     }
+
+    @Test void imageUsesHighResolutionAndKeepsReferenceBeforeCoordinateInstructions() throws Exception {
+        designer = new GeminiFloorDesigner(mapper, factory.getValidator(), "test-key", "gemini-3.6-flash", http);
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
+                .thenReturn(response(200, """
+                        {"models":[{"name":"models/gemini-3.6-flash","supportedGenerationMethods":["generateContent"]}]}
+                        """), response(200, successfulBody()));
+        designer.design(Map.of("prompt", "Trace the plan", "canvas", Map.of("width", 1200, "height", 900)),
+                new FloorDesign.ImageInput("image/png", "fixture-pixels"));
+        var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(2)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        var sent = payload(requests.getAllValues().get(1));
+        assertThat(sent.path("generationConfig").path("mediaResolution").asText()).isEqualTo("MEDIA_RESOLUTION_HIGH");
+        assertThat(sent.path("contents").path(0).path("parts").path(0).path("inlineData").path("data").asText())
+                .isEqualTo("fixture-pixels");
+        assertThat(mapper.readTree(sent.path("contents").path(0).path("parts").path(1).path("text").asText())
+                .path("canvas").path("width").asInt()).isEqualTo(1200);
+    }
+
+    @Test void successfulCompatibilityFallbackAvoidsRepeatingRejectedSettingsForTheSameModel() throws Exception {
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
+                .thenReturn(response(400, "{\"error\":{\"status\":\"INVALID_ARGUMENT\"}}"),
+                        response(200, successfulBody()), response(200, successfulBody()));
+        designer.design(Map.of("prompt", "First layout"));
+        designer.design(Map.of("prompt", "Second layout"));
+        var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(3)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(payload(requests.getAllValues().get(0)).path("generationConfig").has("responseJsonSchema")).isTrue();
+        var repeated = payload(requests.getAllValues().get(2));
+        assertThat(repeated.path("generationConfig").has("responseJsonSchema")).isFalse();
+        assertThat(repeated.path("generationConfig").path("responseMimeType").asText()).isEqualTo("application/json");
+        assertThat(repeated.path("systemInstruction").path("parts").path(0).path("text").asText())
+                .contains("JSON schema as the response shape");
+    }
+
+    @Test void imageFallbackReachesProBeforeTryingEveryFlashVersion() throws Exception {
+        designer = new GeminiFloorDesigner(mapper, factory.getValidator(), "test-key", "gemini-3-pro-preview", http);
+        var models = List.of("gemini-3.8-flash", "gemini-3.7-flash", "gemini-3.6-flash",
+                "gemini-3.5-flash", "gemini-3.4-flash", "gemini-3.1-pro-preview");
+        String catalogBody = mapper.writeValueAsString(Map.of("models", models.stream()
+                .map(id -> Map.of("name", "models/" + id, "supportedGenerationMethods", List.of("generateContent"))).toList()));
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
+                .thenReturn(response(200, catalogBody), response(429, "{}"), response(200, successfulBody()));
+        assertThat(designer.design(Map.of(), new FloorDesign.ImageInput("image/png", "fixture-pixels")).message())
+                .isEqualTo("Preview only");
+        var requests = org.mockito.ArgumentCaptor.forClass(HttpRequest.class);
+        verify(http, times(3)).send(requests.capture(), any(HttpResponse.BodyHandler.class));
+        assertThat(requests.getAllValues().get(1).uri().getPath()).endsWith("/gemini-3.8-flash:generateContent");
+        assertThat(requests.getAllValues().get(2).uri().getPath()).endsWith("/gemini-3.1-pro-preview:generateContent");
+    }
+
+    @Test void temporarilyFailedModelsAreNotHammeredByTheNextUserRequest() throws Exception {
+        when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
+                .thenReturn(response(429, "{}"), response(200, """
+                        {"models":[{"name":"models/gemini-fallback","supportedGenerationMethods":["generateContent"]}]}
+                        """), response(503, "{}"), response(503, "{}"));
+        assertThatThrownBy(() -> designer.design(Map.of())).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> designer.design(Map.of())).isInstanceOf(ConflictException.class)
+                .hasMessageContaining("temporarily");
+        verify(http, times(4)).send(any(HttpRequest.class), any(HttpResponse.BodyHandler.class));
+    }
     @Test void repeatedServiceFailureReportsActualHttpStatusWithoutProviderBody() throws Exception {
         when(http.send(any(HttpRequest.class), org.mockito.ArgumentMatchers.<HttpResponse.BodyHandler<InputStream>>any()))
                 .thenReturn(response(503, "private-provider-detail"), response(503, "private-provider-detail"),

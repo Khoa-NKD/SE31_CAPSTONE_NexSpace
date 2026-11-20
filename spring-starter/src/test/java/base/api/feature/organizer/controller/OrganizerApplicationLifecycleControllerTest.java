@@ -44,6 +44,26 @@ class OrganizerApplicationLifecycleControllerTest {
     OrganizerLifecycleContext response() {
         return new OrganizerLifecycleContext(42L,OrganizerProfileStatus.PENDING_REVIEW,12L,false,null,true,true,false,false,List.of(9L));
     }
+
+    @Test void identityPairEndpointsRequireOwnerRoleAndBothFilesAndNeverReturnIdentityNumbers() throws Exception {
+        var first = new MockMultipartFile("first", "front.png", "image/png", new byte[] {1});
+        var second = new MockMultipartFile("second", "back.png", "image/png", new byte[] {2});
+        for (String endpoint : List.of("/identity-photo-pair-check", "/identity-photo-pair")) {
+            mvc.perform(multipart(OWNER + endpoint).file(first).file(second).param("applicationId", "42").param("revision", "12"))
+                    .andExpect(status().isUnauthorized());
+            mvc.perform(multipart(OWNER + endpoint).file(first).file(second).param("applicationId", "42").param("revision", "12")
+                    .with(user(principal("ADMIN")))).andExpect(status().isForbidden());
+        }
+        mvc.perform(multipart(OWNER + "/identity-photo-pair-check").file(first).param("applicationId", "42")
+                .with(user(principal("USER")))).andExpect(status().isBadRequest());
+        verifyNoInteractions(service);
+        when(service.checkIdentityPair(eq(7L), eq(42L), any(), any()))
+                .thenReturn(new OrganizerApplicationLifecycleService.IdentityPairCheck(true));
+        mvc.perform(multipart(OWNER + "/identity-photo-pair-check").file(first).file(second).param("applicationId", "42")
+                .with(user(principal("USER")))).andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.firstIsFront").value(true))
+                .andExpect(jsonPath("$.data.identityNumber").doesNotExist());
+    }
     @Test void anonymousAndWrongRolesCannotReview() throws Exception {
         for(String action:List.of("approve","reject","request-changes")) {
             mvc.perform(post(ADMIN+"/"+action).contentType(MediaType.APPLICATION_JSON).content("{}")) .andExpect(status().isUnauthorized());

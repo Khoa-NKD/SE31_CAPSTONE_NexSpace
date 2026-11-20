@@ -81,11 +81,13 @@ public class OrganizerApplicationLifecycleService {
         }
         availableTaxId(profile);
         var before = snapshot(profile, current);
+        // Capture the authenticated administrator before rendering the immutable approval evidence.
+        profile.setReviewedBy(actor); profile.setReviewedAt(now());
         contracts.issue(profile);
         current.forEach(document -> document.setStatus(OrganizerDocumentStatus.VERIFIED));
         documents.saveAll(current);
         profile.setStatus(OrganizerProfileStatus.CONTRACT_PENDING);
-        profile.setReviewedBy(actor); profile.setReviewedAt(now()); profile.setReviewFeedback(request.note());
+        profile.setReviewFeedback(request.note());
         profiles.save(profile);
         audit.write(actor, profile.getId(), "Organizer.Approve", before, snapshot(profile, current), request.note());
         notifyReview(profile, List.of());
@@ -164,6 +166,11 @@ public class OrganizerApplicationLifecycleService {
 
     private OrganizerLifecycleContext changeDocuments(Long actorId, Long applicationId, Long expectedRevision, OrganizerDocumentType type,
             Long expectedCurrentDocumentId, List<MultipartFile> files, boolean append) {
+        return changeDocuments(actorId, applicationId, expectedRevision, type, expectedCurrentDocumentId, files, append, false);
+    }
+
+    private OrganizerLifecycleContext changeDocuments(Long actorId, Long applicationId, Long expectedRevision, OrganizerDocumentType type,
+            Long expectedCurrentDocumentId, List<MultipartFile> files, boolean append, boolean pairVerified) {
         var profile = lockOwnerDocumentEditing(actorId);
         if (append && !profile.getId().equals(applicationId))
             throw new ConflictException("The current application changed. Reload before adding files");
@@ -193,16 +200,21 @@ public class OrganizerApplicationLifecycleService {
             throw new ConflictException("Only documents explicitly requested for replacement can be changed");
         var before = snapshot(profile, current);
         if (old != null) { old.setCurrent(false); old.setStatus(OrganizerDocumentStatus.REPLACED); documents.save(old); }
-        for (var file : files) storePage(profile, type, file, old);
+        for (var file : files) storePage(profile, type, file, old, pairVerified);
         audit.write(profile.getOrganizer(), profile.getId(), "Organizer.CorrectDocument", before,
                 snapshot(profile, currentDocuments(profile)), old == null ? "Added document files" : "Replaced a current file");
         return context(profile, actorId, false);
     }
 
-    private void storePage(OrganizerProfileModel profile, OrganizerDocumentType type, MultipartFile file, OrganizerDocumentModel old) {
+    private void storePage(OrganizerProfileModel profile, OrganizerDocumentType type, MultipartFile file, OrganizerDocumentModel old, boolean pairVerified) {
         PrivateOrganizerDocumentStorage.requireSupportedFormat(type, file);
-        var stored = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK
-                ? storage.store(file, profile.getId(), type) : storage.store(file, profile.getId());
+        boolean identity = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK;
+        String oppositeKey = identity && !pairVerified ? currentDocuments(profile).stream()
+                .filter(document -> document.getDocumentType() == (type == OrganizerDocumentType.ID_CARD_FRONT ? OrganizerDocumentType.ID_CARD_BACK : OrganizerDocumentType.ID_CARD_FRONT))
+                .map(OrganizerDocumentModel::getFileUrl).findFirst().orElse(null) : null;
+        var stored = identity && pairVerified ? storage.storeVerifiedIdentity(file, profile.getId(), type)
+                : identity ? (oppositeKey == null ? storage.store(file, profile.getId(), type)
+                : storage.store(file, profile.getId(), type, oppositeKey)) : storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override public void afterCommit() {
                 if (old != null) {
@@ -293,7 +305,53 @@ public class OrganizerApplicationLifecycleService {
                 !(correctable(profile) && currentDocuments(profile).stream().anyMatch(document ->
                         document.getDocumentType() == type && document.getStatus() == OrganizerDocumentStatus.REJECTED)))
             throw new ConflictException("This application does not allow the requested edit");
-        storage.checkIdentityPhoto(file, type);
+        var oppositeType = type == OrganizerDocumentType.ID_CARD_FRONT
+                ? OrganizerDocumentType.ID_CARD_BACK : OrganizerDocumentType.ID_CARD_FRONT;
+        var oppositeKey = currentDocuments(profile).stream()
+                .filter(document -> document.getDocumentType() == oppositeType)
+                .map(OrganizerDocumentModel::getFileUrl).findFirst().orElse(null);
+        if (oppositeKey == null) storage.checkIdentityPhoto(file, type);
+        else storage.checkIdentityPhoto(file, type, oppositeKey);
+    }
+
+    public record IdentityPairCheck(boolean firstIsFront) {}
+
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    @Transactional(readOnly = true)
+    public IdentityPairCheck checkIdentityPair(Long actorId, Long applicationId, MultipartFile first, MultipartFile second) {
+        var user = users.findById(actorId).orElseThrow(() -> new UnauthorizedException("Account not found"));
+        requireApplicant(user);
+        var profile = profiles.findByOrganizerId(actorId).orElseThrow(() -> new NotFoundException("Organizer profile not found"));
+        owner(actorId, profile);
+        if (!profile.getId().equals(applicationId)) throw new ConflictException("The current application changed. Reload before adding files");
+        if (profile.getStatus() != OrganizerProfileStatus.DRAFT && !correctable(profile))
+            throw new ConflictException("This application does not allow the requested edit");
+        return new IdentityPairCheck(storage.checkIdentityPair(first, second));
+    }
+
+    /** One profile lock and one DB transaction prevent half-saved replacements or mixed-person pairs. */
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    @Transactional(isolation = Isolation.READ_COMMITTED)
+    public OrganizerLifecycleContext saveIdentityPair(Long actorId, Long applicationId, Long expectedRevision,
+            MultipartFile first, MultipartFile second) {
+        var profile = lockOwnerDocumentEditing(actorId);
+        if (!profile.getId().equals(applicationId)) throw new ConflictException("The current application changed. Reload before adding files");
+        revision(profile, expectedRevision);
+        long checkStarted = System.nanoTime();
+        boolean firstIsFront = storage.checkIdentityPair(first, second);
+        long checkMs = java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - checkStarted);
+        long saveStarted = System.nanoTime();
+        var before = currentDocuments(profile);
+        var context = context(profile, actorId, false);
+        for (var type : List.of(OrganizerDocumentType.ID_CARD_FRONT, OrganizerDocumentType.ID_CARD_BACK)) {
+            var old = before.stream().filter(document -> document.getDocumentType() == type).findFirst().orElse(null);
+            MultipartFile file = (type == OrganizerDocumentType.ID_CARD_FRONT) == firstIsFront ? first : second;
+            context = changeDocuments(actorId, applicationId, context.revision(), type,
+                    old == null ? null : old.getId(), List.of(file), false, true);
+        }
+        log.info("Identity pair saved: checkMs={}, uploadAndSaveMs={}", checkMs,
+                java.util.concurrent.TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - saveStarted));
+        return context;
     }
 
     private OrganizerProfileModel lockOwnerCorrection(Long actorId) {

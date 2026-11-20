@@ -99,17 +99,56 @@ public class PrivateOrganizerDocumentStorage {
     }
 
     public StoredDocument store(MultipartFile file, Long organizerProfileId, OrganizerDocumentType documentType) {
-        return processUpload(file, organizerProfileId, documentType, false);
+        return processUpload(file, organizerProfileId, documentType, false, null);
+    }
+
+    public StoredDocument store(MultipartFile file, Long organizerProfileId, OrganizerDocumentType documentType, String oppositeKey) {
+        return processUpload(file, organizerProfileId, documentType, false, oppositeKey);
+    }
+
+    /** Only the pair-save service may call this after verifying these exact files in the same request. */
+    StoredDocument storeVerifiedIdentity(MultipartFile file, Long profileId, OrganizerDocumentType type) {
+        if (type != OrganizerDocumentType.ID_CARD_FRONT && type != OrganizerDocumentType.ID_CARD_BACK)
+            throw new BadRequestException("Choose an identity card side");
+        return processUpload(file, profileId, type, false, null, true);
+    }
+
+    public boolean checkIdentityPair(MultipartFile first, MultipartFile second) {
+        if (identityOcrCommand == null || identityOcrCommand.isBlank())
+            throw new OrganizerIdentityCheckUnavailableException("Identity photo checking is not configured on this server. Contact support.");
+        return OrganizerIdentityImageCheck.verifyPair(identityBytes(first), identityBytes(second), identityOcrCommand, identityOcrDataDirectory);
+    }
+
+    private byte[] identityBytes(MultipartFile file) {
+        if (file == null || file.isEmpty() || file.getSize() > MAX_BYTES)
+            throw new BadRequestException("Document must be between 1 byte and 5 MB");
+        try (var stream = file.getInputStream()) {
+            byte[] bytes = stream.readNBytes((int) MAX_BYTES + 1);
+            if (bytes.length > MAX_BYTES || !(matchesType("jpg", file.getContentType(), bytes) || matchesType("png", file.getContentType(), bytes)))
+                throw new BadRequestException("Upload a JPG or PNG identity card photo");
+            return bytes;
+        } catch (IOException ex) { throw new BadRequestException("The identity photo could not be opened. Upload an undamaged JPG or PNG file."); }
     }
 
     public void checkIdentityPhoto(MultipartFile file, OrganizerDocumentType type) {
         if (type != OrganizerDocumentType.ID_CARD_FRONT && type != OrganizerDocumentType.ID_CARD_BACK)
             throw new BadRequestException("Choose an identity card side");
-        processUpload(file, null, type, true);
+        processUpload(file, null, type, true, null);
+    }
+
+    public void checkIdentityPhoto(MultipartFile file, OrganizerDocumentType type, String oppositeKey) {
+        // Preserve side detection before comparing against the already stored opposite side.
+        checkIdentityPhoto(file, type);
+        if (oppositeKey != null) processUpload(file, null, type, true, oppositeKey);
     }
 
     private StoredDocument processUpload(MultipartFile file, Long organizerProfileId,
-            OrganizerDocumentType documentType, boolean checkOnly) {
+            OrganizerDocumentType documentType, boolean checkOnly, String oppositeKey) {
+        return processUpload(file, organizerProfileId, documentType, checkOnly, oppositeKey, false);
+    }
+
+    private StoredDocument processUpload(MultipartFile file, Long organizerProfileId,
+            OrganizerDocumentType documentType, boolean checkOnly, String oppositeKey, boolean pairVerified) {
         String name = file.getOriginalFilename();
         if (name == null || name.isBlank() || name.length() > 255
                 || name.matches(".*[/\\\\:<>\"|?*].*") || name.codePoints().anyMatch(Character::isISOControl)) {
@@ -130,8 +169,13 @@ public class PrivateOrganizerDocumentStorage {
             }
             if (documentType == OrganizerDocumentType.ID_CARD_FRONT || documentType == OrganizerDocumentType.ID_CARD_BACK) {
                 if ("pdf".equals(extension)) throw new BadRequestException("Upload a JPG or PNG identity card photo");
-                if (identityOcrCommand == null) throw new OrganizerIdentityCheckUnavailableException();
-                OrganizerIdentityImageCheck.verify(documentType, bytes, identityOcrCommand, identityOcrDataDirectory);
+                if (!pairVerified && identityOcrCommand == null) throw new OrganizerIdentityCheckUnavailableException();
+                if (!pairVerified && oppositeKey == null) OrganizerIdentityImageCheck.verify(documentType, bytes, identityOcrCommand, identityOcrDataDirectory);
+                else if (!pairVerified) {
+                    boolean firstIsFront = OrganizerIdentityImageCheck.verifyPair(bytes, read(oppositeKey).bytes(), identityOcrCommand, identityOcrDataDirectory);
+                    if (firstIsFront != (documentType == OrganizerDocumentType.ID_CARD_FRONT))
+                        throw new BadRequestException("The photo shows the other side of the identity card");
+                }
             }
             if (checkOnly) return null;
             String key = UUID.randomUUID() + "." + extension;

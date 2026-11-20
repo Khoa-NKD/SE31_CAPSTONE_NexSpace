@@ -23,17 +23,76 @@ final class OrganizerIdentityImageCheck {
     private OrganizerIdentityImageCheck() {}
 
     static void verify(OrganizerDocumentType type, byte[] bytes, String executable, String dataDirectory) {
-        if (!RUNS.tryAcquire()) throw unavailable();
+        var reading = inspect(bytes, executable, dataDirectory);
+        int expected = type == OrganizerDocumentType.ID_CARD_FRONT ? 1 : 2;
+        if (reading.side() != expected) throw new BadRequestException("The photo shows the other side of the identity card");
+    }
+
+    private record Reading(int side, String number) {}
+
+    private static Reading inspect(byte[] bytes, String executable, String dataDirectory) {
+        if (!RUNS.tryAcquire()) throw new OrganizerIdentityCheckUnavailableException("Identity photo checking is busy. Wait a moment and retry.");
         try {
             var image = cleanImage(bytes);
-            int side = classify(readText(image, executable, dataDirectory, "11"));
-            if (side == 0) side = classify(readText(image, executable, dataDirectory, "6"));
-            int expected = type == OrganizerDocumentType.ID_CARD_FRONT ? 1 : 2;
-            if (side == 0) throw new BadRequestException("Could not recognize a readable Vietnamese identity card. Retake the photo");
-            if (side != expected) throw new BadRequestException("The photo shows the other side of the identity card");
+            String text = readText(image, executable, dataDirectory, "11");
+            int side = classify(text);
+            if (side == 0 || identityNumber(text, side) == null) {
+                String second = readText(image, executable, dataDirectory, "6");
+                if (side == 0) side = classify(second);
+                text += "\n" + second;
+            }
+            if (side == 0) throw unreadable(text);
+            return new Reading(side, identityNumber(text, side));
         } finally {
             RUNS.release();
         }
+    }
+
+    static boolean verifyPair(byte[] first, byte[] second, String executable, String dataDirectory) {
+        var a = inspect(first, executable, dataDirectory);
+        var b = inspect(second, executable, dataDirectory);
+        if (a.side() == b.side())
+            throw new BadRequestException("Both identity photos show the same side. Keep one photo and choose the other side.");
+        requireSameNumber(a.number(), b.number());
+        return a.side() == 1;
+    }
+
+    static void requireSameNumber(String first, String second) {
+        if (first == null || second == null)
+            throw new BadRequestException("Could not compare the identity numbers. Retake the front number and the back machine-readable lines clearly.");
+        if (!first.equals(second))
+            throw new BadRequestException("These identity photos have different identity numbers. Keep one photo and upload the matching side of the same person's card.");
+    }
+
+    /** Compare only a unique, readable 12-digit number, never names or an OCR guess. Numbers never leave the server. */
+    static String identityNumber(String text, int side) {
+        if (text == null) return null;
+        var candidates = new java.util.HashSet<String>();
+        for (String line : text.lines().toList()) {
+            String compact = line.toUpperCase(Locale.ROOT).replaceAll("[\\t \\u00a0]", "");
+            // TD1 line 1 contains a nine-character document number and its check
+            // digit before the optional field containing the full Vietnamese NID.
+            // Taking twelve digits immediately after VNM mixes unrelated fields.
+            var pattern = side == 2
+                    ? java.util.regex.Pattern.compile("(?<![A-Z0-9<])[I1L][D0O<]VN[MN]([0-9]{9})([0-9])([0-9]{12})<<[0-9<](?![A-Z0-9<])")
+                    : java.util.regex.Pattern.compile("(?<![0-9])([0-9]{12})(?![0-9])");
+            var matcher = pattern.matcher(compact);
+            while (matcher.find()) {
+                if (side == 2) {
+                    if (!validDocumentCheckDigit(matcher.group(1), matcher.group(2).charAt(0))) return null;
+                    candidates.add(matcher.group(3));
+                } else candidates.add(matcher.group(1));
+            }
+        }
+        return candidates.size() == 1 ? candidates.iterator().next() : null;
+    }
+
+    private static boolean validDocumentCheckDigit(String digits, char checkDigit) {
+        int[] weights = {7, 3, 1};
+        int sum = 0;
+        for (int index = 0; index < digits.length(); index++)
+            sum += (digits.charAt(index) - '0') * weights[index % weights.length];
+        return sum % 10 == checkDigit - '0';
     }
 
     private static java.awt.image.BufferedImage cleanImage(byte[] bytes) {
@@ -44,7 +103,10 @@ final class OrganizerIdentityImageCheck {
             try {
                 reader.setInput(input, true, true);
                 int width = reader.getWidth(0), height = reader.getHeight(0);
-                if (Math.min(width, height) < 200 || (long) width * height > MAX_PIXELS) throw invalidImage();
+                if (Math.min(width, height) < 200)
+                    throw new BadRequestException("The identity photo resolution is too low. Upload a larger clear photo with all four corners visible.");
+                if ((long) width * height > MAX_PIXELS)
+                    throw new BadRequestException("The identity photo exceeds 12 megapixels. Resize it and upload again.");
                 var image = reader.read(0);
                 if (image == null) throw invalidImage();
                 return image;
@@ -64,6 +126,16 @@ final class OrganizerIdentityImageCheck {
             if (programFiles != null) {
                 Path installed = Path.of(programFiles, "Tesseract-OCR", "tesseract.exe");
                 if (Files.isRegularFile(installed)) executable = installed.toString();
+            }
+        }
+        if (System.getProperty("os.name").startsWith("Mac")) {
+            // GUI-launched IDEs often omit Homebrew from PATH on both Apple Silicon and Intel Macs.
+            for (String prefix : List.of("/opt/homebrew", "/usr/local")) {
+                Path binary = Path.of(prefix, "bin", "tesseract");
+                if ("tesseract".equals(executable) && Files.isExecutable(binary)) executable = binary.toString();
+                Path languageData = Path.of(prefix, "share", "tessdata");
+                if (dataDirectory.isBlank() && System.getenv("TESSDATA_PREFIX") == null && hasLanguagePacks(languageData))
+                    dataDirectory = languageData.toString();
             }
         }
         // Windows processes may start without the user's environment overrides.
@@ -91,8 +163,10 @@ final class OrganizerIdentityImageCheck {
     private static String readText(java.awt.image.BufferedImage image, String executable, String dataDirectory, String pageMode) {
         Process process = null;
         try {
+            if (!dataDirectory.isBlank() && !hasLanguagePacks(Path.of(dataDirectory)))
+                throw processFailure("Failed loading language");
             process = new ProcessBuilder(command(executable, dataDirectory, pageMode))
-                    .redirectError(ProcessBuilder.Redirect.DISCARD).start();
+                    .start();
             Process running = process;
             var output = new java.util.concurrent.FutureTask<>(() -> {
                 try (var stream = running.getInputStream()) { return stream.readNBytes(32 * 1024); }
@@ -105,16 +179,26 @@ final class OrganizerIdentityImageCheck {
                 }
                 return null;
             });
+            var diagnostic = new java.util.concurrent.FutureTask<>(() -> {
+                try (var stream = running.getErrorStream()) { return stream.readNBytes(16 * 1024); }
+            });
             startWorker(output);
             startWorker(input);
-            if (!process.waitFor(12, TimeUnit.SECONDS) || process.exitValue() != 0) throw unavailable();
+            startWorker(diagnostic);
+            if (!process.waitFor(12, TimeUnit.SECONDS)) throw timedOut();
+            if (process.exitValue() != 0)
+                throw processFailure(new String(diagnostic.get(1, TimeUnit.SECONDS), StandardCharsets.UTF_8));
             input.get(1, TimeUnit.SECONDS);
             return new String(output.get(1, TimeUnit.SECONDS), StandardCharsets.UTF_8);
         } catch (InterruptedException ex) {
             Thread.currentThread().interrupt();
             throw unavailable();
-        } catch (IOException | java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException ex) {
-            throw unavailable();
+        } catch (IOException | java.nio.file.InvalidPathException ex) {
+            throw new OrganizerIdentityCheckUnavailableException("Identity photo checking is not configured on this server. Contact support.");
+        } catch (java.util.concurrent.TimeoutException ex) {
+            throw timedOut();
+        } catch (java.util.concurrent.ExecutionException ex) {
+            throw processFailure("");
         } finally {
             if (process != null && process.isAlive()) process.destroyForcibly();
         }
@@ -152,7 +236,25 @@ final class OrganizerIdentityImageCheck {
     }
 
     private static BadRequestException invalidImage() {
-        return new BadRequestException("Upload a clear JPG or PNG identity card photo between 200 pixels per side and 12 megapixels");
+        return new BadRequestException("The identity photo could not be opened. Upload an undamaged JPG or PNG file.");
+    }
+
+    static BadRequestException unreadable(String text) {
+        if (text == null || text.isBlank())
+            return new BadRequestException("No readable text was found on the identity photo. Retake it in focus, avoid glare and include all four corners.");
+        return new BadRequestException("The identity card details could not be read completely. The photo may be blurred, obscured or cropped. Retake the correct side with all four corners visible.");
+    }
+
+    static OrganizerIdentityCheckUnavailableException processFailure(String diagnostic) {
+        String detail = diagnostic.toLowerCase(Locale.ROOT);
+        if (detail.contains("failed loading language") || detail.contains("error opening data file")
+                || detail.contains("couldn't load any languages"))
+            return new OrganizerIdentityCheckUnavailableException("Identity photo checking is missing required language data on this server. Contact support.");
+        return new OrganizerIdentityCheckUnavailableException("Identity photo checking failed to process this image. Retry or contact support.");
+    }
+
+    private static OrganizerIdentityCheckUnavailableException timedOut() {
+        return new OrganizerIdentityCheckUnavailableException("Identity photo checking took too long. Retry with a smaller clear photo.");
     }
 
     private static OrganizerIdentityCheckUnavailableException unavailable() {

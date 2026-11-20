@@ -26,6 +26,26 @@ app.jwt.expiration-ms=86400000
 # Organizer sensitive bank account cipher key (AES-256)
 app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 
+# ── Identity photo OCR (Windows / macOS / Linux) ──────────────────────────
+# Standard Windows and Homebrew macOS paths are discovered automatically.
+# macOS: bash scripts/setup-local-macos.sh --install-ocr
+# The helper preserves existing local config and writes a gitignored .local-ocr.env.
+# Optional overrides; use paths on YOUR machine, never copy Windows paths to macOS.
+# app.organizer.identity-ocr-command=${OCR_TESSERACT_COMMAND:tesseract}
+# app.organizer.identity-ocr-data-directory=${OCR_TESSDATA_DIR:}
+
+# ── Private OTP agreements (local, macOS, staging, deployment) ─────────────
+# Enable only after filling the real platform identity and configuring SMTP.
+# app.organizer.contract.enabled=true
+# app.organizer.contract.cloudinary-enabled=true
+# app.organizer.contract.platform.legal-name=305 NEXSPACE
+# app.organizer.contract.platform.tax-id=Your company tax ID
+# Use Unicode escapes in .properties files to preserve Vietnamese across loaders.
+# app.organizer.contract.platform.address=Ng\u0169 H\u00e0nh S\u01a1n, \u0110\u00e0 N\u1eb5ng, Vi\u1ec7t Nam
+# app.organizer.contract.platform.representative-name=Nguy\u1ec5n Huy V\u0169
+# app.organizer.contract.platform.representative-title=CEO
+# PDFs use authenticated private Cloudinary storage when enabled. Existing local PDFs remain local.
+
 # ── Cloudinary Media Storage (Optional, auto-fallback to local storage) ─────
 # Get free credentials at: https://cloudinary.com/users/register_free
 # cloudinary.cloud-name=your_cloud_name
@@ -44,8 +64,8 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # app.auth.inactive-threshold-days=90
 # app.client-url=http://localhost:3000
 # app.api-url=http://localhost:8080
-# Local-only demonstration agreement. Never use this template for real transactions.
-app.organizer.contract.demo-enabled=true
+# Local-only demonstration agreements require explicit opt-in; configure the managed template above for normal issuance.
+app.organizer.contract.demo-enabled=false
 # ── AI Gemini Configuration (Tách biệt token giữa Floor AI & Chatbot) ───────
 # API Key dành riêng cho Floor Plan AI Studio
 nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}

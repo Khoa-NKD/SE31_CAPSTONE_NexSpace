@@ -146,7 +146,7 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
         if (!isCloudinaryConfigured() || reference == null
                 || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)"
-                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)/" + uuid + "\\.pdf)")) {
+                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc|Contracts)/" + uuid + "\\.pdf)")) {
             throw new PrivateDocumentUnavailableException();
         }
         String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());
@@ -225,6 +225,12 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         return uploadPrivateDocumentToFolder(content, generatedKey, "Organizers/" + organizerProfileId + "/doc");
     }
 
+    /** Fixed private PDF namespace keeps immutable contract references within the existing 80-character columns. */
+    public String uploadPrivateContract(byte[] content, String generatedKey) {
+        if (generatedKey == null || !generatedKey.endsWith(".pdf")) throw new IllegalArgumentException("A contract PDF is required");
+        return uploadPrivateDocumentToFolder(content, generatedKey, "Contracts");
+    }
+
     private String uploadPrivateDocumentToFolder(byte[] content, String generatedKey, String folder) {
         if (!isCloudinaryConfigured() || content == null || content.length == 0
                 || content.length > MAX_FILE_SIZE_BYTES || generatedKey == null
@@ -270,7 +276,7 @@ public class CloudinaryStorageServiceImpl implements IMediaStorageService {
         String uuid = "[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}";
         if (!isCloudinaryConfigured() || reference == null
                 || !reference.matches(PRIVATE_DOCUMENT_REFERENCE_PREFIX + "(?:image:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)"
-                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc)/" + uuid + "\\.pdf)")) {
+                + "/" + uuid + "|raw:(?:" + PRIVATE_DOCUMENT_FOLDER + "|Organizers/[1-9][0-9]*/doc|Contracts)/" + uuid + "\\.pdf)")) {
             throw new IllegalStateException("Invalid or unavailable private document reference");
         }
         String value = reference.substring(PRIVATE_DOCUMENT_REFERENCE_PREFIX.length());

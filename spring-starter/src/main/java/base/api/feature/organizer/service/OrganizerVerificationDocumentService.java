@@ -67,8 +67,12 @@ public class OrganizerVerificationDocumentService {
             throw new ConflictException("A current document of this type already exists. Replacement is not available here");
         }
         PrivateOrganizerDocumentStorage.requireSupportedFormat(type, file);
-        var stored = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK
-                ? storage.store(file, profile.getId(), type) : storage.store(file, profile.getId());
+        boolean identity = type == OrganizerDocumentType.ID_CARD_FRONT || type == OrganizerDocumentType.ID_CARD_BACK;
+        String oppositeKey = identity ? documents.findFirstByOrganizerProfileIdAndDocumentTypeAndCurrentTrueOrderByIdDesc(
+                profile.getId(), type == OrganizerDocumentType.ID_CARD_FRONT ? OrganizerDocumentType.ID_CARD_BACK : OrganizerDocumentType.ID_CARD_FRONT)
+                .map(OrganizerDocumentModel::getFileUrl).orElse(null) : null;
+        var stored = identity ? (oppositeKey == null ? storage.store(file, profile.getId(), type)
+                : storage.store(file, profile.getId(), type, oppositeKey)) : storage.store(file, profile.getId());
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCompletion(int status) {

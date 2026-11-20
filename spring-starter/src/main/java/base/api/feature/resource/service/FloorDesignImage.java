@@ -50,11 +50,11 @@ public final class FloorDesignImage {
                     var output = new ByteArrayOutputStream();
                     String format = png ? "png" : "jpeg";
                     try {
-                        if (!ImageIO.write(clean, format, output)) throw invalid();
+                        writeImage(clean, format, output);
                         if (png && output.size() > 5 * 1024 * 1024) {
                             output.reset();
                             format = "jpeg";
-                            if (!ImageIO.write(clean, format, output)) throw invalid();
+                            writeImage(clean, format, output);
                         }
                     }
                     finally { clean.flush(); }
@@ -64,6 +64,25 @@ public final class FloorDesignImage {
             }
         } catch (BadRequestException e) { throw e; }
         catch (Exception e) { throw invalid(); }
+    }
+    /** JPEG's default encoder quality loses fine labels and chair outlines on a second encoding. */
+    private static void writeImage(BufferedImage image, String format, ByteArrayOutputStream output) throws java.io.IOException {
+        if (!"jpeg".equals(format)) {
+            if (!ImageIO.write(image, format, output)) throw invalid();
+            return;
+        }
+        var writers = ImageIO.getImageWritersByFormatName("jpeg");
+        if (!writers.hasNext()) throw invalid();
+        var writer = writers.next();
+        try (var stream = ImageIO.createImageOutputStream(output)) {
+            writer.setOutput(stream);
+            var params = writer.getDefaultWriteParam();
+            params.setCompressionMode(javax.imageio.ImageWriteParam.MODE_EXPLICIT);
+            params.setCompressionQuality(0.94f);
+            if (params instanceof javax.imageio.plugins.jpeg.JPEGImageWriteParam jpeg)
+                jpeg.setOptimizeHuffmanTables(true);
+            writer.write(null, new javax.imageio.IIOImage(image, null, null), params);
+        } finally { writer.dispose(); }
     }
     private static BadRequestException invalid() { return new BadRequestException("Use a valid JPG/PNG image up to 5 MB and 20 megapixels. WebP can be attached through the image picker."); }
 }
