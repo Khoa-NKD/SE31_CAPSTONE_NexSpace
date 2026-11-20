@@ -99,13 +99,13 @@ export function SummaryCards({
               <h2 className='text-sm text-muted-foreground'>{card.label}</h2>
               <p className='mt-1 text-xs text-muted-foreground'>{card.description}</p>
               <p className='mt-2 break-words text-[clamp(1.35rem,2vw,1.75rem)] font-semibold tracking-tight tabular-nums'>
-                {value == null ? c('Not verified', 'Chưa đủ căn cứ') : money(value, locale)}
+                {money(value ?? '0', locale)}
               </p>
               <div className='mt-3 flex items-center justify-between gap-2'>
                 <span
                   className={`rounded-md px-1.5 py-1 text-xs font-medium tabular-nums ${!comparison ? 'bg-muted text-muted-foreground' : card.key === 'platformFeeAmount' ? 'bg-muted text-foreground' : comparison.startsWith('−') ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400' : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'}`}
                 >
-                  {comparison ?? c('No baseline', 'Chưa có cơ sở')}
+                  {comparison ?? '—'}
                 </span>
               </div>
               <p className='mt-2 text-[11px] text-muted-foreground'>
@@ -168,11 +168,7 @@ export function SummaryCards({
             )}
           </span>
           <strong className='tabular-nums'>
-            {earnings?.transferredAmount != null
-              ? money(earnings.transferredAmount, locale)
-              : earnings?.transferTrackingAvailable
-                ? c('Needs reconciliation', 'Cần đối soát chi trả')
-                : c('No transfer records yet', 'Chưa có bản ghi chi trả')}
+            {money(earnings?.transferredAmount ?? '0', locale)}
           </strong>
         </div>
         <button

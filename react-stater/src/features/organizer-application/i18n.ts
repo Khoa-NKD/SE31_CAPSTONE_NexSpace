@@ -1,5 +1,33 @@
 /** English source messages remain stable; user-entered content is never translated. */
 export const organizerVietnamese: Record<string, string> = {
+  'The agreement already has the correct platform name and address':
+    'Hợp đồng đã có đúng tên người đại diện và địa chỉ nền tảng; không cần phụ lục đính chính.',
+  'Managed agreements are not enabled':
+    'Chưa bật phát hành hợp đồng chính thức. Liên hệ quản trị viên.',
+  'This addendum is not available for signing':
+    'Phụ lục này hiện chưa thể ký bằng tài khoản của bạn.',
+  'The addendum version changed. Reload and read it again.':
+    'Phiên bản phụ lục đã thay đổi. Tải lại và đọc nội dung mới.',
+  'This correction cannot change the platform legal entity, tax ID or title':
+    'Phụ lục đính chính này không được thay đổi tên pháp nhân, mã số thuế hoặc chức danh đại diện nền tảng.',
+  'A signed managed agreement and approved profile are required for a correction':
+    'Chỉ phát hành phụ lục khi hợp đồng chính thức đã ký và hồ sơ đã được duyệt.',
+  'Contract addendum not found': 'Không tìm thấy phụ lục hợp đồng.',
+  'Wait 60 seconds before requesting another code':
+    'Vui lòng chờ 60 giây trước khi yêu cầu mã mới.',
+  'Email code limit reached. Try again after the one-hour window.':
+    'Đã đạt giới hạn 5 lần gửi mã trong một giờ. Vui lòng thử lại sau.',
+  'The email code has expired. Request a new code.': 'Mã OTP đã hết hạn. Vui lòng yêu cầu mã mới.',
+  'This code is locked after five incorrect attempts. Request a new code.':
+    'Mã đã bị khóa sau 5 lần nhập sai. Vui lòng yêu cầu mã mới.',
+  'Confirm your authority and agreement before signing':
+    'Vui lòng xác nhận đồng ý nội dung và thẩm quyền đại diện trước khi ký.',
+  'Could not send the confirmation email. Try again later.':
+    'Chưa gửi được email xác nhận. Vui lòng thử lại sau.',
+  'Contract integrity check failed':
+    'Nội dung PDF không khớp bản đã phát hành. Vui lòng liên hệ quản trị viên.',
+  'The signed agreement reference changed':
+    'Bản hợp đồng được phụ lục tham chiếu đã thay đổi. Vui lòng liên hệ quản trị viên.',
   'View your approved application, cooperation agreement and verification documents.':
     'Tra cứu hồ sơ đã duyệt, hợp đồng hợp tác và giấy tờ xác minh của bạn.',
   'Application overview': 'Tổng quan hồ sơ',
@@ -194,10 +222,39 @@ export const organizerVietnamese: Record<string, string> = {
   'Workspace overview (optional PDF)': 'Hồ sơ giới thiệu workspace (PDF tùy chọn)',
   'The workspace overview must be a PDF file': 'Hồ sơ giới thiệu workspace phải là tệp PDF.',
   'Upload a JPG or PNG identity card photo': 'Hãy tải ảnh căn cước định dạng JPG hoặc PNG.',
-  'Could not recognize a readable Vietnamese identity card. Retake the photo': 'Không nhận diện được thẻ căn cước Việt Nam. Hãy chụp lại ảnh rõ nét.',
+  'Could not recognize a readable Vietnamese identity card. Retake the photo':
+    'Không nhận diện được thẻ căn cước Việt Nam. Hãy chụp lại ảnh rõ nét.',
   'The photo shows the other side of the identity card': 'Bạn đã tải nhầm mặt của thẻ căn cước.',
-  'Identity photo checking is temporarily unavailable. Try again.': 'Chưa kiểm tra được ảnh căn cước. Vui lòng thử lại sau.',
-  'Upload multiple images or a single PDF for each document type': 'Mỗi nhóm giấy tờ nhận nhiều ảnh hoặc một tệp PDF.',
+  'Both identity photos show the same side. Keep one photo and choose the other side.':
+    'Hai ảnh cùng một mặt CCCD. Chỉ giữ lại một ảnh và chọn thêm mặt còn lại.',
+  'Could not compare the identity numbers. Retake the front number and the back machine-readable lines clearly.':
+    'Chưa đọc rõ số định danh để đối chiếu hai mặt. Chụp rõ số CCCD ở mặt trước và các dòng ký tự MRZ ở mặt sau; hệ thống chưa xác nhận hai ảnh cùng một người.',
+  "These identity photos have different identity numbers. Keep one photo and upload the matching side of the same person's card.":
+    'Hai ảnh được nhận diện ra số định danh khác nhau. Kiểm tra ảnh có cùng người không; giữ lại một ảnh rồi chọn mặt còn lại của đúng người đó, rõ số và không bị mờ.',
+  'Identity photo checking is temporarily unavailable. Try again.':
+    'Chưa kiểm tra được ảnh căn cước. Vui lòng thử lại sau.',
+  'Identity photo checking is busy. Wait a moment and retry.':
+    'Hệ thống đang xử lý nhiều ảnh CCCD. Chờ một lát rồi thử lại; bạn không cần chụp lại ảnh.',
+  'Identity photo checking is not configured on this server. Contact support.':
+    'Máy chủ chưa cấu hình công cụ đọc CCCD. Liên hệ quản trị viên; lỗi này không phải do ảnh của bạn.',
+  'Identity photo checking is missing required language data on this server. Contact support.':
+    'Máy chủ thiếu dữ liệu ngôn ngữ để đọc CCCD. Liên hệ quản trị viên; không cần chụp lại ảnh.',
+  'Identity photo checking took too long. Retry with a smaller clear photo.':
+    'Kiểm tra CCCD mất quá nhiều thời gian. Thử lại hoặc giảm kích thước ảnh nhưng vẫn giữ chữ rõ và đủ bốn góc.',
+  'Identity photo checking failed to process this image. Retry or contact support.':
+    'Công cụ đọc CCCD không xử lý được ảnh này. Thử ảnh JPG/PNG khác; nếu vẫn lỗi, liên hệ quản trị viên.',
+  'The identity photo could not be opened. Upload an undamaged JPG or PNG file.':
+    'Không mở được tệp ảnh CCCD. Chọn tệp JPG/PNG không bị hỏng; không chỉ đổi đuôi tệp.',
+  'The identity photo resolution is too low. Upload a larger clear photo with all four corners visible.':
+    'Ảnh CCCD có độ phân giải quá thấp. Dùng ảnh lớn hơn, tối thiểu 200 px mỗi cạnh, chữ rõ và đủ bốn góc.',
+  'The identity photo exceeds 12 megapixels. Resize it and upload again.':
+    'Ảnh CCCD vượt quá 12 megapixel. Giảm kích thước ảnh rồi tải lại, giữ nguyên toàn bộ thẻ.',
+  'No readable text was found on the identity photo. Retake it in focus, avoid glare and include all four corners.':
+    'Chưa đọc được chữ trên ảnh CCCD. Ảnh có thể bị mờ, chói hoặc thẻ quá nhỏ trong khung hình. Chụp lấy nét, tránh phản sáng và giữ đủ bốn góc.',
+  'The identity card details could not be read completely. The photo may be blurred, obscured or cropped. Retake the correct side with all four corners visible.':
+    'Chưa đọc đủ thông tin để xác nhận mặt CCCD. Ảnh có thể mờ, bị che hoặc cắt mất nội dung. Chụp lại đúng mặt, chữ rõ và đủ bốn góc; tránh để tay che thẻ.',
+  'Upload multiple images or a single PDF for each document type':
+    'Mỗi nhóm giấy tờ nhận nhiều ảnh hoặc một tệp PDF.',
   'Required when submitting': 'Bắt buộc khi gửi hồ sơ',
   'This field is required.': 'Vui lòng điền mục này.',
   'Choose a supported business type': 'Chọn một loại hình kinh doanh được hỗ trợ.',
@@ -205,11 +262,15 @@ export const organizerVietnamese: Record<string, string> = {
   'Business tax ID': 'Mã số thuế doanh nghiệp',
   '12 digits': '12 chữ số',
   '10 digits': '10 chữ số',
-  "Enter the representative's 12-digit personal identification number": 'Nhập số định danh cá nhân 12 chữ số của người đại diện.',
+  "Enter the representative's 12-digit personal identification number":
+    'Nhập số định danh cá nhân 12 chữ số của người đại diện.',
   'Enter the 10-digit business tax ID': 'Nhập mã số thuế doanh nghiệp 10 chữ số.',
-  'This tax ID belongs to an approved organizer': 'Mã số thuế này đã được sử dụng trong hồ sơ đối tác đã duyệt.',
-  'This tax ID belongs to an approved or contract-pending Organizer': 'Mã số thuế này đã được dùng trong hồ sơ đã duyệt hoặc đang chờ ký hợp đồng.',
-  'Contact the reviewer. If the tax ID on this application is incorrect, ask the reviewer to reject it so you can start a new application with the correct tax ID.': 'Hãy liên hệ người xét duyệt. Nếu mã số thuế trên hồ sơ này bị nhập sai, hãy đề nghị từ chối hồ sơ để bạn có thể tạo hồ sơ mới với mã đúng.',
+  'This tax ID belongs to an approved organizer':
+    'Mã số thuế này đã được sử dụng trong hồ sơ đối tác đã duyệt.',
+  'This tax ID belongs to an approved or contract-pending Organizer':
+    'Mã số thuế này đã được dùng trong hồ sơ đã duyệt hoặc đang chờ ký hợp đồng.',
+  'Contact the reviewer. If the tax ID on this application is incorrect, ask the reviewer to reject it so you can start a new application with the correct tax ID.':
+    'Hãy liên hệ người xét duyệt. Nếu mã số thuế trên hồ sơ này bị nhập sai, hãy đề nghị từ chối hồ sơ để bạn có thể tạo hồ sơ mới với mã đúng.',
   'Ownership, operation or other evidence': 'Chứng minh quyền sở hữu, vận hành hoặc giấy tờ khác',
   'Bank certificate (read-only)': 'Giấy xác nhận ngân hàng (chỉ xem)',
   PENDING: 'Chờ xác minh',
@@ -283,6 +344,10 @@ export function translateOrganizer(
   language: 'vi' | 'en'
 ): string {
   if (!message) return '';
+  if (language === 'vi') {
+    const attempts = /^Incorrect email code\. Remaining attempts: ([0-5])$/.exec(message);
+    if (attempts) return `Mã OTP không đúng. Còn ${attempts[1]} lần thử.`;
+  }
   return language === 'vi'
     ? (organizerVietnamese[message.replace(/\s+/g, ' ').trim()] ?? message)
     : message;

@@ -165,9 +165,14 @@ export function correctionDocumentPayload(
 ) {
   revision(revisionValue);
   if (
-    !['BUSINESS_LICENSE', 'ID_CARD_FRONT', 'ID_CARD_BACK', 'TAX_CERTIFICATE', 'WORKSPACE_OVERVIEW', 'OTHER'].includes(
-      documentType
-    )
+    ![
+      'BUSINESS_LICENSE',
+      'ID_CARD_FRONT',
+      'ID_CARD_BACK',
+      'TAX_CERTIFICATE',
+      'WORKSPACE_OVERVIEW',
+      'OTHER'
+    ].includes(documentType)
   )
     throw new Error('Unsupported document type.');
   const error = documentFileError(file, undefined, documentType);
@@ -195,17 +200,78 @@ export function correctDocument(
     correctionDocumentPayload(revisionValue, type, currentId, file)
   );
 }
-export function checkIdentityPhoto(applicationId: number, type: UploadDocumentType, file: File, signal: AbortSignal) {
+export function checkIdentityPhoto(
+  applicationId: number,
+  type: UploadDocumentType,
+  file: File,
+  signal: AbortSignal
+) {
   const payload = new FormData();
   payload.append('applicationId', String(applicationId));
   payload.append('documentType', type);
   payload.append('file', file);
   return backendRequest<{ valid: boolean }>(
-    '/organizer/applications/current/identity-photo-check', 'POST', payload, true, signal
+    '/organizer/applications/current/identity-photo-check',
+    'POST',
+    payload,
+    true,
+    signal
   );
 }
 
-export function addDocumentPages(applicationId: number, revisionValue: number, type: UploadDocumentType, files: File[]) {
+export function identityPairPayload(
+  applicationId: number,
+  first: File,
+  second: File,
+  revisionValue?: number
+) {
+  if (!Number.isSafeInteger(applicationId) || applicationId < 1)
+    throw new Error('Invalid application ID.');
+  const payload = new FormData();
+  payload.append('applicationId', String(applicationId));
+  payload.append('first', first);
+  payload.append('second', second);
+  if (revisionValue !== undefined) {
+    revision(revisionValue);
+    payload.append('revision', String(revisionValue));
+  }
+  return payload;
+}
+
+export function checkIdentityPair(
+  applicationId: number,
+  first: File,
+  second: File,
+  signal: AbortSignal
+) {
+  return backendRequest<{ firstIsFront: boolean }>(
+    '/organizer/applications/current/identity-photo-pair-check',
+    'POST',
+    identityPairPayload(applicationId, first, second),
+    true,
+    signal
+  );
+}
+
+export function saveIdentityPair(
+  applicationId: number,
+  revisionValue: number,
+  first: File,
+  second: File
+) {
+  return backendRequest<LifecycleContext>(
+    '/organizer/applications/current/identity-photo-pair',
+    'POST',
+    identityPairPayload(applicationId, first, second, revisionValue)
+  );
+}
+
+export function addDocumentPages(
+  applicationId: number,
+  revisionValue: number,
+  type: UploadDocumentType,
+  files: File[]
+) {
   revision(revisionValue);
   const payload = new FormData();
   payload.append('applicationId', String(applicationId));
@@ -217,7 +283,9 @@ export function addDocumentPages(applicationId: number, revisionValue: number, t
     payload.append('files', file);
   }
   return backendRequest<LifecycleContext>(
-    '/organizer/applications/current/correction-documents/pages', 'POST', payload
+    '/organizer/applications/current/correction-documents/pages',
+    'POST',
+    payload
   );
 }
 export function deleteDraftDocument(revisionValue: number, documentId: number) {

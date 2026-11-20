@@ -188,11 +188,6 @@ export function ResourcePlacementEditor({
   const [pan, setPan] = useState({ x: 0, y: 0 });
   const [expanded, setExpanded] = useState(false);
   useEffect(() => {
-    const syncFullscreen = () => setExpanded(document.fullscreenElement === containerRef.current);
-    document.addEventListener('fullscreenchange', syncFullscreen);
-    return () => document.removeEventListener('fullscreenchange', syncFullscreen);
-  }, []);
-  useEffect(() => {
     if (!expanded) return;
     const overflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -200,7 +195,8 @@ export function ResourcePlacementEditor({
       if (
         event.key === 'Escape' &&
         !event.defaultPrevented &&
-        document.fullscreenElement !== containerRef.current &&
+        !document.fullscreenElement &&
+        !document.querySelector('input[data-file-picker-open="true"]') &&
         !document.querySelector('[role="dialog"][data-state="open"]')
       )
         setExpanded(false);
@@ -218,22 +214,13 @@ export function ResourcePlacementEditor({
       return;
     }
     if (expanded) {
-      try {
-        if (document.fullscreenElement === containerRef.current) await document.exitFullscreen();
-        else setExpanded(false);
-      } catch {
-        toast.error(c('Press Esc to exit fullscreen.', 'Nhấn Esc để thoát toàn màn hình.'));
-      }
+      if (document.fullscreenElement) await document.exitFullscreen();
+      setExpanded(false);
       return;
     }
-    try {
-      if (document.fullscreenEnabled && containerRef.current?.requestFullscreen)
-        await containerRef.current.requestFullscreen();
-      else setExpanded(true);
-    } catch {
-      // Embedded browsers may deny fullscreen. Keep an expanded in-page editor available.
-      setExpanded(true);
-    }
+    setExpanded(true);
+    // Use the page root to preserve body portals and their draft state.
+    await document.documentElement.requestFullscreen().catch(() => undefined);
   }
   useCanvasWheel(
     svgRef,
@@ -636,6 +623,7 @@ export function ResourcePlacementEditor({
   return (
     <div
       ref={containerRef}
+      data-canvas-expanded={expanded || fullscreenActive ? 'true' : undefined}
       role='region'
       aria-label={c('Resource placement controls', 'Điều khiển bố trí ghế/phòng')}
       className={

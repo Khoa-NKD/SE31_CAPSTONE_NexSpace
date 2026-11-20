@@ -69,13 +69,17 @@ export function signContract(contract: OrganizerContract, otp: string, consent: 
 /** Private PDF bytes never enter the query cache or local storage. */
 export async function fetchContractPdf(
   applicationId?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  addendumId?: number
 ): Promise<Blob> {
   const session = useAuthStore.getState();
   const token = session.accessToken;
   if (!token) throw new Error('Sign in to view this agreement.');
+  if (addendumId !== undefined && (!Number.isSafeInteger(addendumId) || addendumId < 1))
+    throw new Error('Invalid addendum ID');
+  const suffix = addendumId === undefined ? '/pdf' : `/addenda/${addendumId}/pdf`;
   const response = await fetch(
-    `${import.meta.env.VITE_BACKEND_API_URL || '/api'}${path(applicationId)}/pdf`,
+    `${import.meta.env.VITE_BACKEND_API_URL || '/api'}${path(applicationId)}${suffix}`,
     {
       headers: { Authorization: `Bearer ${token}` },
       signal,
