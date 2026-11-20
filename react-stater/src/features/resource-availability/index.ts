@@ -5,4 +5,5 @@ export * from './api/mutations';
 export * from './components/desk-availability-badge';
 export * from './components/room-availability-card';
 export * from './components/room-time-slot-picker';
+export * from './hooks/use-realtime-resource-status';
 export * from './utils/availability-feedback';

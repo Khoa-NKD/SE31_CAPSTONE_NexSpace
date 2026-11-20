@@ -41,6 +41,7 @@ import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import { useCurrentPendingBooking } from '@/features/payments/api';
+import { useRealtimeResourceStatus } from '@/features/resource-availability';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 
 export interface SeatsPageProps {
@@ -259,38 +260,59 @@ export function SeatsPage({
   const createBookingMutation = useCreateBookingMutation();
   const { data: currentPendingBooking } = useCurrentPendingBooking();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const lastUnavailableIdRef = useRef<number | null>(null);
 
-  // Auto-restore selected resource from initialResourceId if arriving back from login
-  useEffect(() => {
-    if (initialResourceId && loadedFloors.length > 0 && !selectedResource) {
-      for (const fl of loadedFloors) {
-        const found = fl.resources?.find((r) => r.id === initialResourceId);
-        if (found) {
-          setSelectedResource(found);
-          setActiveFloorId(fl.id);
-          break;
+  // Hook kết nối SSE cập nhật khả dụng thời gian thực và tự động bỏ chọn (Auto-Deselect)
+  useRealtimeResourceStatus(workspaceId, {
+    enabled: Boolean(workspaceId),
+    onResourceChange: (payload) => {
+      if (selectedResource && selectedResource.id === payload.resourceId) {
+        const isOccupiedByMe =
+          (payload.customerId && currentUserId && payload.customerId === currentUserId) ||
+          (currentPendingBooking && currentPendingBooking.resourceId === payload.resourceId);
+
+        const isOccupiedStatus =
+          payload.newStatus === 'HOLDING' ||
+          payload.newStatus === 'BOOKED' ||
+          payload.newStatus === 'BLOCKED' ||
+          payload.newStatus === 'DISABLED';
+
+        if (isOccupiedStatus && !isOccupiedByMe) {
+          setSelectedResource(null);
+          toast.warning(
+            c(
+              'The seat you selected was just held or booked by someone else. System has automatically deselected it.',
+              'Rất tiếc! Chỗ vừa chọn đã được người khác giữ, hệ thống đã tự động bỏ chọn chỗ này.'
+            )
+          );
         }
       }
     }
-  }, [initialResourceId, loadedFloors, selectedResource]);
+  });
 
-  // Real-time defense: If another user locks or books the currently selected resource, notify user
+  // Real-time defense fallback: Khi dữ liệu availabilityMap thay đổi mà chỗ chọn bị chiếm bởi người khác
   useEffect(() => {
     if (selectedResource && availabilityMap.has(selectedResource.id)) {
       const avail = availabilityMap.get(selectedResource.id);
-      if ((avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') && lastUnavailableIdRef.current !== selectedResource.id) {
+      const isOccupiedByMe = currentPendingBooking && currentPendingBooking.resourceId === selectedResource.id;
+      if (
+        (avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') &&
+        !isOccupiedByMe &&
+        lastUnavailableIdRef.current !== selectedResource.id
+      ) {
         lastUnavailableIdRef.current = selectedResource.id;
+        setSelectedResource(null);
         toast.warning(
           c(
-            'The seat you selected was just held or booked by someone else.',
-            'Vị trí bạn vừa chọn đã được người khác giữ chỗ hoặc đặt chỗ.'
+            'The seat you selected was just held or booked by someone else. System has automatically deselected it.',
+            'Rất tiếc! Chỗ vừa chọn đã được người khác giữ, hệ thống đã tự động bỏ chọn chỗ này.'
           )
         );
       }
     }
-  }, [availabilityMap, selectedResource, c]);
+  }, [availabilityMap, selectedResource, currentPendingBooking, c]);
   const handleScheduleChange = (schedule: ScheduleSelection) => {
     if (schedule.isoStartTime && schedule.isoEndTime) {
       setCurrentStartTime(schedule.isoStartTime);
