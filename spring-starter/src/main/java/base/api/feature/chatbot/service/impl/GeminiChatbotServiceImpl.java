@@ -277,7 +277,7 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
             if (!workspaces.isEmpty()) {
                 int count = 1;
                 for (WorkspaceModel w : workspaces) {
-                    wsBuilder.append(String.format("%d. **[%s](/workspaces/%d)**\n   * 📌 **Địa chỉ**: %s\n   * 🏷️ **Loại hình**: %s (Giá linh hoạt theo giờ và ngày)\n\n",
+                    wsBuilder.append(String.format("%d. **%s** 👉 [Nhấn vào đây](/workspaces/%d)\n   * 📌 **Địa chỉ**: %s\n   * 🏷️ **Loại hình**: %s (Giá linh hoạt theo giờ và ngày)\n\n",
                             count++,
                             w.getName(),
                             w.getId(),
@@ -287,15 +287,15 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
                 }
             } else {
                 wsBuilder.append("""
-                        1. **[Enouvo Space 1 - Dragon Bridge Hub](/workspaces/101)**
+                        1. **Enouvo Space 1 - Dragon Bridge Hub** 👉 [Nhấn vào đây](/workspaces/101)
                            * 📌 **Địa chỉ**: 15 An Nhơn 3, P. An Hải Tây, Q. Sơn Trà, TP. Đà Nẵng
                            * 💰 **Giá thuê**: Từ 35.000đ/giờ (Gần cầu Rồng, wifi kép 1Gbps, ghế Herman Miller)
                         
-                        2. **[Enouvo Space 2 - Tran Hung Dao Riverside Hub](/workspaces/102)**
+                        2. **Enouvo Space 2 - Tran Hung Dao Riverside Hub** 👉 [Nhấn vào đây](/workspaces/102)
                            * 📌 **Địa chỉ**: 169 Trần Hưng Đạo, P. An Hải Bắc, Q. Sơn Trà, TP. Đà Nẵng
                            * 💰 **Giá thuê**: Từ 50.000đ/giờ (View sông Hàn, phòng thu podcast/livestream)
                         
-                        3. **[NexSpace Executive Hub Hải Châu](/workspaces/1)**
+                        3. **NexSpace Executive Hub Hải Châu** 👉 [Nhấn vào đây](/workspaces/1)
                            * 📌 **Địa chỉ**: Số 02 Đường 2 Tháng 9, P. Bình Hiên, Q. Hải Châu, TP. Đà Nẵng
                            * 💰 **Giá thuê**: Từ 45.000đ/giờ (Tiêu chuẩn 5 sao, quầy Specialty Espresso miễn phí)
                         """);
@@ -308,7 +308,7 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
 
                     %s
                     💡 **Mẹo tìm không gian gần bạn nhất:**
-                    1. Truy cập trang **[Khám phá Không gian](/workspaces)**.
+                    1. Truy cập trang Khám phá Không gian 👉 [Nhấn vào đây](/workspaces).
                     2. Nhấn vào biểu tượng **Định vị GPS (📍)** trên thanh tìm kiếm hoặc cho phép trình duyệt truy cập vị trí của bạn.
                     3. Hệ thống sẽ tự động đo khoảng cách theo tọa độ thực và hiển thị các không gian gần vị trí của bạn nhất lên đầu danh sách!
                     """, wsBuilder.toString().trim());
@@ -384,22 +384,21 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
         // 5. ĐẶT CHỖ & QUY TRÌNH SỬ DỤNG
         else if (matchesAny(lower, "đặt chỗ", "đặt bàn", "thuê phòng", "checkin", "check-in", "booking", "mã đặt chỗ", "quy trình")) {
             reply = """
-                    ### 🚀 Quy Trình Đặt Chỗ Tại NexSpace (6 bước đơn giản)
+                    ### 🎯 Hướng Dẫn Đặt Chỗ Tại NexSpace Theo Từng Bước
 
-                    1. **Khám phá không gian**: Truy cập trang [Không gian](/workspaces) để tìm địa điểm phù hợp theo quận, tiện ích và mức giá.
-                    2. **Chọn loại hình & Khung giờ**: Chọn khung giờ làm việc mong muốn (tính theo Giờ, Ngày hoặc Tháng).
-                    3. **Xem sơ đồ trực quan**: Xem sơ đồ mặt bằng tương tác với mã màu thời gian thực:
-                       * 🟢 **Màu xanh lá**: Chỗ trống có thể đặt ngay.
-                       * 🟠 **Màu cam**: Đang có khách giữ chỗ tạm thời.
-                       * 🔴 **Màu đỏ**: Đã có người đặt trước.
-                    4. **Giữ chỗ tạm thời 10 phút**: Khi bạn chọn chỗ, hệ thống tự động khóa chỗ cho bạn trong **10 phút** để bạn yên tâm thanh toán mà không sợ ai đặt mất.
-                    5. **Thanh toán qua PayOS**: Quét mã QR chuyển khoản ngân hàng tức thì qua VietQR.
-                    6. **Nhận xác nhận**: Nhận ngay **Mã đặt chỗ (Booking Code)** để check-in khi đến không gian.
+                    NexBot được tích hợp **Trợ lý đặt chỗ thông minh theo trang**. Bạn có thể kích hoạt tính năng này bằng cách nhấn nút **"🎯 Hướng dẫn đặt chỗ theo trang hiện tại"** hoặc biểu tượng La bàn trên thanh chat:
+
+                    1. **Khám phá không gian**: Tìm kiếm và chọn không gian phù hợp 👉 [Nhấn vào đây](/workspaces).
+                    2. **Chọn ngày & khung giờ**: Tại trang chi tiết không gian (/workspaces/:id), chọn ngày làm việc và giờ bắt đầu - kết thúc ở khung "Lịch sử dụng", sau đó nhấn "Chọn chỗ ngồi & Đặt ngay".
+                    3. **Xem chỗ trống & chọn vị trí**: Tại trang chọn chỗ (/workspaces/seats), NexBot sẽ tự động liệt kê các vị trí ghế/phòng đang còn trống theo thời gian bạn chọn kèm đường link trực tiếp.
+                    4. **Giữ chỗ tạm thời 10 phút**: Hệ thống tự động khóa chỗ cho bạn trong 10 phút chống đặt trùng (Double Booking).
+                    5. **Thanh toán qua PayOS**: Quét mã VietQR chuyển khoản ngân hàng tức thì.
+                    6. **Nhận xác nhận & Smart PIN**: Nhận mã đặt chỗ và Smart PIN để check-in mở cửa.
                     """;
             suggestions = List.of(
+                    "🎯 Hướng dẫn đặt chỗ theo trang hiện tại",
                     "Cơ chế giữ chỗ tạm thời 10 phút hoạt động ra sao?",
-                    "Thanh toán qua PayOS như thế nào?",
-                    "Work space nào gần tôi nhất?"
+                    "Thanh toán qua PayOS như thế nào?"
             );
         }
         // 6. GIỮ CHỖ TẠM THỜI (TEMPORARY HOLD 10 MINS)
@@ -441,7 +440,7 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
             reply = """
                     ### 🔄 Chính Sách Hủy Đặt Chỗ & Hoàn Tiền
 
-                    * **Cách hủy**: Bạn vào mục [Đặt chỗ của tôi](/dashboard/customer/my-bookings), tìm đơn đặt chỗ muốn hủy và nhấn nút **Hủy đặt chỗ**.
+                    * **Cách hủy**: Bạn vào mục Đặt chỗ của tôi 👉 [Nhấn vào đây](/workspaces/my-bookings), tìm đơn đặt chỗ muốn hủy và nhấn nút **Hủy đặt chỗ**.
                     * **Điều kiện hoàn tiền**: Tùy theo chính sách hủy của từng không gian (thông thường hủy trước giờ bắt đầu từ 2 - 24 giờ sẽ được xét duyệt hoàn tiền tự động hoặc qua ví thanh toán).
                     * **Giải phóng vị trí**: Ngay khi bạn hủy đơn, chỗ ngồi/phòng họp sẽ được mở lại ngay lập tức để người khác có thể đặt.
                     """;
@@ -497,7 +496,7 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
                     * ☎️ **Tổng đài Hotline**: **1900 6868** (Nhánh 1: Khách hàng, Nhánh 2: Đối tác Organizer).
                     * 📧 **Email**: **support@nexspace.vn**.
                     * 💬 **Chat trực tuyến**: Bạn có thể nhắn tin trực tiếp với NexBot tại đây bất cứ lúc nào!
-                    * 🛡️ **Gửi khiếu nại chính thức**: Vào mục [Trung tâm hỗ trợ](/dashboard/settings) để tạo phiếu khiếu nại (Support Ticket). Đội ngũ quản trị viên sẽ phản hồi trong vòng 15 phút.
+                    * 🛡️ **Gửi khiếu nại chính thức**: Vào Trung tâm hỗ trợ 👉 [Nhấn vào đây](/dashboard/settings) để tạo phiếu khiếu nại (Support Ticket). Đội ngũ quản trị viên sẽ phản hồi trong vòng 15 phút.
                     """;
             suggestions = List.of(
                     "Work space nào gần tôi nhất?",
