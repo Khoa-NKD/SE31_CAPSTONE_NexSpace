@@ -37,9 +37,14 @@ public final class BookingMapper {
 
         LocalDateTime now = LocalDateTime.now();
         Long remainingSeconds = null;
+        Integer holdDurationMinutes = null;
         if (model.getHoldExpiresAt() != null) {
             long diff = Duration.between(now, model.getHoldExpiresAt()).getSeconds();
             remainingSeconds = Math.max(0L, diff);
+            if (model.getCreatedAt() != null) {
+                long holdMinutes = Duration.between(model.getCreatedAt(), model.getHoldExpiresAt()).toMinutes();
+                holdDurationMinutes = Math.max(1, (int) holdMinutes);
+            }
         }
 
         return BookingResponseDto.builder()
@@ -49,6 +54,7 @@ public final class BookingMapper {
                 .confirmationMode(ws != null ? ws.getBookingConfirmationMode() : null)
                 .holdExpiresAt(model.getHoldExpiresAt())
                 .remainingSeconds(remainingSeconds)
+                .holdDurationMinutes(holdDurationMinutes)
                 .serverTime(now)
                 .createdAt(model.getCreatedAt())
                 // Workspace

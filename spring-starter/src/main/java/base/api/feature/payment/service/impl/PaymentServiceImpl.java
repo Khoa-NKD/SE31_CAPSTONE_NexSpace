@@ -436,6 +436,7 @@ public class PaymentServiceImpl implements IPaymentService {
                 .holdExpiresAt(holdExpiresAt)
                 .serverTime(now)
                 .remainingSeconds(remainingSeconds)
+                .holdDurationMinutes(getEffectiveHoldMinutes())
                 .remainingHoldAttempts(remainingAttempts)
                 .maxHoldAttempts(spamThreshold)
                 .penaltyBlockMinutes(spamBlockMinutes)

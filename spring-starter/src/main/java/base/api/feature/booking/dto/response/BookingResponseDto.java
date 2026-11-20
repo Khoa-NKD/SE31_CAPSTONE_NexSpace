@@ -22,6 +22,12 @@ public class BookingResponseDto {
     LocalDateTime holdExpiresAt;
     Long remainingSeconds;
     LocalDateTime serverTime;
+    Integer holdDurationMinutes;
+    Integer remainingHoldAttempts;
+    Integer maxHoldAttempts;
+    Integer penaltyBlockMinutes;
+    Boolean isBookingSuspended;
+    LocalDateTime bookingSuspendedUntil;
     LocalDateTime createdAt;
 
     // Workspace info
