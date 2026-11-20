@@ -384,7 +384,7 @@ public class GeminiChatbotServiceImpl implements IChatbotService {
         // 5. ĐẶT CHỖ & QUY TRÌNH SỬ DỤNG
         else if (matchesAny(lower, "đặt chỗ", "đặt bàn", "thuê phòng", "checkin", "check-in", "booking", "mã đặt chỗ", "quy trình")) {
             reply = """
-                    ### 🎯 Hướng Dẫn Đặt Chỗ Tại NexSpace Theo Từng Bước
+                    ### 🎯 Quy Trình Đặt Chỗ Tại NexSpace Theo Từng Bước
 
                     NexBot được tích hợp **Trợ lý đặt chỗ thông minh theo trang**. Bạn có thể kích hoạt tính năng này bằng cách nhấn nút **"🎯 Hướng dẫn đặt chỗ theo trang hiện tại"** hoặc biểu tượng La bàn trên thanh chat:
 
