@@ -113,6 +113,10 @@ export function SeatsPage({
   const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
 
   const { data: holdData } = useCurrentPendingBooking();
+  const isHoldBlocked = Boolean(
+    holdData?.isBookingSuspended ||
+      (holdData?.remainingHoldAttempts !== undefined && holdData.remainingHoldAttempts <= 0)
+  );
 
   const defaults = useMemo(() => getDefaultSchedule(), []);
 
@@ -326,6 +330,7 @@ export function SeatsPage({
   const handleViewDetail = (res: MapResource) => {
     const isMatchingHold =
       currentPendingBooking &&
+      Boolean(currentPendingBooking.bookingId) &&
       currentPendingBooking.resourceId === res.id &&
       (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
       (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
@@ -339,8 +344,8 @@ export function SeatsPage({
         date: currentDateLabel,
         startTime: currentStartTime,
         endTime: currentEndTime,
-        bookingId: isMatchingHold ? currentPendingBooking.bookingId : undefined,
-        bookingCode: isMatchingHold ? currentPendingBooking.bookingCode : undefined
+        bookingId: isMatchingHold ? (currentPendingBooking?.bookingId ?? undefined) : undefined,
+        bookingCode: isMatchingHold ? (currentPendingBooking?.bookingCode ?? undefined) : undefined
       }
     });
   };
@@ -349,16 +354,16 @@ export function SeatsPage({
     const res = targetResource || selectedResource;
     if (!workspaceId || !res) return;
 
-    if (holdData?.isBookingSuspended) {
+    if (isHoldBlocked) {
       toast.error(
         c(
           'Your account is temporarily suspended from holding or booking spaces.',
-          'Tài khoản của bạn đang bị tạm khóa quyền giữ chỗ và đặt phòng/ghế do vi phạm quy tắc giữ chỗ quá số lần quy định.'
+          'Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (3 lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.'
         ),
         {
-          description: holdData.bookingSuspendedUntil
+          description: holdData?.bookingSuspendedUntil
             ? `Tạm khóa đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng 20 phút).`
-            : 'Vui lòng thử lại sau 20 phút.'
+            : undefined
         }
       );
       return;
@@ -367,18 +372,19 @@ export function SeatsPage({
     // Check if user already holds this exact resource
     const hasActiveHold =
       currentPendingBooking &&
+      Boolean(currentPendingBooking.bookingId) &&
       currentPendingBooking.resourceId === res.id &&
       (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
       (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
 
-    if (hasActiveHold) {
+    if (hasActiveHold && currentPendingBooking?.bookingId) {
       navigate({
         to: '/workspaces/review',
         search: {
           workspaceId,
           resourceId: res.id,
           bookingId: currentPendingBooking.bookingId,
-          bookingCode: currentPendingBooking.bookingCode,
+          bookingCode: currentPendingBooking.bookingCode || '',
           startTime: currentStartTime,
           endTime: currentEndTime,
           date: currentDateLabel,
@@ -562,7 +568,7 @@ export function SeatsPage({
             </div>
 
             {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá 3 lần hold không thanh toán */}
-            {holdData?.isBookingSuspended && (
+            {isHoldBlocked && (
               <div className='rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive flex items-center gap-3 shadow-xs animate-in fade-in'>
                 <ShieldAlert className='size-5 shrink-0 text-destructive' />
                 <div className='flex-1'>
@@ -571,12 +577,12 @@ export function SeatsPage({
                   </p>
                   <p className='text-xs text-destructive/90 mt-0.5'>
                     {c(
-                      `You have exceeded the maximum of 3 unpaid hold attempts. You cannot hold or book any desks or rooms for the next 20 minutes${
-                        holdData.bookingSuspendedUntil ? ` (until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
+                      `You have reached the maximum of 3 hold attempts without payment. You cannot hold or book any desks or rooms${
+                        holdData?.bookingSuspendedUntil ? ` until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')}` : ' for the next 20 minutes'
                       }.`,
-                      `Bạn đã dùng hết 3 lần giữ chỗ mà không thanh toán. Tài khoản bị tạm khóa quyền đặt bất kỳ phòng hay bàn nào trong vòng 20 phút${
-                        holdData.bookingSuspendedUntil ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
-                      } do vi phạm quy tắc.`
+                      `Bạn đã dùng hết 3 lần giữ chỗ mà không thanh toán. Hệ thống tạm khóa quyền giữ chỗ và đặt phòng/bàn mới${
+                        holdData?.bookingSuspendedUntil ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
+                      }. Vui lòng hoàn tất thanh toán hoặc thử lại sau khi hết thời gian khóa/24h.`
                     )}
                   </p>
                 </div>
@@ -805,9 +811,9 @@ export function SeatsPage({
 
                       <Button
                         onClick={() => handleProceedToReview()}
-                        disabled={createBookingMutation.isPending || Boolean(holdData?.isBookingSuspended)}
+                        disabled={createBookingMutation.isPending || isHoldBlocked}
                         className={`h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer ${
-                          holdData?.isBookingSuspended ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed' : ''
+                          isHoldBlocked ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed' : ''
                         }`}
                       >
                         {createBookingMutation.isPending ? (
@@ -815,10 +821,14 @@ export function SeatsPage({
                             <Loader2 className='size-4 animate-spin' />
                             <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
                           </>
-                        ) : holdData?.isBookingSuspended ? (
+                        ) : isHoldBlocked ? (
                           <>
                             <ShieldAlert className='size-4 text-destructive' />
-                            <span>{c('Privileges Suspended (20m)', 'Đang bị khóa đặt chỗ (20p)')}</span>
+                            <span>
+                              {holdData?.isBookingSuspended
+                                ? c('Privileges Suspended (20m)', 'Đang bị khóa đặt chỗ (20p)')
+                                : c('Hold Limit Exceeded (0 left)', 'Hết lượt giữ chỗ (0 lượt)')}
+                            </span>
                           </>
                         ) : (
                           <>

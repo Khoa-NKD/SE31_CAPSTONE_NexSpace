@@ -11,15 +11,15 @@ export type BookingStatus =
   | 'NO_SHOW';
 
 export interface BookingHoldResponse {
-  bookingId: number;
-  bookingCode: string;
-  workspaceId?: number;
-  resourceId?: number;
-  seatCode: string;
-  resourceName: string;
-  workspaceName: string;
-  holdExpiresAt: string;
-  remainingSeconds: number;
+  bookingId?: number | null;
+  bookingCode?: string | null;
+  workspaceId?: number | null;
+  resourceId?: number | null;
+  seatCode?: string | null;
+  resourceName?: string | null;
+  workspaceName?: string | null;
+  holdExpiresAt?: string | null;
+  remainingSeconds?: number | null;
   serverTime?: string;
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
