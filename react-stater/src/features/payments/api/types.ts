@@ -21,6 +21,7 @@ export interface BookingHoldResponse {
   holdExpiresAt?: string | null;
   remainingSeconds?: number | null;
   serverTime?: string;
+  holdDurationMinutes?: number | null;
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
   penaltyBlockMinutes?: number;

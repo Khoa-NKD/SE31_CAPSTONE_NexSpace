@@ -20,6 +20,7 @@ interface HoldUrgencyBannerProps {
   initialSeconds?: number;
   holdExpiresAt?: string | null;
   serverTime?: string | null;
+  holdDurationMinutes?: number;
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
   penaltyBlockMinutes?: number;
@@ -34,6 +35,7 @@ export function HoldUrgencyBanner({
   initialSeconds,
   holdExpiresAt,
   serverTime,
+  holdDurationMinutes,
   remainingHoldAttempts = 3,
   maxHoldAttempts = 3,
   penaltyBlockMinutes = 20,
@@ -46,22 +48,28 @@ export function HoldUrgencyBanner({
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
-  // Khởi tạo tổng thời gian ban đầu của phiên giữ chỗ (làm tròn theo phút chẵn, ví dụ 7 phút = 420s)
-  const [initialHoldDuration] = useState<number>(() => {
+  // Tổng thời lượng giữ chỗ (phút) được lấy động từ cấu hình Database (thông qua Backend API)
+  const [effectiveTotalMinutes] = useState<number>(() => {
+    if (holdDurationMinutes && holdDurationMinutes > 0) {
+      return holdDurationMinutes;
+    }
     if (initialSeconds && initialSeconds > 0) {
-      const approxMinutes = Math.max(1, Math.round(initialSeconds / 60));
-      return approxMinutes * 60;
+      return Math.max(1, Math.round(initialSeconds / 60));
     }
     const targetExpiresAt = holdExpiresAt || expiresAt;
     if (targetExpiresAt) {
       const expTime = new Date(targetExpiresAt).getTime();
       const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
       const initialDiff = Math.max(1, Math.floor((expTime - (Date.now() + offset)) / 1000));
-      const approxMinutes = Math.max(1, Math.round(initialDiff / 60));
-      return approxMinutes * 60;
+      return Math.max(1, Math.round(initialDiff / 60));
     }
-    return 420;
+    return 10;
   });
+
+  const maxHoldSeconds = effectiveTotalMinutes * 60;
+  const initialHoldDuration = initialSeconds && initialSeconds > 0
+    ? Math.min(initialSeconds, maxHoldSeconds)
+    : maxHoldSeconds;
 
   const releaseHoldMutation = useReleaseHoldMutation();
 
@@ -79,16 +87,15 @@ export function HoldUrgencyBanner({
   // Tính mili-giây còn lại chính xác cao
   const remainingMs = expiryTimestamp > 0
     ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
-    : (initialSeconds ?? 420) * 1000;
+    : initialHoldDuration * 1000;
 
   const rawSecondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
   const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : rawSecondsRemaining <= 0;
 
-  // Tổng thời gian cơ sở chuẩn hóa theo số phút chẵn
-  const totalHoldMinutes = Math.max(1, Math.round(initialHoldDuration / 60));
-  const maxHoldSeconds = totalHoldMinutes * 60;
+  // Tổng thời gian cơ sở chuẩn hóa theo số phút chẵn từ cơ sở dữ liệu
+  const totalHoldMinutes = effectiveTotalMinutes;
 
-  // Chặn trần để không bao giờ vượt quá thời gian ban đầu (ví dụ 7 phút thì bắt đầu đếm từ 07:00, không bị 07:03 hay 07:05)
+  // Chặn trần để không bao giờ vượt quá thời lượng cấu hình trong DB (ví dụ DB cài 7 phút thì đếm từ 07:00, DB cài 10 phút thì đếm từ 10:00)
   const secondsRemaining = Math.min(rawSecondsRemaining, maxHoldSeconds);
 
   // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%

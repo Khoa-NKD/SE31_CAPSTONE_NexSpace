@@ -101,6 +101,7 @@ export interface HoldResourceResponseDto {
   holdExpiresAt: string;
   serverTime: string;
   ttlSeconds: number;
+  holdDurationMinutes?: number;
   isReused: boolean;
   baseAmount: number;
   finalPrice: number;
