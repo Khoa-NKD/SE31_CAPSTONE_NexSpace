@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { Users, Clock, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useRoomAvailability } from '../api/queries';
+import { useRealtimeResourceStatus } from '../hooks/use-realtime-resource-status';
 import { RoomAvailabilityCard } from './room-availability-card';
 import type { RoomAvailabilityResponseDto } from '../api/types';
 
@@ -33,6 +36,33 @@ export const RoomTimeSlotPicker: React.FC<RoomTimeSlotPickerProps> = ({
   className
 }) => {
   const [minCapacity, setMinCapacity] = useState<number | undefined>(undefined);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+
+  // Lắng nghe luồng SSE cập nhật thời gian thực và tự động xử lý khi phòng đang chọn bị chiếm
+  useRealtimeResourceStatus(workspaceId, {
+    enabled: Boolean(workspaceId),
+    onResourceChange: (payload) => {
+      const isTargetRoomAffected =
+        selectedRoomId &&
+        (selectedRoomId === payload.resourceId || selectedRoomId === payload.parentRoomId);
+
+      const isOccupiedByMe = payload.customerId && currentUserId && payload.customerId === currentUserId;
+
+      const isOccupiedStatus =
+        payload.newStatus === 'HOLDING' ||
+        payload.newStatus === 'BOOKED' ||
+        payload.newStatus === 'BLOCKED' ||
+        payload.newStatus === 'DISABLED';
+
+      if (isTargetRoomAffected && isOccupiedStatus && !isOccupiedByMe) {
+        toast.warning(
+          payload.parentRoomId === selectedRoomId
+            ? 'Một ghế con trong phòng họp bạn đang chọn vừa được người khác giữ chỗ. Phòng hiện không còn khả dụng nguyên căn.'
+            : 'Phòng họp bạn vừa chọn đã được người khác giữ chỗ hoặc đặt chỗ.'
+        );
+      }
+    }
+  });
 
   const { data: rooms, isLoading, isError, error, refetch } = useRoomAvailability({
     workspaceId,
