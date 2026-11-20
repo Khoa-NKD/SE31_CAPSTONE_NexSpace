@@ -3,6 +3,7 @@ package base.api.feature.resource.controller;
 import base.api.feature.resource.dto.response.DeskAvailabilityResponseDto;
 import base.api.feature.resource.dto.response.RoomAvailabilityResponseDto;
 import base.api.feature.resource.service.IResourceAvailabilityService;
+import base.api.feature.resource.service.ISseEmitterService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
 import base.api.shared.security.AuthUser;
@@ -12,12 +13,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -30,6 +33,7 @@ import java.util.List;
 public class PublicAvailabilityController extends BaseAPIController {
 
     private final IResourceAvailabilityService resourceAvailabilityService;
+    private final ISseEmitterService sseEmitterService;
 
     @Operation(
             summary = "Kiểm tra chỗ trống (Desk Availability)",
@@ -103,6 +107,18 @@ public class PublicAvailabilityController extends BaseAPIController {
         );
 
         return success(result, "Tra cứu phòng trống thành công");
+    }
+
+    @Operation(
+            summary = "Đăng ký nhận luồng sự kiện chỗ trống thời gian thực (SSE Stream)",
+            description = "Mở kết nối Server-Sent Events (SSE) để nhận các thông báo thay đổi trạng thái khả dụng của tài nguyên (giữ chỗ, đặt chỗ, hủy chỗ, hết hạn) trong không gian làm việc theo thời gian thực."
+    )
+    @GetMapping(value = "/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamAvailability(
+            @Parameter(description = "Mã không gian làm việc", required = true, example = "1")
+            @RequestParam @NotNull(message = "Mã không gian làm việc không được để trống") Long workspaceId
+    ) {
+        return sseEmitterService.subscribe(workspaceId);
     }
 }
 
