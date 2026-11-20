@@ -297,20 +297,29 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
     @Override
     public HoldResourceResponseDto getActiveHold(Long customerId, Long resourceId) {
-        if (customerId == null || resourceId == null) {
-            throw new BadRequestException("Mã khách hàng và mã tài nguyên không được để trống");
+        if (customerId == null) {
+            throw new BadRequestException("Mã khách hàng không được để trống");
         }
 
         LocalDateTime now = LocalDateTime.now();
         List<BookingModel> pendings = bookingRepository.findByCustomerIdAndStatus(customerId, BookingStatus.PENDING_PAYMENT);
 
-        BookingModel active = pendings.stream()
-                .filter(b -> b.getResource() != null && b.getResource().getId().equals(resourceId))
+        BookingModel activeHold = pendings.stream()
+                .filter(b -> resourceId == null || (b.getResource() != null && b.getResource().getId().equals(resourceId)))
                 .filter(b -> b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now))
                 .findFirst()
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy phiên giữ chỗ đang hiệu lực cho tài nguyên này"));
 
-        return toHoldResponseDto(active, now, false);
+        return toHoldResponseDto(activeHold, now, false);
+    }
+
+    @Override
+    public HoldResourceResponseDto getCustomerHoldQuota(Long customerId) {
+        if (customerId == null) {
+            throw new BadRequestException("Mã khách hàng không được để trống");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        return buildCustomerHoldQuotaDto(customerId, now);
     }
 
     @Override
@@ -847,7 +856,65 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         + minutesRemaining + " phút (đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
                         + ") do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
                         + effectiveThreshold + " lần mà không thanh toán).");
+            } else {
+                throw new BadRequestException("Bạn đã dùng hết " + effectiveThreshold
+                        + " lần giữ chỗ mà không thanh toán. Tài khoản tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế cho đến khi hệ thống tự động reset sau 24 giờ kể từ lần hủy gần nhất hoặc hoàn tất thanh toán đơn đã đặt.");
             }
         }
+    }
+
+    private HoldResourceResponseDto buildCustomerHoldQuotaDto(Long customerId, LocalDateTime now) {
+        UserModel customer = userRepository.findById(customerId).orElse(null);
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+        int remainingAttempts = effectiveThreshold;
+        boolean isSuspended = false;
+        LocalDateTime suspendedUntil = null;
+
+        if (customer != null) {
+            if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+                isSuspended = true;
+                suspendedUntil = customer.getBookingSuspendedUntil();
+            }
+            LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customerId, now);
+            int unpaidCount = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince).size();
+            remainingAttempts = Math.max(0, effectiveThreshold - unpaidCount);
+
+            if (unpaidCount >= effectiveThreshold) {
+                isSuspended = true;
+                if (suspendedUntil == null) {
+                    List<BookingModel> unpaidHolds = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince);
+                    if (!unpaidHolds.isEmpty()) {
+                        BookingModel latest = unpaidHolds.get(0);
+                        LocalDateTime latestTime = latest.getUpdatedAt() != null ? latest.getUpdatedAt() : latest.getCreatedAt();
+                        if (latestTime == null) latestTime = now;
+                        suspendedUntil = latestTime.plusMinutes(effectiveBlockMinutes);
+                    }
+                }
+            }
+        }
+
+        return HoldResourceResponseDto.builder()
+                .bookingId(null)
+                .bookingCode(null)
+                .resourceId(null)
+                .resourceName(null)
+                .workspaceId(null)
+                .workspaceName(null)
+                .startTime(null)
+                .endTime(null)
+                .holdExpiresAt(null)
+                .serverTime(now)
+                .ttlSeconds(0)
+                .isReused(false)
+                .baseAmount(null)
+                .finalPrice(null)
+                .remainingHoldAttempts(remainingAttempts)
+                .maxHoldAttempts(effectiveThreshold)
+                .penaltyBlockMinutes(effectiveBlockMinutes)
+                .isBookingSuspended(isSuspended)
+                .bookingSuspendedUntil(suspendedUntil)
+                .currency("VND")
+                .build();
     }
 }

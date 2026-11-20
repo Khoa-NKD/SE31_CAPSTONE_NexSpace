@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.notification.service.INotificationService;
@@ -9,6 +10,7 @@ import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPayOSWebhookService;
 import base.api.feature.resource.service.IResourceStateSyncService;
+import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.OrganizerPayoutModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -46,6 +48,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
     private final IInvoiceService invoiceService;
     private final INotificationService notificationService;
     private final IResourceStateSyncService resourceStateSyncService;
+    private final IUserRepository userRepository;
     private final IOrganizerPayoutRepository payoutRepository;
 
     @Override
@@ -265,6 +268,14 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                             + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase();
                     booking.setQrTokenHash(qrToken);
                     bookingRepository.save(booking);
+
+                    // Tự động gỡ bỏ trạng thái tạm khóa đặt chỗ khi khách hàng thanh toán thành công
+                    if (booking.getCustomer() != null && booking.getCustomer().getBookingSuspendedUntil() != null) {
+                        UserModel customer = booking.getCustomer();
+                        customer.setBookingSuspendedUntil(null);
+                        userRepository.save(customer);
+                        log.info("Reset bookingSuspendedUntil to null for customerId={} upon successful payment", customer.getId());
+                    }
 
                     auditService.log(
                             booking.getCustomer(),

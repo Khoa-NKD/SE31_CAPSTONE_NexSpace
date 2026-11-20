@@ -1,5 +1,6 @@
 package base.api.feature.payment.service;
 
+import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.notification.service.INotificationService;
@@ -47,6 +48,7 @@ class PayOSWebhookServiceImplTest {
     private IInvoiceService invoiceService;
     private INotificationService notificationService;
     private IResourceStateSyncService resourceStateSyncService;
+    private IUserRepository userRepository;
     private IOrganizerPayoutRepository payoutRepository;
     private PayOSWebhookServiceImpl webhookService;
 
@@ -60,6 +62,7 @@ class PayOSWebhookServiceImplTest {
         invoiceService = mock(IInvoiceService.class);
         notificationService = mock(INotificationService.class);
         resourceStateSyncService = mock(IResourceStateSyncService.class);
+        userRepository = mock(IUserRepository.class);
         payoutRepository = mock(IOrganizerPayoutRepository.class);
 
         when(payOS.webhooks()).thenReturn(webhooksService);
@@ -72,6 +75,7 @@ class PayOSWebhookServiceImplTest {
                 invoiceService,
                 notificationService,
                 resourceStateSyncService,
+                userRepository,
                 payoutRepository
         );
     }

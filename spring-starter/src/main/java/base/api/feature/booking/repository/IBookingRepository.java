@@ -424,7 +424,7 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
     );
 
     @Query("""
-            SELECT MAX(b.createdAt) FROM BookingModel b
+            SELECT MAX(COALESCE(b.updatedAt, b.createdAt)) FROM BookingModel b
             WHERE b.customer.id = :customerId
               AND b.status IN (base.api.shared.enums.BookingStatus.CONFIRMED, base.api.shared.enums.BookingStatus.CHECKED_IN, base.api.shared.enums.BookingStatus.COMPLETED)
             """)

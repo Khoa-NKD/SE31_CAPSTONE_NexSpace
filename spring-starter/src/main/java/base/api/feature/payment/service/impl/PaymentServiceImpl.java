@@ -361,24 +361,24 @@ public class PaymentServiceImpl implements IPaymentService {
         BookingModel booking = pendings.stream()
                 .filter(b -> b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now))
                 .findFirst()
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy phiên đặt chỗ nào đang chờ thanh toán"));
+                .orElse(null);
 
-        if (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
+        if (booking != null && (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2)))) {
             requireOrganizerAcceptingHolds(booking.getWorkspace());
             booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
             booking = bookingRepository.save(booking);
         }
 
-        LocalDateTime holdExpiresAt = booking.getHoldExpiresAt();
+        LocalDateTime holdExpiresAt = booking != null ? booking.getHoldExpiresAt() : null;
         long remainingSeconds = holdExpiresAt != null
                 ? Math.max(0, java.time.Duration.between(now, holdExpiresAt).getSeconds())
-                : (getEffectiveHoldMinutes() * 60L);
+                : 0L;
 
-        String seatCode = (booking.getResource() != null && booking.getResource().getName() != null)
+        String seatCode = (booking != null && booking.getResource() != null && booking.getResource().getName() != null)
                 ? booking.getResource().getName()
-                : "Desk A-12";
-        String resourceName = (booking.getResource() != null) ? booking.getResource().getName() : "Hot Desk";
-        String workspaceName = (booking.getWorkspace() != null) ? booking.getWorkspace().getName() : "NexSpace";
+                : null;
+        String resourceName = (booking != null && booking.getResource() != null) ? booking.getResource().getName() : null;
+        String workspaceName = (booking != null && booking.getWorkspace() != null) ? booking.getWorkspace().getName() : null;
 
         int spamThreshold = platformSettingRepository.findById("booking.spam_hold_threshold")
                 .or(() -> platformSettingRepository.findById("booking_spam_hold_threshold"))
@@ -426,10 +426,10 @@ public class PaymentServiceImpl implements IPaymentService {
         }
 
         return BookingHoldResponseDTO.builder()
-                .bookingId(booking.getId())
-                .bookingCode(booking.getBookingCode())
-                .workspaceId(booking.getWorkspace() != null ? booking.getWorkspace().getId() : null)
-                .resourceId(booking.getResource() != null ? booking.getResource().getId() : null)
+                .bookingId(booking != null ? booking.getId() : null)
+                .bookingCode(booking != null ? booking.getBookingCode() : null)
+                .workspaceId(booking != null && booking.getWorkspace() != null ? booking.getWorkspace().getId() : null)
+                .resourceId(booking != null && booking.getResource() != null ? booking.getResource().getId() : null)
                 .seatCode(seatCode)
                 .resourceName(resourceName)
                 .workspaceName(workspaceName)
