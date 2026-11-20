@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.notification.service.INotificationService;
@@ -9,6 +10,7 @@ import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPaymentReconciliationService;
+import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
 import base.api.shared.enums.AuditActorType;
@@ -42,6 +44,7 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
     private final PayOS payOS;
     private final IInvoiceService invoiceService;
     private final INotificationService notificationService;
+    private final IUserRepository userRepository;
 
     @Override
     @Transactional
@@ -130,6 +133,14 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                         booking.setHoldExpiresAt(null);
                         booking.setQrTokenHash("NXQR-" + booking.getBookingCode() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase());
                         bookingRepository.save(booking);
+
+                        // Tự động gỡ bỏ trạng thái tạm khóa đặt chỗ khi khách hàng thanh toán thành công
+                        if (booking.getCustomer() != null && booking.getCustomer().getBookingSuspendedUntil() != null) {
+                            UserModel customer = booking.getCustomer();
+                            customer.setBookingSuspendedUntil(null);
+                            userRepository.save(customer);
+                            log.info("Reset bookingSuspendedUntil to null for customerId={} upon reconciliation confirmation", customer.getId());
+                        }
 
                         // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
                         invoiceService.sendInvoiceEmail(booking.getId());

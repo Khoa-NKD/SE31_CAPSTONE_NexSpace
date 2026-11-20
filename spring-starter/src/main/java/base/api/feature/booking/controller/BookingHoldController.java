@@ -41,6 +41,14 @@ public class BookingHoldController extends BaseAPIController {
         return success(response, "Lấy thông tin phiên giữ chỗ thành công");
     }
 
+    @Operation(summary = "Tra cứu độc lập hạn mức giữ chỗ hiện tại của khách hàng (lượt hold còn lại, trạng thái khóa, thời gian khóa)")
+    @GetMapping({"/api/v1/bookings/hold/quota", "/api/bookings/hold/quota"})
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<HoldResourceResponseDto>> getHoldQuota() {
+        HoldResourceResponseDto response = resourceHoldService.getCustomerHoldQuota(getCurrentUserId());
+        return success(response, "Tra cứu hạn mức giữ chỗ thành công");
+    }
+
     @Operation(summary = "Khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release)")
     @PostMapping({"/api/v1/bookings/{id}/release-hold", "/api/bookings/{id}/release-hold", "/api/v1/bookings/hold/{id}/release", "/api/bookings/hold/{id}/release"})
     @PreAuthorize("isAuthenticated()")

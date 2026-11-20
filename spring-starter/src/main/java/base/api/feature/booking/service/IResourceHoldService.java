@@ -33,6 +33,14 @@ public interface IResourceHoldService {
     HoldResourceResponseDto getActiveHold(Long customerId, Long resourceId);
 
     /**
+     * Tra cứu thông tin hạn mức giữ chỗ độc lập của khách hàng hiện tại (chống spam hold, hạn mức còn lại, trạng thái khóa).
+     *
+     * @param customerId ID khách hàng
+     * @return Thông tin hạn mức và trạng thái tài khoản
+     */
+    HoldResourceResponseDto getCustomerHoldQuota(Long customerId);
+
+    /**
      * Khách hàng chủ động hủy/nhả phiên giữ chỗ tạm thời (Manual Release).
      * <p>
      * Tuân thủ các nguyên tắc bảo mật cốt lõi:

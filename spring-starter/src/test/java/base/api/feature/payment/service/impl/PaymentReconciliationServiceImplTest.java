@@ -1,5 +1,6 @@
 package base.api.feature.payment.service.impl;
 
+import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.booking.repository.IBookingRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.notification.service.INotificationService;
@@ -60,6 +61,9 @@ class PaymentReconciliationServiceImplTest {
     @Mock
     private INotificationService notificationService;
 
+    @Mock
+    private IUserRepository userRepository;
+
     private PaymentReconciliationServiceImpl reconciliationService;
 
     private PaymentTransactionModel transaction;
@@ -73,7 +77,8 @@ class PaymentReconciliationServiceImplTest {
                 auditService,
                 payOS,
                 invoiceService,
-                notificationService
+                notificationService,
+                userRepository
         );
 
         booking = new BookingModel();

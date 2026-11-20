@@ -109,6 +109,15 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final INotificationService notificationService;
     private final IResourceStateSyncService resourceStateSyncService;
 
+    @org.springframework.beans.factory.annotation.Value("${app.booking.spam-hold.threshold:3}")
+    private int spamHoldThreshold = 3;
+
+    @org.springframework.beans.factory.annotation.Value("${app.booking.spam-hold.block-duration-minutes:20}")
+    private int spamHoldBlockMinutes = 20;
+
+    @org.springframework.beans.factory.annotation.Value("${app.booking.spam-hold.window-hours:24}")
+    private int spamHoldWindowHours = 24;
+
     @Override
     @Transactional
     public BookingResponseDto createBooking(Long customerId, CreateBookingRequestDto dto) {
@@ -119,14 +128,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         if (customer.getStatus() != UserStatus.ACTIVE) {
             throw new BadRequestException("Tài khoản người dùng hiện đang bị vô hiệu hoá hoặc khoá");
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
-            long remainingMinutes = Math.max(1, java.time.Duration.between(now, customer.getBookingSuspendedUntil()).toMinutes() + 1);
-            throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế đến "
-                    + customer.getBookingSuspendedUntil().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
-                    + " (còn " + remainingMinutes + " phút) do vi phạm quy tắc giữ chỗ quá số lần quy định mà không thanh toán.");
         }
 
         // 2. Identify Workspace
@@ -142,6 +143,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 .filter(profile -> profile.isSuspended()).isPresent()) {
             throw new BadRequestException("Không gian làm việc đang tạm ngưng nhận đặt chỗ mới");
         }
+
+        LocalDateTime now = LocalDateTime.now();
+        validateSpamHoldBehavior(customer, now);
 
         // 3. Acquire Pessimistic Write Lock on Bookable Resource
         BookableResourceModel resource = resourceRepository.findByIdForUpdate(dto.getResourceId())
@@ -1142,5 +1146,90 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                     }
                 })
                 .orElse(defaultValue);
+    }
+
+    private int getEffectiveSpamHoldThreshold() {
+        return platformSettingRepository.findById("booking.spam_hold_threshold")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_threshold"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return spamHoldThreshold;
+                    }
+                })
+                .orElse(spamHoldThreshold);
+    }
+
+    private int getEffectiveSpamHoldBlockMinutes() {
+        return platformSettingRepository.findById("booking.spam_hold_block_minutes")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_block_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try {
+                        return Integer.parseInt(val.trim());
+                    } catch (Exception e) {
+                        return spamHoldBlockMinutes;
+                    }
+                })
+                .orElse(spamHoldBlockMinutes);
+    }
+
+    private LocalDateTime calculateEffectiveUnpaidSince(Long customerId, LocalDateTime now) {
+        LocalDateTime windowStart = now.minusHours(spamHoldWindowHours);
+        if (customerId == null) {
+            return windowStart;
+        }
+
+        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
+        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(windowStart)) {
+            return lastSuccessTime.get();
+        }
+
+        return windowStart;
+    }
+
+    private void validateSpamHoldBehavior(UserModel customer, LocalDateTime now) {
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+
+        if (effectiveThreshold <= 0 || effectiveBlockMinutes <= 0) {
+            return;
+        }
+
+        if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+            long minutesRemaining = Math.max(1, java.time.Duration.between(now, customer.getBookingSuspendedUntil()).toMinutes() + 1);
+            throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế trong vòng "
+                    + minutesRemaining + " phút (đến " + customer.getBookingSuspendedUntil().format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                    + ") do vi phạm quy tắc giữ chỗ quá " + effectiveThreshold + " lần mà không thanh toán.");
+        }
+
+        LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customer.getId(), now);
+        List<BookingModel> unpaidHolds = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince);
+
+        if (unpaidHolds.size() >= effectiveThreshold) {
+            BookingModel latestUnpaid = unpaidHolds.get(0);
+            LocalDateTime latestUnpaidTime = latestUnpaid.getUpdatedAt() != null
+                    ? latestUnpaid.getUpdatedAt()
+                    : latestUnpaid.getCreatedAt();
+            if (latestUnpaidTime == null) {
+                latestUnpaidTime = now;
+            }
+
+            LocalDateTime blockUntil = latestUnpaidTime.plusMinutes(effectiveBlockMinutes);
+            if (now.isBefore(blockUntil)) {
+                customer.setBookingSuspendedUntil(blockUntil);
+                userRepository.save(customer);
+
+                long minutesRemaining = Math.max(1, java.time.Duration.between(now, blockUntil).toMinutes() + 1);
+                throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế trong vòng "
+                        + minutesRemaining + " phút (đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
+                        + ") do vi phạm quy tắc giữ chỗ quá " + effectiveThreshold + " lần mà không thanh toán.");
+            } else {
+                throw new BadRequestException("Bạn đã dùng hết " + effectiveThreshold
+                        + " lần giữ chỗ mà không thanh toán. Tài khoản tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế cho đến khi hệ thống tự động reset sau 24 giờ kể từ lần hủy gần nhất hoặc hoàn tất thanh toán đơn đã đặt.");
+            }
+        }
     }
 }
