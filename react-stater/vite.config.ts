@@ -55,14 +55,16 @@ function mockApiProxyPlugin(proxyTarget: string): Plugin {
             }
           );
           proxyReq.on('error', (err) => {
-            res.writeHead(502, { 'Content-Type': 'application/json' });
-            res.end(
-              JSON.stringify({
-                success: false,
-                error: 'BadGateway',
-                message: `API server unavailable: ${err.message}`
-              })
-            );
+            if (!res.headersSent) {
+              res.writeHead(502, { 'Content-Type': 'application/json' });
+              res.end(
+                JSON.stringify({
+                  success: false,
+                  error: 'BadGateway',
+                  message: `API server unavailable: ${err.message}`
+                })
+              );
+            }
           });
           req.pipe(proxyReq);
         } else {

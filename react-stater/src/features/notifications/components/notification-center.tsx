@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Icons } from '@/components/icons';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { useRouter } from '@tanstack/react-router';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import {
@@ -14,7 +13,7 @@ import {
   type UserNotificationDto
 } from '../api/queries';
 import { useLanguage } from '@/features/landing/context/language-context';
-import { Check, CheckCheck, CreditCard, CalendarCheck, AlertCircle, Bell, ExternalLink, RotateCcw, Building2, ShieldCheck, Clock } from 'lucide-react';
+import { Check, CheckCheck, CreditCard, CalendarCheck, AlertCircle, Bell, ExternalLink, RotateCcw, Building2, ShieldCheck, Clock, Sparkles } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export function NotificationCenter() {
@@ -22,6 +21,7 @@ export function NotificationCenter() {
   const isVi = language === 'vi';
   const router = useRouter();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
 
   const { data: unreadCount = 0 } = useUnreadNotificationCountQuery(isAuthenticated);
   const { data: notificationsPage, isLoading } = useCustomerNotificationsQuery({
@@ -33,11 +33,19 @@ export function NotificationCenter() {
   const markReadMutation = useMarkNotificationReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
+  const notifications: UserNotificationDto[] = useMemo(() => {
+    const raw = notificationsPage?.content ?? [];
+    return [...raw].sort((a, b) => {
+      if (a.read !== b.read) {
+        return a.read ? 1 : -1;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [notificationsPage]);
+
   if (!isAuthenticated) {
     return null;
   }
-
-  const notifications: UserNotificationDto[] = notificationsPage?.content ?? [];
 
   const formatTimeAgo = (dateStr: string) => {
     try {
@@ -63,32 +71,52 @@ export function NotificationCenter() {
     }
   };
 
-  const user = useAuthStore((state) => state.user);
-
   const handleNotificationClick = (item: UserNotificationDto) => {
     if (!item.read) {
       markReadMutation.mutate(item.id);
     }
-    const isOrganizerOrAdmin = user?.role === 'ORGANIZER' || user?.role === 'ADMIN';
+    const isOrganizer = user?.role === 'ORGANIZER';
+    const isAdmin = user?.role === 'ADMIN';
+
     if (item.type === 'ORGANIZER_APPLICATION' || item.relatedEntityType === 'OrganizerProfile') {
-      if (isOrganizerOrAdmin) {
+      if (isOrganizer || isAdmin) {
         router.navigate({ to: '/dashboard/organizer/application' });
       } else {
         router.navigate({ to: '/organizer/apply' });
       }
       return;
     }
+
     if (item.type === 'REFUND') {
-      if (isOrganizerOrAdmin) {
+      if (isAdmin) {
+        router.navigate({ to: '/dashboard/admin/refunds' });
+      } else {
+        router.navigate({ to: '/workspaces/my-bookings' });
+      }
+      return;
+    }
+
+    if (item.type === 'WORKSPACE_REVIEW') {
+      if (isOrganizer) {
+        router.navigate({ to: '/dashboard/organizer/workspaces' });
+      } else {
+        router.navigate({ to: '/workspaces' });
+      }
+      return;
+    }
+
+    if (item.type === 'COMPLAINT') {
+      if (isOrganizer) {
         router.navigate({ to: '/dashboard/organizer/bookings' });
       } else {
         router.navigate({ to: '/workspaces/my-bookings' });
       }
       return;
     }
+
     // Route to appropriate view based on role and notification content
     if (item.type === 'BOOKING' || item.type === 'PAYMENT' || item.relatedEntityType === 'Booking' || item.relatedEntityType === 'BOOKING' || item.relatedEntityType === 'BOOKING_REMINDER') {
-      if (isOrganizerOrAdmin && (item.title.toLowerCase().includes('không gian của bạn') || item.title.toLowerCase().includes('cần duyệt'))) {
+      if (isOrganizer && (item.title.toLowerCase().includes('không gian của bạn') || item.title.toLowerCase().includes('cần duyệt') || item.title.toLowerCase().includes('đã bị hủy'))) {
         router.navigate({ to: '/dashboard/organizer/bookings' });
       } else {
         router.navigate({ to: '/workspaces/my-bookings' });
@@ -97,11 +125,26 @@ export function NotificationCenter() {
   };
 
   const getNotificationIcon = (type: string, title: string) => {
-    const isSuccess = title.toLowerCase().includes('thành công') || title.toLowerCase().includes('success');
     const isFailed = title.toLowerCase().includes('không thành công') || title.toLowerCase().includes('thất bại') || title.toLowerCase().includes('failed');
     const isCancelled = title.toLowerCase().includes('hủy') || title.toLowerCase().includes('cancel');
     const isReminder = title.toLowerCase().includes('nhắc lịch') || title.toLowerCase().includes('sắp bắt đầu');
     const isNewForOrganizer = title.toLowerCase().includes('không gian của bạn') || title.toLowerCase().includes('cần duyệt');
+
+    if (type === 'WORKSPACE_REVIEW') {
+      return (
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-500 dark:bg-amber-500/20'>
+          <Sparkles className='h-4 w-4' />
+        </div>
+      );
+    }
+
+    if (type === 'COMPLAINT') {
+      return (
+        <div className='flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/10 text-rose-500 dark:bg-rose-500/20'>
+          <AlertCircle className='h-4 w-4' />
+        </div>
+      );
+    }
 
     if (type === 'ORGANIZER_APPLICATION') {
       if (title.toLowerCase().includes('phê duyệt') || title.toLowerCase().includes('approved')) {
@@ -267,7 +310,15 @@ export function NotificationCenter() {
               {notifications.map((item) => (
                 <div
                   key={item.id}
+                  role='button'
+                  tabIndex={0}
                   onClick={() => handleNotificationClick(item)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      handleNotificationClick(item);
+                    }
+                  }}
                   className={cn(
                     'group relative flex items-start gap-3 p-3.5 cursor-pointer transition-colors text-left',
                     item.read

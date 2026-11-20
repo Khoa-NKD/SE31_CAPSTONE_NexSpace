@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Icons } from '@/components/icons';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
@@ -15,7 +15,7 @@ import {
   useMarkAllNotificationsReadMutation,
   type UserNotificationDto
 } from '../api/queries';
-import { CheckCheck, CheckSquare, Square, RotateCcw } from 'lucide-react';
+import { CheckCheck, CheckSquare } from 'lucide-react';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -37,7 +37,16 @@ export default function NotificationsPage() {
   const markBatchReadMutation = useMarkBatchNotificationsReadMutation();
   const markAllReadMutation = useMarkAllNotificationsReadMutation();
 
-  const allItems: UserNotificationDto[] = notificationsPage?.content ?? [];
+  const allItems: UserNotificationDto[] = useMemo(() => {
+    const raw = notificationsPage?.content ?? [];
+    return [...raw].sort((a, b) => {
+      if (a.read !== b.read) {
+        return a.read ? 1 : -1;
+      }
+      return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+    });
+  }, [notificationsPage]);
+
   const displayItems =
     activeTab === 'read'
       ? allItems.filter((n) => n.read)
@@ -73,10 +82,11 @@ export default function NotificationsPage() {
     if (!notification.read) {
       markReadMutation.mutate(notification.id);
     }
-    const isOrganizerOrAdmin = user?.role === 'ORGANIZER' || user?.role === 'ADMIN';
+    const isOrganizer = user?.role === 'ORGANIZER';
+    const isAdmin = user?.role === 'ADMIN';
 
     if (notification.type === 'ORGANIZER_APPLICATION' || notification.relatedEntityType === 'OrganizerProfile') {
-      if (isOrganizerOrAdmin) {
+      if (isOrganizer || isAdmin) {
         router.navigate({ to: '/dashboard/organizer/application' });
       } else {
         router.navigate({ to: '/organizer/apply' });
@@ -85,7 +95,25 @@ export default function NotificationsPage() {
     }
 
     if (notification.type === 'REFUND') {
-      if (isOrganizerOrAdmin) {
+      if (isAdmin) {
+        router.navigate({ to: '/dashboard/admin/refunds' });
+      } else {
+        router.navigate({ to: '/workspaces/my-bookings' });
+      }
+      return;
+    }
+
+    if (notification.type === 'WORKSPACE_REVIEW') {
+      if (isOrganizer) {
+        router.navigate({ to: '/dashboard/organizer/workspaces' });
+      } else {
+        router.navigate({ to: '/workspaces' });
+      }
+      return;
+    }
+
+    if (notification.type === 'COMPLAINT') {
+      if (isOrganizer) {
         router.navigate({ to: '/dashboard/organizer/bookings' });
       } else {
         router.navigate({ to: '/workspaces/my-bookings' });
@@ -94,7 +122,7 @@ export default function NotificationsPage() {
     }
 
     if (notification.type === 'BOOKING' || notification.type === 'PAYMENT' || notification.relatedEntityType === 'Booking' || notification.relatedEntityType === 'BOOKING' || notification.relatedEntityType === 'BOOKING_REMINDER') {
-      if (isOrganizerOrAdmin && (notification.title.toLowerCase().includes('không gian của bạn') || notification.title.toLowerCase().includes('cần duyệt'))) {
+      if (isOrganizer && (notification.title.toLowerCase().includes('không gian của bạn') || notification.title.toLowerCase().includes('cần duyệt') || notification.title.toLowerCase().includes('đã bị hủy'))) {
         router.navigate({ to: '/dashboard/organizer/bookings' });
       } else {
         router.navigate({ to: '/workspaces/my-bookings' });
@@ -110,7 +138,13 @@ export default function NotificationsPage() {
       return 'Xem hồ sơ đối tác';
     }
     if (notification.type === 'REFUND') {
-      return 'Xem chi tiết hoàn tiền';
+      return user?.role === 'ADMIN' ? 'Xử lý hoàn tiền' : 'Xem đơn đặt chỗ';
+    }
+    if (notification.type === 'WORKSPACE_REVIEW') {
+      return 'Xem đánh giá';
+    }
+    if (notification.type === 'COMPLAINT') {
+      return 'Xem khiếu nại';
     }
     return 'Xem chi tiết đơn';
   };
