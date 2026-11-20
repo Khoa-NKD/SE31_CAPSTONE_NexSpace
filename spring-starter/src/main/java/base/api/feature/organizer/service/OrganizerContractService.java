@@ -12,6 +12,8 @@ import java.security.SecureRandom;
 import java.time.*;
 import java.util.*;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
+import base.api.feature.governance.repository.IPlatformSettingRepository;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
@@ -36,6 +38,7 @@ public class OrganizerContractService {
     private final ApplicationEventPublisher events;
     private final Environment environment;
     private final boolean demoEnabled;
+    private final IPlatformSettingRepository platformSettings;
     private final SecureRandom random = new SecureRandom();
 
     public OrganizerContractService(IOrganizerContractRepository contracts, IOrganizerProfileRepository profiles,
@@ -43,22 +46,37 @@ public class OrganizerContractService {
             OrganizerLifecycleAudit audit, EmailService email, PasswordEncoder encoder, Clock organizerApplicationClock,
             ApplicationEventPublisher events, Environment environment,
             @Value("${app.organizer.contract.demo-enabled:false}") boolean demoEnabled) {
+        this(contracts, profiles, users, roles, files, pdf, audit, email, encoder, organizerApplicationClock,
+                events, environment, demoEnabled, null);
+    }
+
+    @Autowired
+    public OrganizerContractService(IOrganizerContractRepository contracts, IOrganizerProfileRepository profiles,
+            IUserRepository users, IRoleRepository roles, OrganizerContractFiles files, OrganizerContractPdf pdf,
+            OrganizerLifecycleAudit audit, EmailService email, PasswordEncoder encoder, Clock organizerApplicationClock,
+            ApplicationEventPublisher events, Environment environment,
+            @Value("${app.organizer.contract.demo-enabled:false}") boolean demoEnabled,
+            IPlatformSettingRepository platformSettings) {
         this.contracts = contracts; this.profiles = profiles; this.users = users; this.roles = roles;
         this.files = files; this.pdf = pdf; this.audit = audit; this.email = email; this.encoder = encoder;
         this.clock = organizerApplicationClock; this.events = events; this.environment = environment; this.demoEnabled = demoEnabled;
+        this.platformSettings = platformSettings;
     }
 
-    /** Called only from the administrator's locked review transaction. Production cannot issue this demo template. */
+    /** Called only from the administrator's locked review transaction; commercial terms are snapshotted on issue. */
     @Transactional(propagation = Propagation.MANDATORY)
     public void issue(OrganizerProfileModel profile) {
-        requireDemoEnabled();
+        if (managedEnabled()) OrganizerContractTemplate.requireConfiguration(environment);
+        else requireDemoEnabled();
         if (contracts.findByProfileId(profile.getId()).isPresent()) throw new ConflictException("An agreement already exists for this application");
         var contract = new OrganizerContractModel();
-        contract.setProfile(profile); contract.setDemo(true); contract.setTemplateVersion("LOCAL-DEMO-1");
-        contract.setContractNumber("NX-DEMO-" + profile.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
+        contract.setProfile(profile); contract.setDemo(!managedEnabled());
+        contract.setTemplateVersion(contract.isDemo() ? "LOCAL-DEMO-2" : "NEXSPACE-OTP-1");
+        contract.setContractNumber((contract.isDemo() ? "NX-DEMO-" : "NX-ORG-") + profile.getId() + "-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase(Locale.ROOT));
         contract.setSigningEmail(profile.getOrganizer().getEmail());
         contract.setIssuedAt(now());
-        contract.setContentSnapshot(template(profile, contract.getContractNumber()));
+        contract.setContentSnapshot(contract.isDemo() ? OrganizerContractTemplate.renderDemo(profile, contract.getContractNumber(), contract.getIssuedAt(), environment, platformFeePercent())
+                : OrganizerContractTemplate.render(profile, contract.getContractNumber(), contract.getIssuedAt(), environment, platformFeePercent()));
         byte[] artifact = pdf.render(contract.getContentSnapshot());
         contract.setContentHash(OrganizerContractFiles.digest(artifact));
         contract.setOriginalPdfKey(files.store(artifact));
@@ -115,10 +133,10 @@ public class OrganizerContractService {
         contract.setOtpSentAt(now); contract.setOtpAttempts(0); contract.setOtpWindowCount(contract.getOtpWindowCount() + 1);
         contracts.saveAndFlush(contract);
         try {
-            email.sendRequiredHtmlEmail(actor.getEmail(), "NexSpace — Mã xác nhận hợp đồng thử nghiệm", """
+            email.sendRequiredHtmlEmail(actor.getEmail(), "NexSpace — Mã xác nhận hợp đồng", """
                 <div style="font-family:Arial,sans-serif;max-width:560px;margin:auto;padding:28px;border:1px solid #ddd;border-radius:16px">
                 <h2 style="color:#5145e8">NexSpace · Xác nhận hợp đồng</h2>
-                <p>Đây là mã xác nhận cho hợp đồng <strong>%s</strong> trong môi trường Local thử nghiệm.</p>
+                <p>Đây là mã xác nhận cho hợp đồng <strong>%s</strong>. Chỉ nhập mã sau khi bạn đã đọc đúng bản hợp đồng trên NexSpace.</p>
                 <p style="font-size:32px;font-weight:bold;letter-spacing:8px">%s</p>
                 <p>Mã có hiệu lực 10 phút. Không cung cấp mã cho người khác, kể cả người tự nhận là nhân viên NexSpace.</p>
                 <p>Nếu bạn không thực hiện yêu cầu này, hãy bỏ qua email. Chưa có hợp đồng nào được xác nhận chỉ bởi việc gửi mã.</p></div>
@@ -154,8 +172,12 @@ public class OrganizerContractService {
         if (profiles.existsByTaxIdAndStatusAndIdNot(profile.getTaxId(), OrganizerProfileStatus.APPROVED, profile.getId()))
             throw new ConflictException("This tax ID belongs to an approved Organizer");
         var signedAt = now();
-        String receipt = contract.getContentSnapshot() + "\n\nBIÊN NHẬN XÁC NHẬN THỬ NGHIỆM\n"
-                + "Mã hợp đồng: " + contract.getContractNumber() + "\nNgười xác nhận: " + actorId
+        String receipt = contract.getContentSnapshot() + "\n\nBIÊN NHẬN XÁC NHẬN ĐIỆN TỬ" + (contract.isDemo() ? " — THỬ NGHIỆM" : "") + "\n"
+                + "Mã hợp đồng: " + contract.getContractNumber()
+                + "\nĐại diện Organizer: " + value(profile.getRepresentativeName())
+                + "\nTài khoản ký xác nhận: " + value(actor.getUserName()) + " (ID " + actorId + ")"
+                + "\nEmail nhận OTP: " + value(contract.getSigningEmail())
+                + "\nTrạng thái: ĐÃ XÁC NHẬN — OTP email đã được kiểm tra và chỉ dùng một lần."
                 + "\nThời điểm UTC: " + signedAt + "\nPhương thức: OTP email + xác nhận đồng ý và thẩm quyền đại diện."
                 + "\nSHA-256 bản PDF được chấp thuận: " + contract.getContentHash()
                 + "\nĐây không phải chữ ký số của NexSpace hay chứng nhận danh tính từ bên thứ ba.";
@@ -176,7 +198,7 @@ public class OrganizerContractService {
     private OrganizerContractResponse response(OrganizerContractModel c, UserModel actor, OrganizerProfileModel profile) {
         return OrganizerContractResponse.from(c, "PENDING_SIGNATURE".equals(c.getStatus())
                 && profile.getStatus() == OrganizerProfileStatus.CONTRACT_PENDING && actor.getRole() == UserRole.USER
-                && demoEnabled && environment.acceptsProfiles(Profiles.of("local")));
+                && agreementEnabled(c));
     }
     private byte[] artifact(OrganizerContractModel c) {
         byte[] original = files.read(c.getOriginalPdfKey());
@@ -194,7 +216,7 @@ public class OrganizerContractService {
             throw new ConflictException("The agreement version changed. Reload and read the current agreement.");
     }
     private void requirePending(UserModel actor, OrganizerProfileModel profile, OrganizerContractModel c) {
-        requireDemoEnabled();
+        if (!agreementEnabled(c)) throw new ConflictException("Agreement signing is not enabled on this server. Contact support.");
         if (profile.getStatus() != OrganizerProfileStatus.CONTRACT_PENDING || !"PENDING_SIGNATURE".equals(c.getStatus())
                 || actor.getRole() != UserRole.USER || !Objects.equals(c.getSigningEmail(), actor.getEmail()))
             throw new ConflictException("This agreement is not available for signing");
@@ -202,6 +224,23 @@ public class OrganizerContractService {
     private void requireDemoEnabled() {
         if (!demoEnabled || !environment.acceptsProfiles(Profiles.of("local")) || environment.acceptsProfiles(Profiles.of("prod", "production")))
             throw new ConflictException("An approved production agreement template is required. The demo template is only available in Local.");
+    }
+    private boolean managedEnabled() {
+        return Boolean.TRUE.equals(environment.getProperty("app.organizer.contract.enabled", Boolean.class, false));
+    }
+    private boolean agreementEnabled(OrganizerContractModel contract) {
+        return contract.isDemo() ? demoEnabled && environment.acceptsProfiles(Profiles.of("local"))
+                && !environment.acceptsProfiles(Profiles.of("prod", "production")) : managedEnabled();
+    }
+    private java.math.BigDecimal platformFeePercent() {
+        try {
+            var rate = platformSettings == null ? java.math.BigDecimal.TEN : platformSettings.findById("payment.platform_commission_percent")
+                    .map(setting -> new java.math.BigDecimal(setting.getSettingValue().trim())).orElse(java.math.BigDecimal.TEN);
+            if (rate.signum() < 0 || rate.compareTo(new java.math.BigDecimal("100")) > 0) throw new NumberFormatException();
+            return rate;
+        } catch (RuntimeException failure) {
+            throw new ConflictException("Configure a valid platform commission before issuing an agreement");
+        }
     }
     private UserModel eligible(Long id) {
         var actor = users.findById(id).orElseThrow(() -> new UnauthorizedException("Account not found"));
@@ -224,47 +263,6 @@ public class OrganizerContractService {
     }
     private LocalDateTime now() { return LocalDateTime.ofInstant(clock.instant(), ZoneOffset.UTC); }
     private String value(String text) { return text == null ? "" : text.replaceAll("[\\r\\n\\t]", " "); }
-    private String template(OrganizerProfileModel p, String number) {
-        return """
-                NEXSPACE — HỢP ĐỒNG HỢP TÁC ORGANIZER
-                BẢN THỬ NGHIỆM LOCAL — KHÔNG DÙNG CHO GIAO DỊCH THỰC TẾ
-
-                Mã hợp đồng: %s
-                Phiên bản: LOCAL-DEMO-1
-                Thời điểm phát hành UTC: %s
-
-                BÊN NỀN TẢNG: NexSpace (môi trường mô phỏng).
-                Chưa cung cấp pháp nhân và người đại diện chính thức; không chèn chữ ký đại diện NexSpace.
-
-                BÊN ORGANIZER
-                Tên pháp lý: %s
-                Loại hình: %s
-                Mã số thuế: %s
-                Người đại diện: %s
-                Địa chỉ: %s
-                Liên hệ: %s — %s
-
-                1. PHẠM VI HỢP TÁC
-                Organizer sử dụng NexSpace để quản lý các workspace, sơ đồ tầng, ghế/phòng và thông tin cung cấp trên nền tảng. Hợp đồng này không phải đơn đặt chỗ của khách hàng và không tự tạo giao dịch thanh toán.
-
-                2. TRÁCH NHIỆM CUNG CẤP THÔNG TIN
-                Organizer xác nhận thông tin đã nộp là chính xác, có thẩm quyền đại diện và có quyền cung cấp không gian được đăng. Organizer có trách nhiệm bảo đảm thông tin về không gian, tiện ích, giá và tình trạng cung cấp phản ánh đúng khả năng phục vụ.
-
-                3. TÀI KHOẢN VÀ DỮ LIỆU
-                Các bên bảo vệ thông tin tài khoản và chỉ xử lý thông tin khách hàng phục vụ hoạt động đã được cho phép. Không chia sẻ mã xác nhận. Thông tin giấy tờ và hợp đồng được truy cập theo quyền sở hữu và quyền quản trị.
-
-                4. ĐIỀU KIỆN THƯƠNG MẠI
-                Mẫu thử nghiệm này không ấn định phí, hoa hồng, tiền phạt, hoàn tiền hoặc nghĩa vụ thanh toán. Những điều khoản đó phải được các bên xác lập và duyệt trong hợp đồng chính thức trước khi sử dụng thực tế.
-
-                5. XÁC NHẬN ĐIỆN TỬ TRONG MÔI TRƯỜNG THỬ NGHIỆM
-                Người dùng đọc nội dung, xác nhận đồng ý và thẩm quyền đại diện, sau đó nhập OTP gửi tới email tài khoản đã xác thực. Hệ thống lưu phiên bản, mã kiểm tra nội dung, tài khoản và thời điểm xác nhận. Đây không phải chứng nhận chữ ký số hay xác minh danh tính của bên thứ ba.
-
-                6. LƯU TRỮ VÀ PHẠM VI THỬ NGHIỆM
-                Bản nội dung đã phát hành không tự thay đổi khi cập nhật thông tin liên hệ hoặc ngân hàng. Chỉ môi trường Local được phép sử dụng mẫu này. Trước triển khai thật, NexSpace phải cung cấp pháp nhân, mẫu điều khoản và phương thức ký chính thức đã được duyệt.
-                """.formatted(number, now(), value(p.getLegalName()), p.getBusinessType(), value(p.getTaxId()),
-                        value(p.getRepresentativeName()), value(p.getAddress()), value(p.getContactEmail()), value(p.getContactPhone()));
-    }
-
     public static class InvalidContractOtpException extends BadRequestException {
         public InvalidContractOtpException(String message) { super(message); }
     }

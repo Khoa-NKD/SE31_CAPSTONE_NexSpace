@@ -22,6 +22,20 @@ public class OrganizerApplicationLifecycleController extends BaseAPIController {
     }
     private final OrganizerApplicationLifecycleService service;
 
+    @PostMapping(value = "/api/organizer/applications/current/identity-photo-pair-check", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public ResponseEntity<ApiResponse<OrganizerApplicationLifecycleService.IdentityPairCheck>> checkIdentityPair(
+            @RequestParam Long applicationId, @RequestPart MultipartFile first, @RequestPart MultipartFile second) {
+        return success(service.checkIdentityPair(getCurrentUserId(), applicationId, first, second));
+    }
+
+    @PostMapping(value = "/api/organizer/applications/current/identity-photo-pair", consumes = "multipart/form-data")
+    @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
+    public ResponseEntity<ApiResponse<OrganizerLifecycleContext>> saveIdentityPair(@RequestParam Long applicationId,
+            @RequestParam Long revision, @RequestPart MultipartFile first, @RequestPart MultipartFile second) {
+        return success(service.saveIdentityPair(getCurrentUserId(), applicationId, revision, first, second), "Identity photo pair saved atomically");
+    }
+
     @PostMapping(value = "/api/organizer/applications/current/identity-photo-check", consumes = "multipart/form-data")
     @PreAuthorize("hasAnyRole('USER','ORGANIZER')")
     public ResponseEntity<ApiResponse<java.util.Map<String, Boolean>>> checkIdentityPhoto(

@@ -59,6 +59,7 @@ class OrganizerLifecycleDatabaseTest {
             return new org.hibernate.cfg.Configuration().addAnnotatedClass(UserModel.class).addAnnotatedClass(RoleModel.class)
                     .addAnnotatedClass(OrganizerProfileModel.class).addAnnotatedClass(OrganizerDocumentModel.class).addAnnotatedClass(AuditLogModel.class)
                     .addAnnotatedClass(OrganizerContractModel.class)
+                    .addAnnotatedClass(OrganizerContractAddendumModel.class)
                     .setProperty("hibernate.connection.driver_class", "org.h2.Driver")
                     .setProperty("hibernate.connection.url", url).setProperty("hibernate.connection.username", "sa")
                     .setProperty("hibernate.connection.password", "").setProperty("hibernate.hbm2ddl.auto", "create-drop")
@@ -82,6 +83,20 @@ class OrganizerLifecycleDatabaseTest {
         }
         @Bean IOrganizerDocumentRepository documents(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerDocumentRepository.class); }
         @Bean IOrganizerContractRepository contracts(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerContractRepository.class); }
+        @Bean IOrganizerContractAddendumRepository addenda(EntityManager em) { return new JpaRepositoryFactory(em).getRepository(IOrganizerContractAddendumRepository.class); }
+        @Bean OrganizerContractFiles addendumFiles() { return new OrganizerContractFiles(files.resolve("contracts").toString()); }
+        @Bean OrganizerContractAddendumService addendumService(IOrganizerContractRepository contracts, IOrganizerContractAddendumRepository addenda,
+                IOrganizerProfileRepository profiles, IUserRepository users, OrganizerContractFiles addendumFiles, OrganizerLifecycleAudit audit,
+                base.api.shared.config.EmailService email, Clock clock) {
+            var environment = new org.springframework.mock.env.MockEnvironment().withProperty("app.organizer.contract.enabled", "true")
+                    .withProperty("app.organizer.contract.platform.legal-name", "305 NEXSPACE")
+                    .withProperty("app.organizer.contract.platform.tax-id", "PLATFORM-TEST-TAX")
+                    .withProperty("app.organizer.contract.platform.address", "Ngũ Hành Sơn, Đà Nẵng, Việt Nam")
+                    .withProperty("app.organizer.contract.platform.representative-name", "Nguyễn Huy Vũ")
+                    .withProperty("app.organizer.contract.platform.representative-title", "CEO");
+            return new OrganizerContractAddendumService(contracts, addenda, profiles, users, addendumFiles, new OrganizerContractPdf(),
+                    audit, email, new org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder(4), clock, environment);
+        }
         @Bean OrganizerContractService contractService(IOrganizerContractRepository contracts, IOrganizerProfileRepository profiles,
                 IUserRepository users, IRoleRepository roles, OrganizerLifecycleAudit audit,
                 base.api.shared.config.EmailService email, Clock clock, org.springframework.context.ApplicationEventPublisher events) {
@@ -127,7 +142,7 @@ class OrganizerLifecycleDatabaseTest {
         org.mockito.Mockito.reset(context.getBean(base.api.shared.config.EmailService.class));
         failAudit = false; authentication("ADMIN");
         tx.executeWithoutResult(status -> {
-            for (String entity : List.of("AuditLogModel", "OrganizerContractModel", "OrganizerDocumentModel", "OrganizerProfileModel", "UserModel", "RoleModel"))
+            for (String entity : List.of("AuditLogModel", "OrganizerContractAddendumModel", "OrganizerContractModel", "OrganizerDocumentModel", "OrganizerProfileModel", "UserModel", "RoleModel"))
                 em.createQuery("delete from " + entity).executeUpdate();
             var userRole = new RoleModel("USER", null); var adminRole = new RoleModel("ADMIN", null);
             em.persist(userRole); em.persist(adminRole); em.persist(new RoleModel("ORGANIZER", null));
@@ -151,6 +166,269 @@ class OrganizerLifecycleDatabaseTest {
     }
     Approval approval(long revision) { return new Approval(revision, true, List.of(documentId), "Documents checked and consistent"); }
     long events() { return tx.execute(status -> em.createQuery("select count(a) from AuditLogModel a", Long.class).getSingleResult()); }
+
+    private OrganizerApplicationLifecycleService withIdentityStorage(PrivateOrganizerDocumentStorage storage) {
+        return new OrganizerApplicationLifecycleService(context.getBean(IUserRepository.class), context.getBean(IRoleRepository.class),
+                context.getBean(IOrganizerProfileRepository.class), context.getBean(IOrganizerDocumentRepository.class), storage,
+                context.getBean(OrganizerLifecycleAudit.class), context.getBean(Validator.class), context.getBean(Clock.class),
+                context, context.getBean(OrganizerContractService.class));
+    }
+
+    private record SignedBase(Long id, String hash, Map<String, Object> evidence) {}
+    private SignedBase seedSignedManagedAgreement() {
+        return tx.execute(status -> {
+            var profile = em.find(OrganizerProfileModel.class, profileId);
+            profile.setStatus(OrganizerProfileStatus.APPROVED);
+            var actor = em.find(UserModel.class, ownerId);
+            actor.setRoleEntity(em.createQuery("select r from RoleModel r where r.name = 'ORGANIZER'", RoleModel.class).getSingleResult());
+            var base = new OrganizerContractModel(); base.setProfile(profile); base.setDemo(false);
+            base.setContractNumber("NX-ORG-TEST"); base.setTemplateVersion("NEXSPACE-OTP-1"); base.setStatus("SIGNED");
+            base.setIssuedAt(TIME.minusDays(1)); base.setSignedAt(TIME.minusHours(1)); base.setSignedBy(ownerId);
+            base.setSigningEmail(actor.getEmail());
+            base.setContentSnapshot("BÊN NỀN TẢNG\nTên pháp nhân: 305 NEXSPACE\nMã số thuế: PLATFORM-TEST-TAX\nChức danh: CEO\nBÊN ORGANIZER\nOriginal terms");
+            var storage = context.getBean(OrganizerContractFiles.class);
+            byte[] original = new OrganizerContractPdf().render(base.getContentSnapshot());
+            byte[] signed = new OrganizerContractPdf().render(base.getContentSnapshot() + "\nOriginal signature receipt");
+            base.setOriginalPdfKey(storage.store(original)); base.setContentHash(OrganizerContractFiles.digest(original));
+            base.setSignedPdfKey(storage.store(signed)); base.setSignedPdfHash(OrganizerContractFiles.digest(signed));
+            em.persist(base); em.flush();
+            return new SignedBase(base.getId(), base.getContentHash(), agreementEvidence(base));
+        });
+    }
+    private Map<String, Object> agreementEvidence(OrganizerContractModel base) {
+        return Map.of("original", base.getOriginalPdfKey(), "hash", base.getContentHash(), "signed", base.getSignedPdfKey(),
+                "signedHash", base.getSignedPdfHash(), "snapshot", base.getContentSnapshot(), "signedAt", base.getSignedAt(),
+                "signedBy", base.getSignedBy(), "status", base.getStatus());
+    }
+    private OrganizerContractAddendumService addendumService() { return context.getBean(OrganizerContractAddendumService.class); }
+    private base.api.feature.organizer.dto.response.OrganizerContractAddendumResponse issueAddendum(SignedBase base) {
+        authentication("ADMIN"); return addendumService().issue(adminId, profileId, base.id(), base.hash());
+    }
+    private String addendumCode(base.api.feature.organizer.dto.response.OrganizerContractAddendumResponse item) {
+        authentication("ORGANIZER"); addendumService().requestOtp(ownerId, item.id(), item.contentHash());
+        var message = org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.Mockito.verify(context.getBean(base.api.shared.config.EmailService.class)).sendRequiredHtmlEmail(
+                org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), message.capture());
+        var matcher = java.util.regex.Pattern.compile(">([0-9]{6})</p>").matcher(message.getValue());
+        assertThat(matcher.find()).isTrue(); return matcher.group(1);
+    }
+
+    @Test void addendumSignsSeparatelyAndPreservesEveryOriginalSignatureField() throws Exception {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base);
+        assertThat(item.content()).contains("Nguyễn Huy Vũ", "Ngũ Hành Sơn", "NX-ORG-TEST", "Không thay đổi");
+        var repeated = issueAddendum(base); assertThat(repeated.id()).isEqualTo(item.id());
+        var code = addendumCode(item);
+        var result = addendumService().sign(ownerId, item.id(), item.contentHash(), code, true);
+        assertThat(result.status()).isEqualTo("SIGNED"); assertThat(result.canSign()).isFalse();
+        var retry = addendumService().sign(ownerId, item.id(), item.contentHash(), "000000", true);
+        assertThat(retry.status()).isEqualTo("SIGNED");
+        tx.executeWithoutResult(status -> {
+            assertThat(agreementEvidence(em.find(OrganizerContractModel.class, base.id()))).isEqualTo(base.evidence());
+            assertThat(em.find(OrganizerProfileModel.class, profileId).getStatus()).isEqualTo(OrganizerProfileStatus.APPROVED);
+            assertThat(em.find(UserModel.class, ownerId).getRole()).isEqualTo(UserRole.ORGANIZER);
+            assertThat(em.find(OrganizerContractAddendumModel.class, item.id()).getOtpHash()).isNull();
+        });
+        try (var document = org.apache.pdfbox.Loader.loadPDF(addendumService().ownerPdf(ownerId, item.id()))) {
+            assertThat(new org.apache.pdfbox.text.PDFTextStripper().getText(document).replaceAll("\\s+", " "))
+                    .contains("Nguyễn Huy Vũ", "BIÊN NHẬN XÁC NHẬN PHỤ LỤC", "SHA-256", "OTP email");
+        }
+        assertThat(events()).isEqualTo(2);
+    }
+
+    @Test void addendumOtpLimitsExpiryVersionAndOwnershipAreEnforced() {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base); var code = addendumCode(item);
+        assertThatThrownBy(() -> addendumService().requestOtp(ownerId, item.id(), item.contentHash())).isInstanceOf(ConflictException.class).hasMessageContaining("60 seconds");
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), "a".repeat(64), code, true)).isInstanceOf(ConflictException.class);
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), code, false)).isInstanceOf(BadRequestException.class);
+        String wrong = code.equals("000000") ? "111111" : "000000";
+        for (int attempt = 0; attempt < 5; attempt++)
+            assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), wrong, true))
+                    .isInstanceOf(OrganizerContractService.InvalidContractOtpException.class);
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerContractAddendumModel.class, item.id()).getOtpAttempts()).isEqualTo(5));
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), code, true)).isInstanceOf(BadRequestException.class).hasMessageContaining("five incorrect");
+        tx.executeWithoutResult(status -> { var addendum = em.find(OrganizerContractAddendumModel.class, item.id()); addendum.setOtpAttempts(0); addendum.setOtpExpiresAt(TIME); });
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), code, true)).isInstanceOf(BadRequestException.class).hasMessageContaining("expired");
+        assertThatThrownBy(() -> addendumService().ownerPdf(adminId, item.id())).isInstanceOf(ForbiddenException.class);
+        assertThatThrownBy(() -> addendumService().ownerPdf(ownerId, item.id() + 100)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test void failedAddendumEmailDoesNotPersistAnUndeliverableOtp() {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base); authentication("ORGANIZER");
+        org.mockito.Mockito.doThrow(new IllegalStateException("private SMTP details"))
+                .when(context.getBean(base.api.shared.config.EmailService.class)).sendRequiredHtmlEmail(
+                        org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString(), org.mockito.ArgumentMatchers.anyString());
+        assertThatThrownBy(() -> addendumService().requestOtp(ownerId, item.id(), item.contentHash()))
+                .isInstanceOf(ConflictException.class).hasMessageNotContaining("private SMTP details");
+        tx.executeWithoutResult(status -> { var stored = em.find(OrganizerContractAddendumModel.class, item.id()); assertThat(stored.getOtpHash()).isNull(); assertThat(stored.getOtpWindowCount()).isZero(); });
+    }
+
+    @Test void competingAddendumIssuanceCreatesExactlyOneVersion() throws Exception {
+        var base = seedSignedManagedAgreement();
+        var start = new CountDownLatch(1); var executor = Executors.newFixedThreadPool(2);
+        try {
+            Callable<Long> issue = () -> {
+                authentication("ADMIN"); start.await();
+                try { return addendumService().issue(adminId, profileId, base.id(), base.hash()).id(); }
+                finally { SecurityContextHolder.clearContext(); }
+            };
+            var first = executor.submit(issue); var second = executor.submit(issue); start.countDown();
+            assertThat(first.get(20, TimeUnit.SECONDS)).isEqualTo(second.get(20, TimeUnit.SECONDS));
+            tx.executeWithoutResult(status -> assertThat(context.getBean(IOrganizerContractAddendumRepository.class).count()).isEqualTo(1));
+            assertThat(events()).isEqualTo(1);
+        } finally { executor.shutdownNow(); }
+    }
+
+    @Test void foreignOrganizerCannotReadOrSignAnAddendum() {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base);
+        Long foreign = tx.execute(status -> {
+            var role = em.find(UserModel.class, ownerId).getRoleEntity();
+            var actor = account("foreign-addendum-owner", role); em.persist(actor); em.flush();
+            var profile = profile(actor, "FOREIGN-TEST-TAX"); profile.setStatus(OrganizerProfileStatus.APPROVED); em.persist(profile);
+            return actor.getId();
+        });
+        authentication("ORGANIZER");
+        assertThatThrownBy(() -> addendumService().ownerPdf(foreign, item.id())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> addendumService().requestOtp(foreign, item.id(), item.contentHash())).isInstanceOf(NotFoundException.class);
+        assertThatThrownBy(() -> addendumService().sign(foreign, item.id(), item.contentHash(), "123456", true)).isInstanceOf(NotFoundException.class);
+    }
+
+    @Test void addendumAuditFailureRollsBackRowsAndNewPrivateArtifacts() throws Exception {
+        var base = seedSignedManagedAgreement(); long before;
+        try (var paths = Files.list(files.resolve("contracts"))) { before = paths.count(); }
+        failAudit = true;
+        assertThatThrownBy(() -> issueAddendum(base)).isInstanceOf(IllegalStateException.class).hasMessageContaining("audit failure");
+        tx.executeWithoutResult(status -> {
+            assertThat(context.getBean(IOrganizerContractAddendumRepository.class).count()).isZero();
+            assertThat(agreementEvidence(em.find(OrganizerContractModel.class, base.id()))).isEqualTo(base.evidence());
+        });
+        try (var paths = Files.list(files.resolve("contracts"))) { assertThat(paths.count()).isEqualTo(before); }
+    }
+
+    @Test void addendumHourlyLimitResetsExactlyAtTheBoundary() {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base);
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(OrganizerContractAddendumModel.class, item.id());
+            stored.setOtpSentAt(TIME.minusMinutes(2)); stored.setOtpWindowStart(TIME.minusMinutes(30)); stored.setOtpWindowCount(5);
+        });
+        authentication("ORGANIZER");
+        assertThatThrownBy(() -> addendumService().requestOtp(ownerId, item.id(), item.contentHash())).isInstanceOf(ConflictException.class).hasMessageContaining("limit");
+        tx.executeWithoutResult(status -> em.find(OrganizerContractAddendumModel.class, item.id()).setOtpWindowStart(TIME.minusHours(1)));
+        addendumService().requestOtp(ownerId, item.id(), item.contentHash());
+        tx.executeWithoutResult(status -> assertThat(em.find(OrganizerContractAddendumModel.class, item.id()).getOtpWindowCount()).isEqualTo(1));
+    }
+
+    @Test void changedParentSignatureHashPreventsAddendumSigning() {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base); var code = addendumCode(item);
+        tx.executeWithoutResult(status -> em.find(OrganizerContractModel.class, base.id()).setSignedPdfHash("a".repeat(64)));
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), code, true))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("reference changed");
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(OrganizerContractAddendumModel.class, item.id());
+            assertThat(stored.getStatus()).isEqualTo("PENDING_SIGNATURE"); assertThat(stored.getSignedPdfKey()).isNull();
+        });
+    }
+
+    @Test void addendumSigningAuditFailurePreservesPendingOtpAndRemovesNewArtifact() throws Exception {
+        var base = seedSignedManagedAgreement(); var item = issueAddendum(base); var code = addendumCode(item);
+        long before; try (var paths = Files.list(files.resolve("contracts"))) { before = paths.count(); }
+        failAudit = true;
+        assertThatThrownBy(() -> addendumService().sign(ownerId, item.id(), item.contentHash(), code, true))
+                .isInstanceOf(IllegalStateException.class).hasMessageContaining("audit failure");
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(OrganizerContractAddendumModel.class, item.id());
+            assertThat(stored.getStatus()).isEqualTo("PENDING_SIGNATURE"); assertThat(stored.getOtpHash()).isNotNull();
+            assertThat(stored.getSignedPdfKey()).isNull();
+            assertThat(agreementEvidence(em.find(OrganizerContractModel.class, base.id()))).isEqualTo(base.evidence());
+        });
+        try (var paths = Files.list(files.resolve("contracts"))) { assertThat(paths.count()).isEqualTo(before); }
+    }
+
+    @Test void alreadyCorrectAgreementDoesNotGetAnUnnecessaryCorrection() {
+        var base = seedSignedManagedAgreement();
+        tx.executeWithoutResult(status -> {
+            var stored = em.find(OrganizerContractModel.class, base.id());
+            stored.setContentSnapshot(stored.getContentSnapshot().replace("BÊN ORGANIZER", "Người đại diện: Nguyễn Huy Vũ\nĐịa chỉ: Ngũ Hành Sơn, Đà Nẵng, Việt Nam\nBÊN ORGANIZER"));
+        });
+        assertThatThrownBy(() -> issueAddendum(base)).isInstanceOf(ConflictException.class).hasMessageContaining("already has the correct");
+        tx.executeWithoutResult(status -> assertThat(context.getBean(IOrganizerContractAddendumRepository.class).count()).isZero());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.EnumSource(value = OrganizerProfileStatus.class, names = {"DRAFT", "REVISION_REQUESTED"})
+    void singlePhotoPreflightRejectsMismatchAgainstStoredOppositeSide(OrganizerProfileStatus profileStatus) {
+        authentication("USER");
+        tx.executeWithoutResult(status -> {
+            var profile = em.find(OrganizerProfileModel.class, profileId);
+            profile.setStatus(profileStatus);
+            var existing = em.find(OrganizerDocumentModel.class, documentId);
+            existing.setDocumentType(OrganizerDocumentType.ID_CARD_FRONT);
+            existing.setFileUrl("11111111-1111-1111-1111-111111111111.png");
+            var previousBack = new OrganizerDocumentModel();
+            previousBack.setOrganizerProfile(profile);
+            previousBack.setDocumentType(OrganizerDocumentType.ID_CARD_BACK);
+            previousBack.setFileName("previous-back.png");
+            previousBack.setFileUrl("22222222-2222-2222-2222-222222222222.png");
+            previousBack.setStatus(OrganizerDocumentStatus.REJECTED);
+            em.persist(previousBack);
+        });
+        var storage = org.mockito.Mockito.mock(PrivateOrganizerDocumentStorage.class);
+        var back = new MockMultipartFile("file", "back.png", "image/png", new byte[] {2});
+        org.mockito.Mockito.doThrow(new BadRequestException("The identity photos belong to different people"))
+                .when(storage).checkIdentityPhoto(back, OrganizerDocumentType.ID_CARD_BACK,
+                        "11111111-1111-1111-1111-111111111111.png");
+        var checked = withIdentityStorage(storage);
+        assertThatThrownBy(() -> tx.executeWithoutResult(status ->
+                checked.checkIdentityPhoto(ownerId, profileId, OrganizerDocumentType.ID_CARD_BACK, back)))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("different people");
+        assertThat(events()).isZero();
+    }
+
+    @Test void identityPairIsAtomicAndAcceptsReverseFileOrder() {
+        authentication("USER");
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setStatus(OrganizerProfileStatus.DRAFT));
+        var storage = org.mockito.Mockito.mock(PrivateOrganizerDocumentStorage.class);
+        var front = new MockMultipartFile("first", "front.png", "image/png", new byte[] {1});
+        var back = new MockMultipartFile("second", "back.png", "image/png", new byte[] {2});
+        org.mockito.Mockito.when(storage.checkIdentityPair(back, front)).thenReturn(false);
+        var frontStored = new PrivateOrganizerDocumentStorage.StoredDocument("11111111-1111-1111-1111-111111111111.png", "front.png");
+        var backStored = new PrivateOrganizerDocumentStorage.StoredDocument("22222222-2222-2222-2222-222222222222.png", "back.png");
+        org.mockito.Mockito.when(storage.storeVerifiedIdentity(front, profileId, OrganizerDocumentType.ID_CARD_FRONT)).thenReturn(frontStored);
+        org.mockito.Mockito.when(storage.storeVerifiedIdentity(back, profileId, OrganizerDocumentType.ID_CARD_BACK)).thenReturn(backStored);
+        var checked = withIdentityStorage(storage);
+        var saved = tx.execute(status -> checked.saveIdentityPair(ownerId, profileId, 0L, back, front));
+        assertThat(saved.revision()).isPositive();
+        tx.executeWithoutResult(status -> {
+            var documents = context.getBean(IOrganizerDocumentRepository.class).findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profileId);
+            assertThat(documents).filteredOn(document -> document.getDocumentType() != OrganizerDocumentType.BUSINESS_LICENSE).hasSize(2);
+            assertThat(documents).filteredOn(document -> document.getDocumentType() == OrganizerDocumentType.ID_CARD_FRONT)
+                    .singleElement().satisfies(document -> assertThat(document.getFileUrl()).isEqualTo(frontStored.key()));
+        });
+        org.mockito.Mockito.verify(storage, org.mockito.Mockito.never()).delete(org.mockito.ArgumentMatchers.any());
+        org.mockito.Mockito.verify(storage).checkIdentityPair(back, front);
+        org.mockito.Mockito.verify(storage, org.mockito.Mockito.never()).store(front, profileId, OrganizerDocumentType.ID_CARD_FRONT);
+        org.mockito.Mockito.verify(storage, org.mockito.Mockito.never()).store(back, profileId, OrganizerDocumentType.ID_CARD_BACK);
+    }
+
+    @Test void secondIdentityPhotoFailureRollsBackBothRecordsAndCompensatesTheFirstUpload() {
+        authentication("USER");
+        tx.executeWithoutResult(status -> em.find(OrganizerProfileModel.class, profileId).setStatus(OrganizerProfileStatus.DRAFT));
+        var storage = org.mockito.Mockito.mock(PrivateOrganizerDocumentStorage.class);
+        var front = new MockMultipartFile("first", "front.png", "image/png", new byte[] {1});
+        var back = new MockMultipartFile("second", "back.png", "image/png", new byte[] {2});
+        org.mockito.Mockito.when(storage.checkIdentityPair(front, back)).thenReturn(true);
+        var stored = new PrivateOrganizerDocumentStorage.StoredDocument("11111111-1111-1111-1111-111111111111.png", "front.png");
+        org.mockito.Mockito.when(storage.storeVerifiedIdentity(front, profileId, OrganizerDocumentType.ID_CARD_FRONT)).thenReturn(stored);
+        org.mockito.Mockito.when(storage.storeVerifiedIdentity(back, profileId, OrganizerDocumentType.ID_CARD_BACK))
+                .thenThrow(new IllegalStateException("isolated provider failure"));
+        var checked = withIdentityStorage(storage);
+        assertThatThrownBy(() -> tx.execute(status -> checked.saveIdentityPair(ownerId, profileId, 0L, front, back)))
+                .isInstanceOf(IllegalStateException.class);
+        assertThat(events()).isZero();
+        int count = tx.execute(status -> context.getBean(IOrganizerDocumentRepository.class)
+                .findByOrganizerProfileIdAndCurrentTrueOrderByIdDesc(profileId).size());
+        assertThat(count).isEqualTo(1);
+        org.mockito.Mockito.verify(storage).delete(stored);
+    }
 
     OrganizerContractService agreements() { return context.getBean(OrganizerContractService.class); }
 

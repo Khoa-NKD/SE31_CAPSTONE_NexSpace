@@ -77,7 +77,7 @@ final class GeminiModelCatalog {
     }
 
     synchronized void markUnavailable(String model) {
-        if (listedModels != null && listedModels.containsKey(model))
+        if (isDesignModel(model))
             unavailableModels.add(model);
     }
 

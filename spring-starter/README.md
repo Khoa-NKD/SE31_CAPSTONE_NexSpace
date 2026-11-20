@@ -76,9 +76,19 @@ Response luôn có dạng:
 
 ## Organizer identity photo OCR
 
+For organizer agreements, deployment configuration and private PDF storage, see [Organizer OTP agreements](docs/organizer-contracts.md).
+
 The backend uses Tesseract with the `vie` and `eng` language packs. The backend Docker image installs and checks both packs at build time. For a native Maven run, install Tesseract and both language packs once on the host.
 
 Windows detects the standard Program Files installation and can pick up both language files from `%LOCALAPPDATA%\NexSpace\tessdata`. Other installations can use `tesseract` on `PATH` and the standard language directory. Set `OCR_TESSERACT_COMMAND` to the executable or `OCR_TESSDATA_DIR` to the directory containing both `.traineddata` files to override discovery. The language directory can also be set using Tesseract's `TESSDATA_PREFIX`.
+
+### macOS local setup
+
+From `spring-starter/`, run `bash scripts/setup-local-macos.sh --install-ocr` after installing Homebrew. Omit `--install-ocr` to check an existing installation without installing anything. Apple Silicon (`/opt/homebrew`) and Intel (`/usr/local`) installations are detected, including when an IDE starts Java without Homebrew on PATH.
+
+The helper creates `src/main/resources/application-local.properties` from the committed `.example` only if it does not exist. Configure your own database, JWT/bank encryption keys, SMTP and private Cloudinary credentials there; the helper never copies another developer's credentials or overwrites an existing config. Both local config and `.local-ocr.env` are gitignored. Run `source .local-ocr.env` and `./mvnw spring-boot:run -Dspring-boot.run.profiles=local` in the same terminal. IDE users may set the two OCR environment variables in their run configuration; standard Homebrew locations are also discovered automatically.
+
+Unreadable-photo errors suggest focus, glare and crop corrections without claiming that OCR proved a specific visual defect. Missing tools/languages, overload and timeouts are reported separately from image quality. OCR classifies document sides; it does not establish identity authenticity.
 
 ## Docker
 
