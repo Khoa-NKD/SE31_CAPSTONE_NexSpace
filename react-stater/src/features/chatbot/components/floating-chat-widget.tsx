@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type KeyboardEvent } from 'react';
+import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
 import {
   Bot,
   Send,
@@ -6,7 +6,8 @@ import {
   Minus,
   RotateCcw,
   Sparkles,
-  Maximize2
+  Maximize2,
+  Compass
 } from 'lucide-react';
 import { useChatbot } from '../hooks/use-chatbot';
 import { ChatMessageItem } from './chat-message-item';
@@ -18,6 +19,9 @@ export function FloatingChatWidget() {
     isOpen,
     isMinimized,
     hasUnread,
+    isGuidedBookingActive,
+    startGuidedBooking,
+    stopGuidedBooking,
     toggleChat,
     toggleMinimize,
     closeChat,
@@ -30,15 +34,15 @@ export function FloatingChatWidget() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   // Tự động cuộn xuống tin nhắn mới nhất
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  }, []);
 
   useEffect(() => {
     if (isOpen && !isMinimized) {
       scrollToBottom();
     }
-  }, [messages, isLoading, isOpen, isMinimized]);
+  }, [messages, isLoading, isOpen, isMinimized, scrollToBottom]);
 
   // Focus input khi mở chat
   useEffect(() => {
@@ -91,6 +95,16 @@ export function FloatingChatWidget() {
             </div>
 
             <div className='flex items-center gap-1 text-muted-foreground'>
+              {!isMinimized && !isGuidedBookingActive && (
+                <button
+                  type='button'
+                  onClick={startGuidedBooking}
+                  title='Bật hướng dẫn đặt chỗ theo trang'
+                  className='rounded-md p-1.5 text-primary hover:bg-primary/10 transition-colors'
+                >
+                  <Compass className='h-3.5 w-3.5' />
+                </button>
+              )}
               {!isMinimized && (
                 <button
                   type='button'
@@ -119,6 +133,23 @@ export function FloatingChatWidget() {
               </button>
             </div>
           </div>
+
+          {/* Banner chế độ Hướng dẫn đặt chỗ theo trang */}
+          {isGuidedBookingActive && !isMinimized && (
+            <div className='flex items-center justify-between border-b border-primary/20 bg-primary/10 px-3.5 py-1.5 text-[11px] font-medium text-primary select-none'>
+              <div className='flex items-center gap-1.5'>
+                <Compass className='h-3.5 w-3.5 animate-spin' style={{ animationDuration: '6s' }} />
+                <span>Trợ lý đặt chỗ tự động theo trang</span>
+              </div>
+              <button
+                type='button'
+                onClick={stopGuidedBooking}
+                className='text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2'
+              >
+                Dừng
+              </button>
+            </div>
+          )}
 
           {/* Body tin nhắn */}
           {!isMinimized && (
