@@ -756,6 +756,60 @@ class ResourceHoldServiceTest {
             assertThat(response.getMaxHoldAttempts()).isEqualTo(3);
             assertThat(response.getPenaltyBlockMinutes()).isEqualTo(20);
         }
+
+        @Test
+        @DisplayName("Reset số lượt: Sau khi hết 20 phút phạt -> Số lần hold được reset về 3 lần và được giữ chỗ lại bình thường")
+        void holdResource_WhenPenaltyPeriodEnds_ShouldResetHoldAttemptsToThree() {
+            HoldResourceRequestDto request = HoldResourceRequestDto.builder()
+                    .resourceId(mockResource.getId())
+                    .startTime(baseStartTime)
+                    .endTime(baseEndTime)
+                    .partySize(1)
+                    .priceType(PriceType.HOURLY)
+                    .build();
+
+            LocalDateTime now = LocalDateTime.now();
+            // Khách từng bị phạt khóa đến 5 phút trước (hiện tại đã hết hạn phạt)
+            mockCustomer.setBookingSuspendedUntil(now.minusMinutes(5));
+
+            when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+            when(bookingRepository.findActiveHoldByCustomerAndResource(any(), any(), any(), any(), any()))
+                    .thenReturn(Optional.empty());
+
+            // Sau khi hết hạn phạt, findRecentUnpaidHolds từ mốc bookingSuspendedUntil trả về rỗng
+            when(bookingRepository.findRecentUnpaidHolds(eq(mockCustomer.getId()), argThat(time -> time != null && time.isAfter(now.minusMinutes(10)))))
+                    .thenReturn(Collections.emptyList());
+
+            LockedResourceContext lockContext = LockedResourceContext.builder()
+                    .targetResource(mockResource)
+                    .lockedResources(List.of(mockResource))
+                    .lockedResourceIds(List.of(mockResource.getId()))
+                    .startTime(baseStartTime)
+                    .endTime(baseEndTime)
+                    .build();
+
+            when(resourceLockService.acquireResourceLock(mockResource.getId(), baseStartTime, baseEndTime))
+                    .thenReturn(lockContext);
+
+            mockOperatingHours();
+            when(pricingRuleRepository.findByWorkspaceId(mockWorkspace.getId())).thenReturn(Collections.emptyList());
+            when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
+                    .thenReturn(Collections.emptyList());
+            when(bookingRepository.existsByBookingCode(any())).thenReturn(false);
+
+            when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
+                BookingModel b = invocation.getArgument(0);
+                b.setId(902L);
+                return b;
+            });
+
+            HoldResourceResponseDto response = holdService.holdResource(mockCustomer.getId(), request);
+
+            assertThat(response).isNotNull();
+            assertThat(response.getBookingId()).isEqualTo(902L);
+            assertThat(response.getRemainingHoldAttempts()).isEqualTo(3);
+            assertThat(response.getIsBookingSuspended()).isFalse();
+        }
     }
 
     @Nested

@@ -42,8 +42,10 @@ public final class BookingMapper {
             long diff = Duration.between(now, model.getHoldExpiresAt()).getSeconds();
             remainingSeconds = Math.max(0L, diff);
             if (model.getCreatedAt() != null) {
-                long holdMinutes = Duration.between(model.getCreatedAt(), model.getHoldExpiresAt()).toMinutes();
-                holdDurationMinutes = Math.max(1, (int) holdMinutes);
+                long diffSeconds = Duration.between(model.getCreatedAt(), model.getHoldExpiresAt()).getSeconds();
+                holdDurationMinutes = Math.max(1, (int) Math.round(diffSeconds / 60.0));
+            } else {
+                holdDurationMinutes = 15;
             }
         }
 
@@ -114,6 +116,12 @@ public final class BookingMapper {
                 .holdExpiresAt(base.getHoldExpiresAt())
                 .remainingSeconds(base.getRemainingSeconds())
                 .serverTime(base.getServerTime())
+                .holdDurationMinutes(base.getHoldDurationMinutes())
+                .remainingHoldAttempts(base.getRemainingHoldAttempts())
+                .maxHoldAttempts(base.getMaxHoldAttempts())
+                .penaltyBlockMinutes(base.getPenaltyBlockMinutes())
+                .isBookingSuspended(base.getIsBookingSuspended())
+                .bookingSuspendedUntil(base.getBookingSuspendedUntil())
                 .createdAt(base.getCreatedAt())
                 .workspaceId(base.getWorkspaceId())
                 .workspaceName(base.getWorkspaceName())
