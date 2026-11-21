@@ -21,6 +21,7 @@ import {
 } from './date-time-picker-modal';
 import type { CustomerFloor, MapResource } from './public-floor-map';
 import type { ResourceAvailabilityItem } from '@/features/workspaces/api/booking-types';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceBookingCardProps {
@@ -47,13 +48,27 @@ export function WorkspaceBookingCard({
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
 
+  const { data: holdData } = useCurrentPendingBooking();
+
+  const isSelectedHeldByMe = Boolean(
+    selectedResource && (
+      availabilityMap?.get(selectedResource.id)?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
+    )
+  );
+
   const isSelectedResourceAvailable = useMemo(() => {
     if (!selectedResource) return true;
     const avail = availabilityMap?.get(selectedResource.id);
-    const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
-    const isMaintenance = avail?.state === 'MAINTENANCE' || !selectedResource.selectable;
-    return (!avail || avail.state === 'AVAILABLE') && !isBooked && !isMaintenance;
-  }, [selectedResource, availabilityMap]);
+    const isHeldByMe = Boolean(
+      avail?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
+    );
+    const isBooked = avail?.state === 'BOOKED';
+    const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+    const isMaintenance = avail?.state === 'MAINTENANCE' || (!selectedResource.selectable && !isHeldByMe);
+    return (!avail || avail.state === 'AVAILABLE' || isHeldByMe) && !isBooked && !isLocked && !isMaintenance;
+  }, [selectedResource, availabilityMap, holdData]);
 
   // Compute lowest starting hourly price from floor resources if workspace.pricePerHour is not present
   const floorStartingHourlyPrice = useMemo(() => {
@@ -356,9 +371,13 @@ export function WorkspaceBookingCard({
             >
               <span>
                 {selectedResource
-                  ? language === 'vi'
-                    ? `Tiếp tục đặt ${selectedResource.code}`
-                    : `Continue with ${selectedResource.code}`
+                  ? isSelectedHeldByMe
+                    ? language === 'vi'
+                      ? `Tiếp tục thanh toán ${selectedResource.code}`
+                      : `Proceed to checkout for ${selectedResource.code}`
+                    : language === 'vi'
+                      ? `Tiếp tục đặt ${selectedResource.code}`
+                      : `Continue with ${selectedResource.code}`
                   : language === 'vi'
                     ? 'Chọn chỗ ngồi & Đặt ngay'
                     : 'Select Seats & Book'}
@@ -453,9 +472,13 @@ export function WorkspaceBookingCard({
             >
               <span>
                 {selectedResource
-                  ? language === 'vi'
-                    ? `Đặt ${selectedResource.code}`
-                    : `Book ${selectedResource.code}`
+                  ? isSelectedHeldByMe
+                    ? language === 'vi'
+                      ? `Thanh toán ${selectedResource.code}`
+                      : `Checkout ${selectedResource.code}`
+                    : language === 'vi'
+                      ? `Đặt ${selectedResource.code}`
+                      : `Book ${selectedResource.code}`
                   : language === 'vi'
                     ? 'Chọn chỗ & Đặt'
                     : 'Select Space'}

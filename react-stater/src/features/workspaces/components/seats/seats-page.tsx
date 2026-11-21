@@ -300,7 +300,10 @@ export function SeatsPage({
   useEffect(() => {
     if (selectedResource && availabilityMap.has(selectedResource.id)) {
       const avail = availabilityMap.get(selectedResource.id);
-      const isOccupiedByMe = currentPendingBooking && currentPendingBooking.resourceId === selectedResource.id;
+      const isOccupiedByMe = Boolean(
+        avail?.isOccupiedByMe ||
+        (currentPendingBooking?.resourceId && Number(currentPendingBooking.resourceId) === Number(selectedResource.id))
+      );
       if (
         (avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') &&
         !isOccupiedByMe &&
@@ -395,7 +398,10 @@ export function SeatsPage({
     }
 
     const currentAvail = availabilityMap.get(res.id);
-    const isHeldByMe = Boolean(currentAvail?.isOccupiedByMe || (holdData?.resourceId === res.id));
+    const isHeldByMe = Boolean(
+      currentAvail?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
+    );
     const isLockedByOthers = (currentAvail?.state === 'LOCKED' || currentAvail?.state === 'HOLDING') && !isHeldByMe;
 
     if (currentAvail?.state === 'BOOKED' || isLockedByOthers || currentAvail?.state === 'MAINTENANCE') {

@@ -386,7 +386,10 @@ export function PublicFloorMap({
 
   function shape(resource: MapResource) {
     const avail = availabilityMap?.get(resource.id);
-    const isHeldByMe = Boolean(avail?.isOccupiedByMe || (holdData?.resourceId === resource.id));
+    const isHeldByMe = Boolean(
+      avail?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(resource.id))
+    );
     const isBooked = avail?.state === 'BOOKED';
     const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
     const isMaintenance = avail?.state === 'MAINTENANCE' || (!resource.selectable && !isHeldByMe);
@@ -982,78 +985,94 @@ export function PublicFloorMap({
           {/* Quick Selection Summary Footer inside Map */}
           {showResourceInspector && selected && (
             <div className='mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 animate-in fade-in duration-200'>
-              <div className='flex items-start sm:items-center gap-3'>
-                <div className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs'>
-                  {selected.category === 'ROOM' ? (
-                    isResourceOffice(selected) ? (
-                      <Building className='size-5' />
-                    ) : (
-                      <Users className='size-5' />
-                    )
-                  ) : (
-                    <Armchair className='size-5' />
-                  )}
-                </div>
-                <div>
-                  <div className='flex flex-wrap items-center gap-2'>
-                    <span className='text-sm font-bold text-foreground'>
-                      {selected.name}
-                    </span>
-                    <span className='rounded-md bg-background px-1.5 py-0.5 font-mono text-xs font-bold text-primary border border-primary/20'>
-                      {selected.code}
-                    </span>
-                    <span className='inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300'>
-                      <CheckCircle2 className='size-3' />
-                      {hasScheduleSelected
-                        ? c('Available for selected slot', 'Trống trong khung giờ chọn')
-                        : c('Selected space', 'Đã chọn vị trí')}
-                    </span>
-                  </div>
-                  <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground'>
-                    <span>
-                      {selected.typeName ||
-                        (selected.category === 'ROOM'
-                          ? isResourceOffice(selected)
-                            ? c('Private Office', 'Văn phòng riêng')
-                            : c('Meeting Room', 'Phòng họp')
-                          : c('Workstation Desk', 'Bàn làm việc'))}
-                    </span>
-                    <span>•</span>
-                    <span>
-                      {selected.capacity || (selected.category === 'ROOM' ? 6 : 1)}{' '}
-                      {c('seats capacity', 'chỗ ngồi')}
-                    </span>
-                    {selected.zoneName && (
-                      <>
-                        <span>•</span>
-                        <span className='font-medium text-foreground'>{selected.zoneName}</span>
-                      </>
-                    )}
-                    {typeof selected.pricePerHour === 'number' && selected.pricePerHour > 0 && (
-                      <>
-                        <span>•</span>
-                        <span className='font-bold text-primary'>
-                          {formatPrice(selected.pricePerHour)} / {c('hr', 'giờ')}
-                        </span>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+              {(() => {
+                const isSelectedHeldByMe = Boolean(
+                  selected && (
+                    availabilityMap?.get(selected.id)?.isOccupiedByMe ||
+                    (holdData?.resourceId && Number(holdData.resourceId) === Number(selected.id))
+                  )
+                );
+                return (
+                  <>
+                    <div className='flex items-start sm:items-center gap-3'>
+                      <div className='flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-xs'>
+                        {selected.category === 'ROOM' ? (
+                          isResourceOffice(selected) ? (
+                            <Building className='size-5' />
+                          ) : (
+                            <Users className='size-5' />
+                          )
+                        ) : (
+                          <Armchair className='size-5' />
+                        )}
+                      </div>
+                      <div>
+                        <div className='flex flex-wrap items-center gap-2'>
+                          <span className='text-sm font-bold text-foreground'>
+                            {selected.name}
+                          </span>
+                          <span className='rounded-md bg-background px-1.5 py-0.5 font-mono text-xs font-bold text-primary border border-primary/20'>
+                            {selected.code}
+                          </span>
+                          <span className='inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-300'>
+                            <CheckCircle2 className='size-3' />
+                            {isSelectedHeldByMe
+                              ? c('Your Current Hold', 'Bạn đang giữ chỗ này')
+                              : hasScheduleSelected
+                                ? c('Available for selected slot', 'Trống trong khung giờ chọn')
+                                : c('Selected space', 'Đã chọn vị trí')}
+                          </span>
+                        </div>
+                        <div className='mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground'>
+                          <span>
+                            {selected.typeName ||
+                              (selected.category === 'ROOM'
+                                ? isResourceOffice(selected)
+                                ? c('Private Office', 'Văn phòng riêng')
+                                : c('Meeting Room', 'Phòng họp')
+                              : c('Workstation Desk', 'Bàn làm việc'))}
+                          </span>
+                          <span>•</span>
+                          <span>
+                            {selected.capacity || (selected.category === 'ROOM' ? 6 : 1)}{' '}
+                            {c('seats capacity', 'chỗ ngồi')}
+                          </span>
+                          {selected.zoneName && (
+                            <>
+                              <span>•</span>
+                              <span className='font-medium text-foreground'>{selected.zoneName}</span>
+                            </>
+                          )}
+                          {typeof selected.pricePerHour === 'number' && selected.pricePerHour > 0 && (
+                            <>
+                              <span>•</span>
+                              <span className='font-bold text-primary'>
+                                {formatPrice(selected.pricePerHour)} / {c('hr', 'giờ')}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
 
-              {onContinueWithResource && floor && (
-                <Button
-                  type='button'
-                  size='sm'
-                  onClick={() => onContinueWithResource(selected, floor.id)}
-                  className='shrink-0 gap-1.5 rounded-xl font-semibold shadow-xs cursor-pointer'
-                >
-                  <span>
-                    {c(`Book ${selected.code}`, `Đặt vị trí ${selected.code}`)}
-                  </span>
-                  <ArrowRight className='size-3.5' />
-                </Button>
-              )}
+                    {onContinueWithResource && floor && (
+                      <Button
+                        type='button'
+                        size='sm'
+                        onClick={() => onContinueWithResource(selected, floor.id)}
+                        className='shrink-0 gap-1.5 rounded-xl font-semibold shadow-xs cursor-pointer'
+                      >
+                        <span>
+                          {isSelectedHeldByMe
+                            ? c(`Continue with ${selected.code}`, `Tiếp tục thanh toán ${selected.code}`)
+                            : c(`Book ${selected.code}`, `Đặt vị trí ${selected.code}`)}
+                        </span>
+                        <ArrowRight className='size-3.5' />
+                      </Button>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           )}
         </>

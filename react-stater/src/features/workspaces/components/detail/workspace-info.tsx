@@ -36,6 +36,7 @@ import {
   isResourceOffice
 } from './public-floor-map';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import { WorkspaceGoongMap } from '@/features/admin-workspaces/components/workspace-goong-map';
 import { cn } from '@/lib/utils';
 
@@ -230,6 +231,7 @@ export function WorkspaceInfo({
 }: WorkspaceInfoProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
+  const { data: holdData } = useCurrentPendingBooking();
 
   const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
   const [isHoursExpanded, setIsHoursExpanded] = useState(false);
@@ -325,9 +327,14 @@ export function WorkspaceInfo({
 
         const key = `${res.category}:${label.toLowerCase()}`;
         const availItem = availabilityMap?.get(res.id);
-        const isBooked = availItem?.state === 'BOOKED' || availItem?.state === 'LOCKED';
-        const isMaint = availItem?.state === 'MAINTENANCE' || !res.selectable;
-        const isAvailable = (!availItem || availItem.state === 'AVAILABLE') && !isBooked && !isMaint;
+        const isHeldByMe = Boolean(
+          availItem?.isOccupiedByMe ||
+          (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
+        );
+        const isBooked = availItem?.state === 'BOOKED';
+        const isLocked = (availItem?.state === 'LOCKED' || availItem?.state === 'HOLDING') && !isHeldByMe;
+        const isMaint = availItem?.state === 'MAINTENANCE' || (!res.selectable && !isHeldByMe);
+        const isAvailable = (!availItem || availItem.state === 'AVAILABLE' || isHeldByMe) && !isBooked && !isLocked && !isMaint;
         const cap = Math.max(1, res.capacity || 1);
         const price = res.pricePerHour || 0;
 
@@ -351,7 +358,19 @@ export function WorkspaceInfo({
           existing.unitCount += 1;
           if (isAvailable) {
             existing.availableCount += 1;
-            if (!existing.sampleResource.selectable) {
+
+            const curAvail = availabilityMap?.get(existing.sampleResource.id);
+            const curHeldByMe = Boolean(
+              curAvail?.isOccupiedByMe ||
+              (holdData?.resourceId && Number(holdData.resourceId) === Number(existing.sampleResource.id))
+            );
+            const curBooked = curAvail?.state === 'BOOKED';
+            const curLocked = (curAvail?.state === 'LOCKED' || curAvail?.state === 'HOLDING') && !curHeldByMe;
+            const curMaint = curAvail?.state === 'MAINTENANCE' || (!existing.sampleResource.selectable && !curHeldByMe);
+            const curAvailable = (!curAvail || curAvail.state === 'AVAILABLE' || curHeldByMe) && !curBooked && !curLocked && !curMaint;
+
+            // Prioritize: If current resource is held by me, or if sampleResource is not available, choose res
+            if (isHeldByMe || !curAvailable) {
               existing.sampleResource = res;
               existing.floorId = floor.id;
             }
@@ -372,7 +391,7 @@ export function WorkspaceInfo({
       if (a.category !== b.category) return a.category === 'DESK' ? -1 : 1;
       return a.minPricePerHour - b.minPricePerHour;
     });
-  }, [floors, availabilityMap, language]);
+  }, [floors, availabilityMap, holdData, language]);
 
   // Normalize amenities from API endpoint + workspace.amenities string[] fallback
   const normalizedAmenities = useMemo(() => {
@@ -871,20 +890,37 @@ export function WorkspaceInfo({
                       </button>
 
                       {group.availableCount > 0 ? (
-                        <button
-                          type='button'
-                          onClick={() => {
-                            if (group.floorId && group.floorId !== activeFloorId) {
-                              onFloorChange?.(group.floorId);
-                            }
-                            onSelectResource?.(group.sampleResource);
-                            onContinueWithResource?.(group.sampleResource, group.floorId);
-                          }}
-                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground transition-colors cursor-pointer active:scale-95'
-                        >
-                          <span>{language === 'vi' ? 'Chọn đặt' : 'Select'}</span>
-                          <ArrowUpRight className='size-3.5' />
-                        </button>
+                        (() => {
+                          const isGroupHeldByMe = Boolean(
+                            availabilityMap?.get(group.sampleResource.id)?.isOccupiedByMe ||
+                            (holdData?.resourceId && Number(holdData.resourceId) === Number(group.sampleResource.id))
+                          );
+                          return (
+                            <button
+                              type='button'
+                              onClick={() => {
+                                if (group.floorId && group.floorId !== activeFloorId) {
+                                  onFloorChange?.(group.floorId);
+                                }
+                                onSelectResource?.(group.sampleResource);
+                                onContinueWithResource?.(group.sampleResource, group.floorId);
+                              }}
+                              className={cn(
+                                'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer active:scale-95',
+                                isGroupHeldByMe
+                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white'
+                                  : 'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground'
+                              )}
+                            >
+                              <span>
+                                {isGroupHeldByMe
+                                  ? language === 'vi' ? 'Tiếp tục giữ chỗ' : 'Continue Hold'
+                                  : language === 'vi' ? 'Chọn đặt' : 'Select'}
+                              </span>
+                              <ArrowUpRight className='size-3.5' />
+                            </button>
+                          );
+                        })()
                       ) : (
                         <button
                           type='button'
