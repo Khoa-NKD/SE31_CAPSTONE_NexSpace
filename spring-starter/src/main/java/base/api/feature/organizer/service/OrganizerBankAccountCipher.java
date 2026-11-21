@@ -20,11 +20,18 @@ public class OrganizerBankAccountCipher {
 
     public OrganizerBankAccountCipher(@Value("${app.organizer.bank.encryption-key:}") String configuredKey) {
         SecretKeySpec parsed = null;
-        try {
-            byte[] bytes = Base64.getDecoder().decode(configuredKey.trim());
-            if (bytes.length == 32) parsed = new SecretKeySpec(bytes, "AES");
-        } catch (IllegalArgumentException ignored) {
-            // Invalid configuration disables banking edits without affecting contact updates.
+        if (configuredKey != null && !configuredKey.isBlank()) {
+            String trimmed = configuredKey.trim();
+            try {
+                byte[] bytes = Base64.getDecoder().decode(trimmed);
+                if (bytes.length == 32) parsed = new SecretKeySpec(bytes, "AES");
+            } catch (IllegalArgumentException ignored) {
+                // Invalid base64, fall through to check raw bytes
+            }
+            if (parsed == null) {
+                byte[] raw = trimmed.getBytes(StandardCharsets.UTF_8);
+                if (raw.length == 32) parsed = new SecretKeySpec(raw, "AES");
+            }
         }
         key = parsed;
     }
