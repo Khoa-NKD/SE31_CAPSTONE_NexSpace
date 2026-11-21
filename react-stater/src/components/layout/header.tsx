@@ -27,12 +27,16 @@ export default function Header() {
 
   const roleLabel =
     role === 'ADMIN'
-      ? 'SUPER ADMIN'
+      ? language === 'vi'
+        ? 'QUẢN TRỊ VIÊN'
+        : 'SUPER ADMIN'
       : role === 'ORGANIZER'
         ? language === 'vi'
           ? 'TRUNG TÂM ĐỐI TÁC'
           : 'ORGANIZER HUB'
-        : 'CUSTOMER';
+        : language === 'vi'
+          ? 'KHÁCH HÀNG'
+          : 'CUSTOMER';
 
   return (
     <header className='bg-background/80 sticky top-0 z-20 flex h-14 shrink-0 items-center justify-between gap-2.5 sm:gap-4 border-b border-border/70 backdrop-blur-md px-3 sm:px-4'>
@@ -63,7 +67,7 @@ export default function Header() {
           <span className='text-border hidden xl:inline'>|</span>
           <span className='hidden xl:flex items-center gap-1 text-[11px] font-medium text-foreground/80 shrink-0'>
             <ShieldCheck className='h-3.5 w-3.5 text-blue-500' />
-            99.98% Uptime
+            {language === 'vi' ? '99.98% Hoạt động' : '99.98% Uptime'}
           </span>
         </div>
 
@@ -96,17 +100,17 @@ export default function Header() {
             size='sm'
             onClick={handleSwitchToCustomerView}
             className='h-7 px-2.5 text-xs font-semibold gap-1.5 border-indigo-200 dark:border-indigo-800 bg-indigo-50/60 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 shadow-2xs'
-            title='Chuyển sang trải nghiệm giao diện Khách hàng (Customer View / Marketplace)'
+            title={language === 'vi' ? 'Chuyển sang trải nghiệm giao diện Khách hàng (Customer View / Marketplace)' : 'Switch to Customer View / Marketplace experience'}
           >
             <Eye className='size-3.5 text-indigo-600 dark:text-indigo-400' />
-            <span className='hidden md:inline'>Giao diện Khách hàng</span>
-            <span className='md:hidden'>Customer</span>
+            <span className='hidden md:inline'>{language === 'vi' ? 'Giao diện Khách hàng' : 'Customer View'}</span>
+            <span className='md:hidden'>{language === 'vi' ? 'Khách hàng' : 'Customer'}</span>
           </Button>
         )}
 
         {/* Theme Mode Toggle (Light/Dark) */}
         <ThemeModeToggle />
-        {role === 'ORGANIZER' && <DashboardLanguageSwitcher />}
+        <DashboardLanguageSwitcher />
 
         {/* Notification Center */}
         <NotificationCenter />
