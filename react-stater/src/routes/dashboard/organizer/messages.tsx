@@ -1,12 +1,7 @@
-import { createFileRoute } from '@tanstack/react-router';
-import PageContainer from '@/components/layout/page-container';
-import { OrganizerChatPage } from '@/features/chat/components/organizer-chat-page';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
 export const Route = createFileRoute('/dashboard/organizer/messages')({
-  head: () => ({ meta: [{ title: 'Hội thoại & Hỗ trợ | NexSpace Organizer' }] }),
-  component: () => (
-    <PageContainer>
-      <OrganizerChatPage />
-    </PageContainer>
-  )
+  beforeLoad: () => {
+    throw redirect({ to: '/dashboard/chat' });
+  }
 });
