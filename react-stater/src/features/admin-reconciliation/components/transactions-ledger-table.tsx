@@ -9,6 +9,12 @@ interface TransactionsLedgerTableProps {
   items: TransactionRecord[];
   selectedTransactionId?: string;
   onSelectTransaction: (item: TransactionRecord) => void;
+  page?: number;
+  totalPages?: number;
+  totalElements?: number;
+  pageSize?: number;
+  onPageChange?: (page: number) => void;
+  isLoading?: boolean;
 }
 
 function getSettlementBadge(status: TransactionRecord['status']) {
@@ -51,7 +57,12 @@ function handleCopyId(e: React.MouseEvent, id: string) {
 export function TransactionsLedgerTable({
   items,
   selectedTransactionId,
-  onSelectTransaction
+  onSelectTransaction,
+  page = 1,
+  totalPages = 1,
+  totalElements,
+  onPageChange,
+  isLoading = false
 }: TransactionsLedgerTableProps) {
 
   if (items.length === 0) {
@@ -132,21 +143,21 @@ export function TransactionsLedgerTable({
 
                   {/* Total Amount */}
                   <td className='px-4 py-4 font-mono'>
-                    <div className='font-bold text-foreground'>
-                      ${record.grossChargeUsd.toFixed(2)}
+                    <div className='font-bold text-foreground text-sm'>
+                      {record.grossChargeVnd.toLocaleString('vi-VN')} ₫
                     </div>
                     <div className='text-[10px] text-muted-foreground'>
-                      {record.grossChargeVnd.toLocaleString()} VND
+                      PayOS Smart Checkout
                     </div>
                   </td>
 
                   {/* Platform Fee */}
                   <td className='px-4 py-4 font-mono'>
                     <div className='font-semibold text-indigo-700 dark:text-indigo-400'>
-                      -${record.platformCommissionUsd.toFixed(2)}
+                      -{record.platformCommissionVnd.toLocaleString('vi-VN')} ₫
                     </div>
                     <div className='text-[10px] text-muted-foreground'>
-                      {record.platformCommissionPercent}% ({record.platformCommissionVnd.toLocaleString()} VND)
+                      Phí sàn {record.platformCommissionPercent}%
                     </div>
                   </td>
 
@@ -189,43 +200,50 @@ export function TransactionsLedgerTable({
       <div className='p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-muted-foreground'>
         <div>
           Showing <strong className='text-foreground font-semibold'>{items.length}</strong> of{' '}
-          <strong className='text-foreground font-semibold'>3,842</strong> transactions
+          <strong className='text-foreground font-semibold'>{totalElements ?? items.length}</strong> transactions
+          {isLoading && <span className='ml-2 text-primary animate-pulse'>(Updating...)</span>}
         </div>
-        <div className='inline-flex items-center gap-1.5'>
-          <button
-            type='button'
-            disabled
-            className='px-2.5 py-1 rounded border border-border bg-card text-muted-foreground opacity-50 cursor-not-allowed'
-          >
-            Previous
-          </button>
-          <span className='px-2.5 py-1 rounded bg-primary text-white font-semibold'>1</span>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            2
-          </button>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            3
-          </button>
-          <span className='px-1 text-muted-foreground'>...</span>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            384
-          </button>
-          <button
-            type='button'
-            className='px-2.5 py-1 rounded border border-border bg-card text-foreground hover:bg-muted transition-colors'
-          >
-            Next
-          </button>
-        </div>
+        {totalPages > 1 && (
+          <div className='inline-flex items-center gap-1.5'>
+            <button
+              type='button'
+              disabled={page <= 1 || isLoading}
+              onClick={() => onPageChange?.(page - 1)}
+              className='px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors'
+            >
+              Previous
+            </button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+              .map((p, idx, arr) => (
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] !== p - 1 && (
+                    <span className='px-1 text-muted-foreground'>...</span>
+                  )}
+                  <button
+                    type='button'
+                    disabled={isLoading}
+                    onClick={() => onPageChange?.(p)}
+                    className={`px-2.5 py-1 rounded font-semibold transition-colors ${
+                      p === page
+                        ? 'bg-primary text-white shadow-2xs'
+                        : 'border border-border bg-card text-foreground hover:bg-muted'
+                    }`}
+                  >
+                    {p}
+                  </button>
+                </React.Fragment>
+              ))}
+            <button
+              type='button'
+              disabled={page >= totalPages || isLoading}
+              onClick={() => onPageChange?.(page + 1)}
+              className='px-2.5 py-1 rounded border border-border bg-card text-foreground disabled:opacity-40 disabled:cursor-not-allowed hover:bg-muted transition-colors'
+            >
+              Next
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

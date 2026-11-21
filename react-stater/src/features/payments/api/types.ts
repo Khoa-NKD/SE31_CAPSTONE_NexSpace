@@ -150,6 +150,9 @@ export interface ReconciliationSummary {
   mismatchCount: number;
   unreconciledCount: number;
   resolvedCount: number;
+  totalGrossVolume?: number;
+  totalPlatformFee?: number;
+  totalPayoutAmount?: number;
 }
 
 export interface PageResponse<T> {

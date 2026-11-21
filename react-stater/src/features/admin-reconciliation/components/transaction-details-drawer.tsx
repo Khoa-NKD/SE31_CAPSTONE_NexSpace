@@ -154,50 +154,40 @@ export function TransactionDetailsDrawer({
 
             <div className='p-4 rounded-xl border border-border bg-card shadow-2xs space-y-2.5 text-xs'>
               <div className='flex justify-between items-center text-foreground font-medium'>
-                <span>Gross Customer Charge</span>
-                <span className='font-semibold'>
-                  ${transaction.grossChargeUsd.toFixed(2)}{' '}
-                  <span className='text-muted-foreground font-normal'>
-                    ({transaction.grossChargeVnd.toLocaleString()} VND)
-                  </span>
+                <span>Tổng tiền khách thanh toán (Gross Charge)</span>
+                <span className='font-bold text-foreground text-sm font-mono'>
+                  {transaction.grossChargeVnd.toLocaleString('vi-VN')} ₫
                 </span>
               </div>
 
               <div className='flex justify-between items-center text-indigo-700 dark:text-indigo-400 font-medium'>
                 <span className='flex items-center gap-1.5'>
-                  NexSpace Platform Commission
+                  Phí hoa hồng nền tảng (Platform Fee)
                   <span className='text-[10px] px-1.5 py-0.2 bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-800 rounded font-bold'>
                     {transaction.platformCommissionPercent}%
                   </span>
                 </span>
-                <span>
-                  -${transaction.platformCommissionUsd.toFixed(2)}{' '}
-                  <span className='text-muted-foreground font-normal'>
-                    ({transaction.platformCommissionVnd.toLocaleString()} VND)
-                  </span>
+                <span className='font-semibold font-mono'>
+                  -{transaction.platformCommissionVnd.toLocaleString('vi-VN')} ₫
                 </span>
               </div>
 
               <div className='flex justify-between items-center text-muted-foreground'>
-                <span>PayOS Gateway Processing Fee ({transaction.gatewayFeePercent}%)</span>
-                <span>
-                  -${transaction.gatewayFeeUsd.toFixed(2)}{' '}
-                  <span>({transaction.gatewayFeeVnd.toLocaleString()} VND)</span>
+                <span>Phí xử lý cổng PayOS ({transaction.gatewayFeePercent}%)</span>
+                <span className='font-mono'>
+                  -{transaction.gatewayFeeVnd.toLocaleString('vi-VN')} ₫
                 </span>
               </div>
 
               <div className='pt-2.5 border-t border-border flex justify-between items-baseline'>
-                <span className='font-bold text-foreground text-sm'>Net Organizer Payout</span>
+                <span className='font-bold text-foreground text-sm'>Thực nhận đối tác (Net Payout)</span>
                 <span className='text-base font-bold text-emerald-700 dark:text-emerald-400 font-mono'>
-                  ${transaction.netPayoutUsd.toFixed(2)}{' '}
-                  <span className='text-xs text-muted-foreground font-normal'>
-                    ({transaction.netPayoutVnd.toLocaleString()} VND)
-                  </span>
+                  {transaction.netPayoutVnd.toLocaleString('vi-VN')} ₫
                 </span>
               </div>
 
               <div className='pt-2 border-t border-border/60 flex items-center justify-between text-[11px]'>
-                <span className='text-muted-foreground'>Target Disbursement Account:</span>
+                <span className='text-muted-foreground'>Tài khoản thụ hưởng giải ngân:</span>
                 <span className='font-medium text-foreground flex items-center gap-1'>
                   {transaction.disbursementBank}
                   <CheckCircle2 className='size-3 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />

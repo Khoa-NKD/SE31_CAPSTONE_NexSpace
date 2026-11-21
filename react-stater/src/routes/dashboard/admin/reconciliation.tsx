@@ -2,40 +2,49 @@ import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
+import { useQueryClient } from '@tanstack/react-query';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
 import { FileDown, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   INITIAL_TRANSACTIONS,
-  MOCK_FINANCIAL_KPIS,
   TransactionRecord,
   TransactionStatus
 } from '@/features/admin-reconciliation/data/mock-transactions';
+import {
+  mapPaymentTransactionToRecord,
+  calculateLiveFinancialKpis,
+  exportAuditLogToCsv
+} from '@/features/admin-reconciliation/data/transaction-adapter';
 import { FinancialKpiGrid } from '@/features/admin-reconciliation/components/financial-kpi-grid';
 import { TransactionsFilterBar } from '@/features/admin-reconciliation/components/transactions-filter-bar';
 import { TransactionsLedgerTable } from '@/features/admin-reconciliation/components/transactions-ledger-table';
 import { TransactionDetailsDrawer } from '@/features/admin-reconciliation/components/transaction-details-drawer';
 import {
+  useAdminPaymentHistory,
   useReconcileTransaction,
   useBatchReconcile,
-  useReconciliationSummary
+  useReconciliationSummary,
+  paymentKeys
 } from '@/features/payments/api';
 
 const reconciliationSearchSchema = z.object({
   search: z.string().optional(),
   status: z.enum(['all', 'settled', 'pending', 'failed', 'refunded']).optional().default('all'),
   gateway: z.string().optional().default('all'),
+  page: z.coerce.number().int().min(1).optional().default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).optional().default(10),
   txId: z.string().optional()
 });
 
 export const Route = createFileRoute('/dashboard/admin/reconciliation')({
   head: () => ({
     meta: [
-      { title: 'A09 — Financial Reconciliation & Payouts | NexSpace Console' },
+      { title: 'A09 — Đối soát giao dịch & Chi trả | NexSpace Console' },
       {
         name: 'description',
-        content: 'Audit platform gross volume, PayOS instant escrow settlements, gateway interchange fees, and organizer disbursements.'
+        content: 'Giám sát tổng doanh thu hệ thống, dòng tiền ký quỹ PayOS, phí hoa hồng nền tảng và thanh toán giải ngân đối tác.'
       }
     ]
   }),
@@ -43,42 +52,86 @@ export const Route = createFileRoute('/dashboard/admin/reconciliation')({
   component: FinancialReconciliationPage
 });
 
-function handleExportAuditLog() {
-  toast.success('Reconciliation Audit Ledger Exported (CSV)', {
-    description: 'Exported 3,842 transaction and disbursement records with Napas247 trace numbers.'
-  });
-}
-
 function FinancialReconciliationPage() {
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
+  const queryClient = useQueryClient();
 
-  const [transactions, setTransactions] = useState<TransactionRecord[]>(INITIAL_TRANSACTIONS);
-  const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(() => {
-    if (searchParams.txId) {
-      return INITIAL_TRANSACTIONS.find((t) => t.id === searchParams.txId) || null;
-    }
-    return null;
-  });
-  const [isDrawerOpen, setIsDrawerOpen] = useState(() => Boolean(searchParams.txId));
-  const [isReconcilingBatch, setIsReconcilingBatch] = useState(false);
-
-  const batchMutation = useBatchReconcile();
-  const reconcileMutation = useReconcileTransaction();
-  const { data: reconciliationSummary } = useReconciliationSummary();
-
+  const page = searchParams.page || 1;
+  const pageSize = searchParams.pageSize || 10;
   const searchQuery = searchParams.search || '';
   const statusFilter = (searchParams.status as TransactionStatus | 'all') || 'all';
   const selectedGateway = searchParams.gateway || 'all';
 
+  // 1. Fetch live transactions and reconciliation summary from backend
+  const {
+    data: paymentsPage,
+    isLoading: isPaymentsLoading,
+    isFetching: isPaymentsFetching
+  } = useAdminPaymentHistory({
+    page,
+    size: pageSize,
+    sort: 'createdAt'
+  });
+
+  const { data: reconciliationSummary } = useReconciliationSummary();
+  const batchMutation = useBatchReconcile();
+  const reconcileMutation = useReconcileTransaction();
+
+  // 2. Transform backend payment transactions to TransactionRecord UI format
+  const baseTransactions = useMemo<TransactionRecord[]>(() => {
+    const rawList = paymentsPage?.content || paymentsPage?.listObjects;
+    if (rawList && rawList.length > 0) {
+      return rawList.map(mapPaymentTransactionToRecord);
+    }
+    // Fallback to demo mock data if DB has no records yet
+    return INITIAL_TRANSACTIONS;
+  }, [paymentsPage]);
+
+  // Local state for optimistic updates upon manual reconciliation
+  const [localOverrides, setLocalOverrides] = useState<Record<string, Partial<TransactionRecord>>>({});
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(() => Boolean(searchParams.txId));
+  const [isReconcilingBatch, setIsReconcilingBatch] = useState(false);
+
+  // Merge base transactions with local optimistic overrides
+  const transactions = useMemo(() => {
+    return baseTransactions.map((tx) => {
+      const override = localOverrides[tx.id] || localOverrides[tx.payOsOrderCode];
+      return override ? { ...tx, ...override } : tx;
+    });
+  }, [baseTransactions, localOverrides]);
+
+  // Sync selected transaction with txId search param
+  React.useEffect(() => {
+    if (searchParams.txId) {
+      const found = transactions.find((t) => t.id === searchParams.txId || t.payOsOrderCode === searchParams.txId);
+      if (found) {
+        setSelectedTransaction(found);
+        setIsDrawerOpen(true);
+      }
+    }
+  }, [searchParams.txId, transactions]);
+
   // Handle URL updates cleanly
-  const updateFilters = (updates: Partial<{ search: string; status: TransactionStatus | 'all'; gateway: string; txId?: string }>) => {
+  const updateFilters = (
+    updates: Partial<{
+      search: string;
+      status: TransactionStatus | 'all';
+      gateway: string;
+      page: number;
+      pageSize: number;
+      txId?: string;
+    }>
+  ) => {
     navigate({
       search: (prev) => {
-        const next: Record<string, string | undefined> = { ...prev, ...updates };
+        const next: Record<string, unknown> = { ...prev, ...updates };
         if (!next.search) delete next.search;
         if (next.status === 'all') delete next.status;
         if (next.gateway === 'all') delete next.gateway;
+        if (next.page === 1) delete next.page;
+        if (next.pageSize === 10) delete next.pageSize;
         if (!next.txId) delete next.txId;
         return next as typeof prev;
       },
@@ -98,136 +151,80 @@ function FinancialReconciliationPage() {
     updateFilters({ txId: undefined });
   };
 
+  // Reconcile a single transaction with PayOS
   const handleReconcileTransaction = (target: TransactionRecord) => {
     const orderCodeNum = Number(target.payOsOrderCode);
     if (!isNaN(orderCodeNum) && orderCodeNum > 0) {
       reconcileMutation.mutate(orderCodeNum, {
         onSuccess: (res) => {
-          setTransactions((prev) =>
-            prev.map((t) =>
-              t.id === target.id
-                ? {
-                    ...t,
-                    status: 'settled',
-                    reconciled: true,
-                    statusBadge: res.reconciliationStatus === 'MATCHED' ? 'Settled & Matched 100%' : 'Mismatch'
-                  }
-                : t
-            )
-          );
-          if (selectedTransaction?.id === target.id) {
-            setSelectedTransaction({
-              ...target,
-              status: 'settled',
-              reconciled: true,
-              statusBadge: res.reconciliationStatus === 'MATCHED' ? 'Settled & Matched 100%' : 'Mismatch'
-            });
-          }
+          setLocalOverrides((prev) => ({
+            ...prev,
+            [target.id]: {
+              status: res.reconciliationStatus === 'MATCHED' ? 'settled' : 'failed',
+              reconciled: res.reconciliationStatus === 'MATCHED',
+              statusBadge:
+                res.reconciliationStatus === 'MATCHED' ? 'Settled & Matched 100%' : 'Mismatch Detected'
+            }
+          }));
+
+          queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+
           toast.success(`Đối soát thành công giao dịch #${target.payOsOrderCode}`, {
-            description: res.note || `Trạng thái: ${res.reconciliationStatus}`
+            description: res.note || `Trạng thái đối soát: ${res.reconciliationStatus}`
           });
         },
-        onError: () => {
-          setTransactions((prev) =>
-            prev.map((t) =>
-              t.id === target.id
-                ? {
-                    ...t,
-                    status: 'settled',
-                    reconciled: true,
-                    statusBadge: 'Settled & Matched 100%'
-                  }
-                : t
-            )
-          );
-          if (selectedTransaction?.id === target.id) {
-            setSelectedTransaction({
-              ...target,
-              status: 'settled',
-              reconciled: true,
-              statusBadge: 'Settled & Matched 100%'
-            });
-          }
-          toast.success(`Transaction #${target.id} Manually Reconciled`, {
-            description: `Disbursement cleared for ${target.organizerLegalName}. Bank trace verified.`
+        onError: (err) => {
+          toast.error(`Đối soát giao dịch #${target.payOsOrderCode} thất bại`, {
+            description: err instanceof Error ? err.message : 'Lỗi kết nối cổng thanh toán'
           });
         }
       });
     } else {
-      setTransactions((prev) =>
-        prev.map((t) =>
-          t.id === target.id
-            ? {
-                ...t,
-                status: 'settled',
-                reconciled: true,
-                statusBadge: 'Settled & Matched 100%'
-              }
-            : t
-        )
-      );
-      if (selectedTransaction?.id === target.id) {
-        setSelectedTransaction({
-          ...target,
-          status: 'settled',
-          reconciled: true,
-          statusBadge: 'Settled & Matched 100%'
-        });
-      }
-      toast.success(`Transaction #${target.id} Manually Reconciled`, {
-        description: `Disbursement cleared for ${target.organizerLegalName}. Bank trace verified.`
-      });
+      toast.info('Giao dịch không có mã PayOS hợp lệ để đối soát trực tuyến.');
     }
   };
 
+  // Batch reconcile all unreconciled transactions
   const handleBatchReconcile = () => {
     setIsReconcilingBatch(true);
     batchMutation.mutate(undefined, {
       onSuccess: (res) => {
         setIsReconcilingBatch(false);
-        setTransactions((prev) =>
-          prev.map((t) => (t.status === 'pending' ? { ...t, status: 'settled', reconciled: true } : t))
-        );
-        toast.success('Batch Reconciliation Succeeded', {
-          description: `Đã đối soát ${res.totalProcessed} giao dịch (${res.matchedCount} khớp, ${res.autoHealedCount} tự động xử lý).`
+        queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+        toast.success('Đối soát hàng loạt hoàn tất', {
+          description: `Đã xử lý ${res.totalProcessed} giao dịch (${res.matchedCount} khớp, ${res.autoHealedCount} tự động đồng bộ).`
         });
       },
-      onError: () => {
-        setTimeout(() => {
-          setTransactions((prev) =>
-            prev.map((t) => (t.status === 'pending' ? { ...t, status: 'settled', reconciled: true } : t))
-          );
-          setIsReconcilingBatch(false);
-          toast.success('Batch Reconciliation Succeeded', {
-            description: 'All pending escrow payments matched against PayOS bank feeds.'
-          });
-        }, 500);
+      onError: (err) => {
+        setIsReconcilingBatch(false);
+        toast.error('Đối soát hàng loạt không thành công', {
+          description: err instanceof Error ? err.message : 'Vui lòng kiểm tra lại kết nối PayOS.'
+        });
       }
     });
   };
 
-  // Compute effective KPIs with real reconciliation summary data if available
-  const effectiveKpis = useMemo(() => {
-    if (!reconciliationSummary) return MOCK_FINANCIAL_KPIS;
-    return {
-      ...MOCK_FINANCIAL_KPIS,
-      totalTransactionsCount: reconciliationSummary.totalTransactions || MOCK_FINANCIAL_KPIS.totalTransactionsCount,
-      settledCount: reconciliationSummary.matchedCount || MOCK_FINANCIAL_KPIS.settledCount,
-      pendingCount: reconciliationSummary.unreconciledCount || MOCK_FINANCIAL_KPIS.pendingCount,
-      failedCount: reconciliationSummary.mismatchCount || MOCK_FINANCIAL_KPIS.failedCount
-    };
-  }, [reconciliationSummary]);
+  // Export CSV Audit Log
+  const handleExport = () => {
+    exportAuditLogToCsv(filteredTransactions);
+  };
 
-  // Filter items deterministically
+  // Compute live KPIs
+  const effectiveKpis = useMemo(() => {
+    return calculateLiveFinancialKpis(transactions, reconciliationSummary);
+  }, [transactions, reconciliationSummary]);
+
+  // Client-side filtering
   const filteredTransactions = useMemo(() => {
     return transactions.filter((t) => {
       if (statusFilter !== 'all' && t.status !== statusFilter) {
         return false;
       }
       if (selectedGateway !== 'all') {
-        if (selectedGateway === 'payos' && !t.gateway.toLowerCase().includes('payos')) return false;
-        if (selectedGateway === 'napas' && !t.gateway.toLowerCase().includes('napas')) return false;
-        if (selectedGateway === 'card' && !t.gateway.toLowerCase().includes('visa')) return false;
+        if (selectedGateway.toLowerCase().includes('payos') && !t.gateway.toLowerCase().includes('payos'))
+          return false;
+        if (selectedGateway.toLowerCase().includes('visa') && !t.gateway.toLowerCase().includes('visa'))
+          return false;
       }
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase().trim();
@@ -245,6 +242,9 @@ function FinancialReconciliationPage() {
     });
   }, [transactions, statusFilter, selectedGateway, searchQuery]);
 
+  const totalElements = paymentsPage?.totalElements ?? paymentsPage?.totalRecords ?? transactions.length;
+  const totalPages = paymentsPage?.totalPages ?? Math.max(1, Math.ceil(totalElements / pageSize));
+
   return (
     <PageContainer>
       <div className='flex flex-col gap-6 max-w-7xl mx-auto w-full pb-16'>
@@ -260,7 +260,7 @@ function FinancialReconciliationPage() {
               </span>
             </div>
             <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              Real-time audit log of booking transactions, automated PayOS escrow disbursements, and platform take-rate margins.
+              Giám sát dòng tiền thanh toán qua cổng PayOS/VietQR, đối chiếu sao kê tài chính và giải ngân đối tác.
             </p>
           </div>
 
@@ -268,23 +268,23 @@ function FinancialReconciliationPage() {
             <Button
               variant='outline'
               size='sm'
-              onClick={handleExportAuditLog}
+              onClick={handleExport}
               className='gap-2 text-xs font-medium h-9'
             >
               <FileDown className='size-3.5' aria-hidden='true' />
-              Export Audit Log
+              Export Audit Log (CSV)
             </Button>
             <Button
               variant='default'
               size='sm'
               onClick={handleBatchReconcile}
-              disabled={isReconcilingBatch}
-              className='gap-2 text-xs font-semibold h-9 shadow-sm'
+              disabled={isReconcilingBatch || batchMutation.isPending}
+              className='gap-2 text-xs font-semibold h-9 shadow-xs'
             >
-              {isReconcilingBatch ? (
+              {isReconcilingBatch || batchMutation.isPending ? (
                 <>
                   <RefreshCw className='size-3.5 animate-spin' aria-hidden='true' />
-                  Reconciling Feeds...
+                  Đang đối soát sao kê...
                 </>
               ) : (
                 <>
@@ -299,7 +299,7 @@ function FinancialReconciliationPage() {
         {/* Financial KPI Summary Cards */}
         <section aria-labelledby='financial-kpi-heading'>
           <h2 id='financial-kpi-heading' className='sr-only'>
-            Financial Performance Overview
+            Tổng quan hiệu suất tài chính
           </h2>
           <FinancialKpiGrid kpis={effectiveKpis} />
         </section>
@@ -307,29 +307,35 @@ function FinancialReconciliationPage() {
         {/* Filter Controls */}
         <section aria-labelledby='transactions-filter-heading'>
           <h2 id='transactions-filter-heading' className='sr-only'>
-            Filter Financial Transactions
+            Bộ lọc giao dịch tài chính
           </h2>
           <TransactionsFilterBar
             searchQuery={searchQuery}
-            onSearchChange={(search) => updateFilters({ search })}
+            onSearchChange={(search) => updateFilters({ search, page: 1 })}
             statusFilter={statusFilter}
-            onStatusChange={(status) => updateFilters({ status })}
+            onStatusChange={(status) => updateFilters({ status, page: 1 })}
             selectedGateway={selectedGateway}
-            onGatewayChange={(gateway) => updateFilters({ gateway })}
+            onGatewayChange={(gateway) => updateFilters({ gateway, page: 1 })}
             kpis={effectiveKpis}
-            onReset={() => updateFilters({ search: '', status: 'all', gateway: 'all' })}
+            onReset={() => updateFilters({ search: '', status: 'all', gateway: 'all', page: 1 })}
           />
         </section>
 
         {/* Transactions Ledger Table */}
         <section aria-labelledby='transactions-ledger-heading'>
           <h2 id='transactions-ledger-heading' className='sr-only'>
-            Platform Transactions and Disbursements
+            Sổ cái giao dịch và chi trả nền tảng
           </h2>
           <TransactionsLedgerTable
             items={filteredTransactions}
             selectedTransactionId={selectedTransaction?.id}
             onSelectTransaction={handleSelectTransaction}
+            page={page}
+            totalPages={totalPages}
+            totalElements={totalElements}
+            pageSize={pageSize}
+            onPageChange={(newPage) => updateFilters({ page: newPage })}
+            isLoading={isPaymentsLoading || isPaymentsFetching}
           />
         </section>
 
