@@ -803,7 +803,24 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             }
         }
 
-        // 2. Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
+        // 2. Kiểm tra nếu có >= spamHoldThreshold vi phạm và vi phạm gần nhất đã cách đây >= effectiveBlockMinutes (hết hạn phạt 20p)
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+        List<BookingModel> recentUnpaids = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince);
+        if (recentUnpaids.size() >= effectiveThreshold) {
+            BookingModel latestUnpaid = recentUnpaids.get(0);
+            LocalDateTime latestUnpaidTime = latestUnpaid.getUpdatedAt() != null
+                    ? latestUnpaid.getUpdatedAt()
+                    : latestUnpaid.getCreatedAt();
+            if (latestUnpaidTime != null) {
+                LocalDateTime penaltyEnd = latestUnpaidTime.plusMinutes(effectiveBlockMinutes);
+                if (now.isAfter(penaltyEnd) && penaltyEnd.isAfter(effectiveSince)) {
+                    effectiveSince = penaltyEnd;
+                }
+            }
+        }
+
+        // 3. Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
         Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
         if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
             effectiveSince = lastSuccessTime.get();
@@ -890,14 +907,17 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             remainingAttempts = Math.max(0, effectiveThreshold - unpaidCount);
 
             if (unpaidCount >= effectiveThreshold) {
-                isSuspended = true;
                 if (suspendedUntil == null) {
                     List<BookingModel> unpaidHolds = bookingRepository.findRecentUnpaidHolds(customerId, effectiveSince);
                     if (!unpaidHolds.isEmpty()) {
                         BookingModel latest = unpaidHolds.get(0);
                         LocalDateTime latestTime = latest.getUpdatedAt() != null ? latest.getUpdatedAt() : latest.getCreatedAt();
                         if (latestTime == null) latestTime = now;
-                        suspendedUntil = latestTime.plusMinutes(effectiveBlockMinutes);
+                        LocalDateTime blockUntil = latestTime.plusMinutes(effectiveBlockMinutes);
+                        if (now.isBefore(blockUntil)) {
+                            isSuspended = true;
+                            suspendedUntil = blockUntil;
+                        }
                     }
                 }
             }
