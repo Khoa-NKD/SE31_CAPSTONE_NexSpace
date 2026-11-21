@@ -263,7 +263,24 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.resetPassword.successTitle': 'Password reset',
     'auth.resetPassword.successSubtitle':
       'Your password has been successfully reset. Click below to log in magically.',
-    'auth.resetPassword.successBtn': 'Continue'
+    'auth.resetPassword.successBtn': 'Continue',
+
+    // Admin Console
+    'admin.dashboard': 'Administrator Dashboard',
+    'admin.operationalConsole': 'Operational Console',
+    'admin.overview': 'Overview',
+    'admin.analytics': 'Platform Analytics',
+    'admin.organizers': 'Organizer Applications',
+    'admin.partners': 'Organizer Partners',
+    'admin.workspaces': 'Workspaces',
+    'admin.users': 'Users List',
+    'admin.bookings': 'Bookings Ledger',
+    'admin.reconciliation': 'Reconciliation',
+    'admin.refunds': 'Refunds & Claims',
+    'admin.payouts': 'Payouts & Ledger',
+    'admin.commissions': 'Commission & Fees',
+    'admin.disputes': 'Disputes & Incidents',
+    'admin.systemReports': 'System Reports'
   },
   vi: {
     // Navbar
@@ -521,7 +538,24 @@ const TRANSLATIONS: Record<Language, Record<string, string>> = {
     'auth.resetPassword.successTitle': 'Khôi phục thành công',
     'auth.resetPassword.successSubtitle':
       'Mật khẩu của bạn đã được khôi phục thành công. Nhấn nút bên dưới để đăng nhập.',
-    'auth.resetPassword.successBtn': 'Tiếp tục'
+    'auth.resetPassword.successBtn': 'Tiếp tục',
+
+    // Admin Console
+    'admin.dashboard': 'Bảng điều khiển Quản trị',
+    'admin.operationalConsole': 'Vận hành hệ thống',
+    'admin.overview': 'Tổng quan',
+    'admin.analytics': 'Phân tích nền tảng',
+    'admin.organizers': 'Duyệt hồ sơ đối tác',
+    'admin.partners': 'Quản lý đối tác',
+    'admin.workspaces': 'Không gian làm việc',
+    'admin.users': 'Danh sách người dùng',
+    'admin.bookings': 'Sổ cái đặt chỗ',
+    'admin.reconciliation': 'Đối soát doanh thu',
+    'admin.refunds': 'Hoàn tiền & Khiếu nại',
+    'admin.payouts': 'Quản lý chi trả & Sổ quỹ',
+    'admin.commissions': 'Hoa hồng & Biểu phí',
+    'admin.disputes': 'Tranh chấp & Sự cố',
+    'admin.systemReports': 'Báo cáo hệ thống'
   }
 };
 

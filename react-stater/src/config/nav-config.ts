@@ -30,7 +30,7 @@ export const navGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Quản lý đối tác',
+        title: 'Organizer Partners',
         url: '/dashboard/admin/organizer-partners',
         icon: 'building',
         isActive: false

@@ -16,9 +16,9 @@ export function getThemeScope(pathname: string): ThemeScope {
 
 export const THEME_KEYS = {
   admin: {
-    modeKey: 'admin_theme',
-    paletteCookie: 'admin_active_theme',
-    paletteStorageKey: 'admin_active_theme',
+    modeKey: 'theme',
+    paletteCookie: 'active_theme',
+    paletteStorageKey: 'active_theme',
     defaultMode: 'light' as const,
     defaultPalette: DEFAULT_THEME
   },
@@ -60,16 +60,17 @@ export function getSystemTheme(): 'light' | 'dark' {
 export function getStoredMode(scope: ThemeScope): 'light' | 'dark' | 'system' {
   if (typeof window === 'undefined') return THEME_KEYS[scope].defaultMode;
   try {
-    const val = localStorage.getItem(THEME_KEYS[scope].modeKey);
+    const val = localStorage.getItem('theme') || localStorage.getItem(THEME_KEYS[scope].modeKey);
     if (isValidMode(val)) return val;
   } catch {}
   return THEME_KEYS[scope].defaultMode;
 }
 
-export function setStoredMode(scope: ThemeScope, mode: 'light' | 'dark' | 'system') {
+export function setStoredMode(_scope: ThemeScope, mode: 'light' | 'dark' | 'system') {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(THEME_KEYS[scope].modeKey, mode);
+    localStorage.setItem('theme', mode);
+    localStorage.setItem('admin_theme', mode);
   } catch {}
 }
 

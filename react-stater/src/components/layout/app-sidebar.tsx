@@ -45,7 +45,8 @@ import {
 import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
 
-const organizerMenuVietnamese: Record<string, string> = {
+const dashboardMenuVietnamese: Record<string, string> = {
+  // Organizer Console
   'Organizer Console': 'Quản lý đối tác',
   'User Space & Tools': 'Tiện ích & công cụ',
   'Application Management': 'Quản lý hồ sơ đăng ký',
@@ -63,7 +64,30 @@ const organizerMenuVietnamese: Record<string, string> = {
   Analytics: 'Phân tích',
   Overview: 'Tổng quan',
   Chat: 'Trò chuyện',
-  Kanban: 'Bảng công việc'
+  Kanban: 'Bảng công việc',
+
+  // Admin Operational Console
+  'Operational Console': 'Vận hành hệ thống',
+  'Platform Analytics': 'Phân tích nền tảng',
+  'Organizer Applications': 'Duyệt hồ sơ đối tác',
+  'Organizer Partners': 'Quản lý đối tác',
+  'Quản lý đối tác': 'Quản lý đối tác',
+  Workspaces: 'Không gian làm việc',
+  'Directory & Moderation': 'Danh mục & Kiểm duyệt',
+  'Amenities Catalog': 'Danh mục tiện ích',
+  'Users List': 'Danh sách người dùng',
+  'Bookings Ledger': 'Sổ cái đặt chỗ',
+  Reconciliation: 'Đối soát doanh thu',
+  'Refunds & Claims': 'Hoàn tiền & Khiếu nại',
+  'Payouts & Ledger': 'Quản lý chi trả & Sổ quỹ',
+  'Commission & Fees': 'Hoa hồng & Biểu phí',
+  'Fee Configuration': 'Cấu hình biểu phí',
+  'Disputes & Incidents': 'Tranh chấp & Sự cố',
+  'System Reports': 'Báo cáo hệ thống'
+};
+
+const dashboardMenuEnglish: Record<string, string> = {
+  'Quản lý đối tác': 'Organizer Partners'
 };
 
 export default function AppSidebar() {
@@ -86,7 +110,9 @@ export default function AppSidebar() {
     'U'
   ).toUpperCase();
   const displayRole = isAdmin
-    ? 'CPTO • Super Admin'
+    ? language === 'vi'
+      ? 'Quản trị viên cấp cao'
+      : 'CPTO • Super Admin'
     : isOrganizer
       ? language === 'vi'
         ? 'Đối tác đã xác minh'
@@ -105,22 +131,46 @@ export default function AppSidebar() {
     return customerNavGroups;
   }, [isAdmin, isOrganizer]);
 
-  const filteredGroups = useFilteredNavGroups(activeNavGroups).map((group) => ({
-    ...group,
-    label:
-      isOrganizer && language === 'vi'
-        ? (organizerMenuVietnamese[group.label ?? ''] ?? group.label)
-        : group.label,
-    items: group.items.map((item) => ({
-      ...item,
-      title:
-        isOrganizer && language === 'vi'
-          ? (organizerMenuVietnamese[item.title] ?? item.title)
-          : item.title,
-      label:
-        isOrganizer && language === 'vi' && item.label === 'Planned' ? 'Sắp ra mắt' : item.label
-    }))
-  }));
+  const filteredGroups = useFilteredNavGroups(activeNavGroups).map((group) => {
+    const rawGroupLabel = group.label ?? '';
+    const translatedGroupLabel =
+      language === 'vi'
+        ? (dashboardMenuVietnamese[rawGroupLabel] ?? rawGroupLabel)
+        : (dashboardMenuEnglish[rawGroupLabel] ?? rawGroupLabel);
+
+    return {
+      ...group,
+      label: translatedGroupLabel,
+      items: group.items.map((item) => {
+        const rawTitle = item.title;
+        const translatedTitle =
+          language === 'vi'
+            ? (dashboardMenuVietnamese[rawTitle] ?? rawTitle)
+            : (dashboardMenuEnglish[rawTitle] ?? rawTitle);
+
+        let translatedItemLabel = item.label;
+        if (language === 'vi') {
+          if (item.label === 'Planned') translatedItemLabel = 'Sắp ra mắt';
+          if (item.label === 'Live') translatedItemLabel = 'Trực tiếp';
+          if (item.label === 'Reconciled') translatedItemLabel = 'Đã đối soát';
+          if (item.label === '12 Active') translatedItemLabel = '12 Đang hoạt động';
+        }
+
+        return {
+          ...item,
+          title: translatedTitle,
+          label: translatedItemLabel,
+          items: item.items?.map((subItem) => ({
+            ...subItem,
+            title:
+              language === 'vi'
+                ? (dashboardMenuVietnamese[subItem.title] ?? subItem.title)
+                : (dashboardMenuEnglish[subItem.title] ?? subItem.title)
+          }))
+        };
+      })
+    };
+  });
   const [incidentModalOpen, setIncidentModalOpen] = React.useState(false);
 
   // Customer không có trang dashboard và không sử dụng thanh sidebar này
@@ -130,9 +180,15 @@ export default function AppSidebar() {
 
   const handleIncidentSubmit = () => {
     setIncidentModalOpen(false);
-    toast.error('Incident Escalated (Simulated)', {
-      description: 'Incident report dispatched to on-call platform engineers in AP-Southeast-1.'
-    });
+    toast.error(
+      language === 'vi' ? 'Đã ghi nhận sự cố (Mô phỏng)' : 'Incident Escalated (Simulated)',
+      {
+        description:
+          language === 'vi'
+            ? 'Báo cáo sự cố đã được gửi tới kỹ sư trực vận hành tại AP-Southeast-1.'
+            : 'Incident report dispatched to on-call platform engineers in AP-Southeast-1.'
+      }
+    );
   };
 
   return (
@@ -179,12 +235,12 @@ export default function AppSidebar() {
               <button
                 type='button'
                 onClick={() => setIncidentModalOpen(true)}
-                className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-sidebar-accent/80 hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground rounded-lg border border-sidebar-border transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto'
-                title='System Incident Report'
+                className='w-full flex items-center justify-center gap-2 px-3 py-2 bg-sidebar-accent/80 hover:bg-sidebar-accent text-sidebar-foreground hover:text-sidebar-accent-foreground rounded-lg border border-sidebar-border transition-colors text-xs font-medium group-data-[collapsible=icon]:p-2 group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:mx-auto cursor-pointer'
+                title={language === 'vi' ? 'Báo cáo sự cố hệ thống' : 'System Incident Report'}
               >
                 <Icons.warning className='size-3.5 text-amber-400 shrink-0' />
                 <span className='truncate group-data-[collapsible=icon]:hidden'>
-                  System Incident Report
+                  {language === 'vi' ? 'Báo cáo sự cố hệ thống' : 'System Incident Report'}
                 </span>
               </button>
             </div>
@@ -395,29 +451,36 @@ export default function AppSidebar() {
           <DialogHeader>
             <DialogTitle className='flex items-center gap-2 text-amber-600'>
               <Icons.warning className='size-5' />
-              <span>Submit Platform Incident Report</span>
+              <span>
+                {language === 'vi' ? 'Báo cáo sự cố nền tảng khẩn cấp' : 'Submit Platform Incident Report'}
+              </span>
             </DialogTitle>
             <DialogDescription className='pt-1 text-xs text-muted-foreground'>
-              Simulated emergency ticket dispatch for production cluster AP-Southeast-1.
+              {language === 'vi'
+                ? 'Mô phỏng gửi cảnh báo khẩn cấp cho cụm máy chủ AP-Southeast-1.'
+                : 'Simulated emergency ticket dispatch for production cluster AP-Southeast-1.'}
             </DialogDescription>
           </DialogHeader>
 
           <div className='space-y-2 text-xs bg-muted/40 p-3 rounded-lg border border-border text-foreground'>
             <p>
-              In production, this triggers an automated PagerDuty alert to the Platform Security
-              &amp; Infrastructure team.
+              {language === 'vi'
+                ? 'Trong môi trường thực tế, thao tác này sẽ kích hoạt cảnh báo PagerDuty tự động tới đội ngũ An ninh & Hạ tầng Nền tảng.'
+                : 'In production, this triggers an automated PagerDuty alert to the Platform Security & Infrastructure team.'}
             </p>
             <p className='text-muted-foreground text-[11px]'>
-              Severity level: P1 / High • Automated logs attachment enabled.
+              {language === 'vi'
+                ? 'Mức độ nghiêm trọng: P1 / Cao • Tự động đính kèm nhật ký hệ thống.'
+                : 'Severity level: P1 / High • Automated logs attachment enabled.'}
             </p>
           </div>
 
           <DialogFooter>
             <Button variant='outline' onClick={() => setIncidentModalOpen(false)}>
-              Cancel
+              {language === 'vi' ? 'Hủy bỏ' : 'Cancel'}
             </Button>
             <Button variant='destructive' onClick={handleIncidentSubmit}>
-              Trigger Incident Escalation
+              {language === 'vi' ? 'Kích hoạt cảnh báo sự cố' : 'Trigger Incident Escalation'}
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dialog';
 import { AlertTriangle, ArrowRight, ShieldCheck, Store, Gavel, Clock } from 'lucide-react';
 import { TriageItem } from '../data/mock-overview';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface PriorityTriageGridProps {
   items: TriageItem[];
@@ -31,6 +32,7 @@ function getCategoryIcon(category: string) {
 }
 
 export function PriorityTriageGrid({ items }: PriorityTriageGridProps) {
+  const { language } = useLanguage();
   const [selectedItem, setSelectedItem] = useState<TriageItem | null>(null);
 
   return (
@@ -39,12 +41,12 @@ export function PriorityTriageGrid({ items }: PriorityTriageGridProps) {
         <div className='flex items-center gap-2'>
           <AlertTriangle className='size-5 text-amber-500' />
           <h2 className='text-base font-semibold text-foreground tracking-tight'>
-            Operational Workload &amp; Priority Triage
+            {language === 'vi' ? 'Khối lượng công việc & Phân loại ưu tiên' : 'Operational Workload & Priority Triage'}
           </h2>
         </div>
         <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
           <Clock className='size-3.5' />
-          <span>SLA Target: Under 24h review window</span>
+          <span>{language === 'vi' ? 'Mục tiêu SLA: Xử lý trong vòng 24h' : 'SLA Target: Under 24h review window'}</span>
         </div>
       </div>
 
@@ -180,7 +182,7 @@ export function PriorityTriageGrid({ items }: PriorityTriageGridProps) {
 
           <DialogFooter>
             <Button variant='outline' onClick={() => setSelectedItem(null)}>
-              Close
+              {language === 'vi' ? 'Đóng' : 'Close'}
             </Button>
           </DialogFooter>
         </DialogContent>
