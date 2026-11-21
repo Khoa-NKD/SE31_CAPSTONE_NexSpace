@@ -104,11 +104,6 @@ export interface BookingDto {
   cancelledAt?: string;
   refundPercent?: number;
   refundAmount?: number;
-
-  // Anti-spam hold defense metrics
-  remainingHoldAttempts?: number;
-  maxHoldAttempts?: number;
-  penaltyBlockMinutes?: number;
 }
 
 export interface CancellationRuleItemDto {

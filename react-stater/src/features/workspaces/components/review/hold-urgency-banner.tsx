@@ -24,6 +24,7 @@ interface HoldUrgencyBannerProps {
   remainingHoldAttempts?: number;
   maxHoldAttempts?: number;
   penaltyBlockMinutes?: number;
+  secondsRemaining?: number;
   onExpired?: () => void;
   onReleaseSuccess?: () => void;
 }
@@ -39,68 +40,93 @@ export function HoldUrgencyBanner({
   remainingHoldAttempts = 3,
   maxHoldAttempts = 3,
   penaltyBlockMinutes = 20,
+  secondsRemaining: propSecondsRemaining,
   onExpired,
   onReleaseSuccess
 }: HoldUrgencyBannerProps) {
-  const [currentTimestamp, setCurrentTimestamp] = useState(() => Date.now());
-  const [serverOffset] = useState(() => (serverTime ? new Date(serverTime).getTime() - Date.now() : 0));
-  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
   const effectiveExpiresAt = holdExpiresAt || expiresAt;
   const expiredNotifiedRef = useRef(false);
 
   // Tổng thời lượng giữ chỗ (phút) được lấy động từ cấu hình Database (thông qua Backend API)
-  const [effectiveTotalMinutes] = useState<number>(() => {
-    if (holdDurationMinutes && holdDurationMinutes > 0) {
-      return holdDurationMinutes;
-    }
-    if (initialSeconds && initialSeconds > 0) {
-      return Math.max(1, Math.round(initialSeconds / 60));
-    }
-    const targetExpiresAt = holdExpiresAt || expiresAt;
-    if (targetExpiresAt) {
-      const expTime = new Date(targetExpiresAt).getTime();
-      const offset = serverTime ? new Date(serverTime).getTime() - Date.now() : 0;
-      const initialDiff = Math.max(1, Math.floor((expTime - (Date.now() + offset)) / 1000));
-      return Math.max(1, Math.round(initialDiff / 60));
-    }
-    return 10;
-  });
+  const totalHoldMinutes = holdDurationMinutes && holdDurationMinutes > 0
+    ? holdDurationMinutes
+    : (initialSeconds && initialSeconds > 0 ? Math.ceil(initialSeconds / 60) : 15);
 
-  const maxHoldSeconds = effectiveTotalMinutes * 60;
+  const maxHoldSeconds = totalHoldMinutes * 60;
   const initialHoldDuration = initialSeconds && initialSeconds > 0
-    ? Math.min(initialSeconds, maxHoldSeconds)
+    ? initialSeconds
     : maxHoldSeconds;
+
+  const [isConfirmDialogOpen, setIsConfirmDialogOpen] = useState(false);
+  const [internalSecondsRemaining, setInternalSecondsRemaining] = useState<number>(() => {
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              return Math.max(0, Math.floor((exp - srv) / 1000));
+            }
+          }
+        }
+      } catch {
+        // Fallback
+      }
+    }
+    return initialHoldDuration;
+  });
 
   const releaseHoldMutation = useReleaseHoldMutation();
 
-  // Cập nhật timer tần số cao (100ms) kết hợp CSS linear transition để thanh thời gian trượt siêu mượt mà
+  // Đồng bộ đếm ngược theo mốc hết hạn của máy chủ (chỉ chạy khi không được truyền secondsRemaining từ cha)
   useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTimestamp(Date.now());
-    }, 100);
+    if (propSecondsRemaining != null) return;
 
-    return () => clearInterval(timer);
-  }, []);
+    let targetClientExpiry: number;
+    const clientNow = Date.now();
+    if (effectiveExpiresAt) {
+      try {
+        const exp = new Date(effectiveExpiresAt).getTime();
+        if (!isNaN(exp)) {
+          if (serverTime) {
+            const srv = new Date(serverTime).getTime();
+            if (!isNaN(srv)) {
+              const diffMs = Math.max(0, exp - srv);
+              targetClientExpiry = clientNow + diffMs;
+            } else {
+              targetClientExpiry = exp;
+            }
+          } else {
+            targetClientExpiry = exp;
+          }
+        } else {
+          targetClientExpiry = clientNow + initialHoldDuration * 1000;
+        }
+      } catch {
+        targetClientExpiry = clientNow + initialHoldDuration * 1000;
+      }
+    } else {
+      targetClientExpiry = clientNow + initialHoldDuration * 1000;
+    }
 
-  const expiryTimestamp = effectiveExpiresAt ? new Date(effectiveExpiresAt).getTime() : 0;
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.floor((targetClientExpiry - Date.now()) / 1000));
+      setInternalSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        clearInterval(interval);
+      }
+    }, 500);
 
-  // Tính mili-giây còn lại chính xác cao
-  const remainingMs = expiryTimestamp > 0
-    ? Math.max(0, expiryTimestamp - (currentTimestamp + serverOffset))
-    : initialHoldDuration * 1000;
+    return () => clearInterval(interval);
+  }, [propSecondsRemaining, effectiveExpiresAt, serverTime, initialHoldDuration]);
 
-  const rawSecondsRemaining = Math.max(0, Math.floor(remainingMs / 1000));
-  const isExpired = expiryTimestamp > 0 ? remainingMs <= 0 : rawSecondsRemaining <= 0;
+  const secondsRemaining = propSecondsRemaining != null ? propSecondsRemaining : internalSecondsRemaining;
+  const isExpired = secondsRemaining <= 0;
 
-  // Tổng thời gian cơ sở chuẩn hóa theo số phút chẵn từ cơ sở dữ liệu
-  const totalHoldMinutes = effectiveTotalMinutes;
-
-  // Chặn trần để không bao giờ vượt quá thời lượng cấu hình trong DB (ví dụ DB cài 7 phút thì đếm từ 07:00, DB cài 10 phút thì đếm từ 10:00)
-  const secondsRemaining = Math.min(rawSecondsRemaining, maxHoldSeconds);
-
-  // Tính phần trăm tiến trình chính xác theo mili-giây từ 100% về 0%
-  const totalMs = maxHoldSeconds * 1000;
-  const progressRatio = Math.min(1, Math.max(0, Math.min(remainingMs, totalMs) / totalMs));
+  // Tính phần trăm tiến trình từ 100% về 0%
+  const totalSeconds = Math.max(maxHoldSeconds, secondsRemaining);
+  const progressRatio = Math.min(1, Math.max(0, secondsRemaining / totalSeconds));
   const progressPercentage = progressRatio * 100;
 
   // Thanh tiến độ chuyển 3 màu tùy mức thời gian còn lại:
@@ -259,7 +285,7 @@ export function HoldUrgencyBanner({
             hủy hoặc giữ chỗ. Nếu quá {maxHoldAttempts} lần mà không thanh toán, tài khoản sẽ bị phạt tạm khóa đặt chỗ trong vòng{' '}
             <span className='font-extrabold text-rose-700 underline decoration-rose-500 underline-offset-2 dark:text-rose-400'>
               {penaltyBlockMinutes} phút
-            </span>. Trong vòng 24 giờ hoặc sau khi thanh toán thành công, số lần hủy/giữ sẽ được tự động thiết lập lại về ban đầu.
+            </span>. Sau khi hết {penaltyBlockMinutes} phút phạt (hoặc sau 24 giờ đối với trường hợp chưa bị phạt) hoặc sau khi hoàn tất thanh toán, số lần giữ chỗ sẽ được tự động thiết lập lại về ban đầu ({maxHoldAttempts} lần).
           </div>
         </div>
 
