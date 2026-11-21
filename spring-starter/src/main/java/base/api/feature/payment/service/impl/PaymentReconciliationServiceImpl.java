@@ -247,12 +247,22 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
         long unreconciled = paymentTransactionRepository.countByReconciliationStatus(ReconciliationStatus.UNRECONCILED);
         long resolved = paymentTransactionRepository.countByReconciliationStatus(ReconciliationStatus.RESOLVED);
 
+        BigDecimal totalGross = paymentTransactionRepository.sumTotalAmountByStatus(PaymentStatus.SUCCESS);
+        if (totalGross == null) {
+            totalGross = BigDecimal.ZERO;
+        }
+        BigDecimal platformFee = totalGross.multiply(new BigDecimal("0.10"));
+        BigDecimal payoutAmount = totalGross.multiply(new BigDecimal("0.885"));
+
         return ReconciliationSummaryDTO.builder()
                 .totalTransactions(total)
                 .matchedCount(matched)
                 .mismatchCount(mismatch)
                 .unreconciledCount(unreconciled)
                 .resolvedCount(resolved)
+                .totalGrossVolume(totalGross)
+                .totalPlatformFee(platformFee)
+                .totalPayoutAmount(payoutAmount)
                 .build();
     }
 }
