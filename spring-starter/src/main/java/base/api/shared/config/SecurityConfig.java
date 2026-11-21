@@ -32,6 +32,27 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SecurityConfig {
 
+    /** Endpoint hoàn toàn bỏ qua filter JWT (không cần phân tích token). */
+    public static final String[] STRICT_NO_JWT_ENDPOINTS = {
+            "/api/auth/login",
+            "/api/auth/google",
+            "/api/auth/register",
+            "/api/auth/verify-email",
+            "/api/auth/verification-status",
+            "/api/auth/resend-verification",
+            "/api/auth/forgot-password/initiate",
+            "/api/auth/forgot-password/verify-token",
+            "/api/auth/forgot-password/complete",
+            "/swagger-ui/**",
+            "/swagger-ui.html",
+            "/v3/api-docs/**",
+            "/uploads/**",
+            "/ws/**",
+            "/ws-chat/**",
+            "/api/webhooks/**",
+            "/api/v1/webhooks/**"
+    };
+
     /** Endpoint không cần JWT. Thêm endpoint public mới vào đây. */
     public static final String[] PUBLIC_ENDPOINTS = {
             "/api/auth/login",
