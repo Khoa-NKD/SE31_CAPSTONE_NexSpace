@@ -348,6 +348,59 @@ public class PaymentServiceImpl implements IPaymentService {
         return getOrCreatePendingBookingHold(actorId).getBookingId();
     }
 
+    private LocalDateTime calculateEffectiveUnpaidSince(UserModel customer, LocalDateTime now) {
+        LocalDateTime windowStart = now.minusHours(24);
+        if (customer == null || customer.getId() == null) {
+            return windowStart;
+        }
+
+        LocalDateTime effectiveSince = windowStart;
+
+        // 1. Trường hợp người dùng từng bị phạt: Sau khi hết 20 phút phạt, các vi phạm hold cũ được reset về 3
+        if (customer.getBookingSuspendedUntil() != null && now.isAfter(customer.getBookingSuspendedUntil())) {
+            if (customer.getBookingSuspendedUntil().isAfter(effectiveSince)) {
+                effectiveSince = customer.getBookingSuspendedUntil();
+            }
+        }
+
+        // 2. Kiểm tra nếu có >= spamThreshold vi phạm và vi phạm gần nhất đã cách đây >= spamBlockMinutes (hết hạn phạt 20p)
+        int spamThreshold = platformSettingRepository.findById("booking.spam_hold_threshold")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_threshold"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try { return Integer.parseInt(val.trim()); } catch (Exception e) { return 3; }
+                }).orElse(3);
+
+        int spamBlockMinutes = platformSettingRepository.findById("booking.spam_hold_block_minutes")
+                .or(() -> platformSettingRepository.findById("booking_spam_hold_block_minutes"))
+                .map(PlatformSettingModel::getSettingValue)
+                .map(val -> {
+                    try { return Integer.parseInt(val.trim()); } catch (Exception e) { return 20; }
+                }).orElse(20);
+
+        List<BookingModel> recentUnpaids = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince);
+        if (recentUnpaids.size() >= spamThreshold) {
+            BookingModel latestUnpaid = recentUnpaids.get(0);
+            LocalDateTime latestUnpaidTime = latestUnpaid.getUpdatedAt() != null
+                    ? latestUnpaid.getUpdatedAt()
+                    : latestUnpaid.getCreatedAt();
+            if (latestUnpaidTime != null) {
+                LocalDateTime penaltyEnd = latestUnpaidTime.plusMinutes(spamBlockMinutes);
+                if (now.isAfter(penaltyEnd) && penaltyEnd.isAfter(effectiveSince)) {
+                    effectiveSince = penaltyEnd;
+                }
+            }
+        }
+
+        // 3. Sau khi thanh toán thành công, số lần hold/hủy trước đó được reset
+        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customer.getId());
+        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
+            effectiveSince = lastSuccessTime.get();
+        }
+
+        return effectiveSince;
+    }
+
     @Override
     @Transactional
     public BookingHoldResponseDTO getOrCreatePendingBookingHold(Long actorId) {
@@ -404,23 +457,23 @@ public class PaymentServiceImpl implements IPaymentService {
                 suspendedUntil = customer.getBookingSuspendedUntil();
             }
 
-            LocalDateTime effectiveSince = now.minusHours(24);
-            Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customer.getId());
-            if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
-                effectiveSince = lastSuccessTime.get();
-            }
+            LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customer, now);
             int unpaidCount = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince).size();
             remainingAttempts = Math.max(0, spamThreshold - unpaidCount);
 
             if (unpaidCount >= spamThreshold) {
-                LocalDateTime blockUntil = now.plusMinutes(spamBlockMinutes);
-                if (customer.getBookingSuspendedUntil() == null || customer.getBookingSuspendedUntil().isBefore(now)) {
-                    customer.setBookingSuspendedUntil(blockUntil);
-                    userRepository.save(customer);
+                BookingModel latestUnpaid = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince).get(0);
+                LocalDateTime latestTime = latestUnpaid.getUpdatedAt() != null ? latestUnpaid.getUpdatedAt() : latestUnpaid.getCreatedAt();
+                if (latestTime == null) latestTime = now;
+                LocalDateTime blockUntil = latestTime.plusMinutes(spamBlockMinutes);
+
+                if (now.isBefore(blockUntil)) {
                     isSuspended = true;
                     suspendedUntil = blockUntil;
-                    log.warn("Customer {} booking suspended until {} in getOrCreatePendingBookingHold due to {} unpaid holds",
-                            customer.getId(), blockUntil, unpaidCount);
+                    if (customer.getBookingSuspendedUntil() == null || !blockUntil.isEqual(customer.getBookingSuspendedUntil())) {
+                        customer.setBookingSuspendedUntil(blockUntil);
+                        userRepository.save(customer);
+                    }
                 }
             }
         }
