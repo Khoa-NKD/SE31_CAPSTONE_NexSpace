@@ -793,13 +793,23 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
             return windowStart;
         }
 
-        // Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
-        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
-        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(windowStart)) {
-            return lastSuccessTime.get();
+        LocalDateTime effectiveSince = windowStart;
+
+        // 1. Trường hợp người dùng từng bị phạt: Sau khi hết 20 phút phạt, các vi phạm hold cũ được reset về 3
+        UserModel customer = userRepository.findById(customerId).orElse(null);
+        if (customer != null && customer.getBookingSuspendedUntil() != null && now.isAfter(customer.getBookingSuspendedUntil())) {
+            if (customer.getBookingSuspendedUntil().isAfter(effectiveSince)) {
+                effectiveSince = customer.getBookingSuspendedUntil();
+            }
         }
 
-        return windowStart;
+        // 2. Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
+        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
+        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
+            effectiveSince = lastSuccessTime.get();
+        }
+
+        return effectiveSince;
     }
 
     private void validateSpamHoldBehavior(UserModel customer, LocalDateTime now) {
@@ -858,9 +868,6 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                         + minutesRemaining + " phút (đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
                         + ") do nghi vấn có hành vi spam hold chỗ (đã giữ chỗ quá "
                         + effectiveThreshold + " lần mà không thanh toán).");
-            } else {
-                throw new BadRequestException("Bạn đã dùng hết " + effectiveThreshold
-                        + " lần giữ chỗ mà không thanh toán. Tài khoản tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế cho đến khi hệ thống tự động reset sau 24 giờ kể từ lần hủy gần nhất hoặc hoàn tất thanh toán đơn đã đặt.");
             }
         }
     }

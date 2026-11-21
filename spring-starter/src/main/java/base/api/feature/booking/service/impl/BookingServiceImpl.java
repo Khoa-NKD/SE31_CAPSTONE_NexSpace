@@ -269,6 +269,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         booking.setCancellationPolicySnapshot(cancellationPolicySnapshot);
 
         BookingModel savedBooking = bookingRepository.save(booking);
+        bookingRepository.flush();
 
         // 14. Immutable Audit Trail
         auditService.log(
@@ -287,7 +288,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             notificationService.sendBookingPendingApprovalToOrganizerNotification(savedBooking);
         }
 
-        return BookingMapper.toDto(savedBooking);
+        return enrichBookingDto(savedBooking);
     }
 
     @Override
@@ -326,7 +327,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             throw new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId);
         }
 
-        return BookingMapper.toDto(booking);
+        return enrichBookingDto(booking);
     }
 
     @Override
@@ -344,7 +345,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             throw new NotFoundException("Không tìm thấy đơn đặt chỗ với mã: " + bookingCode);
         }
 
-        return BookingMapper.toDto(booking);
+        return enrichBookingDto(booking);
     }
 
     @Override
@@ -1182,12 +1183,23 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             return windowStart;
         }
 
-        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
-        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(windowStart)) {
-            return lastSuccessTime.get();
+        LocalDateTime effectiveSince = windowStart;
+
+        // 1. Trường hợp người dùng từng bị phạt: Sau khi hết 20 phút phạt, các vi phạm hold cũ được reset về 3
+        UserModel customer = userRepository.findById(customerId).orElse(null);
+        if (customer != null && customer.getBookingSuspendedUntil() != null && now.isAfter(customer.getBookingSuspendedUntil())) {
+            if (customer.getBookingSuspendedUntil().isAfter(effectiveSince)) {
+                effectiveSince = customer.getBookingSuspendedUntil();
+            }
         }
 
-        return windowStart;
+        // 2. Quy tắc: Sau khi thanh toán thành công (CONFIRMED/CHECKED_IN/COMPLETED), số lần hold/hủy trước đó được reset về 0
+        Optional<LocalDateTime> lastSuccessTime = bookingRepository.findLatestSuccessfulBookingCreatedAt(customerId);
+        if (lastSuccessTime.isPresent() && lastSuccessTime.get().isAfter(effectiveSince)) {
+            effectiveSince = lastSuccessTime.get();
+        }
+
+        return effectiveSince;
     }
 
     private void validateSpamHoldBehavior(UserModel customer, LocalDateTime now) {
@@ -1226,10 +1238,88 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 throw new BadRequestException("Tài khoản của bạn tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế trong vòng "
                         + minutesRemaining + " phút (đến " + blockUntil.format(DateTimeFormatter.ofPattern("HH:mm:ss dd/MM/yyyy"))
                         + ") do vi phạm quy tắc giữ chỗ quá " + effectiveThreshold + " lần mà không thanh toán.");
-            } else {
-                throw new BadRequestException("Bạn đã dùng hết " + effectiveThreshold
-                        + " lần giữ chỗ mà không thanh toán. Tài khoản tạm thời bị khóa quyền giữ chỗ và đặt phòng/ghế cho đến khi hệ thống tự động reset sau 24 giờ kể từ lần hủy gần nhất hoặc hoàn tất thanh toán đơn đã đặt.");
             }
         }
+    }
+
+    private BookingResponseDto enrichBookingDto(BookingModel booking) {
+        BookingResponseDto dto = BookingMapper.toDto(booking);
+        if (dto == null) {
+            return null;
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        int effectiveThreshold = getEffectiveSpamHoldThreshold();
+        int effectiveBlockMinutes = getEffectiveSpamHoldBlockMinutes();
+        int remainingAttempts = effectiveThreshold;
+        boolean isSuspended = false;
+        LocalDateTime suspendedUntil = null;
+
+        if (booking.getCustomer() != null) {
+            UserModel customer = booking.getCustomer();
+            if (customer.getBookingSuspendedUntil() != null && now.isBefore(customer.getBookingSuspendedUntil())) {
+                isSuspended = true;
+                suspendedUntil = customer.getBookingSuspendedUntil();
+            }
+            LocalDateTime effectiveSince = calculateEffectiveUnpaidSince(customer.getId(), now);
+            int unpaidCount = bookingRepository.findRecentUnpaidHolds(customer.getId(), effectiveSince).size();
+            remainingAttempts = Math.max(0, effectiveThreshold - unpaidCount);
+        }
+
+        int effectiveHoldMinutes = getEffectiveHoldMinutes();
+
+        return BookingResponseDto.builder()
+                .id(dto.getId())
+                .bookingCode(dto.getBookingCode())
+                .status(dto.getStatus())
+                .confirmationMode(dto.getConfirmationMode())
+                .holdExpiresAt(dto.getHoldExpiresAt())
+                .remainingSeconds(dto.getRemainingSeconds())
+                .serverTime(now)
+                .holdDurationMinutes(dto.getHoldDurationMinutes() != null ? dto.getHoldDurationMinutes() : effectiveHoldMinutes)
+                .remainingHoldAttempts(remainingAttempts)
+                .maxHoldAttempts(effectiveThreshold)
+                .penaltyBlockMinutes(effectiveBlockMinutes)
+                .isBookingSuspended(isSuspended)
+                .bookingSuspendedUntil(suspendedUntil)
+                .createdAt(dto.getCreatedAt())
+                .workspaceId(dto.getWorkspaceId())
+                .workspaceName(dto.getWorkspaceName())
+                .workspaceAddress(dto.getWorkspaceAddress())
+                .workspaceCity(dto.getWorkspaceCity())
+                .workspaceDistrict(dto.getWorkspaceDistrict())
+                .resourceId(dto.getResourceId())
+                .resourceCode(dto.getResourceCode())
+                .resourceName(dto.getResourceName())
+                .resourceCategory(dto.getResourceCategory())
+                .floorName(dto.getFloorName())
+                .floorNumber(dto.getFloorNumber())
+                .zoneName(dto.getZoneName())
+                .startTime(dto.getStartTime())
+                .endTime(dto.getEndTime())
+                .durationHours(dto.getDurationHours())
+                .partySize(dto.getPartySize())
+                .priceType(dto.getPriceType())
+                .unitPrice(dto.getUnitPrice())
+                .baseAmount(dto.getBaseAmount())
+                .surchargeAmount(dto.getSurchargeAmount())
+                .addonAmount(dto.getAddonAmount())
+                .discountAmount(dto.getDiscountAmount())
+                .taxAmount(dto.getTaxAmount())
+                .serviceFeeAmount(dto.getServiceFeeAmount())
+                .finalPrice(dto.getFinalPrice())
+                .customerId(dto.getCustomerId())
+                .customerName(dto.getCustomerName())
+                .customerEmail(dto.getCustomerEmail())
+                .customerPhone(dto.getCustomerPhone())
+                .qrTokenHash(dto.getQrTokenHash())
+                .cancellationPolicySnapshot(dto.getCancellationPolicySnapshot())
+                .pricingSnapshot(dto.getPricingSnapshot())
+                .cancelReason(dto.getCancelReason())
+                .cancelSource(dto.getCancelSource())
+                .cancelledAt(dto.getCancelledAt())
+                .refundPercent(dto.getRefundPercent())
+                .refundAmount(dto.getRefundAmount())
+                .build();
     }
 }
