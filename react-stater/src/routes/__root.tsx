@@ -28,7 +28,7 @@ import appCss from '@/styles/globals.css?url';
 
 const META_THEME_COLORS = {
   light: '#ffffff',
-  dark: '#09090b'
+  dark: '#090d16'
 };
 
 const getActiveTheme = createServerFn({ method: 'GET' })
