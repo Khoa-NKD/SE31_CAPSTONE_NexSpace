@@ -46,7 +46,7 @@ export function ConversationList({
   return (
     <div
       className={cn(
-        'border-border/40 bg-background/75 hidden h-full flex-col gap-3.5 overflow-hidden rounded-2xl border p-3 backdrop-blur lg:col-start-1 lg:col-end-2 lg:flex lg:rounded-3xl lg:p-4',
+        'border-border/60 bg-card/90 hidden h-full flex-col gap-3.5 overflow-hidden rounded-2xl border p-3.5 shadow-xs lg:col-start-1 lg:col-end-2 lg:flex lg:rounded-2xl',
         className
       )}
     >
@@ -87,7 +87,7 @@ export function ConversationList({
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder='Tìm theo mã đơn #BK, khách, chỗ...'
-          className='border-border/40 bg-background/60 text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-primary/40 w-full rounded-2xl pl-9 text-xs focus-visible:ring-2 h-9'
+          className='border-border/60 bg-background/80 text-foreground placeholder:text-muted-foreground/70 focus-visible:ring-indigo-500/30 w-full rounded-xl pl-9 text-xs focus-visible:ring-2 h-9'
         />
       </div>
 
@@ -140,10 +140,10 @@ export function ConversationList({
                 onClick={() => onSelect(conversation.id)}
                 aria-current={isActive ? 'true' : undefined}
                 className={cn(
-                  'focus-visible:ring-primary/50 group focus-visible:ring-offset-background relative flex w-full items-start gap-3 rounded-2xl border border-transparent p-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none cursor-pointer',
+                  'focus-visible:ring-indigo-500/50 group focus-visible:ring-offset-background relative flex w-full items-start gap-3 rounded-2xl border border-transparent p-3 text-left transition-all focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none cursor-pointer',
                   isActive
-                    ? 'border-primary/40 bg-primary/10 shadow-xs'
-                    : 'bg-background/70 hover:border-border/40 hover:bg-muted/40'
+                    ? 'border-indigo-500/40 bg-indigo-500/10 dark:bg-indigo-500/15 text-foreground shadow-xs ring-1 ring-indigo-500/20'
+                    : 'bg-background/60 hover:border-border/80 hover:bg-muted/30'
                 )}
                 role='listitem'
               >
@@ -151,7 +151,7 @@ export function ConversationList({
                 <div className='relative shrink-0'>
                   <Avatar className='border-border/40 bg-background/80 text-foreground h-10 w-10 rounded-2xl border'>
                     <AvatarImage src={avatarUrl} alt={displayName} />
-                    <AvatarFallback className='bg-primary/15 text-primary rounded-2xl text-xs font-bold'>
+                    <AvatarFallback className='bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 rounded-2xl text-xs font-bold'>
                       {initials}
                     </AvatarFallback>
                   </Avatar>
@@ -177,7 +177,7 @@ export function ConversationList({
                     )}
                   </div>
 
-                  <div className='flex items-center gap-1 text-[11px] text-primary font-medium truncate'>
+                  <div className='flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 font-medium truncate'>
                     <span className='font-mono font-semibold'>#{conversation.bookingCode}</span>
                     <span className='text-muted-foreground/60'>•</span>
                     <span className='text-muted-foreground truncate'>{conversation.workspaceName}</span>
@@ -190,7 +190,7 @@ export function ConversationList({
 
                 {/* Unread badge */}
                 {conversation.unreadCount > 0 && (
-                  <span className='bg-primary text-primary-foreground ml-1.5 inline-flex min-h-[1.25rem] min-w-[1.25rem] px-1 items-center justify-center rounded-full text-[0.65rem] font-bold shadow-xs shrink-0 self-center'>
+                  <span className='bg-gradient-to-r from-indigo-600 to-violet-600 text-white ml-1.5 inline-flex min-h-[1.25rem] min-w-[1.25rem] px-1 items-center justify-center rounded-full text-[0.65rem] font-bold shadow-xs shrink-0 self-center'>
                     {conversation.unreadCount}
                   </span>
                 )}

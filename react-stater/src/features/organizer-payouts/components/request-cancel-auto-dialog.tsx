@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AlertTriangle } from '@/components/ui/hugeicons';
 import { useRequestCancelAutoPayoutMutation } from '../api/mutations';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface RequestCancelAutoDialogProps {
   open: boolean;
@@ -22,6 +23,7 @@ export const RequestCancelAutoDialog: React.FC<RequestCancelAutoDialogProps> = (
   open,
   onOpenChange
 }) => {
+  const { language } = useLanguage();
   const [note, setNote] = useState<string>('');
   const cancelMutation = useRequestCancelAutoPayoutMutation();
 
@@ -47,26 +49,36 @@ export const RequestCancelAutoDialog: React.FC<RequestCancelAutoDialogProps> = (
           <div className="flex items-center gap-2 text-amber-600 mb-1">
             <AlertTriangle className="h-5 w-5" />
             <span className="text-xs font-semibold uppercase tracking-wider">
-              Yêu cầu hủy Auto Payout
+              {language === 'vi' ? 'Yêu cầu hủy Auto Payout' : 'Cancel Auto Payout Request'}
             </span>
           </div>
           <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
-            Quay về chế độ Rút tiền thủ công (Manual)
+            {language === 'vi'
+              ? 'Quay về chế độ Rút tiền thủ công (Manual)'
+              : 'Switch back to Manual Withdrawal'}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
-            Sau khi Admin phê duyệt, hệ thống sẽ dừng lịch rút tiền tự động hàng ngày. Bạn sẽ chủ động rút tiền thủ công bất cứ khi nào có số dư khả dụng.
+            {language === 'vi'
+              ? 'Sau khi Admin phê duyệt, hệ thống sẽ dừng lịch rút tiền tự động hàng ngày. Bạn sẽ chủ động rút tiền thủ công bất cứ khi nào có số dư khả dụng.'
+              : 'Once approved by Admin, daily automatic payouts will stop. You can manually withdraw whenever funds are available.'}
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           <div className="space-y-1.5">
             <Label htmlFor="cancel-note" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Lý do muốn dừng Auto Payout (tùy chọn)
+              {language === 'vi'
+                ? 'Lý do muốn dừng Auto Payout (tùy chọn)'
+                : 'Reason for cancellation (optional)'}
             </Label>
             <Textarea
               id="cancel-note"
               rows={3}
-              placeholder="Ví dụ: Muốn tích lũy số dư lớn hơn trước khi rút hoặc thay đổi chu kỳ tài chính..."
+              placeholder={
+                language === 'vi'
+                  ? 'Ví dụ: Muốn tích lũy số dư lớn hơn trước khi rút hoặc thay đổi chu kỳ tài chính...'
+                  : 'E.g.: Want to accumulate a larger balance or adjust accounting cycles...'
+              }
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="text-xs resize-none"
@@ -80,14 +92,16 @@ export const RequestCancelAutoDialog: React.FC<RequestCancelAutoDialogProps> = (
               onClick={() => onOpenChange(false)}
               disabled={cancelMutation.isPending}
             >
-              Đóng
+              {language === 'vi' ? 'Đóng' : 'Close'}
             </Button>
             <Button
               type="submit"
               disabled={cancelMutation.isPending}
               className="bg-amber-600 hover:bg-amber-700 text-white"
             >
-              {cancelMutation.isPending ? 'Đang gửi yêu cầu...' : 'Gửi yêu cầu hủy lên Admin'}
+              {cancelMutation.isPending
+                ? (language === 'vi' ? 'Đang gửi yêu cầu...' : 'Submitting...')
+                : (language === 'vi' ? 'Gửi yêu cầu hủy lên Admin' : 'Submit Cancellation Request')}
             </Button>
           </DialogFooter>
         </form>

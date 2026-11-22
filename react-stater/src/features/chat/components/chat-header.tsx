@@ -48,7 +48,7 @@ export function ChatHeader({
         <div className='relative shrink-0'>
           <Avatar className='border-border/40 bg-card/80 text-foreground h-10 w-10 rounded-2xl border sm:h-11 sm:w-11 sm:rounded-3xl'>
             <AvatarImage src={avatarUrl} alt={displayName} />
-            <AvatarFallback className='bg-primary/20 text-primary rounded-2xl text-xs font-bold sm:rounded-3xl sm:text-sm'>
+            <AvatarFallback className='bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 rounded-2xl text-xs font-bold sm:rounded-3xl sm:text-sm'>
               {initials}
             </AvatarFallback>
           </Avatar>
@@ -71,12 +71,12 @@ export function ChatHeader({
             </Badge>
           </div>
           <div className='flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 truncate'>
-            <Building2 className='h-3 w-3 text-primary/70 shrink-0' />
+            <Building2 className='h-3 w-3 text-indigo-500/80 shrink-0' />
             <span className='font-medium text-foreground truncate max-w-[140px] sm:max-w-[240px]'>
               {conversation.workspaceName}
             </span>
             <span>•</span>
-            <span className='font-mono font-semibold text-primary shrink-0'>
+            <span className='font-mono font-semibold text-indigo-600 dark:text-indigo-400 shrink-0'>
               #{conversation.bookingCode}
             </span>
           </div>
@@ -86,7 +86,7 @@ export function ChatHeader({
       <div className='flex items-center gap-1.5 sm:gap-2 shrink-0'>
         <Badge
           variant='secondary'
-          className='hidden sm:inline-flex text-[11px] font-medium bg-primary/10 text-primary border-primary/20'
+          className='hidden sm:inline-flex text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
         >
           {conversation.bookingStatus || 'Đơn xác nhận'}
         </Badge>
