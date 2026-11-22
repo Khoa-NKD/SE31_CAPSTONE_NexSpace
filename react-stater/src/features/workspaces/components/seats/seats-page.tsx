@@ -2,7 +2,7 @@ import { formatDateLabel } from '@/lib/format';
 import { formatDate } from '@/lib/format';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { backendRequest } from '@/features/auth/api/session';
 import {
   Building2,
@@ -110,6 +110,7 @@ export function SeatsPage({
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
 
   const { data: holdData } = useCurrentPendingBooking();
@@ -487,6 +488,9 @@ export function SeatsPage({
           'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
         );
       toast.error(c('Cannot hold seat', 'Không thể giữ chỗ'), { description: msg });
+      setSelectedResource(null);
+      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+      queryClient.invalidateQueries({ queryKey: ['availability'] });
     }
   };
 

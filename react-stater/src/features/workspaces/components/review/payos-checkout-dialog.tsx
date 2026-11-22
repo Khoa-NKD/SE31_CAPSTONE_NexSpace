@@ -621,26 +621,19 @@ export function PayOSCheckoutDialog({
               {/* Expired Action Control Buttons */}
               {isExpired && (
                 <div className='space-y-2 pt-1'>
-                  {onRetry && (
-                    <Button
-                      type='button'
-                      onClick={() => {
-                        handleOpenChange(false);
-                        onRetry();
-                      }}
-                      className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-2'
-                    >
-                      <RefreshCw className='h-3.5 w-3.5' />
-                      <span>Tạo phiên mới &amp; Giữ lại chỗ</span>
-                    </Button>
-                  )}
                   <Button
                     type='button'
-                    variant='outline'
-                    onClick={() => handleOpenChange(false)}
-                    className='w-full cursor-pointer h-9 text-xs font-medium border-border'
+                    onClick={() => {
+                      handleOpenChange(false);
+                      if (onCancelCheckoutSuccess) {
+                        onCancelCheckoutSuccess();
+                      } else {
+                        window.history.back();
+                      }
+                    }}
+                    className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center gap-2'
                   >
-                    Đóng cửa sổ
+                    <span>Quay lại trang chi tiết không gian</span>
                   </Button>
                 </div>
               )}

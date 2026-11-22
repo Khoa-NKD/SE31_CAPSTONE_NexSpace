@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { backendRequest } from '@/features/auth/api/session';
 import { WorkspaceHeader } from '../workspace-header';
@@ -16,7 +16,9 @@ import type { BookingDto } from '../../api/booking-types';
 import { useCurrentPendingBooking } from '@/features/payments/api';
 import { Building2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Link } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
+import { useLanguage } from '@/features/landing/context/language-context';
+import { toast } from 'sonner';
 
 export interface BookingReviewPageProps {
   workspaceId?: number;
@@ -112,6 +114,34 @@ export function BookingReviewPage({
     extractSeconds(effectiveBooking) ??
     extractSeconds(effectiveHoldData) ??
     undefined;
+
+  const navigate = useNavigate();
+  const { language } = useLanguage();
+
+  const handleHoldExpired = useCallback(() => {
+    toast.error(
+      language === 'vi'
+        ? 'Phiên giữ chỗ của bạn đã hết hạn. Đang chuyển về trang thông tin không gian...'
+        : 'Your seat hold has expired. Redirecting to workspace details...'
+    );
+    setTimeout(() => {
+      if (workspaceId) {
+        navigate({
+          to: '/workspaces/$workspaceId',
+          params: { workspaceId: String(workspaceId) }
+        });
+      } else {
+        navigate({ to: '/workspaces' });
+      }
+    }, 1500);
+  }, [language, workspaceId, navigate]);
+
+  // Tự động out khi đơn booking bị phát hiện đã EXPIRED từ server
+  useEffect(() => {
+    if (effectiveBooking?.status === 'EXPIRED') {
+      handleHoldExpired();
+    }
+  }, [effectiveBooking?.status, handleHoldExpired]);
 
   // Single Source of Truth cho bộ đếm thời gian giữ chỗ - duy trì liên tục bất kể đóng/mở popup QR
   const [secondsRemaining, setSecondsRemaining] = useState<number>(() => {
@@ -242,11 +272,15 @@ export function BookingReviewPage({
           maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
           penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}
           secondsRemaining={secondsRemaining}
+          onExpired={handleHoldExpired}
           onReleaseSuccess={() => {
             if (workspaceId) {
-              window.location.href = `/workspaces/${workspaceId}`;
+              navigate({
+                to: '/workspaces/$workspaceId',
+                params: { workspaceId: String(workspaceId) }
+              });
             } else {
-              window.history.back();
+              navigate({ to: '/workspaces' });
             }
           }}
         />
@@ -287,6 +321,7 @@ export function BookingReviewPage({
               onBookingCreated={setActiveBooking}
               autoOpen={autoOpen}
               secondsRemaining={secondsRemaining}
+              onExpired={handleHoldExpired}
             />
           </div>
         </div>
