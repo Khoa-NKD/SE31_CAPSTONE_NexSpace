@@ -3,6 +3,7 @@ package base.api.feature.chat.service.impl;
 import base.api.feature.auth.repository.IRoleRepository;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.chat.dto.request.AiToneAdjustmentRequestDTO;
+import base.api.feature.chat.dto.response.AiChatSummaryResponseDTO;
 import base.api.feature.chat.dto.response.AiSmartRepliesResponseDTO;
 import base.api.feature.chat.dto.response.AiToneAdjustmentResponseDTO;
 import base.api.feature.chat.dto.response.BookingChatMessageResponseDTO;
@@ -234,6 +235,99 @@ public class ChatAiAssistantServiceImpl implements IChatAiAssistantService {
                 .originalText(originalText)
                 .adjustedText(adjusted)
                 .mode(mode)
+                .build();
+    }
+
+    @Override
+    public AiChatSummaryResponseDTO summarizeConversation(Long conversationId, Long callerId) {
+        BookingConversationModel conversation = getAndValidateConversation(conversationId, callerId);
+
+        // Lấy danh sách tin nhắn gần nhất
+        Page<BookingChatMessageModel> recentMsgsPage = messageRepository
+                .findByConversationIdOrderByIdDesc(conversationId, PageRequest.of(0, 30));
+        List<BookingChatMessageModel> recentMsgs = new ArrayList<>();
+        if (recentMsgsPage != null && recentMsgsPage.getContent() != null) {
+            recentMsgs.addAll(recentMsgsPage.getContent());
+            Collections.reverse(recentMsgs);
+        }
+
+        if (recentMsgs.isEmpty()) {
+            return AiChatSummaryResponseDTO.builder()
+                    .conversationId(conversationId)
+                    .summary("Chưa có tin nhắn nào trong cuộc trò chuyện để tổng hợp.")
+                    .generatedAt(LocalDateTime.now())
+                    .build();
+        }
+
+        UserModel customer = conversation.getCustomer();
+        UserModel organizer = conversation.getOrganizer();
+        String customerName = customer != null ? customer.getFullName() : "Khách hàng";
+        String organizerName = organizer != null ? organizer.getFullName() : "Chủ không gian";
+        WorkspaceModel ws = conversation.getWorkspace();
+        BookingModel bk = conversation.getBooking();
+        String wsName = ws != null ? ws.getName() : "Không gian làm việc";
+        String bkCode = bk != null ? bk.getBookingCode() : "";
+
+        StringBuilder chatHistory = new StringBuilder();
+        for (BookingChatMessageModel m : recentMsgs) {
+            String role = (m.getSender() != null && organizer != null && m.getSender().getId().equals(organizer.getId()))
+                    ? "Organizer (" + organizerName + ")"
+                    : "AI_ASSISTANT".equalsIgnoreCase(m.getMessageType())
+                    ? "NexSpace AI"
+                    : "Khách hàng (" + customerName + ")";
+            chatHistory.append(String.format("- %s: %s\n", role, m.getContent()));
+        }
+
+        String prompt = String.format("""
+            Bạn là NexSpace AI - Trợ lý tóm tắt hội thoại nội bộ dành riêng cho Chủ không gian.
+            Hãy đọc kỹ lịch sử tin nhắn dưới đây và tóm tắt ngắn gọn các điểm chính để Chủ không gian nắm bắt nhanh:
+
+            THÔNG TIN ĐƠN ĐẶT CHỖ:
+            - Không gian: %s
+            - Mã đơn: #%s
+            - Khách hàng: %s
+            - Chủ không gian: %s
+
+            LỊCH SỬ TIN NHẮN:
+            %s
+
+            HÃY TỔNG HỢP THEO BỐ CỤC:
+            • Nhu cầu / Câu hỏi chính của khách hàng
+            • Thỏa thuận hoặc thông tin hai bên đã trao đổi
+            • Việc Chủ không gian cần lưu ý thực hiện tiếp theo (nếu có)
+
+            Yêu cầu: Viết tiếng Việt ngắn gọn, súc tích (3-5 câu), không dùng thẻ HTML, tuyệt đối không gửi ra ngoài kênh chat công khai.
+            """,
+            wsName, bkCode, customerName, organizerName, chatHistory.toString()
+        );
+
+        String summary = null;
+        if (!apiKey.isBlank()) {
+            try {
+                summary = callGeminiApi(
+                        "Bạn là NexSpace AI - Trợ lý phân tích và tổng hợp nội dung cuộc trò chuyện nội bộ cho quản lý không gian làm việc.",
+                        prompt,
+                        0.2,
+                        500
+                );
+            } catch (Exception e) {
+                log.warn("Gemini summarize error: {}", e.getMessage());
+            }
+        }
+
+        if (summary == null || summary.isBlank()) {
+            summary = String.format(
+                    "Tóm tắt trao đổi đơn #%s tại %s:\n• Khách hàng %s và Chủ không gian đã có %d tin nhắn trao đổi.\n• Vui lòng theo dõi chi tiết nội dung chat để hỗ trợ khách kịp thời.",
+                    bkCode, wsName, customerName, recentMsgs.size()
+            );
+        }
+
+        summary = cleanHtmlTags(summary);
+
+        return AiChatSummaryResponseDTO.builder()
+                .conversationId(conversationId)
+                .summary(summary)
+                .generatedAt(LocalDateTime.now())
                 .build();
     }
 
@@ -497,8 +591,14 @@ public class ChatAiAssistantServiceImpl implements IChatAiAssistantService {
             return;
         }
 
-        boolean isCustomer = senderId.equals(customer.getId());
-        String senderName = isCustomer ? customer.getFullName() : organizer.getFullName();
+        // Chỉ khách hàng mới có thể tag @NexSpace AI công khai trong phòng chat
+        if (!senderId.equals(customer.getId())) {
+            log.info("Chỉ khách hàng mới có quyền nhắc @NexSpace AI công khai trong phòng chat. Bỏ qua yêu cầu từ organizer {}", senderId);
+            return;
+        }
+
+        boolean isCustomer = true;
+        String senderName = customer.getFullName();
         String organizerName = organizer.getFullName();
 
         // Workspace & Booking details

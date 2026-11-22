@@ -125,4 +125,13 @@ public class BookingChatController extends BaseAPIController {
         AiToneAdjustmentResponseDTO response = chatAiAssistantService.adjustTone(conversationId, getCurrentUserId(), request);
         return success(response, "Hiệu chỉnh văn phong AI thành công");
     }
+
+    @Operation(summary = "Tổng hợp nội dung cuộc trò chuyện nội bộ cho Chủ không gian bằng NexSpace AI")
+    @PostMapping("/conversations/{conversationId}/ai/summarize")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<base.api.feature.chat.dto.response.AiChatSummaryResponseDTO>> summarizeConversation(
+            @PathVariable Long conversationId) {
+        base.api.feature.chat.dto.response.AiChatSummaryResponseDTO response = chatAiAssistantService.summarizeConversation(conversationId, getCurrentUserId());
+        return success(response, "Tổng hợp cuộc trò chuyện thành công");
+    }
 }

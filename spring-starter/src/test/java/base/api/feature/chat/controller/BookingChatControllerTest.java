@@ -44,6 +44,9 @@ class BookingChatControllerTest {
     private IBookingChatService chatService;
 
     @Mock
+    private base.api.feature.chat.service.IChatAiAssistantService chatAiAssistantService;
+
+    @Mock
     private CurrentUserProvider currentUserProvider;
 
     @InjectMocks
@@ -136,5 +139,25 @@ class BookingChatControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.success").value(true))
                 .andExpect(jsonPath("$.data.content[0].bookingCode").value("NX-5001"));
+    }
+
+    @Test
+    @DisplayName("POST /api/chat/conversations/{id}/ai/summarize - Tổng hợp đoạn chat nội bộ thành công")
+    void summarizeConversation_success() throws Exception {
+        when(currentUserProvider.getCurrentUserId()).thenReturn(20L);
+        base.api.feature.chat.dto.response.AiChatSummaryResponseDTO summaryDto =
+                base.api.feature.chat.dto.response.AiChatSummaryResponseDTO.builder()
+                        .conversationId(1L)
+                        .summary("Tóm tắt: Khách hàng hỏi thông tin wifi và mã PIN check-in.")
+                        .generatedAt(LocalDateTime.now())
+                        .build();
+
+        when(chatAiAssistantService.summarizeConversation(1L, 20L)).thenReturn(summaryDto);
+
+        mockMvc.perform(post("/api/chat/conversations/1/ai/summarize"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.conversationId").value(1L))
+                .andExpect(jsonPath("$.data.summary").value("Tóm tắt: Khách hàng hỏi thông tin wifi và mã PIN check-in."));
     }
 }

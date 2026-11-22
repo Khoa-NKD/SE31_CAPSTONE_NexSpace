@@ -28,7 +28,9 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -136,26 +138,35 @@ class ChatAiAssistantServiceTest {
     }
 
     @Test
-    @DisplayName("Từ chối dứt khoát câu hỏi ngoài luồng (như toán học 1+1 bằng mấy) và chỉ hỗ trợ đơn đặt chỗ")
-    void testRespondToMention_OffTopicMath_RefusesDeterministically() {
+    @DisplayName("Chủ không gian tag @NexSpace AI sẽ bị bỏ qua và không tạo tin nhắn công khai trong phòng chat")
+    void testRespondToMention_OrganizerMention_IsIgnored() {
         when(conversationRepository.findByIdWithDetails(10L)).thenReturn(Optional.of(testConversation));
-        when(messageRepository.save(org.mockito.ArgumentMatchers.any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // Chủ không gian hỏi câu toán học ngoài luồng
-        chatAiAssistantService.respondToMention(10L, 200L, "@NexSpace AI 1+1 bằng mấy");
+        // Chủ không gian (id 200L) cố gắng tag @NexSpace AI
+        chatAiAssistantService.respondToMention(10L, 200L, "@NexSpace AI tổng hợp đoạn chat");
 
-        org.mockito.ArgumentCaptor<base.api.shared.entity.chat.BookingChatMessageModel> captor =
-                org.mockito.ArgumentCaptor.forClass(base.api.shared.entity.chat.BookingChatMessageModel.class);
-        org.mockito.Mockito.verify(messageRepository).save(captor.capture());
+        // Đảm bảo không lưu tin nhắn AI nào vào phòng chat công khai
+        org.mockito.Mockito.verify(messageRepository, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any());
+    }
 
-        base.api.shared.entity.chat.BookingChatMessageModel savedMessage = captor.getValue();
-        assertThat(savedMessage).isNotNull();
-        assertThat(savedMessage.getMessageType()).isEqualTo("AI_ASSISTANT");
-        assertThat(savedMessage.getContent())
-                .contains("trợ lý ảo hỗ trợ không gian làm việc")
-                .contains("BK-20261122-001")
-                .doesNotContain("bằng 2")
-                .doesNotContain("1 cộng 1");
+    @Test
+    @DisplayName("Chủ không gian yêu cầu tóm tắt nội dung cuộc trò chuyện trả về bản tóm tắt nội bộ")
+    void testSummarizeConversation_ReturnsPrivateSummary() {
+        when(conversationRepository.findByIdWithDetails(10L)).thenReturn(Optional.of(testConversation));
+        base.api.shared.entity.chat.BookingChatMessageModel msg1 = new base.api.shared.entity.chat.BookingChatMessageModel();
+        msg1.setId(1L);
+        msg1.setContent("Cho mình hỏi pass wifi");
+        msg1.setSender(testCustomer);
+
+        when(messageRepository.findByConversationIdOrderByIdDesc(eq(10L), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(List.of(msg1)));
+
+        base.api.feature.chat.dto.response.AiChatSummaryResponseDTO summary =
+                chatAiAssistantService.summarizeConversation(10L, 200L);
+
+        assertThat(summary).isNotNull();
+        assertThat(summary.getConversationId()).isEqualTo(10L);
+        assertThat(summary.getSummary()).contains("BK-20261122-001");
     }
 
     @Test

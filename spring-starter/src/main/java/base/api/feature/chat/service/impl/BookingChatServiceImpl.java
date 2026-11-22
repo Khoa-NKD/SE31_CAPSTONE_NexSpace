@@ -184,8 +184,9 @@ public class BookingChatServiceImpl implements IBookingChatService {
             log.error("Lỗi khi gửi WebSocket broadcast: {}", e.getMessage());
         }
 
-        // Tích hợp @NexSpace AI: Nếu tin nhắn nhắc đến @NexSpace AI, kích hoạt trợ lý AI trả lời trực tiếp vào cuộc trò chuyện
-        if (cleanContent.toLowerCase().contains("@nexspace ai") && chatAiAssistantService != null) {
+        // Tích hợp @NexSpace AI: Chỉ khi KHÁCH HÀNG nhắc đến @NexSpace AI mới kích hoạt trợ lý AI trả lời trực tiếp vào cuộc trò chuyện
+        boolean isCustomerSender = senderId.equals(conversation.getCustomer().getId());
+        if (isCustomerSender && cleanContent.toLowerCase().contains("@nexspace ai") && chatAiAssistantService != null) {
             java.util.concurrent.CompletableFuture.runAsync(() -> {
                 try {
                     chatAiAssistantService.respondToMention(conversationId, senderId, cleanContent);

@@ -229,6 +229,29 @@ class BookingChatServiceTest {
     }
 
     @Test
+    @DisplayName("sendMessage - Khi chủ không gian tag @NexSpace AI thì không kích hoạt AI trả lời vào phòng chat")
+    void sendMessage_whenOrganizerTagsAi_doesNotTriggerAiResponse() {
+        when(conversationRepository.findByIdWithDetailsForUpdate(1L)).thenReturn(Optional.of(conversation));
+        when(userRepository.findById(20L)).thenReturn(Optional.of(organizer));
+        when(profanityFilterService.filterAndMask(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(chatMessageRepository.save(any(BookingChatMessageModel.class))).thenAnswer(inv -> {
+            BookingChatMessageModel m = inv.getArgument(0);
+            m.setId(103L);
+            return m;
+        });
+
+        SendChatMessageRequestDTO request = new SendChatMessageRequestDTO();
+        request.setContent("@NexSpace AI tổng hợp đoạn chat");
+
+        BookingChatMessageResponseDTO result = chatService.sendMessage(1L, 20L, request);
+
+        assertThat(result).isNotNull();
+        // Đảm bảo không gọi respondToMention cho organizer
+        org.mockito.Mockito.verify(chatAiAssistantService, org.mockito.Mockito.never())
+                .respondToMention(any(), any(), any());
+    }
+
+    @Test
     @DisplayName("markAsRead - Đặt lại số tin nhắn chưa đọc về 0")
     void markAsRead_resetsUnread() {
         conversation.setOrganizerUnreadCount(5);
