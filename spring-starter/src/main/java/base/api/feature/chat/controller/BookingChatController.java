@@ -1,9 +1,13 @@
 package base.api.feature.chat.controller;
 
+import base.api.feature.chat.dto.request.AiToneAdjustmentRequestDTO;
 import base.api.feature.chat.dto.request.SendChatMessageRequestDTO;
+import base.api.feature.chat.dto.response.AiSmartRepliesResponseDTO;
+import base.api.feature.chat.dto.response.AiToneAdjustmentResponseDTO;
 import base.api.feature.chat.dto.response.BookingChatMessageResponseDTO;
 import base.api.feature.chat.dto.response.BookingConversationResponseDTO;
 import base.api.feature.chat.service.IBookingChatService;
+import base.api.feature.chat.service.IChatAiAssistantService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
 import base.api.shared.dto.PageRequestDTO;
@@ -37,6 +41,7 @@ public class BookingChatController extends BaseAPIController {
     private static final Set<String> MESSAGE_SORTABLE_FIELDS = Set.of("id", "createdAt");
 
     private final IBookingChatService chatService;
+    private final IChatAiAssistantService chatAiAssistantService;
 
     @Operation(summary = "Lấy hoặc khởi tạo cuộc hội thoại hỗ trợ cho đơn đặt chỗ")
     @PostMapping("/conversations/booking/{bookingId}")
@@ -100,5 +105,24 @@ public class BookingChatController extends BaseAPIController {
     public ResponseEntity<ApiResponse<Void>> markAsRead(@PathVariable Long conversationId) {
         chatService.markAsRead(conversationId, getCurrentUserId());
         return success(null, "Đã đánh dấu đã đọc");
+    }
+
+    @Operation(summary = "Gợi ý câu trả lời thông minh theo ngữ cảnh đơn đặt chỗ bằng NexSpace AI")
+    @PostMapping("/conversations/{conversationId}/ai/smart-replies")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AiSmartRepliesResponseDTO>> generateSmartReplies(
+            @PathVariable Long conversationId) {
+        AiSmartRepliesResponseDTO response = chatAiAssistantService.generateSmartReplies(conversationId, getCurrentUserId());
+        return success(response, "Tạo gợi ý phản hồi AI thành công");
+    }
+
+    @Operation(summary = "Trợ lý tinh chỉnh văn phong và dịch thuật thông điệp bằng NexSpace AI")
+    @PostMapping("/conversations/{conversationId}/ai/tone")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<AiToneAdjustmentResponseDTO>> adjustTone(
+            @PathVariable Long conversationId,
+            @Valid @RequestBody AiToneAdjustmentRequestDTO request) {
+        AiToneAdjustmentResponseDTO response = chatAiAssistantService.adjustTone(conversationId, getCurrentUserId(), request);
+        return success(response, "Hiệu chỉnh văn phong AI thành công");
     }
 }

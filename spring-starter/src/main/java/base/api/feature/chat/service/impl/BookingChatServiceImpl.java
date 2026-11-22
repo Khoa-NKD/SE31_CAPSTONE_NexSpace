@@ -9,6 +9,7 @@ import base.api.feature.chat.mapper.BookingChatMapper;
 import base.api.feature.chat.repository.IBookingChatMessageRepository;
 import base.api.feature.chat.repository.IBookingConversationRepository;
 import base.api.feature.chat.service.IBookingChatService;
+import base.api.feature.chat.service.IChatAiAssistantService;
 import base.api.feature.chat.service.IChatProfanityFilterService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
@@ -46,6 +47,7 @@ public class BookingChatServiceImpl implements IBookingChatService {
     private final IUserRepository userRepository;
     private final SimpMessagingTemplate messagingTemplate;
     private final IChatProfanityFilterService profanityFilterService;
+    private final IChatAiAssistantService chatAiAssistantService;
 
     @Override
     @Transactional
@@ -180,6 +182,17 @@ public class BookingChatServiceImpl implements IBookingChatService {
             messagingTemplate.convertAndSend("/topic/users/" + recipientId + "/conversations", recipientConvDto);
         } catch (Exception e) {
             log.error("Lỗi khi gửi WebSocket broadcast: {}", e.getMessage());
+        }
+
+        // Tích hợp @NexSpace AI: Nếu tin nhắn nhắc đến @NexSpace AI, kích hoạt trợ lý AI trả lời trực tiếp vào cuộc trò chuyện
+        if (cleanContent.toLowerCase().contains("@nexspace ai") && chatAiAssistantService != null) {
+            java.util.concurrent.CompletableFuture.runAsync(() -> {
+                try {
+                    chatAiAssistantService.respondToMention(conversationId, senderId, cleanContent);
+                } catch (Exception e) {
+                    log.error("Lỗi khi xử lý @NexSpace AI mention trong conversation {}: {}", conversationId, e.getMessage(), e);
+                }
+            });
         }
 
         return messageDto;

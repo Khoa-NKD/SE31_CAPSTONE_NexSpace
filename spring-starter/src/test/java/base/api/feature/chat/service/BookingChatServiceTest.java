@@ -51,6 +51,8 @@ class BookingChatServiceTest {
     private SimpMessagingTemplate messagingTemplate;
     @Mock
     private IChatProfanityFilterService profanityFilterService;
+    @Mock
+    private IChatAiAssistantService chatAiAssistantService;
 
     @InjectMocks
     private BookingChatServiceImpl chatService;
