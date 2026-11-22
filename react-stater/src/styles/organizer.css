@@ -1,4 +1,4 @@
-/* Organizer-only visual system. Chat, Kanban, Admin and public routes have no organizer marker. */
+/* Organizer visual system. Applied to Organizer dashboard, Chat, and Kanban. */
 [data-theme][data-organizer-theme] {
   --organizer-font: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
   --organizer-shadow: 0 3px 18px -12px rgb(35 40 85 / 18%);

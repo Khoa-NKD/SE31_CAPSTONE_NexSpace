@@ -2,7 +2,7 @@ import { DEFAULT_THEME, THEMES } from './theme.config';
 
 export type ThemeScope = 'admin' | 'customer';
 
-export const ORGANIZER_DASHBOARD_PATH = /^\/dashboard\/organizer(?:\/|$)/;
+export const ORGANIZER_DASHBOARD_PATH = /^\/dashboard\/(?:organizer|chat|kanban)(?:\/|$)/;
 
 /**
  * Organizer pages share the public site's appearance preference.
