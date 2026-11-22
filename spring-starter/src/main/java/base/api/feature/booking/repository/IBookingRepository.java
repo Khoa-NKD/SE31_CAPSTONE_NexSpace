@@ -221,6 +221,7 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
 
     List<BookingModel> findByStatusAndHoldExpiresAtBefore(BookingStatus status, LocalDateTime now);
 
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             SELECT b FROM BookingModel b
             WHERE b.resource.id = :resourceId
@@ -274,6 +275,28 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("now") LocalDateTime now,
             @Param("startTime") LocalDateTime startTime,
             @Param("endTime") LocalDateTime endTime
+    );
+
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT b FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND (:excludeBookingId IS NULL OR b.id <> :excludeBookingId)
+              AND (
+                  b.status IN :confirmedStatuses
+                  OR (b.status = :pendingPaymentStatus AND (b.holdExpiresAt IS NULL OR b.holdExpiresAt > :now))
+              )
+              AND b.startTime < :endTime
+              AND b.endTime > :startTime
+            """)
+    List<BookingModel> findOverlappingBookingsForUpdate(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("confirmedStatuses") Collection<BookingStatus> confirmedStatuses,
+            @Param("pendingPaymentStatus") BookingStatus pendingPaymentStatus,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("excludeBookingId") Long excludeBookingId
     );
 
     @Query("""

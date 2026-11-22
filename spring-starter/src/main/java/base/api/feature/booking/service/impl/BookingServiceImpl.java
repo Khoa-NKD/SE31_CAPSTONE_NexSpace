@@ -108,6 +108,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private final IPaymentTransactionRepository paymentTransactionRepository;
     private final INotificationService notificationService;
     private final IResourceStateSyncService resourceStateSyncService;
+    private final base.api.feature.resource.service.IResourceLockService resourceLockService;
 
     @org.springframework.beans.factory.annotation.Value("${app.booking.spam-hold.threshold:3}")
     private int spamHoldThreshold = 3;
@@ -147,9 +148,15 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         LocalDateTime now = LocalDateTime.now();
         validateSpamHoldBehavior(customer, now);
 
-        // 3. Acquire Pessimistic Write Lock on Bookable Resource
-        BookableResourceModel resource = resourceRepository.findByIdForUpdate(dto.getResourceId())
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy chỗ ngồi/phòng với ID: " + dto.getResourceId()));
+        // 3. Thẩm định khung thời gian đặt chỗ & giờ hoạt động
+        LocalDateTime startTime = dto.getStartTime();
+        LocalDateTime endTime = dto.getEndTime();
+        validateTimeRange(startTime, endTime);
+        validateOperatingHours(workspace.getId(), startTime, endTime);
+
+        // 4. Khóa bi quan có thứ tự (ID ASC) và kiểm tra xung đột nguyên tử hai chiều ROOM-DESK
+        base.api.feature.resource.dto.LockedResourceContext lockContext = resourceLockService.acquireResourceLock(dto.getResourceId(), startTime, endTime);
+        BookableResourceModel resource = lockContext.getTargetResource();
         requireIndividuallyBookable(resource);
 
         if (resource.getStatus() != BookableResourceStatus.ACTIVE) {
@@ -167,14 +174,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         if (!PublishedGeometry.isCurrentPublishedPlacement(resource))
             throw new ConflictException("Sơ đồ chỗ ngồi/phòng đang chờ publish. Vui lòng chọn chỗ khác hoặc thử lại sau.");
 
-        // 4. Validate Booking Time Range
-        LocalDateTime startTime = dto.getStartTime();
-        LocalDateTime endTime = dto.getEndTime();
-        validateTimeRange(startTime, endTime);
-
-        // 5. Validate Workspace Operating Hours
-        validateOperatingHours(workspace.getId(), startTime, endTime);
-
         // 5.1. Idempotent Active Hold Reuse:
         // Nếu cùng khách hàng yêu cầu giữ cùng tài nguyên trong cùng khung giờ đang còn hiệu lực:
         // Tái sử dụng ngay phiên giữ chỗ đó, không ném 409 Conflict và không tạo bản ghi rác.
@@ -185,10 +184,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             if (base.api.feature.pricing.service.BookingBaseRates.supported(reused.getPriceType())
                     != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
                 throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
-            if (reused.getHoldExpiresAt() != null && reused.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
-                reused.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-                reused = bookingRepository.save(reused);
-            }
             log.info("Idempotent hold reuse in createBooking: code={}, customerId={}", reused.getBookingCode(), customerId);
             return BookingMapper.toDto(reused);
         }
@@ -199,22 +194,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         int effectiveMaxActiveHolds = getEffectiveMaxActiveHolds();
         if (activeHolds >= effectiveMaxActiveHolds) {
             throw new BadRequestException("Bạn chỉ được giữ tối đa " + effectiveMaxActiveHolds + " chỗ cùng lúc. Vui lòng hoàn tất thanh toán hoặc hủy các chỗ đã giữ trước đó");
-        }
-
-        // 6. Check for Conflicting Active Bookings (including 10-min unexpired holds)
-        List<BookingModel> conflictingBookings = bookingRepository.findConflictingBookingsWithHold(
-                resource.getId(), startTime, endTime, ACTIVE_BOOKING_STATUSES, now);
-
-        if (!conflictingBookings.isEmpty()) {
-            throw new ConflictException("Chỗ ngồi/phòng đã có người đặt hoặc đang được giữ chỗ trong khung thời gian này");
-        }
-
-        // 7. Check for Conflicting Blocked Slots
-        List<ResourceBlockedSlotModel> conflictingBlockedSlots = blockedSlotRepository.findConflictingBlockedSlots(
-                resource.getId(), startTime, endTime);
-
-        if (!conflictingBlockedSlots.isEmpty()) {
-            throw new ConflictException("Chỗ ngồi/phòng đang bị khoá tạm thời (bảo trì hoặc sự kiện riêng)");
         }
 
         // 8. Calculate Pricing & Tariffs

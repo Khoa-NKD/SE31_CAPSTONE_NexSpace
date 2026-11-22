@@ -5,6 +5,7 @@ import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.service.IResourceLockService;
+import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.resource.ResourceBlockedSlotModel;
 import base.api.shared.enums.BookableResourceStatus;
@@ -152,10 +153,10 @@ public class ResourceLockServiceImpl implements IResourceLockService {
             resolvedTarget = lockedResources.get(0);
         }
 
-        // Kiểm tra Xung đột Nguyên tử (Atomic Overlap Check)
+        // Kiểm tra Xung đột Nguyên tử với Khóa Đọc Hiện tại (Locking Read / Current Read chống Phantom Read)
         LocalDateTime now = LocalDateTime.now();
 
-        boolean hasBookingOverlap = bookingRepository.existsOverlappingBooking(
+        List<BookingModel> overlappingBookings = bookingRepository.findOverlappingBookingsForUpdate(
                 sortedIds,
                 CONFIRMED_BOOKING_STATUSES,
                 BookingStatus.PENDING_PAYMENT,
@@ -165,7 +166,7 @@ public class ResourceLockServiceImpl implements IResourceLockService {
                 excludeBookingId
         );
 
-        if (hasBookingOverlap) {
+        if (!overlappingBookings.isEmpty()) {
             if (isRoom) {
                 throw new ConflictException("Phòng hoặc bàn làm việc bên trong phòng đã có người đặt hoặc đang giữ chỗ trong khung thời gian này");
             } else {
