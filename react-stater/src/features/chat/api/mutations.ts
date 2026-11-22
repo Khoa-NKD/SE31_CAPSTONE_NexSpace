@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { bookingChatService } from './service';
 import { chatKeys } from './queries';
-import type { SendChatMessagePayload } from './types';
+import type { AiToneAdjustmentPayload, SendChatMessagePayload } from './types';
 import { toast } from 'sonner';
 
 export function useGetOrCreateBookingConversationMutation() {
@@ -41,7 +41,38 @@ export function useMarkAsReadMutation(conversationId: number) {
   return useMutation({
     mutationFn: () => bookingChatService.markAsRead(conversationId),
     onSuccess: () => {
+      // Optimistically update conversation unreadCount to 0
+      queryClient.setQueriesData(
+        { queryKey: chatKeys.conversations() },
+        (oldData: unknown) => {
+          if (!oldData || typeof oldData !== 'object' || !('content' in oldData)) return oldData;
+          const page = oldData as { content: Array<{ id: number; unreadCount: number }> };
+          return {
+            ...page,
+            content: page.content.map((c) =>
+              c.id === conversationId ? { ...c, unreadCount: 0 } : c
+            )
+          };
+        }
+      );
+      queryClient.setQueryData(
+        chatKeys.conversation(conversationId),
+        (oldData: unknown) =>
+          oldData && typeof oldData === 'object' && 'unreadCount' in oldData
+            ? { ...oldData, unreadCount: 0 }
+            : oldData
+      );
       queryClient.invalidateQueries({ queryKey: chatKeys.conversations() });
+    }
+  });
+}
+
+export function useAdjustToneMutation(conversationId: number) {
+  return useMutation({
+    mutationFn: (payload: AiToneAdjustmentPayload) =>
+      bookingChatService.adjustTone(conversationId, payload),
+    onError: (err: Error) => {
+      toast.error(err.message || 'Không thể hiệu chỉnh văn phong bằng AI');
     }
   });
 }

@@ -73,12 +73,24 @@ export function Messenger({ initialConversationId }: MessengerProps) {
   const sendMessageMutation = useSendMessageMutation(activeConversation?.id ?? 0);
   const markAsReadMutation = useMarkAsReadMutation(activeConversation?.id ?? 0);
 
-  // Auto mark as read when unread count > 0
+  // Auto mark as read when unread count > 0 (strictly guarded to fire once per unread state)
+  const lastMarkedRef = useRef<{ id: number; unreadCount: number } | null>(null);
   useEffect(() => {
-    if (activeConversation && activeConversation.unreadCount > 0) {
-      markAsReadMutation.mutate();
+    const convId = activeConversation?.id;
+    const unread = activeConversation?.unreadCount ?? 0;
+    if (
+      convId &&
+      unread > 0 &&
+      (lastMarkedRef.current?.id !== convId || lastMarkedRef.current?.unreadCount !== unread)
+    ) {
+      lastMarkedRef.current = { id: convId, unreadCount: unread };
+      markAsReadMutation.mutate(undefined, {
+        onError: () => {
+          lastMarkedRef.current = null;
+        }
+      });
     }
-  }, [activeConversation, markAsReadMutation]);
+  }, [activeConversation?.id, activeConversation?.unreadCount]);
 
   // Handle message submission
   const handleSubmit = useCallback(

@@ -1,7 +1,10 @@
 import { FormEvent, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { Loader2, MessageSquare, Info } from 'lucide-react';
-import type { BookingChatMessageDto, BookingConversationDto } from '../api/types';
+import { toast } from 'sonner';
+import type { AiToneMode, BookingChatMessageDto, BookingConversationDto } from '../api/types';
+import { useAiSmartReplies } from '../api/queries';
+import { useAdjustToneMutation } from '../api/mutations';
 import { ChatHeader } from './chat-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
@@ -57,6 +60,30 @@ export function ChatArea({
   const counterpartName = isCustomer
     ? conversation.organizerName || 'Ban Quản Lý'
     : conversation.customerName || 'Khách Hàng';
+
+  const {
+    data: smartRepliesData,
+    isLoading: isLoadingSmartReplies,
+    refetch: refetchSmartReplies
+  } = useAiSmartReplies(conversation.id);
+
+  const adjustToneMutation = useAdjustToneMutation(conversation.id);
+
+  const handleAdjustTone = (mode: AiToneMode) => {
+    if (!draft.trim()) {
+      toast.info('Vui lòng nhập tin nhắn vào ô soạn thảo trước khi nhờ AI hỗ trợ');
+      return;
+    }
+    adjustToneMutation.mutate(
+      { text: draft, mode },
+      {
+        onSuccess: (data) => {
+          onDraftChange(data.adjustedText);
+          toast.success('Đã tinh chỉnh văn phong bằng NexSpace AI');
+        }
+      }
+    );
+  };
 
   return (
     <AnimatePresence initial={false} mode='wait'>
@@ -134,6 +161,12 @@ export function ChatArea({
           onSubmit={onSubmit}
           contactName={counterpartName}
           isSending={isSending}
+          smartReplies={smartRepliesData?.suggestions}
+          isLoadingSmartReplies={isLoadingSmartReplies}
+          onRefreshSmartReplies={() => refetchSmartReplies()}
+          onAdjustTone={handleAdjustTone}
+          isAdjustingTone={adjustToneMutation.isPending}
+          isCustomer={isCustomer}
         />
       </motion.div>
     </AnimatePresence>

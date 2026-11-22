@@ -1,6 +1,9 @@
 import { apiClient } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 import type {
+  AiSmartRepliesResponse,
+  AiToneAdjustmentPayload,
+  AiToneAdjustmentResponse,
   BookingChatMessageDto,
   BookingConversationDto,
   ConversationFilterParams,
@@ -57,5 +60,21 @@ export const bookingChatService = {
 
   markAsRead: async (conversationId: number): Promise<void> => {
     return apiClient.post<void>(`/chat/conversations/${conversationId}/read`);
+  },
+
+  getSmartReplies: async (conversationId: number): Promise<AiSmartRepliesResponse> => {
+    return apiClient.post<AiSmartRepliesResponse>(
+      `/chat/conversations/${conversationId}/ai/smart-replies`
+    );
+  },
+
+  adjustTone: async (
+    conversationId: number,
+    payload: AiToneAdjustmentPayload
+  ): Promise<AiToneAdjustmentResponse> => {
+    return apiClient.post<AiToneAdjustmentResponse>(
+      `/chat/conversations/${conversationId}/ai/tone`,
+      payload
+    );
   }
 };

@@ -14,7 +14,9 @@ export const chatKeys = {
   conversation: (id: number) => [...chatKeys.all, 'conversation', id] as const,
   conversationByBooking: (bookingId: number) => [...chatKeys.all, 'conversation-booking', bookingId] as const,
   messages: (conversationId: number, params?: MessageFilterParams) =>
-    [...chatKeys.all, 'messages', conversationId, params] as const
+    [...chatKeys.all, 'messages', conversationId, params] as const,
+  aiSmartReplies: (conversationId: number) =>
+    [...chatKeys.all, 'ai-smart-replies', conversationId] as const
 };
 
 export const conversationsQueryOptions = (params?: ConversationFilterParams) =>
@@ -49,4 +51,13 @@ export function useConversationDetail(conversationId: number) {
 
 export function useConversationMessages(conversationId: number, params?: MessageFilterParams) {
   return useQuery(messagesQueryOptions(conversationId, params));
+}
+
+export function useAiSmartReplies(conversationId?: number) {
+  return useQuery({
+    queryKey: chatKeys.aiSmartReplies(conversationId ?? 0),
+    queryFn: () => bookingChatService.getSmartReplies(conversationId!),
+    enabled: Boolean(conversationId),
+    staleTime: 30 * 1000
+  });
 }
