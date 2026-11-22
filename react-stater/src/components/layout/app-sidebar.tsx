@@ -62,6 +62,7 @@ const dashboardMenuVietnamese: Record<string, string> = {
   Bookings: 'Quản lý đặt chỗ',
   'Schedule (Gantt)': 'Lịch biểu (Gantt)',
   Analytics: 'Phân tích',
+  'Payouts & Balance': 'Doanh thu & Chi trả',
   Overview: 'Tổng quan',
   Chat: 'Trò chuyện',
   Kanban: 'Bảng công việc',
@@ -87,7 +88,10 @@ const dashboardMenuVietnamese: Record<string, string> = {
 };
 
 const dashboardMenuEnglish: Record<string, string> = {
-  'Quản lý đối tác': 'Organizer Partners'
+  'Quản lý đối tác': 'Organizer Partners',
+  'Doanh thu & Chi trả': 'Payouts & Balance',
+  'Chi trả & Số dư': 'Payouts & Balance',
+  'Payouts & Balance': 'Payouts & Balance'
 };
 
 export default function AppSidebar() {

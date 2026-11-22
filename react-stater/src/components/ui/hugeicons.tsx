@@ -1,3 +1,5 @@
+import MagicWand01IconData from '@hugeicons/core-free-icons/MagicWand01Icon';
+import HeartHandshakeIconData from '@hugeicons/core-free-icons/HeartHandshakeIcon';
 // Named adapters preserve existing call sites while using Hugeicons Stroke Rounded artwork.
 // Individual icon imports keep the full catalog out of application bundles.
 import { createAppIcon } from './hugeicon';
@@ -867,3 +869,10 @@ export const Desk = /* @__PURE__ */ createAppIcon(Desk01IconData, 'Desk');
 export const FloorPlan = /* @__PURE__ */ createAppIcon(FloorPlanIconData, 'FloorPlan');
 export const MeetingRoom = /* @__PURE__ */ createAppIcon(MeetingRoomIconData, 'MeetingRoom');
 export const Refund = /* @__PURE__ */ createAppIcon(MoneyReceiveSquareIconData, 'Refund');
+
+export const Wand2 = /* @__PURE__ */ createAppIcon(MagicWand01IconData, 'Wand2');
+export const Globe2 = /* @__PURE__ */ createAppIcon(GlobeIconData, 'Globe2');
+export const HeartHandshake = /* @__PURE__ */ createAppIcon(
+  HeartHandshakeIconData,
+  'HeartHandshake'
+);

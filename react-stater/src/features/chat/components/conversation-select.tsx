@@ -19,7 +19,7 @@ export function ConversationSelect({
   isCustomer = false
 }: ConversationSelectProps) {
   return (
-    <div className='border-border/40 bg-background/75 flex flex-col gap-2.5 rounded-2xl border p-3 backdrop-blur lg:hidden'>
+    <div className='border-border/60 bg-card/90 flex flex-col gap-2.5 rounded-2xl border p-3 shadow-xs lg:hidden'>
       <div className='flex items-center justify-between gap-2 sm:gap-3'>
         <div>
           <p className='text-foreground text-xs font-semibold sm:text-sm'>Hội thoại & Hỗ trợ</p>
@@ -52,7 +52,7 @@ export function ConversationSelect({
           id='messenger-conversation'
           value={selectedId ?? ''}
           onChange={(e) => onSelect(Number(e.target.value))}
-          className='border-border/40 bg-background/70 text-foreground focus:border-primary/40 focus:ring-primary/30 w-full rounded-xl border px-2.5 py-1.5 text-xs focus:ring-2 focus:outline-none sm:rounded-2xl sm:px-3 sm:py-2 sm:text-sm'
+          className='border-border/60 bg-background/80 text-foreground focus:border-indigo-500/40 focus:ring-indigo-500/30 w-full rounded-xl border px-2.5 py-1.5 text-xs focus:ring-2 focus:outline-none sm:rounded-2xl sm:px-3 sm:py-2 sm:text-sm'
         >
           {conversations.map((conversation) => {
             const displayName = isCustomer ? conversation.organizerName : conversation.customerName;

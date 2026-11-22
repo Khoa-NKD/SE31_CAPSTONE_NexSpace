@@ -51,3 +51,27 @@ export interface MessageFilterParams {
   page?: number;
   size?: number;
 }
+
+export interface AiSmartRepliesResponse {
+  suggestions: string[];
+  contextSummary: string;
+}
+
+export type AiToneMode = 'POLITE' | 'CONCISE' | 'TRANSLATE_EN' | 'TRANSLATE_VI';
+
+export interface AiToneAdjustmentPayload {
+  text: string;
+  mode: AiToneMode;
+}
+
+export interface AiToneAdjustmentResponse {
+  originalText: string;
+  adjustedText: string;
+  mode: string;
+}
+
+export interface AiChatSummaryResponse {
+  conversationId: number;
+  summary: string;
+  generatedAt: string;
+}

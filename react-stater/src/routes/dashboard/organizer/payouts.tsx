@@ -5,7 +5,7 @@ import { OrganizerPayoutsView } from '@/features/organizer-payouts/components/or
 export const Route = createFileRoute('/dashboard/organizer/payouts')({
   head: () => ({
     meta: [
-      { title: 'Quản lý Chi trả & Rút tiền | NexSpace Organizer' },
+      { title: 'Doanh thu & Chi trả | Payouts & Balance | NexSpace Organizer' },
       {
         name: 'description',
         content: 'Theo dõi số dư khả dụng, doanh thu tạm giữ HELD, rút tiền PayOS và cấu hình rút tiền tự động hàng ngày'

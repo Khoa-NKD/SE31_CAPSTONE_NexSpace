@@ -18,12 +18,14 @@ import {
 } from '@/components/ui/hugeicons';
 import type { OrganizerPayoutBalance } from '../api/types';
 import { ManualWithdrawalDialog } from './manual-withdrawal-dialog';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface PayoutBalanceCardsProps {
   balance: OrganizerPayoutBalance;
 }
 
 export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance }) => {
+  const { language } = useLanguage();
   const [withdrawModalOpen, setWithdrawModalOpen] = useState(false);
 
   return (
@@ -36,7 +38,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             <div className="flex items-center justify-between text-xs font-semibold text-emerald-700 dark:text-emerald-400 mb-2">
               <span className="flex items-center gap-1.5 uppercase tracking-wider">
                 <CheckCircle className="h-4 w-4" />
-                Khả dụng có thể rút
+                {language === 'vi' ? 'Khả dụng có thể rút' : 'Withdrawable Balance'}
               </span>
               <TooltipProvider>
                 <Tooltip>
@@ -46,7 +48,9 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs text-xs">
-                    Số dư từ các đơn đặt chỗ đã kết thúc quá 24h và không có tranh chấp khiếu nại. Sẵn sàng rút về tài khoản bất cứ lúc nào.
+                    {language === 'vi'
+                      ? 'Số dư từ các đơn đặt chỗ đã kết thúc quá 24h và không có tranh chấp khiếu nại. Sẵn sàng rút về tài khoản bất cứ lúc nào.'
+                      : 'Balance from completed bookings over 24h old with no disputes. Ready to withdraw anytime.'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -59,7 +63,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
 
             <div className="mt-4 pt-3 border-t border-emerald-100 dark:border-emerald-950/50 flex items-center justify-between">
               <span className="text-[11px] text-slate-500">
-                Tối thiểu: 50.000 đ
+                {language === 'vi' ? 'Tối thiểu: 50.000 đ' : 'Min: 50,000 VND'}
               </span>
               <Button
                 size="sm"
@@ -68,7 +72,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-xs h-8 px-3 shadow-sm gap-1"
               >
                 <ArrowUpRight className="h-3.5 w-3.5" />
-                Rút tiền ngay
+                {language === 'vi' ? 'Rút tiền ngay' : 'Withdraw Now'}
               </Button>
             </div>
           </CardContent>
@@ -80,7 +84,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             <div className="flex items-center justify-between text-xs font-semibold text-amber-700 dark:text-amber-400 mb-2">
               <span className="flex items-center gap-1.5 uppercase tracking-wider">
                 <Clock className="h-4 w-4" />
-                Đang tạm giữ (HELD)
+                {language === 'vi' ? 'Đang tạm giữ (HELD)' : 'Held in Escrow (HELD)'}
               </span>
               <TooltipProvider>
                 <Tooltip>
@@ -90,7 +94,9 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
                     </button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs text-xs">
-                    Doanh thu từ các đơn đặt chỗ đang diễn ra hoặc nằm trong thời hạn 24 giờ sau khi kết thúc để bảo vệ quyền khiếu nại của khách hàng (Escrow). Sau 24h không có khiếu nại, số tiền này sẽ tự động chuyển sang Khả dụng.
+                    {language === 'vi'
+                      ? 'Doanh thu từ các đơn đặt chỗ đang diễn ra hoặc nằm trong thời hạn 24 giờ sau khi kết thúc để bảo vệ quyền khiếu nại của khách hàng (Escrow). Sau 24h không có khiếu nại, số tiền này sẽ tự động chuyển sang Khả dụng.'
+                      : 'Revenue from active or completed bookings within 24 hours held in escrow for customer claims protection. Automatically released after 24 hours.'}
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
@@ -103,9 +109,9 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
 
             <div className="mt-4 pt-3 border-t border-amber-100 dark:border-amber-950/50 flex items-center justify-between text-[11px] text-slate-500">
               <span className="flex items-center gap-1 text-amber-700 dark:text-amber-300">
-                Ký quỹ an toàn 24h
+                {language === 'vi' ? 'Ký quỹ an toàn 24h' : '24h safety escrow'}
               </span>
-              <span>Chưa thể rút</span>
+              <span>{language === 'vi' ? 'Chưa thể rút' : 'Not yet withdrawable'}</span>
             </div>
           </CardContent>
         </Card>
@@ -116,7 +122,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
               <span className="flex items-center gap-1.5 uppercase tracking-wider">
                 <TrendingUp className="h-4 w-4 text-blue-500" />
-                Tổng doanh thu thực nhận
+                {language === 'vi' ? 'Tổng doanh thu thực nhận' : 'Total Net Revenue'}
               </span>
             </div>
 
@@ -126,8 +132,10 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             </div>
 
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
-              <span>Đã trừ hoa hồng sàn</span>
-              <span className="font-medium text-slate-700 dark:text-slate-300">Toàn thời gian</span>
+              <span>{language === 'vi' ? 'Đã trừ hoa hồng sàn' : 'Platform fee deducted'}</span>
+              <span className="font-medium text-slate-700 dark:text-slate-300">
+                {language === 'vi' ? 'Toàn thời gian' : 'All time'}
+              </span>
             </div>
           </CardContent>
         </Card>
@@ -138,7 +146,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             <div className="flex items-center justify-between text-xs font-semibold text-slate-500 mb-2">
               <span className="flex items-center gap-1.5 uppercase tracking-wider">
                 <Wallet className="h-4 w-4 text-slate-400" />
-                Đã giải ngân về bank
+                {language === 'vi' ? 'Đã giải ngân về bank' : 'Disbursed to Bank'}
               </span>
             </div>
 
@@ -150,7 +158,7 @@ export const PayoutBalanceCards: React.FC<PayoutBalanceCardsProps> = ({ balance 
             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between text-[11px] text-slate-500">
               <span className="flex items-center gap-1 truncate max-w-[120px]">
                 <Building2 className="h-3 w-3 shrink-0" />
-                {balance.bankName || 'Chưa liên kết'}
+                {balance.bankName || (language === 'vi' ? 'Chưa liên kết' : 'Not linked')}
               </span>
               <span className="font-mono text-slate-700 dark:text-slate-300">
                 {balance.bankAccountNumberMasked || '••••'}

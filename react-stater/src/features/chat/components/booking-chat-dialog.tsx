@@ -48,11 +48,11 @@ export function BookingChatDialog({
 
         {isPending || !conversation ? (
           <div className='flex flex-col items-center justify-center h-full p-8 text-center text-muted-foreground gap-3'>
-            <div className='h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center'>
+            <div className='h-12 w-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center animate-pulse'>
               <MessageSquare className='h-6 w-6' />
             </div>
             <div className='flex items-center gap-2 text-sm font-medium text-foreground'>
-              <Loader2 className='h-4 w-4 text-primary' />
+              <Loader2 className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />
               <span>Đang kết nối với ban quản lý không gian...</span>
             </div>
             <p className='text-xs text-muted-foreground max-w-xs'>

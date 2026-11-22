@@ -21,12 +21,14 @@ import { CurrencyProvider } from '@/features/landing/context/currency-context';
 import { AdminPreviewBanner } from '@/components/layout/admin-preview-banner';
 import { SessionHeartbeatProvider } from '@/features/auth/components/session-heartbeat-provider';
 import { FloatingChatWidget } from '@/features/chatbot';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { getUserRole } from '@/features/auth/utils/role-guard';
 
 import appCss from '@/styles/globals.css?url';
 
 const META_THEME_COLORS = {
   light: '#ffffff',
-  dark: '#09090b'
+  dark: '#090d16'
 };
 
 const getActiveTheme = createServerFn({ method: 'GET' })
@@ -72,8 +74,14 @@ export const Route = createRootRouteWithContext<{
 
 function RootDocument() {
   const { activeTheme } = Route.useLoaderData();
+  const user = useAuthStore((s) => s.user);
+  const userRole = getUserRole(user);
   const isOrganizer = useLocation({
-    select: (location) => ORGANIZER_DASHBOARD_PATH.test(location.pathname)
+    select: (location) => {
+      if (ORGANIZER_DASHBOARD_PATH.test(location.pathname)) return true;
+      if (location.pathname.startsWith('/dashboard') && userRole === 'ORGANIZER') return true;
+      return false;
+    }
   });
 
   return (
@@ -92,6 +100,18 @@ function RootDocument() {
                 try {
                   var pathname = window.location.pathname;
                   var isOrganizer = ${ORGANIZER_DASHBOARD_PATH}.test(pathname);
+                  if (!isOrganizer && pathname.startsWith('/dashboard')) {
+                    try {
+                      var session = localStorage.getItem('nexspace_auth_session_v1');
+                      if (session) {
+                        var parsed = JSON.parse(session);
+                        var user = parsed.state && parsed.state.user;
+                        if (user && (user.role === 'ORGANIZER' || user.role === 'PARTNER')) {
+                          isOrganizer = true;
+                        }
+                      }
+                    } catch (_) {}
+                  }
                   var isAdmin = pathname.startsWith('/dashboard') && !isOrganizer;
                   
                   // 1. Resolve Mode (Dark / Light)
@@ -109,6 +129,12 @@ function RootDocument() {
                     root.classList.remove('dark');
                     root.style.colorScheme = 'light';
                     document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '${META_THEME_COLORS.light}');
+                  }
+
+                  if (isOrganizer) {
+                    root.setAttribute('data-organizer-theme', '');
+                  } else {
+                    root.removeAttribute('data-organizer-theme');
                   }
                   
                   // 2. Enforce Single Vercel Palette
