@@ -54,15 +54,26 @@ public final class BookingChatMapper {
         }
 
         UserModel sender = model.getSender();
-        String roleName = sender.getRoleEntity() != null ? sender.getRoleEntity().getName() : null;
+        String roleName = (sender != null && sender.getRoleEntity() != null) ? sender.getRoleEntity().getName() : null;
+        String senderName = sender != null ? getFullName(sender) : "NexSpace AI";
+        String avatar = sender != null ? sender.getAvatar() : null;
+
+        if ("AI_ASSISTANT".equalsIgnoreCase(model.getMessageType())
+                || (sender != null && "nexspace.ai".equalsIgnoreCase(sender.getUserName()))) {
+            senderName = "NexSpace AI";
+            roleName = "AI_ASSISTANT";
+            if (avatar == null || avatar.isBlank()) {
+                avatar = "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=128&q=80";
+            }
+        }
 
         return BookingChatMessageResponseDTO.builder()
                 .id(model.getId())
                 .conversationId(model.getConversation().getId())
-                .senderId(sender.getId())
-                .senderName(getFullName(sender))
+                .senderId(sender != null ? sender.getId() : -1L)
+                .senderName(senderName)
                 .senderRole(roleName)
-                .senderAvatarUrl(sender.getAvatar())
+                .senderAvatarUrl(avatar)
                 .messageType(model.getMessageType())
                 .content(model.getContent())
                 .attachmentUrl(model.getAttachmentUrl())

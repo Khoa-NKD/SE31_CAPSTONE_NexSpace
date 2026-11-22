@@ -28,6 +28,8 @@ public interface IBookingConversationRepository extends JpaRepository<BookingCon
     @Query("""
             SELECT c FROM BookingConversationModel c
             JOIN FETCH c.booking b
+            LEFT JOIN FETCH b.resource res
+            LEFT JOIN FETCH res.resourceType rt
             JOIN FETCH c.customer cust
             JOIN FETCH c.organizer org
             JOIN FETCH c.workspace ws
