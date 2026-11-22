@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from 'react';
-import { Trash2, CopyPlus } from 'lucide-react';
+import { Trash2, CopyPlus } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,

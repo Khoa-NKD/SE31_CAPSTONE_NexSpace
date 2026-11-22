@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Gavel } from 'lucide-react';
+import { Gavel } from '@/components/ui/hugeicons';
 import { DisputeCase } from '../data/mock-disputes';
 
 interface DisputeResolutionDialogProps {

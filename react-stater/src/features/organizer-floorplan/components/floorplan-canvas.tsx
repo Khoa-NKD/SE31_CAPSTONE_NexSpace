@@ -9,7 +9,7 @@ import {
   DoorOpen,
   ArrowUpDown,
   Navigation
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { FloorplanNode, ZoneBoundary, AssetTemplate, FloorplanTool } from '../types';
 
 interface FloorplanCanvasProps {

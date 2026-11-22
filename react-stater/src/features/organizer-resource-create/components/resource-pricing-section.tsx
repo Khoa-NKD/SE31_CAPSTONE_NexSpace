@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { Info } from 'lucide-react';
+import { Info } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 

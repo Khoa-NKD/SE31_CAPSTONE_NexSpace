@@ -17,7 +17,7 @@ import {
   Send,
   SlidersHorizontal,
   Clock
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Table,
   TableBody,

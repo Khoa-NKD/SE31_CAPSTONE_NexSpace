@@ -1,15 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  Send,
-  Loader2,
-  Building2,
-  Check,
-  CheckCheck,
-  MessageSquare,
-  Info,
-  X,
-  ArrowLeft
-} from 'lucide-react';
+import { Send, Building2, Check, CheckCheck, MessageSquare, Info, X, ArrowLeft } from '@/components/ui/hugeicons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -223,7 +214,7 @@ export function BookingChatPanel({
       <div ref={messagesContainerRef} className='flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-muted/10'>
         {loadingMessages ? (
           <div className='flex flex-col items-center justify-center h-full text-muted-foreground py-10 gap-2'>
-            <Loader2 className='h-6 w-6 animate-spin text-primary' />
+            <Loader2 className='h-6 w-6 text-primary' />
             <span className='text-xs'>Đang tải tin nhắn...</span>
           </div>
         ) : messages.length === 0 ? (
@@ -323,7 +314,7 @@ export function BookingChatPanel({
           className='h-[42px] w-[42px] rounded-xl shrink-0 cursor-pointer shadow-xs'
         >
           {sendMessageMutation.isPending ? (
-            <Loader2 className='h-4 w-4 animate-spin' />
+            <Loader2 className='h-4 w-4' />
           ) : (
             <Send className='h-4 w-4' />
           )}

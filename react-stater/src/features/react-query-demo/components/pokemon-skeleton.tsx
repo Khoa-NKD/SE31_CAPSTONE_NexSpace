@@ -1,8 +1,9 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import { Card, CardHeader, CardContent, CardFooter } from '@/components/ui/card';
 
 export function PokemonSkeleton() {
   return (
-    <div className='animate-pulse space-y-6'>
+    <LoadingPlaceholder className=' space-y-6'>
       {/* Selector card skeleton */}
       <Card>
         <CardHeader>
@@ -47,6 +48,6 @@ export function PokemonSkeleton() {
           <div className='bg-muted h-3 w-64 rounded' />
         </CardFooter>
       </Card>
-    </div>
+    </LoadingPlaceholder>
   );
 }

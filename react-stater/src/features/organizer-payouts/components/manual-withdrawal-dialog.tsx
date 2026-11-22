@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowUpRight, Building2, CheckCircle2, ShieldAlert } from 'lucide-react';
+import { ArrowUpRight, Building2, CheckCircle2, ShieldAlert } from '@/components/ui/hugeicons';
 import type { OrganizerPayoutBalance } from '../api/types';
 import { useManualWithdrawalMutation } from '../api/mutations';
 

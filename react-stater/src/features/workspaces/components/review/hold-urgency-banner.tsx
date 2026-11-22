@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Timer, AlertTriangle, XCircle, RotateCcw, ShieldAlert } from 'lucide-react';
+import { Timer, AlertTriangle, XCircle, RotateCcw, ShieldAlert } from '@/components/ui/hugeicons';
 import { useReleaseHoldMutation } from '@/features/resource-availability';
 import { toast } from 'sonner';
 import {

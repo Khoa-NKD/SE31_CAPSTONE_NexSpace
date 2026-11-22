@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Copy, ArrowRight, Lock, Check } from 'lucide-react';
+import { Copy, ArrowRight, Lock, Check } from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';

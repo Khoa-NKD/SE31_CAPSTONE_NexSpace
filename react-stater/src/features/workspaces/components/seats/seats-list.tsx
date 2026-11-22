@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { SeatItem } from '../../types/seat';
 import { SeatCard } from './seat-card';
 import { SeatBookingDialog } from './seat-booking-dialog';
-import { Armchair } from 'lucide-react';
+import { Armchair } from '@/components/ui/hugeicons';
 
 interface SeatsListProps {
   seats: SeatItem[];

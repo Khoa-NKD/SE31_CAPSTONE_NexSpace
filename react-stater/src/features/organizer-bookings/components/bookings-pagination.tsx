@@ -1,6 +1,6 @@
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, CheckCircle2 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   Select,

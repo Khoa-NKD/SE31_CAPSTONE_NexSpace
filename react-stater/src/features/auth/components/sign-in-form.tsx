@@ -1,8 +1,9 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useRef, useState, useEffect } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { ArrowRight, Eye, EyeOff, AlertCircle, X, MailCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, AlertCircle, X, MailCheck } from '@/components/ui/hugeicons';
 import { useLanguage } from '../../landing/context/language-context';
 import GoogleSignInButton from './google-auth-button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -369,7 +370,7 @@ export function SignInForm({ onSuccess }: SignInFormProps) {
           )}
         >
           {isPending ? (
-            <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+            <Spinner className='w-5 h-5 ' />
           ) : (
             <>
               <span>{t('auth.signIn.btn')}</span>

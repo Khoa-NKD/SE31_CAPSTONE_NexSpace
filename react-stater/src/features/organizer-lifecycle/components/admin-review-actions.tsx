@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -15,7 +16,7 @@ import {
   XCircle,
   ShieldCheck,
   RefreshCw
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,
@@ -202,10 +203,13 @@ export function AdminReviewActions({
             disabled={query.isFetching || mutation.isPending}
             onClick={() => void query.refetch()}
           >
-            <RefreshCw
-              className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`}
+            {query.isFetching ? <Spinner
+              className={`size-4 `}
               aria-hidden='true'
-            />
+            /> : <RefreshCw
+              className={`size-4 `}
+              aria-hidden='true'
+            />}
           </Button>
         </div>
       </div>

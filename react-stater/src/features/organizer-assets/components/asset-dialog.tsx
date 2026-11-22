@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
@@ -24,7 +25,7 @@ import {
   useUpdateWorkspaceAssetMutation
 } from '@/features/workspaces/api/mutations';
 import type { AssetStatus, WorkspaceAssetDto } from '@/features/workspaces/api/types';
-import { Loader2 } from 'lucide-react';
+
 
 interface AssetDialogProps {
   open: boolean;
@@ -262,7 +263,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           disabled={isSubmitting || !assetCode.trim() || !name.trim()}
           className='bg-indigo-600 hover:bg-indigo-700 text-white'
         >
-          {isSubmitting && <Loader2 className='w-4 h-4 animate-spin mr-2' />}
+          {isSubmitting && <Loader2 className='w-4 h-4 mr-2' />}
           {isEdit ? c('Save changes', 'Lưu thay đổi') : c('Add asset', 'Thêm tài sản')}
         </Button>
       </DialogFooter>

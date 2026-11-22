@@ -1,4 +1,4 @@
-import { Check, Languages } from 'lucide-react';
+import { Check, Languages } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

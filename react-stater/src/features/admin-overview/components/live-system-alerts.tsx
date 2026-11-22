@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock } from '@/components/ui/hugeicons';
 import { LiveSystemAlert } from '../data/mock-overview';
 import { useLanguage } from '@/features/landing/context/language-context';
 

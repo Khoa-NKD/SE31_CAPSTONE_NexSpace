@@ -1,16 +1,8 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useState } from 'react';
 import { metresToPixels } from '../utils/metric-units';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Building2,
-  Plus,
-  Pencil,
-  Trash2,
-  Layers3,
-  MapPin,
-  LoaderCircle,
-  ArrowUpRight
-} from 'lucide-react';
+import { Building2, Plus, Pencil, Trash2, Layers3, MapPin, ArrowUpRight } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -150,7 +142,7 @@ export function BuildingCatalog({
           {c('Building', 'Tòa nhà')}
         </Button>
       </header>
-      {query.isPending && <LoaderCircle className='size-5 animate-spin' />}
+      {query.isPending && <LoaderCircle className='size-5' />}
       {query.isError && (
         <div role='alert' className='text-sm text-destructive'>
           {query.error.message}
@@ -368,7 +360,7 @@ export function BuildingCatalog({
                 disabled={busy}
                 variant={edit?.kind.startsWith('delete') ? 'destructive' : 'default'}
               >
-                {busy && <LoaderCircle className='size-4 animate-spin' />}
+                {busy && <LoaderCircle className='size-4' />}
                 {c('Confirm', 'Xác nhận')}
               </Button>
             </div>

@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useState, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { LoaderCircle, Link2, Plus } from 'lucide-react';
+import { Link2, Plus } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -195,7 +196,7 @@ export function FloorAllocationDialog({
           <fieldset disabled={busy} className='space-y-4'>
             {!current ? (
               locations.isPending ? (
-                <LoaderCircle className='size-5 animate-spin' />
+                <LoaderCircle className='size-5' />
               ) : locations.isError ? (
                 <div role='alert' className='text-sm text-destructive'>
                   {locations.error.message}
@@ -215,7 +216,7 @@ export function FloorAllocationDialog({
                 />
               )
             ) : previous.isPending ? (
-              <LoaderCircle className='size-5 animate-spin' />
+              <LoaderCircle className='size-5' />
             ) : current && previous.isError ? (
               <p role='alert' className='text-sm text-destructive'>
                 {previous.error.message}
@@ -266,7 +267,7 @@ export function FloorAllocationDialog({
                 (current ? !area || !physical || !!problem || !previous.data : !batch.valid)
               }
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {current
                 ? c('Link floor', 'Liên kết tầng')
                 : c(

@@ -13,7 +13,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { FileDown, UserPlus, AlertCircle, RefreshCw } from 'lucide-react';
+import { FileDown, UserPlus, AlertCircle, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import {
   adminUsersQueryOptions,

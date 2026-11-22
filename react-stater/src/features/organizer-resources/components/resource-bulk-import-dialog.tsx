@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Upload, FileSpreadsheet, Download, CheckCircle2 } from 'lucide-react';
+import { Upload, FileSpreadsheet, Download, CheckCircle2 } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 
 interface ResourceBulkImportDialogProps {

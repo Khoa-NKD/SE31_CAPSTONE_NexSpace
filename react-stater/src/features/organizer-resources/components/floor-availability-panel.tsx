@@ -1,8 +1,9 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { DateInput } from '@/components/ui/date-input';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, LoaderCircle } from 'lucide-react';
+import { RefreshCw } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import {
@@ -78,7 +79,7 @@ export function FloorAvailabilityPanel({
   if (calendar.query.isPending)
     return (
       <div role='status' className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
-        <LoaderCircle className='size-4 animate-spin' />
+        <LoaderCircle className='size-4' />
         {c('Reading calendar…', 'Đang đọc lịch…')}
       </div>
     );
@@ -179,7 +180,7 @@ export function FloorAvailabilityInspector({
           onClick={calendar.apply}
         >
           {calendar.query.isFetching ? (
-            <LoaderCircle className='size-4 animate-spin' />
+            <LoaderCircle className='size-4' />
           ) : (
             <RefreshCw className='size-4' />
           )}

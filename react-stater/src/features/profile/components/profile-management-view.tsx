@@ -1,9 +1,21 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState, useEffect, useTransition } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from '@tanstack/react-router';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
-import { User, KeyRound, ShieldCheck, Shield, Building2, CheckCircle2, Clock, Eye, EyeOff, SlidersHorizontal } from 'lucide-react';
+import {
+  User,
+  KeyRound,
+  ShieldCheck,
+  Shield,
+  Building2,
+  CheckCircle2,
+  Clock,
+  Eye,
+  EyeOff,
+  SlidersHorizontal
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -281,7 +293,7 @@ export function ProfileManagementView() {
                   className='h-10 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 text-white font-medium text-sm rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer'
                 >
                   {isChangingPassword ? (
-                    <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                    <Spinner className='w-4 h-4 ' />
                   ) : (
                     <>
                       <KeyRound className='w-4 h-4' />

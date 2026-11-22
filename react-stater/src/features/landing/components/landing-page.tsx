@@ -6,7 +6,9 @@ import { MarketplaceShowcase } from './marketplace-showcase';
 import { HowItWorksSection } from './how-it-works-section';
 import { PartnerCtaSection } from './partner-cta-section';
 import { Footer } from './footer';
+import { LandingSmoothScroll } from './landing-smooth-scroll';
 import type { SearchCriteria } from './search-card';
+import '../styles/landing-premium.css';
 
 export default function LandingPage() {
   const [searchCriteria, setSearchCriteria] = useState<SearchCriteria>({
@@ -38,9 +40,10 @@ export default function LandingPage() {
   return (
     <div
       data-landing-root='true'
-      className='landing-scope relative min-h-screen flex flex-col bg-[#f8fafc] text-slate-900 antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:bg-slate-950 dark:text-slate-100 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
-      style={{ fontFamily: '"Plus Jakarta Sans", system-ui, -apple-system, sans-serif' }}
+      className='landing-scope landing-premium relative min-h-screen flex flex-col antialiased selection:bg-indigo-100 selection:text-indigo-900 dark:selection:bg-indigo-950 dark:selection:text-indigo-200'
+      style={{ fontFamily: 'var(--font-app)' }}
     >
+      <LandingSmoothScroll />
       {/* Dynamic Sticky Search Bar - Appears at top when scrolling past hero search */}
       <StickyTopSearchBar
         criteria={searchCriteria}
@@ -62,10 +65,7 @@ export default function LandingPage() {
         />
 
         {/* 03. Featured Workspaces */}
-        <MarketplaceShowcase
-          filterCriteria={filterCriteria}
-          onResetFilters={handleResetFilters}
-        />
+        <MarketplaceShowcase filterCriteria={filterCriteria} onResetFilters={handleResetFilters} />
 
         {/* 04. How It Works */}
         <HowItWorksSection />

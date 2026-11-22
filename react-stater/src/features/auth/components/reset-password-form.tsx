@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState, useEffect, useTransition } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -10,7 +11,7 @@ import {
   ShieldCheck,
   KeyRound,
   AlertCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useLanguage } from '../../landing/context/language-context';
 import { cn } from '@/lib/utils';
 import { motion, AnimatePresence } from 'motion/react';
@@ -348,7 +349,7 @@ export function ResetPasswordForm() {
           )}
         >
           {isPending ? (
-            <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+            <Spinner className='w-5 h-5 ' />
           ) : (
             <>
               <span>{t('auth.resetPassword.requestBtn')}</span>
@@ -390,7 +391,7 @@ export function ResetPasswordForm() {
       </div>
 
       <div className='p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/60 text-xs text-slate-600 dark:text-slate-300 leading-relaxed text-left flex items-center gap-3'>
-        <div className='w-5 h-5 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin shrink-0' />
+        <Spinner className='w-5 h-5 shrink-0' />
         <span>Hệ thống đang chờ bạn mở liên kết từ email...</span>
       </div>
 
@@ -532,7 +533,7 @@ export function ResetPasswordForm() {
           )}
         >
           {isPending ? (
-            <div className='w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+            <Spinner className='w-5 h-5 ' />
           ) : (
             <>
               <span>{t('auth.resetPassword.updateBtn')}</span>

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, RotateCcw, View, Eye, Sparkles } from 'lucide-react';
+import { X, RotateCcw, View, Eye, Sparkles } from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

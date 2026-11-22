@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -17,9 +18,8 @@ import {
   AlertTriangle,
   Check,
   ChevronDown,
-  Save,
-  Loader2
-} from 'lucide-react';
+  Save
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -688,21 +688,21 @@ export function StepFloorPlanView() {
                   <g transform='translate(570, 50)'>
                     <rect x='0' y='0' width='240' height='120' rx='4' fill='#F5F3FF' stroke='#7C3AED' strokeWidth='2' />
                     <rect x='50' y='35' width='140' height='50' rx='12' fill='#EDE9FE' stroke='#8B5CF6' strokeWidth='1.5' />
-                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='sans-serif'>
+                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='inherit'>
                       CR-01: Executive Boardroom
                     </text>
                   </g>
                   <g transform='translate(570, 190)'>
                     <rect x='0' y='0' width='240' height='120' rx='4' fill='#F5F3FF' stroke='#7C3AED' strokeWidth='2' />
                     <rect x='60' y='35' width='120' height='50' rx='10' fill='#EDE9FE' stroke='#8B5CF6' strokeWidth='1.5' />
-                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='sans-serif'>
+                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='inherit'>
                       CR-02: Strategy Room
                     </text>
                   </g>
                   <g transform='translate(570, 330)'>
                     <rect x='0' y='0' width='240' height='120' rx='4' fill='#F5F3FF' stroke='#7C3AED' strokeWidth='2' />
                     <rect x='70' y='35' width='100' height='50' rx='8' fill='#EDE9FE' stroke='#8B5CF6' strokeWidth='1.5' />
-                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='sans-serif'>
+                    <text x='15' y='22' fill='#6D28D9' fontSize='11' fontWeight='700' fontFamily='inherit'>
                       CR-03: Media Studio
                     </text>
                   </g>
@@ -716,7 +716,7 @@ export function StepFloorPlanView() {
 
                 {/* Dimension markers if enabled */}
                 {showDimensions && (
-                  <g fill='#64748B' fontSize='10' fontFamily='monospace'>
+                  <g fill='#64748B' fontSize='10' fontFamily='inherit'>
                     <line x1='20' y1='20' x2='830' y2='20' stroke='#64748B' strokeWidth='1' markerEnd='url(#arrow)' />
                     <text x='410' y='16' textAnchor='middle'>38.5 meters Usable Span</text>
                     <line x1='15' y1='30' x2='15' y2='490' stroke='#64748B' strokeWidth='1' />
@@ -825,7 +825,7 @@ export function StepFloorPlanView() {
             onClick={handleSaveDraft}
             className='h-11 px-4 rounded-lg border-border hover:bg-muted font-medium text-xs sm:text-sm flex items-center gap-1.5'
           >
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
@@ -836,7 +836,7 @@ export function StepFloorPlanView() {
             className='h-11 px-5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-xs sm:text-sm flex items-center gap-2 shadow-sm transition-all'
           >
             <span>Next Step: Pre-submission Review</span>
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>

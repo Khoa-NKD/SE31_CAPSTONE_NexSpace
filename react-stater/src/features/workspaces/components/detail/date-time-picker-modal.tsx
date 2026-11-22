@@ -10,7 +10,7 @@ import {
   TimerIcon,
   X,
   AlertCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

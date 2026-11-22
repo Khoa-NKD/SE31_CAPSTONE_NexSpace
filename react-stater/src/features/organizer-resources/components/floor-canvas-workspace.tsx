@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import {
   expandCanvasSelection,
   pasteCanvasSelection,
@@ -42,12 +43,11 @@ import {
   LockKeyhole,
   Trash2,
   CheckCircle2,
-  LoaderCircle,
   X,
   ChevronLeft,
   AlertTriangle,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -1624,7 +1624,7 @@ export function FloorCanvasWorkspace({
               role='status'
               className='absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-sm'
             >
-              <LoaderCircle className='size-6 animate-spin text-primary' />
+              <LoaderCircle className='size-6 text-primary' />
             </div>
           )}
           <div
@@ -1643,7 +1643,7 @@ export function FloorCanvasWorkspace({
               </div>
             ) : query.isPending ? (
               <div className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
                 {c('Loading floor…', 'Đang tải sơ đồ…')}
               </div>
             ) : query.isError ? (
@@ -2222,7 +2222,7 @@ export function FloorCanvasWorkspace({
                           onClick={() => void saveCanvas()}
                         >
                           {busy ? (
-                            <LoaderCircle className='size-4 animate-spin' />
+                            <LoaderCircle className='size-4' />
                           ) : (
                             <Save className='size-4' />
                           )}
@@ -2355,7 +2355,7 @@ export function FloorCanvasWorkspace({
                         onClick={() => void save()}
                       >
                         {busy ? (
-                          <LoaderCircle className='size-4 animate-spin' />
+                          <LoaderCircle className='size-4' />
                         ) : (
                           <Save className='size-4' />
                         )}
@@ -2581,7 +2581,7 @@ export function FloorCanvasWorkspace({
               disabled={busy}
               onClick={() => void (selection?.resource ? removeResource() : removeObject())}
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Delete', 'Xóa')}
             </Button>
           </div>
@@ -2637,7 +2637,7 @@ export function FloorCanvasWorkspace({
             </Button>
             <Button disabled={!confirmed || busy || dirty} onClick={() => void publish()}>
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Upload className='size-4' />
               )}

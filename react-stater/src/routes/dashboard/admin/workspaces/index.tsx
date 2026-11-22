@@ -1,10 +1,11 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, ArrowRight, RotateCcw, AlertTriangle, Loader2 } from 'lucide-react';
+import { FileDown, ArrowRight, RotateCcw, AlertTriangle } from '@/components/ui/hugeicons';
 import {
   MOCK_QUALITY_HEALTH_METRICS,
   ModerationDecisionRecord,
@@ -113,7 +114,7 @@ function WorkspaceAdminOverviewPage() {
               className='gap-2 shadow-2xs'
               aria-label='Refresh overview data'
             >
-              <RotateCcw className={`size-4 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} aria-hidden='true' />
+              {isFetching ? <Spinner className={`size-4 text-muted-foreground `} aria-hidden='true' /> : <RotateCcw className={`size-4 text-muted-foreground `} aria-hidden='true' />}
               <span className='hidden sm:inline'>Refresh</span>
             </Button>
 
@@ -161,7 +162,7 @@ function WorkspaceAdminOverviewPage() {
         {/* Loading Indicator bar */}
         {isLoading && (
           <div className='mb-6 p-4 rounded-xl border border-border bg-card flex items-center justify-center gap-3 text-xs text-muted-foreground'>
-            <Loader2 className='size-4 animate-spin text-primary' />
+            <Loader2 className='size-4 text-primary' />
             <span>Loading live workspace metrics and moderation workload...</span>
           </div>
         )}

@@ -1,15 +1,8 @@
+import { mapMarkerIcon } from '@/components/ui/map-marker-icon';
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import type * as MapLibreGL from 'maplibre-gl';
-import {
-  RefreshCw,
-  LocateFixed,
-  Plus,
-  Minus,
-  Star,
-  ExternalLink,
-  Loader2,
-  X
-} from 'lucide-react';
+import { RefreshCw, LocateFixed, Plus, Minus, Star, ExternalLink, X } from '@/components/ui/hugeicons';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import type { PublicWorkspaceSummary } from '../api/types';
 
@@ -414,7 +407,7 @@ export function WorkspaceMap({
             color: #FFFFFF;
             font-size: 11px;
             font-weight: 800;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            font-family: var(--font-app);
             letter-spacing: -0.01em;
             white-space: nowrap;
             border: 2px solid #FFFFFF;
@@ -552,8 +545,8 @@ export function WorkspaceMap({
         : '0 4px 14px rgba(15, 23, 42, 0.45), 0 2px 4px rgba(0, 0, 0, 0.25)';
 
       const iconSvg = isSelected
-        ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="#FDE047" stroke="#EAB308" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
-        : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/><path d="M14 9h1"/><path d="M14 13h1"/><path d="M14 17h1"/></svg>`;
+        ? `${mapMarkerIcon("star", { size: 12, color: "#EAB308", fill: "#FDE047" })}`
+        : `${mapMarkerIcon("building", { size: 12 })}`;
 
       inner.innerHTML = `
         <div class="nexspace-marker-pill" style="
@@ -564,7 +557,7 @@ export function WorkspaceMap({
           border-radius: 9999px;
           font-size: 11.5px;
           font-weight: 800;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          font-family: var(--font-app);
           letter-spacing: -0.01em;
           white-space: nowrap;
           width: max-content;
@@ -667,8 +660,8 @@ export function WorkspaceMap({
       if (iconSpan) {
         iconSpan.style.color = isSelected ? '#FDE047' : '#818CF8';
         iconSpan.innerHTML = isSelected
-          ? `<svg width="12" height="12" viewBox="0 0 24 24" fill="#FDE047" stroke="#EAB308" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`
-          : `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M3 21h18"/><path d="M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16"/><path d="M9 9h1"/><path d="M9 13h1"/><path d="M9 17h1"/><path d="M14 9h1"/><path d="M14 13h1"/><path d="M14 17h1"/></svg>`;
+          ? `${mapMarkerIcon("star", { size: 12, color: "#EAB308", fill: "#FDE047" })}`
+          : `${mapMarkerIcon("building", { size: 12 })}`;
       }
       if (arrow) {
         arrow.style.borderTopColor = isSelected ? '#4F46E5' : '#0F172A';
@@ -744,7 +737,7 @@ export function WorkspaceMap({
           className="flex h-9 w-9 items-center justify-center rounded-lg border border-border bg-card text-foreground shadow-md transition-colors hover:bg-background hover:text-primary cursor-pointer disabled:opacity-50"
         >
           {isLocating ? (
-            <Loader2 className="h-4 w-4 animate-spin text-primary" />
+            <Loader2 className="h-4 w-4 text-primary" />
           ) : (
             <LocateFixed className="h-4 w-4 text-primary" />
           )}

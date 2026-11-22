@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   Tooltip
 } from 'recharts';
-import { CheckCircle2, Zap } from 'lucide-react';
+import { CheckCircle2, Zap } from '@/components/ui/hugeicons';
 import { OperationalTrendPoint } from '../data/mock-overview';
 import { useLanguage } from '@/features/landing/context/language-context';
 

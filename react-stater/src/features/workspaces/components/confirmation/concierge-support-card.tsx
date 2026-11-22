@@ -1,4 +1,4 @@
-import { Headset, PhoneCall, ShieldCheck } from 'lucide-react';
+import { Headset, PhoneCall, ShieldCheck } from '@/components/ui/hugeicons';
 
 export function ConciergeSupportCard() {
   return (

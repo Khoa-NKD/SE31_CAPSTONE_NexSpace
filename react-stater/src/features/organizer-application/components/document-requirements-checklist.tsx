@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { Check, FileText, CircleDashed, RefreshCw } from 'lucide-react';
+import { Check, FileText, CircleDashed, RefreshCw } from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

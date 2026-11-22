@@ -1,3 +1,4 @@
+import { Spinner, Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useNavigate } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
@@ -16,11 +17,10 @@ import {
   Pencil,
   Trash2,
   Settings2,
-  LoaderCircle,
   ChevronLeft,
   ChevronRight,
   LockKeyhole
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -289,7 +289,7 @@ export function ResourceManagementView({
   if (!mounted)
     return (
       <p role='status' className='text-muted-foreground flex items-center gap-2 p-6'>
-        <LoaderCircle className='size-4 animate-spin' />
+        <LoaderCircle className='size-4' />
         {c('Loading your resources…', 'Đang tải ghế/phòng của bạn…')}
       </p>
     );
@@ -427,7 +427,7 @@ export function ResourceManagementView({
                 disabled={query.isFetching || options.isFetching}
                 onClick={() => void invalidateResources(client, actorId)}
               >
-                <RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />
+                {query.isFetching ? <Spinner className={`size-4 `} /> : <RefreshCw className={`size-4 `} />}
               </Button>
             </div>
           </div>
@@ -805,7 +805,7 @@ export function ResourceManagementView({
               onClick={() => void confirmTypeDeletion()}
             >
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Trash2 className='size-4' />
               )}
@@ -857,7 +857,7 @@ export function ResourceManagementView({
                   );
               }}
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Confirm', 'Xác nhận')}
             </Button>
           </div>
@@ -894,7 +894,7 @@ export function ResourceManagementView({
                 void act(() => deleteResource(remove), c('Resource deleted.', 'Đã xóa ghế/phòng.'))
               }
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Delete', 'Xóa')}
             </Button>
           </div>

@@ -1,13 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { CreditCard, Globe } from 'lucide-react';
+import { Globe } from '@/components/ui/hugeicons';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { useLanguage, type Language } from '../context/language-context';
-import { useCurrency, type Currency } from '../context/currency-context';
 
 export function Footer() {
   const { language, setLanguage, t } = useLanguage();
-  const { currency, setCurrency } = useCurrency();
+
   const [currentYear] = useState(() => new Date().getFullYear());
 
   return (
@@ -135,26 +134,13 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Bottom Sub-bar: Copyright + Language & Currency */}
+        {/* Bottom Sub-bar: Copyright and Language */}
         <div className='mt-10 flex flex-col items-center justify-between gap-4 border-t border-slate-200/70 pt-6 text-xs sm:flex-row dark:border-slate-800/70'>
           <p className='text-slate-500 dark:text-slate-400'>
             &copy; {currentYear} {t('footer.rights')}
           </p>
 
           <div className='flex items-center gap-3'>
-            <div className='flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-900'>
-              <CreditCard className='h-3.5 w-3.5 text-slate-400' />
-              <select
-                aria-label='Select Currency'
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as Currency)}
-                className='cursor-pointer bg-transparent text-xs font-medium text-slate-700 outline-none dark:text-slate-200'
-              >
-                <option value='USD'>USD ($)</option>
-                <option value='VND'>VND (₫)</option>
-              </select>
-            </div>
-
             <div className='flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 dark:border-slate-800 dark:bg-slate-900'>
               <Globe className='h-3.5 w-3.5 text-slate-400' />
               <select

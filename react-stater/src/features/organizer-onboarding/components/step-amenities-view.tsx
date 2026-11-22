@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
@@ -30,9 +31,8 @@ import {
   ArrowRight,
   Save,
   AlertCircle,
-  Loader2,
   Plus
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -438,7 +438,7 @@ export function StepAmenitiesView() {
         {/* Loading state */}
         {isLoading && (
           <div className='flex items-center justify-center py-16 gap-3 text-muted-foreground'>
-            <Loader2 className='size-5 animate-spin' />
+            <Loader2 className='size-5' />
             <span className='text-sm'>
               {c('Loading available amenities...', 'Đang tải danh mục tiện ích từ hệ thống...')}
             </span>
@@ -683,7 +683,7 @@ export function StepAmenitiesView() {
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>
               {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
             </span>
@@ -697,7 +697,7 @@ export function StepAmenitiesView() {
           >
             <span>{c('Continue to Media Gallery', 'Tiếp tục đến thư viện ảnh')}</span>
             {isSaving ? (
-              <Loader2 className='size-4 animate-spin' />
+              <Loader2 className='size-4' />
             ) : (
               <ArrowRight className='size-4' />
             )}

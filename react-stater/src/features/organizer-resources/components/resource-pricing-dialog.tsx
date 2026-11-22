@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { Coins, Zap, CalendarDays } from 'lucide-react';
+import { Coins, Zap, CalendarDays } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { ResourceItem } from '../types';
 

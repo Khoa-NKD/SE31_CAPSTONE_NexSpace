@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import { CornerDownRight, MoveDiagonal2, Ruler } from 'lucide-react';
+import { CornerDownRight, MoveDiagonal2, Ruler } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import {

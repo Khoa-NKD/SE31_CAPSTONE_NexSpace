@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarCheck2, Users, CheckCircle, Ban, TrendingUp } from 'lucide-react';
+import { CalendarCheck2, Users, CheckCircle, Ban, TrendingUp } from '@/components/ui/hugeicons';
 import { BookingSummaryKpis } from '../data/mock-bookings';
 
 interface BookingKpiGridProps {

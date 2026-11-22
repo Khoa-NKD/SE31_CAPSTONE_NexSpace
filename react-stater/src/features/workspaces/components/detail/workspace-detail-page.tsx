@@ -1,3 +1,4 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { WorkspaceHeader } from '../workspace-header';
@@ -19,7 +20,7 @@ import type {
   MapResource,
   SpaceFilterType
 } from './public-floor-map';
-import { AlertCircle, ArrowLeft } from 'lucide-react';
+import { AlertCircle, ArrowLeft } from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceDetailPageProps {
@@ -184,7 +185,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
       <WorkspaceHeader />
 
       {isLoading ? (
-        <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 animate-pulse space-y-6'>
+        <LoadingPlaceholder as='main' className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6'>
           <div className='space-y-3'>
             <div className='h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded' />
             <div className='h-8 w-80 bg-slate-200 dark:bg-slate-800 rounded-lg' />
@@ -200,7 +201,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
               <div className='h-96 bg-slate-200 dark:bg-slate-800 rounded-2xl' />
             </div>
           </div>
-        </main>
+        </LoadingPlaceholder>
       ) : isError || !workspace ? (
         <main className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 w-full flex-1 flex flex-col items-center justify-center text-center'>
           <div className='size-16 rounded-2xl bg-red-500/10 text-red-500 flex items-center justify-center mb-5'>

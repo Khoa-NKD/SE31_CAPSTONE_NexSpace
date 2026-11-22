@@ -1,3 +1,5 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo, useCallback } from 'react';
@@ -8,10 +10,9 @@ import {
   Building2,
   AlertCircle,
   RefreshCw,
-  Loader2,
   LayoutGrid,
   Table as TableIcon
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DataTable } from '@/components/ui/table/data-table';
@@ -184,7 +185,7 @@ export function WorkspacesDashboardView() {
       >
         {isFetching && !isLoading && (
           <Loader2
-            className='size-4 animate-spin text-primary'
+            className='size-4 text-primary'
             aria-label={c('Refreshing workspaces', 'Đang làm mới danh sách không gian')}
           />
         )}
@@ -272,17 +273,17 @@ export function WorkspacesDashboardView() {
       {/* Loading Skeleton */}
       {isLoading &&
         (viewMode === 'table' ? (
-          <div className='flex flex-col gap-4 animate-pulse'>
+          <LoadingPlaceholder className='flex flex-col gap-4'>
             <div className='h-12 bg-muted rounded-lg w-full' />
             <div className='h-72 bg-muted/60 rounded-lg w-full' />
             <div className='h-10 bg-muted rounded-lg w-full' />
-          </div>
+          </LoadingPlaceholder>
         ) : (
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8'>
             {[1, 2, 3, 4, 5, 6].map((idx) => (
-              <div
+              <LoadingPlaceholder
                 key={idx}
-                className='flex flex-col rounded-xl bg-card border border-border shadow-2xs overflow-hidden animate-pulse'
+                className='flex flex-col rounded-xl bg-card border border-border shadow-2xs overflow-hidden'
               >
                 <div className='w-full aspect-video bg-muted' />
                 <div className='p-5 sm:p-6 flex flex-col gap-4'>
@@ -290,7 +291,7 @@ export function WorkspacesDashboardView() {
                   <div className='h-3 bg-muted rounded w-1/2' />
                   <div className='h-12 bg-muted/60 rounded-lg' />
                 </div>
-              </div>
+              </LoadingPlaceholder>
             ))}
           </div>
         ))}

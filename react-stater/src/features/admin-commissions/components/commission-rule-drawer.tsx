@@ -10,7 +10,7 @@ import {
   Lock,
   Info,
   Maximize2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
@@ -404,7 +404,7 @@ export function CommissionRuleDrawer({
       {/* Slide-over Panel (560px desktop) */}
       <aside
         aria-label='Commission Rule Configuration Panel'
-        className='fixed top-0 right-0 h-screen w-full sm:w-[560px] z-50 bg-card text-card-foreground border-l border-border shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-300'
+        className='ns-modal-shine fixed top-0 right-0 h-screen w-full sm:w-[560px] z-50 bg-card text-card-foreground border-l border-border shadow-2xl flex flex-col justify-between animate-in slide-in-from-right duration-300'
       >
         {/* Drawer Header */}
         <div className='p-6 border-b border-border flex items-start justify-between bg-card shrink-0'>

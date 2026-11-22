@@ -1,6 +1,6 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Download } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';
 

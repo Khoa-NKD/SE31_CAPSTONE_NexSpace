@@ -26,7 +26,7 @@ import {
   Tv,
   PhoneCall,
   Clock
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useQuery } from '@tanstack/react-query';
 import { amenityQueries } from '@/features/amenities/api/queries';
 

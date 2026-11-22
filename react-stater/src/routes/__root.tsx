@@ -44,15 +44,23 @@ export const Route = createRootRouteWithContext<{
       ...seo()
     ],
     links: [
-      { rel: 'preconnect', href: 'https://fonts.googleapis.com' },
-      { rel: 'preconnect', href: 'https://fonts.gstatic.com', crossOrigin: 'anonymous' },
       {
-        rel: 'stylesheet',
-        href: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&display=swap'
+        rel: 'preload',
+        href: '/fonts/inter/inter-latin-wght-normal.woff2',
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
+      },
+      {
+        rel: 'preload',
+        href: '/fonts/inter/inter-vietnamese-wght-normal.woff2',
+        as: 'font',
+        type: 'font/woff2',
+        crossOrigin: 'anonymous'
       },
       { rel: 'stylesheet', href: appCss },
-      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' },
-      { rel: 'apple-touch-icon', href: '/favicon.svg' }
+      { rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg?v=20261122' },
+      { rel: 'apple-touch-icon', href: '/favicon.svg?v=20261122' }
     ]
   }),
   loader: async ({ location }) => {

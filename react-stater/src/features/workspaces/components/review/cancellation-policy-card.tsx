@@ -1,4 +1,4 @@
-import { CalendarCheck } from 'lucide-react';
+import { CalendarCheck } from '@/components/ui/hugeicons';
 import type { CancellationRule } from '@/features/workspaces/api/types';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { cancellationPolicyError } from '@/features/workspaces/utils/cancellation-policy';

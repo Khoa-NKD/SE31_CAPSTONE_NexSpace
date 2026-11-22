@@ -1,5 +1,5 @@
 import React from 'react';
-import { ArrowUpDown, Inbox, RefreshCw, Plus } from 'lucide-react';
+import { ArrowUpDown, Inbox, RefreshCw, Plus } from '@/components/ui/hugeicons';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Button } from '@/components/ui/button';
 import { ResourceItem } from '../types';

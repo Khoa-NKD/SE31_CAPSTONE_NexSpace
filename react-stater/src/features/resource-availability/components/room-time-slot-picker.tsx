@@ -1,5 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState } from 'react';
-import { Users, Clock, AlertCircle, Loader2, Sparkles } from 'lucide-react';
+import { Users, Clock, AlertCircle, Sparkles } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -108,7 +109,7 @@ export const RoomTimeSlotPicker: React.FC<RoomTimeSlotPickerProps> = ({
       {/* Trạng thái tải dữ liệu */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center p-12 space-y-3 rounded-lg border border-dashed text-muted-foreground">
-          <Loader2 className="size-6 animate-spin text-primary" />
+          <Loader2 className="size-6 text-primary" />
           <p className="text-sm">Đang kiểm tra tình trạng phòng và xung đột ghế con...</p>
         </div>
       )}

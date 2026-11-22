@@ -1,3 +1,4 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { organizerPayoutQueries } from '../api/queries';
@@ -5,7 +6,7 @@ import { PayoutBalanceCards } from './payout-balance-cards';
 import { AutoPayoutSettingsCard } from './auto-payout-settings-card';
 import { WithdrawalHistoryTable } from './withdrawal-history-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, ArrowLeft } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 
 export const OrganizerPayoutsView: React.FC = () => {
@@ -24,10 +25,10 @@ export const OrganizerPayoutsView: React.FC = () => {
   if (isBalanceLoading || isSettingsLoading) {
     return (
       <div className="p-6 space-y-4">
-        <div className="h-8 w-64 bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+        <LoadingPlaceholder className="h-8 w-64 bg-slate-100 dark:bg-slate-800 rounded" />
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl animate-pulse" />
+            <LoadingPlaceholder key={i} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl" />
           ))}
         </div>
       </div>

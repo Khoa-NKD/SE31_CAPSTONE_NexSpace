@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { ClipboardCheck, Building2, DraftingCompass, CheckCircle2, ArrowRight } from 'lucide-react';
+import { ClipboardCheck, Building2, DraftingCompass, CheckCircle2, ArrowRight } from '@/components/ui/hugeicons';
 import { ModerationWorkloadItem } from '../data/mock-workspaces';
 
 interface ModerationWorkloadCardProps {

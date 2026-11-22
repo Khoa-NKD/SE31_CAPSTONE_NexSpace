@@ -1,8 +1,9 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { ShieldCheck, RefreshCw, Loader2 } from 'lucide-react';
+import { ShieldCheck, RefreshCw } from '@/components/ui/hugeicons';
 import { useQuery } from '@tanstack/react-query';
 import {
   BookingItem,
@@ -533,7 +534,7 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
         {/* Loading Spinner Indicator */}
         {isLoading && (
           <div className='flex items-center justify-center p-8 text-muted-foreground gap-2'>
-            <Loader2 className='w-5 h-5 animate-spin text-primary' />
+            <Loader2 className='w-5 h-5 text-primary' />
             <span className='text-xs'>
               {c('Loading organizer reservations...', 'Đang tải danh sách đặt chỗ...')}
             </span>
@@ -598,7 +599,7 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
             disabled={isFetching}
             className='flex items-center gap-1 text-[11px] text-primary hover:underline font-medium cursor-pointer'
           >
-            <RefreshCw className={`w-3 h-3 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? <Spinner className={`w-3 h-3 `} /> : <RefreshCw className={`w-3 h-3 `} />}
             {isFetching ? 'Syncing...' : 'Ping Gateway'}
           </button>
         </div>

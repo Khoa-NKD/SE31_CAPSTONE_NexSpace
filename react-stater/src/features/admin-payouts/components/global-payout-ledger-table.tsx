@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ import {
   ArrowDownLeft,
   Building2,
   Inbox
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerWithdrawalBatch, PageResponse } from '../api/types';
 import { useRetryWithdrawalMutation } from '../api/mutations';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -172,7 +173,7 @@ export const GlobalPayoutLedgerTable: React.FC<GlobalPayoutLedgerTableProps> = (
                         )}
                         {isProcessing && (
                           <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-semibold gap-1">
-                            <Clock className="h-2.5 w-2.5 animate-spin" /> {language === 'vi' ? 'Đang chuyển' : 'Processing'}
+                            <Spinner className="h-2.5 w-2.5" /> {language === 'vi' ? 'Đang chuyển' : 'Processing'}
                           </Badge>
                         )}
                         {isFailed && (
@@ -198,7 +199,7 @@ export const GlobalPayoutLedgerTable: React.FC<GlobalPayoutLedgerTableProps> = (
                             disabled={retryMutation.isPending}
                             className="text-amber-700 dark:text-amber-400 hover:text-amber-800 border-amber-200 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/40 h-7 px-2 text-xs gap-1"
                           >
-                            <RotateCcw className={`h-3 w-3 ${retryMutation.isPending ? 'animate-spin' : ''}`} />
+                            {retryMutation.isPending ? <Spinner className={`h-3 w-3 `} /> : <RotateCcw className={`h-3 w-3 `} />}
                             {retryMutation.isPending
                               ? language === 'vi' ? 'Đang thử lại...' : 'Retrying...'
                               : language === 'vi' ? 'Thử lại' : 'Retry'}

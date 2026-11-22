@@ -1,0 +1,64 @@
+.ns-toaster [data-sonner-toast].ns-toast {
+  font-family: var(--font-app);
+  background: var(--popover);
+  color: var(--popover-foreground);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px 20px;
+  gap: 12px;
+  box-shadow: 0 12px 40px -12px #0003;
+  overflow: visible;
+}
+.ns-toaster [data-sonner-toast].ns-toast:before {
+  content: '';
+  position: absolute;
+  inset: 12px auto 12px 0;
+  width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--primary);
+}
+.ns-toaster .ns-toast-title {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+.ns-toaster .ns-toast-description {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted-foreground);
+}
+.ns-toaster [data-type='success'] [data-icon] {
+  color: #16a074;
+}
+.ns-toaster [data-type='error'] [data-icon] {
+  color: #e5484d;
+}
+.ns-toaster [data-type='warning'] [data-icon] {
+  color: #d39417;
+}
+.ns-toaster [data-type='info'] [data-icon] {
+  color: #7670ef;
+}
+.ns-toaster [data-sonner-toast].ns-toast[data-type='error']:before {
+  background: #e5484d;
+}
+.ns-toaster [data-sonner-toast].ns-toast[data-type='success']:before {
+  background: #16a074;
+}
+.ns-toaster .ns-toast-close {
+  background: var(--popover);
+  color: var(--muted-foreground);
+  border-color: var(--border);
+}
+.ns-toaster .ns-toast-action {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-radius: 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ns-toaster [data-sonner-toast] {
+    transition: none !important;
+    animation: none !important;
+  }
+}

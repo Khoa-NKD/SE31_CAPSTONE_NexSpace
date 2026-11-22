@@ -2,24 +2,8 @@
 
 @import 'tw-animate-css';
 
-/* Fontsource font imports */
-@import '@fontsource/geist-sans';
-@import '@fontsource/geist-mono';
-@import '@fontsource-variable/inter';
-@import '@fontsource-variable/dm-sans';
-@import '@fontsource-variable/instrument-sans';
-@import '@fontsource-variable/mulish';
-@import '@fontsource-variable/outfit';
-@import '@fontsource-variable/playfair-display';
-@import '@fontsource/merriweather/300.css';
-@import '@fontsource/merriweather/400.css';
-@import '@fontsource/merriweather/700.css';
-@import '@fontsource/architects-daughter/400.css';
-@import '@fontsource-variable/fira-code';
-@import '@fontsource-variable/jetbrains-mono';
-@import '@fontsource-variable/noto-sans-mono';
-@import '@fontsource/space-mono/400.css';
-@import '@fontsource/space-mono/700.css';
+@import './fonts.css';
+@import '../components/ui/shine-border.css';
 
 @custom-variant dark (&:is(.dark *));
 
@@ -27,11 +11,17 @@
 @import './organizer.css';
 
 @layer base {
+  html {
+    font-family: var(--font-app);
+  }
   * {
     @apply border-border outline-ring/50;
   }
   body {
     @apply bg-background text-foreground;
+  }
+  :where(button, input, select, textarea, optgroup, code, kbd, pre, samp, svg text) {
+    font-family: inherit;
   }
 
   /* Global scrollbar styling to match ScrollArea */
@@ -119,6 +109,10 @@
 }
 
 :root {
+  --font-app: 'Inter', system-ui, sans-serif;
+  --font-sans: var(--font-app);
+  --font-serif: var(--font-app);
+  --font-mono: var(--font-app);
   --sidebar: hsl(0 0% 98%);
   --sidebar-foreground: hsl(240 5.3% 26.1%);
   --sidebar-primary: hsl(240 5.9% 10%);
@@ -168,14 +162,10 @@
       0 8px 10px -6px rgba(15, 23, 42, 0.04);
   }
   .font-display {
-    font-family:
-      'Plus Jakarta Sans',
-      system-ui,
-      -apple-system,
-      sans-serif;
+    font-family: var(--font-app);
     letter-spacing: -0.02em;
   }
-  /* Strict Single Typography Enforcement for Landing Page */
+  /* Keep portal surfaces aligned with the same application typography. */
   .landing-scope,
   .landing-scope *,
   [data-landing-root],
@@ -183,11 +173,7 @@
   [data-radix-popper-content-wrapper] *,
   [data-slot='dialog-content'] *,
   [data-slot='sheet-content'] * {
-    font-family:
-      'Plus Jakarta Sans',
-      system-ui,
-      -apple-system,
-      sans-serif !important;
+    font-family: var(--font-app) !important;
   }
   .glass-card {
     background: rgba(255, 255, 255, 0.85);

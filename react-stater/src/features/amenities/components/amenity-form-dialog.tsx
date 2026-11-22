@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -36,9 +37,8 @@ import {
   Utensils,
   Heart,
   Sparkles,
-  Zap,
-  Loader2
-} from 'lucide-react';
+  Zap
+} from '@/components/ui/hugeicons';
 import type { AmenityDto, AmenityCategory } from '../api/types';
 import {
   useCreateAmenityMutation,
@@ -242,7 +242,7 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
           {c('Cancel', 'Hủy')}
         </Button>
         <Button type='submit' disabled={isSubmitting} className='gap-2'>
-          {isSubmitting && <Loader2 className='size-4 animate-spin' />}
+          {isSubmitting && <Loader2 className='size-4' />}
           {isEditing ? c('Save Changes', 'Lưu thay đổi') : c('Create Amenity', 'Tạo tiện ích')}
         </Button>
       </DialogFooter>

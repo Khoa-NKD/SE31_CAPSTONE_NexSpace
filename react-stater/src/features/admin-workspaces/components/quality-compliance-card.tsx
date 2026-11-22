@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Star, CheckCircle2, Sparkles, Settings } from 'lucide-react';
+import { Shield, Star, CheckCircle2, Sparkles, Settings } from '@/components/ui/hugeicons';
 import { QualityHealthMetrics } from '../data/mock-workspaces';
 
 interface QualityComplianceCardProps {

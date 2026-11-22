@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useMemo, useEffect } from 'react';
-import { Map, List } from 'lucide-react';
+import { Map, List } from '@/components/ui/hugeicons';
 import { WorkspaceHeader } from './workspace-header';
 import { WorkspaceFilterBar } from './workspace-filter-bar';
 import { WorkspaceList } from './workspace-list';

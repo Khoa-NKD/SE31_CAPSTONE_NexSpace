@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import React from 'react';
 import { WorkspaceHeader } from '../workspace-header';
@@ -10,7 +11,7 @@ import { ConciergeSupportCard } from './concierge-support-card';
 import { useBookingByCodeQuery, useBookingByIdQuery } from '../../api/booking-queries';
 import { useCustomerBookings } from '@/features/payments/api/queries';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { Loader2, TicketX } from 'lucide-react';
+import { TicketX } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 
@@ -79,7 +80,7 @@ export function BookingConfirmationPage({
         {/* Loading State */}
         {isLoading && (
           <div className='flex min-h-[400px] flex-col items-center justify-center gap-3 text-center'>
-            <Loader2 className='size-8 animate-spin text-primary' />
+            <Loader2 className='size-8 text-primary' />
             <p className='text-sm text-muted-foreground'>
               Đang tải thông tin vé điện tử và xác thực mã đặt chỗ...
             </p>

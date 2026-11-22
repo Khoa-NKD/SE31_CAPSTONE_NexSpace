@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/hugeicons';
 import { VerificationApplication } from '../data/mock-organizers';
 
 interface RejectionConfirmDialogProps {

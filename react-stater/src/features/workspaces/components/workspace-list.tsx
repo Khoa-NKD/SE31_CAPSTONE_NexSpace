@@ -1,13 +1,7 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React from 'react';
-import {
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  AlertTriangle,
-  Loader2,
-  Building2,
-  Navigation
-} from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Building2, Navigation } from '@/components/ui/hugeicons';
 import { WorkspaceCard } from './workspace-card';
 import { usePublicWorkspacesQuery, useNearbyWorkspacesQuery } from '../api/queries';
 import type { PublicWorkspaceSummary } from '../api/types';
@@ -202,7 +196,7 @@ export function WorkspaceList({
           <h1 className="text-sm sm:text-base font-bold text-foreground truncate">
             {isLoading ? (
               <span className="inline-flex items-center gap-1.5">
-                <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                <Loader2 className="h-3.5 w-3.5 text-primary" />
                 Đang tìm không gian...
               </span>
             ) : isNearbyEnabled ? (
@@ -268,9 +262,9 @@ export function WorkspaceList({
       {isLoading && (
         <div className="flex flex-col gap-3">
           {[1, 2, 3, 4].map((n) => (
-            <div
+            <LoadingPlaceholder
               key={n}
-              className="rounded-2xl border border-border/60 bg-card p-3 sm:h-[168px] flex flex-col sm:flex-row gap-3 animate-pulse"
+              className="rounded-2xl border border-border/60 bg-card p-3 sm:h-[168px] flex flex-col sm:flex-row gap-3"
             >
               <div className="bg-muted rounded-xl w-full h-[130px] sm:h-full sm:w-[210px] shrink-0" />
               <div className="flex-1 space-y-2 py-1">
@@ -279,7 +273,7 @@ export function WorkspaceList({
                 <div className="h-3.5 bg-muted rounded w-1/2" />
                 <div className="h-4 bg-muted rounded w-1/4 mt-auto" />
               </div>
-            </div>
+            </LoadingPlaceholder>
           ))}
         </div>
       )}

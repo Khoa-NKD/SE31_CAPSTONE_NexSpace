@@ -2,7 +2,7 @@ import React from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileText, ArrowRight } from 'lucide-react';
+import { FileText, ArrowRight } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { CommissionKpiCards } from '@/features/admin-commissions/components/commission-kpi-cards';
 import { GtvRevenueChart } from '@/features/admin-commissions/components/gtv-revenue-chart';

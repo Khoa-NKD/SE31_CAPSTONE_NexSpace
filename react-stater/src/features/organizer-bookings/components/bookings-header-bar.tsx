@@ -2,7 +2,7 @@ import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, Download, Plus, Radio, Calendar } from 'lucide-react';
+import { ChevronRight, Download, Plus, Radio, Calendar } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 
 interface BookingsHeaderBarProps {

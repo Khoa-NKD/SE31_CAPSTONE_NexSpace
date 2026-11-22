@@ -10,7 +10,7 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { AlertTriangle, ArrowRight, ShieldCheck, Store, Gavel, Clock } from 'lucide-react';
+import { AlertTriangle, ArrowRight, ShieldCheck, Store, Gavel, Clock } from '@/components/ui/hugeicons';
 import { TriageItem } from '../data/mock-overview';
 import { useLanguage } from '@/features/landing/context/language-context';
 

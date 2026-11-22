@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Building2, Star, Users } from 'lucide-react';
+import { Building2, Star, Users } from '@/components/ui/hugeicons';
 import { TESTIMONIALS } from '../api/data';
 
 import { useLanguage } from '../context/language-context';

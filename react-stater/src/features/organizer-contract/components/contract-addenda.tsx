@@ -1,9 +1,9 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileCheck2, Mail, RefreshCw } from 'lucide-react';
+import { FileCheck2, Mail, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import { VerificationCode } from '@/components/ui/verification-code';
 import {
   Dialog,
   DialogContent,
@@ -349,15 +349,11 @@ function AddendumCard({
                 )}
           </p>
           <div className='flex flex-wrap gap-2'>
-            <Input
+            <VerificationCode
               value={otp}
-              onChange={(event) => setOtp(event.target.value.replace(/\D/g, '').slice(0, 6))}
-              placeholder={t('Mã OTP 6 số', '6-digit OTP')}
-              aria-label={t('Mã OTP phụ lục', 'Addendum OTP')}
-              inputMode='numeric'
-              autoComplete='one-time-code'
+              onChange={setOtp}
+              ariaLabel={t('Mã OTP phụ lục', 'Addendum OTP')}
               disabled={busy}
-              className='max-w-48'
             />
             <Button
               type='button'

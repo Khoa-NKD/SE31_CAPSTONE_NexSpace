@@ -1,14 +1,7 @@
 import { useState, useRef, useEffect, useCallback, type KeyboardEvent } from 'react';
-import {
-  Bot,
-  Send,
-  X,
-  Minus,
-  RotateCcw,
-  Sparkles,
-  Maximize2,
-  Compass
-} from 'lucide-react';
+import { ChatLauncherOrb } from './chat-launcher-orb';
+import { ChatThinking } from './chat-thinking';
+import { Bot, Send, X, Minus, RotateCcw, Sparkles, Maximize2, Compass } from '@/components/ui/hugeicons';
 import { useChatbot } from '../hooks/use-chatbot';
 import { ChatMessageItem } from './chat-message-item';
 
@@ -70,9 +63,7 @@ export function FloatingChatWidget() {
       {isOpen && (
         <div
           className={`pointer-events-auto mb-3 flex flex-col overflow-hidden rounded-2xl border border-border bg-background shadow-2xl transition-all duration-300 ease-out ${
-            isMinimized
-              ? 'h-14 w-80'
-              : 'h-[530px] w-[370px] sm:w-[410px]'
+            isMinimized ? 'h-14 w-80' : 'h-[530px] w-[370px] sm:w-[410px]'
           }`}
         >
           {/* Header */}
@@ -84,13 +75,17 @@ export function FloatingChatWidget() {
               </div>
               <div className='flex flex-col'>
                 <div className='flex items-center gap-1.5'>
-                  <span className='text-xs font-semibold text-foreground leading-none'>NexBot AI</span>
+                  <span className='text-xs font-semibold text-foreground leading-none'>
+                    NexBot AI
+                  </span>
                   <span className='inline-flex items-center gap-0.5 rounded-full bg-primary/10 px-1.5 py-0.2 text-[9px] font-medium text-primary'>
                     <Sparkles className='h-2.5 w-2.5' />
                     Trợ lý ảo
                   </span>
                 </div>
-                <span className='text-[10px] text-muted-foreground mt-0.5'>Luôn sẵn sàng hỗ trợ bạn</span>
+                <span className='text-[10px] text-muted-foreground mt-0.5'>
+                  Luôn sẵn sàng hỗ trợ bạn
+                </span>
               </div>
             </div>
 
@@ -121,7 +116,11 @@ export function FloatingChatWidget() {
                 title={isMinimized ? 'Mở rộng' : 'Thu nhỏ'}
                 className='rounded-md p-1.5 hover:bg-muted hover:text-foreground transition-colors'
               >
-                {isMinimized ? <Maximize2 className='h-3.5 w-3.5' /> : <Minus className='h-3.5 w-3.5' />}
+                {isMinimized ? (
+                  <Maximize2 className='h-3.5 w-3.5' />
+                ) : (
+                  <Minus className='h-3.5 w-3.5' />
+                )}
               </button>
               <button
                 type='button'
@@ -165,18 +164,7 @@ export function FloatingChatWidget() {
                 ))}
 
                 {/* Loading typing indicator */}
-                {isLoading && (
-                  <div className='flex items-center gap-2 text-muted-foreground text-xs pl-2'>
-                    <div className='flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary border border-primary/20'>
-                      <Bot className='h-3.5 w-3.5' />
-                    </div>
-                    <div className='flex items-center gap-1 rounded-2xl bg-muted/60 px-3 py-2 border border-border/40'>
-                      <span className='h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.3s]' />
-                      <span className='h-1.5 w-1.5 rounded-full bg-primary animate-bounce [animation-delay:-0.15s]' />
-                      <span className='h-1.5 w-1.5 rounded-full bg-primary animate-bounce' />
-                    </div>
-                  </div>
-                )}
+                {isLoading && <ChatThinking />}
 
                 <div ref={messagesEndRef} />
               </div>
@@ -213,10 +201,11 @@ export function FloatingChatWidget() {
       <button
         type='button'
         onClick={toggleChat}
-        className='pointer-events-auto relative flex h-13 w-13 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/25 transition-all duration-200 hover:scale-105 active:scale-95 focus:outline-none focus:ring-2 focus:ring-primary/40'
+        className='pointer-events-auto relative flex h-14 w-14 items-center justify-center rounded-full border border-indigo-400/40 bg-[#14162e] text-white shadow-lg shadow-indigo-500/25 transition-transform duration-200 hover:scale-105 active:scale-95 motion-reduce:transform-none focus:outline-none focus:ring-2 focus:ring-indigo-400'
         aria-label='Mở trợ lý ảo NexBot'
       >
-        <Bot className='h-6 w-6' />
+        <ChatLauncherOrb />
+        <Bot className='relative z-10 h-5 w-5' />
         <span className='sr-only'>Trợ lý ảo AI NexBot</span>
 
         {/* Unread notification ping */}
@@ -227,11 +216,6 @@ export function FloatingChatWidget() {
               1
             </span>
           </span>
-        )}
-
-        {/* Pulse ring animation */}
-        {!isOpen && (
-          <span className='absolute inset-0 rounded-full border border-primary/30 animate-pulse pointer-events-none' />
         )}
       </button>
     </div>

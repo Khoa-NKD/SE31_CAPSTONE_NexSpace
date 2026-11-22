@@ -5,7 +5,7 @@ import { PendingRequestsTable } from './pending-requests-table';
 import { GlobalPayoutLedgerTable } from './global-payout-ledger-table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Link } from '@tanstack/react-router';
-import { ArrowLeft, Clock, FileText } from 'lucide-react';
+import { ArrowLeft, Clock, FileText } from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 
 export const AdminPayoutsView: React.FC = () => {

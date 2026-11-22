@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Building2, CheckCircle2, CalendarCheck2 } from 'lucide-react';
+import { Users, Building2, CheckCircle2, CalendarCheck2 } from '@/components/ui/hugeicons';
 import { WorkspaceKpis } from '../data/mock-workspaces';
 
 interface WorkspaceStatusKpiGridProps {

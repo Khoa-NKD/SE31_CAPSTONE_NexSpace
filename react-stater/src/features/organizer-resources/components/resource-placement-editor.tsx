@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useCanvasMultiSelection, type GroupEditPhase } from './use-canvas-multi-selection';
 import { floorCornerRadius } from '../utils/floor-outline';
 import {
@@ -15,7 +16,6 @@ import {
   Move,
   Hand,
   Focus,
-  LoaderCircle,
   ZoomIn,
   ZoomOut,
   RotateCw,
@@ -25,7 +25,7 @@ import {
   RotateCcwSquare,
   Maximize2,
   Minimize2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { ResourceMapSymbol } from './resource-map-symbol';
 import { RoomWallLines } from './room-wall-lines';
@@ -827,7 +827,7 @@ export function ResourcePlacementEditor({
         </p>
       ) : query.isPending ? (
         <div className='flex items-center gap-2 p-6 text-sm text-muted-foreground'>
-          <LoaderCircle className='size-4 animate-spin' />
+          <LoaderCircle className='size-4' />
           {c('Loading floor…', 'Đang tải sơ đồ…')}
         </div>
       ) : query.isError ? (

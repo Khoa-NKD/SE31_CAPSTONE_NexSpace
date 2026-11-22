@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp } from 'lucide-react';
+import { TrendingUp } from '@/components/ui/hugeicons';
 import { MOCK_GTV_MONTHLY_HISTORY } from '../data/mock-commissions';
 
 export function GtvRevenueChart() {

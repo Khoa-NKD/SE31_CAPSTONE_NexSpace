@@ -1,14 +1,17 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import { useQuery } from '@tanstack/react-query';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { Download, RefreshCw, Calendar } from 'lucide-react';
+import { Download, RefreshCw, Calendar } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { adminPlatformAnalyticsQueryOptions } from '@/features/admin-analytics/api/queries';
 import { AnalyticsKpiGrid } from '@/features/admin-analytics/components/analytics-kpi-grid';
 import { AnalyticsMacroCharts } from '@/features/admin-analytics/components/analytics-macro-charts';
-import { WorkspacesLeaderboardTable } from '@/features/admin-analytics/components/workspaces-leaderboard-table';
+import {
+  WorkspacesLeaderboardTable
+} from '@/features/admin-analytics/components/workspaces-leaderboard-table';
 
 export const Route = createFileRoute('/dashboard/admin/analytics')({
   head: () => ({
@@ -131,7 +134,7 @@ function PlatformAnalyticsDashboardPage() {
               className='text-xs font-semibold gap-1.5 shadow-xs'
               title='Force Telemetry Sync'
             >
-              <RefreshCw className={`size-3.5 ${isSyncing ? 'animate-spin' : ''}`} />
+              {isSyncing ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
               <span className='hidden sm:inline'>Live Sync</span>
             </Button>
           </div>

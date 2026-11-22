@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lightbulb } from 'lucide-react';
+import { Lightbulb } from '@/components/ui/hugeicons';
 import { DropoffIssueStat } from '../data/mock-organizers';
 
 interface VerificationIssuesCardProps {
