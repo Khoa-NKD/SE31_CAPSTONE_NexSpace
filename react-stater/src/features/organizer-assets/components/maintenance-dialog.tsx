@@ -1,6 +1,5 @@
-import { Spinner as Loader2 } from '@/components/ui/spinner';
+import { useState } from 'react';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
-import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,22 +9,10 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { DateInput } from '@/components/ui/date-input';
 import { Textarea } from '@/components/ui/textarea';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue
-} from '@/components/ui/select';
 import { useCreateMaintenanceLogMutation } from '@/features/workspaces/api/mutations';
-import type {
-  MaintenanceStatus,
-  MaintenanceType,
-  WorkspaceAssetDto
-} from '@/features/workspaces/api/types';
-import { Wrench } from '@/components/ui/hugeicons';
+import type { WorkspaceAssetDto } from '@/features/workspaces/api/types';
 
 interface MaintenanceDialogProps {
   open: boolean;
@@ -41,186 +28,119 @@ export function MaintenanceDialog({
   asset
 }: MaintenanceDialogProps) {
   const c = useOrganizerCopy();
-  const [maintenanceType, setMaintenanceType] = useState<MaintenanceType>('REPAIR');
-  const [status, setStatus] = useState<MaintenanceStatus>('IN_PROGRESS');
+  const [start, setStart] = useState('');
+  const [end, setEnd] = useState('');
   const [description, setDescription] = useState('');
   const [performedBy, setPerformedBy] = useState('');
   const [cost, setCost] = useState('');
-  const [resultNote, setResultNote] = useState('');
-
-  const createLogMutation = useCreateMaintenanceLogMutation();
-  const isSubmitting = createLogMutation.isPending;
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!asset || !description.trim()) return;
-
-    createLogMutation.mutate(
-      {
-        workspaceId,
-        assetId: asset.id,
-        payload: {
-          maintenanceType,
-          status,
-          description: description.trim(),
-          performedBy: performedBy.trim() || null,
-          cost: cost ? Number(cost) : null,
-          startedAt: status === 'IN_PROGRESS' ? new Date().toISOString() : null,
-          resultNote: resultNote.trim() || null
-        }
-      },
-      {
-        onSuccess: () => {
-          setDescription('');
-          setPerformedBy('');
-          setCost('');
-          setResultNote('');
-          onOpenChange(false);
-        }
-      }
-    );
-  };
-
+  const [error, setError] = useState('');
+  const mutation = useCreateMaintenanceLogMutation();
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className='max-w-lg overflow-hidden'>
-        <DialogHeader className='min-w-0 overflow-hidden pr-6'>
-          <DialogTitle className='flex items-center gap-2 min-w-0'>
-            <Wrench className='w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0' />
-            <span className='truncate'>
-              {c('Report issue / Schedule maintenance:', 'Báo hỏng / Lập lịch bảo trì:')}{' '}
-              {asset?.name} ({asset?.assetCode})
-            </span>
+      <DialogContent className='max-w-lg'>
+        <DialogHeader>
+          <DialogTitle>
+            {c('Schedule maintenance', 'Lập lịch bảo trì')}: {asset?.name}
           </DialogTitle>
         </DialogHeader>
-
-        <form onSubmit={handleSubmit} className='space-y-4 pt-2'>
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
-            <div className='space-y-1.5 min-w-0'>
-              <Label htmlFor='maintenanceType' className='text-xs font-semibold'>
-                {c('Work type', 'Loại công việc')} <span className='text-rose-500'>*</span>
-              </Label>
-              <Select
-                value={maintenanceType}
-                onValueChange={(val: MaintenanceType) => setMaintenanceType(val)}
-              >
-                <SelectTrigger
-                  id='maintenanceType'
-                  className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'
-                >
-                  <SelectValue placeholder={c('Select work type', 'Chọn loại công việc')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='REPAIR'>
-                    {c('Repair (incident)', 'Sửa chữa sự cố (Repair)')}
-                  </SelectItem>
-                  <SelectItem value='INSPECTION'>
-                    {c('Routine inspection', 'Kiểm tra định kỳ (Inspection)')}
-                  </SelectItem>
-                  <SelectItem value='REPLACEMENT'>
-                    {c('Component replacement', 'Thay thế linh kiện (Replacement)')}
-                  </SelectItem>
-                  <SelectItem value='CLEANING'>
-                    {c('Equipment cleaning', 'Vệ sinh thiết bị (Cleaning)')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className='space-y-1.5 min-w-0'>
-              <Label htmlFor='logStatus' className='text-xs font-semibold'>
-                {c('Processing status', 'Trạng thái xử lý')}
-              </Label>
-              <Select value={status} onValueChange={(val: MaintenanceStatus) => setStatus(val)}>
-                <SelectTrigger
-                  id='logStatus'
-                  className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'
-                >
-                  <SelectValue placeholder={c('Select status', 'Chọn trạng thái')} />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value='IN_PROGRESS'>
-                    {c('In progress (move to maintenance)', 'Đang xử lý (Chuyển sang bảo trì)')}
-                  </SelectItem>
-                  <SelectItem value='SCHEDULED'>
-                    {c('Scheduled (repair not started)', 'Đã lên lịch (Chưa bắt đầu sửa)')}
-                  </SelectItem>
-                  <SelectItem value='COMPLETED'>
-                    {c('Already completed', 'Đã hoàn thành ngay')}
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className='space-y-1.5'>
-            <Label htmlFor='desc' className='text-xs font-semibold'>
-              {c('Issue description / maintenance details', 'Mô tả sự cố / nội dung bảo dưỡng')}{' '}
-              <span className='text-rose-500'>*</span>
-            </Label>
+        <form
+          className='space-y-4'
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!asset) return;
+            if (!start || !end || start >= end) {
+              setError(c('End must be after start.', 'Kết thúc phải sau bắt đầu.'));
+              return;
+            }
+            setError('');
+            mutation.mutate(
+              {
+                workspaceId,
+                assetId: asset.id,
+                payload: {
+                  maintenanceType: 'REPAIR',
+                  status: 'SCHEDULED',
+                  scheduledAt: start,
+                  plannedEndAt: end,
+                  description: description.trim(),
+                  performedBy: performedBy.trim() || null,
+                  cost: cost ? Number(cost) : null
+                }
+              },
+              {
+                onSuccess: () => {
+                  setStart('');
+                  setEnd('');
+                  setDescription('');
+                  setPerformedBy('');
+                  setCost('');
+                  onOpenChange(false);
+                }
+              }
+            );
+          }}
+        >
+          <label className='block space-y-1 text-sm'>
+            {c('Start', 'Bắt đầu')} *
+            <DateInput type='datetime-local' required value={start} onValueChange={setStart} />
+          </label>
+          <label className='block space-y-1 text-sm'>
+            {c('End', 'Kết thúc')} *
+            <DateInput type='datetime-local' required value={end} onValueChange={setEnd} />
+          </label>
+          <label className='block space-y-1 text-sm'>
+            {c('Maintenance details', 'Nội dung bảo trì')} *
             <Textarea
-              id='desc'
-              rows={3}
-              placeholder={c(
-                'e.g. Projector lamp flickers and needs a technician to replace it...',
-                'VD: Bóng đèn máy chiếu bị mờ chập chờn, cần gọi thợ kỹ thuật thay thế...'
-              )}
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
               required
+              maxLength={1000}
+              value={description}
+              onChange={(event) => setDescription(event.target.value)}
             />
-          </div>
-
-          <div className='grid grid-cols-1 sm:grid-cols-2 gap-4 min-w-0'>
-            <div className='space-y-1.5 min-w-0'>
-              <Label htmlFor='performedBy' className='text-xs font-semibold'>
-                {c('Technician / Service provider', 'Kỹ thuật viên / Đơn vị thực hiện')}
-              </Label>
+          </label>
+          <div className='grid gap-4 sm:grid-cols-2'>
+            <label className='block space-y-1 text-sm'>
+              {c('Technician / service provider', 'Kỹ thuật viên / đơn vị thực hiện')}
               <Input
-                id='performedBy'
-                className='w-full min-w-0'
-                placeholder={c(
-                  'e.g. Sony VN service center...',
-                  'VD: Trung tâm kỹ thuật Sony VN...'
-                )}
+                maxLength={100}
                 value={performedBy}
-                onChange={(e) => setPerformedBy(e.target.value)}
+                onChange={(event) => setPerformedBy(event.target.value)}
               />
-            </div>
-
-            <div className='space-y-1.5 min-w-0'>
-              <Label htmlFor='cost' className='text-xs font-semibold'>
-                {c('Estimated / actual cost (VND)', 'Chi phí ước tính / thực tế (VNĐ)')}
-              </Label>
+            </label>
+            <label className='block space-y-1 text-sm'>
+              {c('Estimated / actual cost (VND)', 'Chi phí ước tính / thực tế (VNĐ)')}
               <Input
-                id='cost'
                 type='number'
                 min={0}
-                className='w-full min-w-0'
-                placeholder='VD: 850000'
+                step='0.01'
                 value={cost}
-                onChange={(e) => setCost(e.target.value)}
+                onChange={(event) => setCost(event.target.value)}
               />
-            </div>
+            </label>
           </div>
-
-          <DialogFooter className='pt-2'>
+          <p className='text-xs text-muted-foreground'>
+            {c(
+              'Equipment resumes automatically at the end of this period, unless its room is still under maintenance.',
+              'Thiết bị tự hết bảo trì khi hết thời hạn, trừ khi phòng chứa nó vẫn đang bảo trì.'
+            )}
+          </p>
+          {(error || mutation.error) && (
+            <p role='alert' className='text-sm text-destructive'>
+              {error || mutation.error?.message}
+            </p>
+          )}
+          <DialogFooter>
             <Button
               type='button'
               variant='outline'
+              disabled={mutation.isPending}
               onClick={() => onOpenChange(false)}
-              disabled={isSubmitting}
             >
               {c('Cancel', 'Hủy')}
             </Button>
-            <Button
-              type='submit'
-              disabled={isSubmitting || !description.trim()}
-              className='bg-amber-600 hover:bg-amber-700 text-white'
-            >
-              {isSubmitting && <Loader2 className='w-4 h-4 mr-2' />}
-
-              {c('Record maintenance', 'Ghi nhận bảo trì')}
+            <Button disabled={mutation.isPending || !description.trim()}>
+              {mutation.isPending
+                ? c('Saving…', 'Đang lưu…')
+                : c('Save maintenance', 'Lưu lịch bảo trì')}
             </Button>
           </DialogFooter>
         </form>

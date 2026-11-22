@@ -198,7 +198,7 @@ export function WorkspaceBookingCard({
                     {selectedResource.typeName && <span>{selectedResource.typeName}</span>}
                     {selectedResource.capacity ? (
                       <span className='inline-flex items-center gap-0.5'>
-                        • <Users className='size-3' /> {selectedResource.capacity}
+                        • <Users className='size-3' /> {availabilityMap?.get(selectedResource.id)?.capacity ?? selectedResource.capacity}
                       </span>
                     ) : null}
                   </div>

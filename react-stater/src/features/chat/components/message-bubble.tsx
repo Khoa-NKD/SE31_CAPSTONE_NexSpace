@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { Check, CheckCheck, Paperclip, Sparkles, Bot } from 'lucide-react';
+import { Check, CheckCheck, Paperclip, Sparkles, Bot } from '@/components/ui/hugeicons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { BookingChatMessageDto } from '../api/types';
@@ -26,8 +26,8 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
             isMe
               ? 'bg-white/20 text-white border border-white/30'
               : isAi
-              ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-              : 'bg-muted text-foreground border border-border/60'
+                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                : 'bg-muted text-foreground border border-border/60'
           )}
         >
           {codeTagMatch[1]}
@@ -45,8 +45,8 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
             isMe
               ? 'bg-white/20 text-white border border-white/30'
               : isAi
-              ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-              : 'bg-muted text-foreground border border-border/60'
+                ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+                : 'bg-muted text-foreground border border-border/60'
           )}
         >
           {backtickMatch[1]}
@@ -83,8 +83,8 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
       role='group'
       aria-label={`${isAi ? 'NexSpace AI' : message.senderName} lúc ${timeStr}`}
     >
-      {!isMe && (
-        isAi ? (
+      {!isMe &&
+        (isAi ? (
           <div className='h-7 w-7 rounded-xl bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 flex items-center justify-center text-white shrink-0 mb-0.5 shadow-xs ring-1 ring-purple-500/30'>
             <Sparkles className='h-3.5 w-3.5 animate-pulse' />
           </div>
@@ -95,12 +95,11 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
               {message.senderName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-        )
-      )}
+        ))}
 
       <div className={cn('max-w-[85%] sm:max-w-[75%] space-y-1', isMe && 'ml-auto')}>
-        {!isMe && (
-          isAi ? (
+        {!isMe &&
+          (isAi ? (
             <div className='flex items-center gap-1.5 pl-1'>
               <span className='text-[11px] font-semibold text-purple-600 dark:text-purple-400'>
                 NexSpace AI
@@ -113,8 +112,7 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
             <p className='text-[11px] text-muted-foreground font-medium pl-1'>
               {message.senderName}
             </p>
-          )
-        )}
+          ))}
 
         <div
           className={cn(
@@ -122,8 +120,8 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
             isMe
               ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-br-xs shadow-xs'
               : isAi
-              ? 'border border-purple-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-card text-foreground rounded-bl-xs shadow-xs'
-              : 'bg-card text-foreground border border-border/80 rounded-bl-xs'
+                ? 'border border-purple-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-card text-foreground rounded-bl-xs shadow-xs'
+                : 'bg-card text-foreground border border-border/80 rounded-bl-xs'
           )}
         >
           {renderMessageContent(message.content, isMe, isAi)}
@@ -151,10 +149,12 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
         >
           <span>{timeStr}</span>
           {isAi && (
-            <span className='text-[9px] text-purple-500/80 font-medium ml-1'>• Trả lời tự động</span>
+            <span className='text-[9px] text-purple-500/80 font-medium ml-1'>
+              • Trả lời tự động
+            </span>
           )}
-          {isMe && (
-            message.isRead ? (
+          {isMe &&
+            (message.isRead ? (
               <span title='Đã đọc' className='text-emerald-500 flex items-center'>
                 <CheckCheck className='h-3 w-3' />
               </span>
@@ -162,8 +162,7 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
               <span title='Đã gửi' className='text-muted-foreground/60 flex items-center'>
                 <Check className='h-3 w-3' />
               </span>
-            )
-          )}
+            ))}
         </div>
       </div>
     </motion.div>

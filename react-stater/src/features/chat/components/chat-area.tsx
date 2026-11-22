@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Loader2, MessageSquare, Info, Sparkles, X } from 'lucide-react';
+import { MessageSquare, Info, Sparkles, X } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { AiToneMode, BookingChatMessageDto, BookingConversationDto } from '../api/types';
@@ -126,7 +127,8 @@ export function ChatArea({
           <div className='flex items-center gap-1.5 truncate'>
             <Info className='h-3.5 w-3.5 text-indigo-500 shrink-0' />
             <span className='truncate'>
-              Kênh hỗ trợ đơn <strong className='text-foreground font-mono'>#{conversation.bookingCode}</strong>
+              Kênh hỗ trợ đơn{' '}
+              <strong className='text-foreground font-mono'>#{conversation.bookingCode}</strong>
               {conversation.workspaceAddress && ` • ${conversation.workspaceAddress}`}
             </span>
           </div>
@@ -169,7 +171,7 @@ export function ChatArea({
         >
           {isLoadingMessages ? (
             <div className='flex flex-col items-center justify-center h-full text-muted-foreground py-10 gap-2'>
-              <Loader2 className='h-6 w-6 animate-spin text-indigo-600 dark:text-indigo-400' />
+              <Loader2 className='h-6 w-6 text-indigo-600 dark:text-indigo-400' />
               <span className='text-xs'>Đang tải tin nhắn...</span>
             </div>
           ) : messages.length === 0 ? (
@@ -187,11 +189,7 @@ export function ChatArea({
           ) : (
             <AnimatePresence initial={false}>
               {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  currentUserId={currentUserId}
-                />
+                <MessageBubble key={message.id} message={message} currentUserId={currentUserId} />
               ))}
             </AnimatePresence>
           )}

@@ -583,6 +583,7 @@ export interface MaintenanceLogDto {
   performedBy?: string | null;
   cost?: number | null;
   scheduledAt?: string | null;
+  plannedEndAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
   resultNote?: string | null;
@@ -597,6 +598,7 @@ export interface CreateMaintenanceLogPayload {
   performedBy?: string | null;
   cost?: number | null;
   scheduledAt?: string | null;
+  plannedEndAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;
   resultNote?: string | null;

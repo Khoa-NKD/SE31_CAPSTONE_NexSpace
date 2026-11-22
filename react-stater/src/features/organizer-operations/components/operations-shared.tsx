@@ -11,9 +11,9 @@ import { Button } from '@/components/ui/button';
 
 export const selectClass = 'organizer-control';
 export const panelClass = 'organizer-surface p-4 sm:p-5';
-export function useOperationsWorkspace() {
+export function useOperationsWorkspace(initialWorkspaceId?: number) {
   const actor = useAuthStore((s) => s.user?.id) ?? 0;
-  const [chosen, setChosen] = useState<number>();
+  const [chosen, setChosen] = useState<number | undefined>(initialWorkspaceId);
   const workspaces = useQuery({ ...resourceWorkspacesOptions(actor), enabled: !!actor });
   const workspaceId = workspaces.data?.some((w) => w.id === chosen)
     ? chosen
@@ -28,7 +28,10 @@ export function useOperationsWorkspace() {
     await Promise.all([
       client.invalidateQueries({ queryKey: ['organizer-operations', actor] }),
       client.invalidateQueries({ queryKey: ['organizer-resources', actor] }),
-      client.invalidateQueries({ queryKey: ['bookings'] })
+      client.invalidateQueries({ queryKey: ['bookings'] }),
+      client.invalidateQueries({ queryKey: ['availability'] }),
+      client.invalidateQueries({ queryKey: ['public-floor-maps'] }),
+      client.invalidateQueries({ queryKey: ['workspaces'] })
     ]);
   }
   return { actor, workspaces, workspaceId, setWorkspaceId: setChosen, pricing, invalidate };

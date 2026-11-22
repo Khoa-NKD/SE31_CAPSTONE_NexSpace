@@ -1,14 +1,14 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { FormEvent, useRef } from 'react';
 import {
   Send,
-  Loader2,
   Sparkles,
   RefreshCw,
   Wand2,
   Globe2,
   Zap,
   HeartHandshake
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
@@ -127,7 +127,7 @@ export function MessageComposer({
               >
                 {isSummarizing ? (
                   <>
-                    <Loader2 className='h-3 w-3 animate-spin text-purple-500' />
+                    <Loader2 className='h-3 w-3 text-purple-500' />
                     <span>Đang tổng hợp...</span>
                   </>
                 ) : (
@@ -141,7 +141,7 @@ export function MessageComposer({
 
             {isLoadingSmartReplies ? (
               <div className='flex items-center gap-1.5 text-xs text-muted-foreground py-0.5 px-2 animate-pulse'>
-                <Loader2 className='h-3 w-3 animate-spin text-primary' />
+                <Loader2 className='h-3 w-3 text-primary' />
                 <span className='text-[11px]'>NexSpace AI đang phân tích đơn...</span>
               </div>
             ) : (
@@ -223,9 +223,7 @@ export function MessageComposer({
               }
             }}
             placeholder={
-              isCustomer
-                ? 'Nhắn tin hoặc tag @NexSpace AI để hỏi...'
-                : `Nhắn cho ${contactName}...`
+              isCustomer ? 'Nhắn tin hoặc tag @NexSpace AI để hỏi...' : `Nhắn cho ${contactName}...`
             }
             rows={1}
             className='text-foreground placeholder:text-muted-foreground/70 min-h-[2.5rem] max-h-32 w-full resize-none border-none bg-transparent text-xs sm:text-sm focus-visible:ring-0 focus-visible:outline-none p-1'
@@ -251,16 +249,22 @@ export function MessageComposer({
                   aria-label='Trợ lý AI'
                 >
                   {isAdjustingTone ? (
-                    <Loader2 className='h-4 w-4 animate-spin text-primary' />
+                    <Loader2 className='h-4 w-4 text-primary' />
                   ) : (
                     <Wand2 className='h-4 w-4 text-primary' />
                   )}
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' side='top' className='w-56 p-1.5 shadow-xl rounded-2xl'>
+              <DropdownMenuContent
+                align='end'
+                side='top'
+                className='w-56 p-1.5 shadow-xl rounded-2xl'
+              >
                 <DropdownMenuLabel className='text-xs font-semibold text-muted-foreground px-2 py-1 flex items-center gap-1.5'>
                   <Sparkles className='h-3.5 w-3.5 text-primary' />
-                  <span>{isCustomer ? 'Trợ lý AI cho Khách hàng' : 'Trợ lý AI cho Chủ không gian'}</span>
+                  <span>
+                    {isCustomer ? 'Trợ lý AI cho Khách hàng' : 'Trợ lý AI cho Chủ không gian'}
+                  </span>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -269,9 +273,13 @@ export function MessageComposer({
                 >
                   <HeartHandshake className='h-4 w-4 text-rose-500 shrink-0' />
                   <div>
-                    <p className='font-semibold'>{isCustomer ? 'Lịch sự & Lễ phép' : 'Lịch sự & Hiếu khách'}</p>
+                    <p className='font-semibold'>
+                      {isCustomer ? 'Lịch sự & Lễ phép' : 'Lịch sự & Hiếu khách'}
+                    </p>
                     <p className='text-[10px] text-muted-foreground'>
-                      {isCustomer ? 'Hỏi thăm, nhờ hỗ trợ lịch sự và tôn trọng' : 'Thân thiện, tôn trọng và hiếu khách'}
+                      {isCustomer
+                        ? 'Hỏi thăm, nhờ hỗ trợ lịch sự và tôn trọng'
+                        : 'Thân thiện, tôn trọng và hiếu khách'}
                     </p>
                   </div>
                 </DropdownMenuItem>
@@ -283,7 +291,9 @@ export function MessageComposer({
                   <div>
                     <p className='font-semibold'>Rút gọn súc tích</p>
                     <p className='text-[10px] text-muted-foreground'>
-                      {isCustomer ? 'Đi thẳng vào thắc mắc cần giải đáp' : 'Ngắn gọn, đi thẳng vào trọng tâm'}
+                      {isCustomer
+                        ? 'Đi thẳng vào thắc mắc cần giải đáp'
+                        : 'Ngắn gọn, đi thẳng vào trọng tâm'}
                     </p>
                   </div>
                 </DropdownMenuItem>
@@ -307,7 +317,9 @@ export function MessageComposer({
                   <Globe2 className='h-4 w-4 text-emerald-500 shrink-0' />
                   <div>
                     <p className='font-semibold'>Dịch sang Tiếng Việt</p>
-                    <p className='text-[10px] text-muted-foreground'>Tiếng Việt tự nhiên chuẩn mực</p>
+                    <p className='text-[10px] text-muted-foreground'>
+                      Tiếng Việt tự nhiên chuẩn mực
+                    </p>
                   </div>
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -323,7 +335,7 @@ export function MessageComposer({
             aria-label='Gửi tin nhắn'
           >
             {isSending ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4 ' />
             ) : (
               <Send className='h-3.5 w-3.5 sm:h-4 sm:w-4' aria-hidden='true' />
             )}

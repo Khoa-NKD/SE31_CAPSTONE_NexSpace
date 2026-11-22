@@ -1,62 +1,23 @@
-/* Adapted from Magic UI Shine Border (MIT); see shine-border.LICENSE.md.
-   A masked pseudo-element covers shared and custom dialogs without adding grid
-   children, changing portal/fullscreen behavior, or intercepting pointer input.
-   Use ::before because Vaul reserves ::after for its drawer overscroll surface. */
-@layer base {
-  :where([role='dialog'], [role='alertdialog'], .ns-modal-shine) {
-    position: relative;
-  }
+/* Paint the frame on the dialog border itself, so it never scrolls with content. */
+:where([role='dialog'], [role='alertdialog'], .ns-modal-shine) {
+  border: 1.5px solid transparent;
+  background-image:
+    linear-gradient(var(--background, #0b101b), var(--background, #0b101b)),
+    linear-gradient(125deg, #8b5cf6, #c4b5fd, #67e8f9, #8b5cf6);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: 100% 100%, 300% 300%;
+  animation: ns-modal-frame-shine 9s linear infinite;
 }
-
 :where([role='dialog'], [role='alertdialog'], .ns-modal-shine)::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: 50;
-  pointer-events: none;
-  border-radius: inherit;
-  padding: 1.5px;
-  background-image: radial-gradient(
-    transparent,
-    transparent,
-    #8b5cf6,
-    #c4b5fd,
-    #67e8f9,
-    transparent,
-    transparent
-  );
-  background-size: 300% 300%;
-  background-position: 0% 0%;
-  -webkit-mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  mask:
-    linear-gradient(#fff 0 0) content-box,
-    linear-gradient(#fff 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  animation: ns-modal-shine 9s linear infinite;
+  content: none;
 }
-
-@keyframes ns-modal-shine {
-  0%,
-  100% {
-    background-position: 0% 0%;
-  }
-  50% {
-    background-position: 100% 100%;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  :where([role='dialog'], [role='alertdialog'], .ns-modal-shine)::before {
-    animation: none;
-    background-position: 50% 50%;
-  }
-}
-
 @media (forced-colors: active) {
-  :where([role='dialog'], [role='alertdialog'], .ns-modal-shine)::before {
-    display: none;
+  :where([role='dialog'], [role='alertdialog'], .ns-modal-shine) {
+    border-color: CanvasText;
+    background-image: none;
   }
 }
+
+@keyframes ns-modal-frame-shine { 0%,100% {background-position:0% 0%,0% 0%} 50% {background-position:0% 0%,100% 100%} }
+@media (prefers-reduced-motion: reduce) { :where([role="dialog"], [role="alertdialog"], .ns-modal-shine) {animation:none} }

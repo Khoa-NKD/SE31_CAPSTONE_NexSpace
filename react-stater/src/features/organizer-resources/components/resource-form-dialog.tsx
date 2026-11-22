@@ -33,11 +33,7 @@ interface ResourceFormContentProps {
   onClose: () => void;
 }
 
-function ResourceFormContent({
-  resourceToEdit,
-  onSave,
-  onClose
-}: ResourceFormContentProps) {
+function ResourceFormContent({ resourceToEdit, onSave, onClose }: ResourceFormContentProps) {
   const isEditing = !!resourceToEdit;
 
   const [code, setCode] = useState(resourceToEdit?.code ?? '');
@@ -136,9 +132,15 @@ function ResourceFormContent({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='HOT_DESK' className='text-xs'>Hot Desk</SelectItem>
-              <SelectItem value='DEDICATED_DESK' className='text-xs'>Dedicated Desk</SelectItem>
-              <SelectItem value='MEETING_ROOM' className='text-xs'>Meeting Room</SelectItem>
+              <SelectItem value='HOT_DESK' className='text-xs'>
+                Hot Desk
+              </SelectItem>
+              <SelectItem value='DEDICATED_DESK' className='text-xs'>
+                Dedicated Desk
+              </SelectItem>
+              <SelectItem value='MEETING_ROOM' className='text-xs'>
+                Meeting Room
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -149,9 +151,15 @@ function ResourceFormContent({
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value='ZONE_A' className='text-xs'>Zone A — Quiet Focus</SelectItem>
-              <SelectItem value='ZONE_B' className='text-xs'>Zone B — Collaborative Hub</SelectItem>
-              <SelectItem value='ZONE_C' className='text-xs'>Zone C — Executive Suites</SelectItem>
+              <SelectItem value='ZONE_A' className='text-xs'>
+                Zone A — Quiet Focus
+              </SelectItem>
+              <SelectItem value='ZONE_B' className='text-xs'>
+                Zone B — Collaborative Hub
+              </SelectItem>
+              <SelectItem value='ZONE_C' className='text-xs'>
+                Zone C — Executive Suites
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>
@@ -247,13 +255,7 @@ function ResourceFormContent({
       </div>
 
       <DialogFooter className='pt-2 gap-2'>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          onClick={onClose}
-          className='text-xs'
-        >
+        <Button type='button' variant='outline' size='sm' onClick={onClose} className='text-xs'>
           Cancel
         </Button>
         <Button type='submit' size='sm' className='text-xs font-semibold'>
@@ -298,4 +300,3 @@ export function ResourceFormDialog({
     </Dialog>
   );
 }
-

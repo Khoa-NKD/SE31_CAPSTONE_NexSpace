@@ -1,3 +1,4 @@
+import { pickFloorResource } from './floor-picking';
 import { cameraAxes, type SceneMesh } from './floor-scene-3d';
 
 const VERTEX = `
@@ -24,7 +25,7 @@ varying vec3 vColor;
 void main() { gl_FragColor = vec4(vColor,1.0); }
 `;
 
-/** One GPU buffer, depth-tested orthographic projection, and no picking or mutation interface. */
+/** One GPU buffer, depth-tested orthographic projection, and optional read-only picking; geometry is never mutated. */
 export function createFloorRenderer(canvas: HTMLCanvasElement) {
   const gl = canvas.getContext('webgl', {
     antialias: true,
@@ -115,6 +116,17 @@ export function createFloorRenderer(canvas: HTMLCanvasElement) {
           Math.max(radius * 3, 3)
         );
         gl.drawArrays(gl.TRIANGLES, 0, mesh.vertices.length / 9);
+      },
+      pick(x: number, y: number, yaw: number, elevation: number, zoom: number, panX = 0, panY = 0) {
+        return mesh
+          ? pickFloorResource(
+              mesh,
+              { yaw, elevation, zoom, panX, panY },
+              canvas.clientWidth / Math.max(1, canvas.clientHeight),
+              x,
+              y
+            )
+          : null;
       },
       dispose
     };

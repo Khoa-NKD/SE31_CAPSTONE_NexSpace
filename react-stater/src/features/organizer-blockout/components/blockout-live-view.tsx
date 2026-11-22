@@ -1,18 +1,7 @@
-import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import {
-  Download,
-  CalendarOff,
-  Trash2,
-  CalendarRange,
-  Clock3,
-  Armchair,
-  Wrench,
-  CalendarPlus,
-  LockKeyhole
-} from '@/components/ui/hugeicons';
+import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { CalendarRange, Wrench, Trash2, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
-import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { DateInput } from '@/components/ui/date-input';
@@ -24,224 +13,472 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { operationsApi, type BlockedSlot } from '@/features/organizer-operations/api';
 import {
   useOperationsWorkspace,
-  OperationsHeader,
   OperationsState,
-  OperationMetrics,
-  panelClass,
-  selectClass
+  panelClass
 } from '@/features/organizer-operations/components/operations-shared';
+import { maintenanceApi, type MaintenanceSchedule, type MaintenanceTarget } from '../api';
+import { MaintenanceTargetPicker } from './maintenance-target-picker';
 import { localDate } from '@/features/organizer-analytics/format';
-import { exportRows, floorNumbers } from '@/features/organizer-operations/format';
-import { formatDateTime } from '@/lib/format';
+import { formatDate } from '@/lib/format';
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
+import { workspaceService } from '@/features/workspaces/api/service';
+import { operationsApi } from '@/features/organizer-operations/api';
+import { maintenanceConflicts, maintenanceTimeConflict } from '../utils/maintenance-time';
 
-export function BlockoutLiveView() {
+function nextDay(value: string) {
+  const d = new Date(value + 'T12:00:00');
+  d.setDate(d.getDate() + 1);
+  return localDate(d);
+}
+
+export function BlockoutLiveView({ initialWorkspaceId }: { initialWorkspaceId?: number }) {
+  const state = useOperationsWorkspace(initialWorkspaceId);
   const c = useOrganizerCopy();
-  const state = useOperationsWorkspace();
+  return (
+    <div className='mx-auto w-full max-w-[1600px] space-y-5 pb-10'>
+      <header className='flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card/50 px-4 py-3'>
+        <h1 className='flex items-center gap-2.5 text-lg font-semibold'>
+          <Wrench className='size-5 text-primary' />
+          {c('Maintenance schedule', 'Lịch bảo trì')}
+        </h1>
+        <div className='flex items-center gap-2'>
+          <label className='flex items-center gap-2 text-xs text-muted-foreground'>
+            <span className='hidden sm:inline'>{c('Workspace', 'Không gian')}</span>
+            <select
+              aria-label={c('Workspace', 'Không gian')}
+              className='organizer-control max-w-60'
+              value={state.workspaceId ?? ''}
+              onChange={(e) => state.setWorkspaceId(Number(e.target.value))}
+              disabled={!state.workspaces.data?.length}
+            >
+              {!state.workspaces.data?.length && (
+                <option value=''>{c('No workspaces', 'Chưa có không gian')}</option>
+              )}
+              {state.workspaces.data?.map((w) => (
+                <option key={w.id} value={w.id}>
+                  {w.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            aria-label={c('Refresh', 'Làm mới')}
+            onClick={() => void state.invalidate()}
+          >
+            <RefreshCw className='size-4' />
+          </Button>
+        </div>
+      </header>
+      <OperationsState state={state} />
+      {state.workspaceId && (
+        <MaintenanceWorkspace
+          key={state.workspaceId}
+          workspaceId={state.workspaceId}
+          actor={state.actor}
+          invalidate={state.invalidate}
+        />
+      )}
+    </div>
+  );
+}
+
+function MaintenanceWorkspace({
+  workspaceId,
+  actor,
+  invalidate
+}: {
+  workspaceId: number;
+  actor: number;
+  invalidate: () => Promise<void>;
+}) {
+  const c = useOrganizerCopy();
+  const client = useQueryClient();
   const [from, setFrom] = useState(() => localDate(new Date()));
   const [to, setTo] = useState(() => {
     const d = new Date();
     d.setDate(d.getDate() + 30);
     return localDate(d);
   });
-  const [remove, setRemove] = useState<BlockedSlot | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [startDay, setStartDay] = useState(() => localDate(new Date()));
+  const [endDay, setEndDay] = useState(() => localDate(new Date()));
+  const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
-  const validRange =
-    !!from && !!to && from <= to && (Date.parse(to) - Date.parse(from)) / 86400000 < 366;
-  const blocks = useQuery({
-    queryKey: ['organizer-operations', state.actor, state.workspaceId, 'blocks', from, to],
-    queryFn: ({ signal }) =>
-      operationsApi.blocks(
-        state.workspaceId!,
-        `${from}T00:00:00`,
-        `${nextDay(to)}T00:00:00`,
-        signal
-      ),
-    enabled: !!state.workspaceId && validRange
+  const [remove, setRemove] = useState<MaintenanceSchedule | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
+  const today = localDate(new Date(clock));
+  const localNow = new Date(clock - new Date(clock).getTimezoneOffset() * 60000)
+    .toISOString()
+    .slice(0, 19);
+  const start = startDay ? (startDay === today ? localNow : startDay + 'T00:00:00') : '';
+  const end = endDay ? nextDay(endDay) + 'T00:00:00' : '';
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 3000);
+    return () => window.clearInterval(timer);
+  }, []);
+  const validRange = Boolean(
+    from && to && from <= to && (Date.parse(to) - Date.parse(from)) / 86400000 < 366
+  );
+  const targets = useQuery({
+    queryKey: ['organizer-operations', actor, workspaceId, 'maintenance-targets'],
+    queryFn: ({ signal }) => maintenanceApi.targets(workspaceId, signal),
+    refetchInterval: 3000
   });
-  const [now] = useState(() => new Date());
-  const rows = blocks.data ?? [];
-  const current = rows.filter((b) => new Date(b.endTime) > now);
+  const schedules = useQuery({
+    queryKey: ['organizer-operations', actor, workspaceId, 'maintenance', from, to],
+    queryFn: ({ signal }) =>
+      maintenanceApi.list(workspaceId, from + 'T00:00:00', nextDay(to) + 'T00:00:00', signal),
+    enabled: validRange,
+    refetchInterval: 3000
+  });
+  const all = targets.data ?? [];
+  const periodFrom = startDay < endDay ? startDay : endDay;
+  const periodTo = startDay > endDay ? startDay : endDay;
+  const periodValid =
+    !!periodFrom && !!periodTo && (Date.parse(periodTo) - Date.parse(periodFrom)) / 86400000 < 366;
+  const reservations = useQuery({
+    queryKey: [
+      'organizer-operations',
+      actor,
+      workspaceId,
+      'maintenance-availability',
+      periodFrom,
+      periodTo
+    ],
+    enabled: periodValid && selected.length > 0,
+    refetchInterval: 3000,
+    queryFn: async ({ signal }) => {
+      const [bookings, maintenance, blocks, pendingHolds, awaitingApproval] = await Promise.all([
+        workspaceService.getOrganizerCalendarEvents({
+          workspaceId,
+          startDate: periodFrom,
+          endDate: periodTo
+        }),
+        maintenanceApi.list(
+          workspaceId,
+          periodFrom + 'T00:00:00',
+          nextDay(periodTo) + 'T00:00:00',
+          signal
+        ),
+        operationsApi.blocks(
+          workspaceId,
+          periodFrom + 'T00:00:00',
+          nextDay(periodTo) + 'T00:00:00',
+          signal
+        ),
+        // A checkout countdown may be active today for usage on a later day.
+        workspaceService.getOrganizerCalendarEvents({ workspaceId, status: 'PENDING_PAYMENT' }),
+        workspaceService.getOrganizerCalendarEvents({ workspaceId, status: 'PENDING_APPROVAL' })
+      ]);
+      const combined = new Map(
+        [...bookings, ...pendingHolds, ...awaitingApproval].map((booking) => [booking.id, booking])
+      );
+      return { bookings: [...combined.values()], maintenance, blocks };
+    }
+  });
+  const conflicts = maintenanceConflicts(
+    all,
+    selected,
+    reservations.data?.bookings ?? [],
+    reservations.data?.maintenance ?? [],
+    reservations.data?.blocks ?? [],
+    clock
+  );
+  let periodError = '';
+  if (!periodValid)
+    periodError = c(
+      'Choose a valid date range within 366 days.',
+      'Chọn khoảng ngày hợp lệ, tối đa 366 ngày.'
+    );
+  else if (startDay < today)
+    periodError = c('Start date cannot be in the past.', 'Ngày bắt đầu không được ở quá khứ.');
+  else if (endDay < startDay)
+    periodError = c(
+      'End date must be on or after start date.',
+      'Ngày kết thúc phải từ ngày bắt đầu trở đi.'
+    );
+  else if (selected.length && !reservations.isPending && !reservations.isError) {
+    const conflict = maintenanceTimeConflict(start, end, conflicts);
+    if (conflict)
+      periodError =
+        c(
+          'These dates overlap a booking, active hold or existing maintenance.',
+          'Khoảng ngày này trùng booking, giữ chỗ đang hiệu lực hoặc lịch bảo trì đã có.'
+        ) +
+        ' · ' +
+        conflict.name;
+  }
+  const labels = {
+    ROOM: c('Room', 'Phòng'),
+    DESK: c('Seat', 'Ghế'),
+    ASSET: c('Equipment', 'Thiết bị'),
+    DECORATION: c('Furniture', 'Đồ bố trí')
+  };
+  function inherited(t: MaintenanceTarget | undefined) {
+    return (
+      t != null &&
+      t.kind !== 'ROOM' &&
+      t.parentRoomId != null &&
+      selected.includes('RESOURCE:' + t.parentRoomId)
+    );
+  }
+  async function refresh() {
+    await Promise.all([
+      invalidate(),
+      client.invalidateQueries({ queryKey: ['workspace-assets'] }),
+      targets.refetch(),
+      schedules.refetch()
+    ]);
+  }
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setError('');
+    if (periodError || !reservations.data || reservations.isError) {
+      setError(
+        periodError || c('Wait for availability to load.', 'Chờ kiểm tra khung giờ trước khi lưu.')
+      );
+      return;
+    }
+    const direct = selected.filter((key) => !inherited(all.find((t) => t.key === key)!));
+    if (!direct.length || direct.length > 200) {
+      setError(c('Select 1–200 targets.', 'Chọn từ 1 đến 200 đối tượng.'));
+      return;
+    }
+    if (!start || !end || start >= end || new Date(start).getTime() < Date.now() - 120000) {
+      setError(
+        c('Choose a valid future period.', 'Chọn giờ bắt đầu từ hiện tại và kết thúc sau bắt đầu.')
+      );
+      return;
+    }
+    setBusy(true);
+    try {
+      await maintenanceApi.create(workspaceId, {
+        targetKeys: direct,
+        startTime: start,
+        endTime: end,
+        reason: reason.trim()
+      });
+      setSelected([]);
+      setReason('');
+      await refresh();
+      toast.success(c('Maintenance saved', 'Đã tạo lịch bảo trì'));
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+  const now = new Date();
   return (
-    <div className='mx-auto w-full max-w-[1600px] space-y-5 pb-10'>
-      <OperationsHeader
-        icon={<CalendarOff />}
-        title={c('Booking blockouts', 'Lịch ngừng nhận đặt')}
-        description={c(
-          'Reserve downtime for maintenance or private use.',
-          'Chặn nhận đặt khi bảo trì hoặc sử dụng riêng.'
-        )}
-        state={{
-          ...state,
-          setWorkspaceId: (id) => {
-            setRemove(null);
-            setError('');
-            state.setWorkspaceId(id);
-          }
-        }}
-      />
-      <OperationsState state={state} />
-      {state.pricing.data && (
-        <>
-          <OperationMetrics
-            items={[
-              {
-                label: c('Blocks in selected dates', 'Lịch khóa trong khoảng đã chọn'),
-                value: rows.length,
-                icon: CalendarRange,
-                unit: c('entries', 'lịch')
-              },
-              {
-                label: c('Upcoming / ongoing', 'Sắp tới / đang diễn ra'),
-                value: current.length,
-                icon: Clock3,
-                unit: c('entries', 'lịch')
-              },
-              {
-                label: c('Affected seats / rooms', 'Ghế / phòng bị khóa trực tiếp'),
-                value: new Set(current.map((b) => b.resourceId)).size,
-                icon: Armchair,
-                unit: c('resources', 'chỗ')
-              },
-              {
-                label: c('Maintenance entries', 'Lịch bảo trì'),
-                value: current.filter((b) => b.blockType === 'MAINTENANCE').length,
-                icon: Wrench,
-                unit: c('entries', 'lịch')
-              }
-            ]}
-          />
-          <div className='grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_380px]'>
-            <section className={panelClass}>
-              <div className='flex flex-wrap items-center justify-between gap-3'>
-                <h2 className='flex items-center gap-2.5 font-semibold'>
-                  <span className='organizer-section-icon'>
-                    <CalendarRange className='size-4' />
-                  </span>
-                  {c('Blocked time slots', 'Các khung giờ ngừng nhận đặt')}
-                </h2>
-                <Button
-                  variant='outline'
-                  disabled={!rows.length}
-                  onClick={() =>
-                    exportRows('lich-ngung-nhan-dat.csv', [
-                      ['Resource', 'Floor', 'Start', 'End', 'Reason'],
-                      ...rows.map((b) => [
-                        b.resourceName,
-                        b.floorNumber,
-                        formatDateTime(b.startTime),
-                        formatDateTime(b.endTime),
-                        b.reason
-                      ])
-                    ])
-                  }
-                >
-                  <Download className='size-4' />
-                  CSV
-                </Button>
-              </div>
-              <div className='organizer-toolbar mt-4 items-end'>
-                <label className='space-y-1 text-xs'>
-                  {c('From date', 'Từ ngày')}
-                  <DateInput value={from} onValueChange={setFrom} />
-                </label>
-                <label className='space-y-1 text-xs'>
-                  {c('To date', 'Đến ngày')}
-                  <DateInput value={to} onValueChange={setTo} />
-                </label>
-              </div>
-              {!validRange && (
-                <p role='alert' className='mt-3 text-sm text-destructive'>
-                  {c(
-                    'Choose a valid range up to 366 days.',
-                    'Chọn khoảng ngày hợp lệ, tối đa 366 ngày.'
-                  )}
-                </p>
-              )}
-              {blocks.isPending && validRange && (
-                <p role='status' className='py-6 text-sm'>
-                  {c('Loading blocked slots…', 'Đang tải lịch khóa…')}
-                </p>
-              )}
-              {blocks.error && (
-                <div role='alert' className='mt-4 text-sm text-destructive'>
-                  {blocks.error.message}
-                  <Button variant='outline' onClick={() => void blocks.refetch()}>
-                    {c('Retry', 'Thử lại')}
-                  </Button>
-                </div>
-              )}
-              {!blocks.isPending && !blocks.error && validRange && !rows.length && (
-                <div className='mt-4 rounded-xl border border-dashed bg-muted/20 px-4 py-12 text-center text-muted-foreground'>
-                  <CalendarOff className='mx-auto mb-3 size-8' />
-                  <p>
-                    {c(
-                      'No blockouts in these dates.',
-                      'Chưa có lịch ngừng nhận đặt trong khoảng ngày này.'
-                    )}
-                  </p>
-                </div>
-              )}
-              <div className='mt-4 max-h-[650px] space-y-3 overflow-auto'>
-                {rows.map((b) => (
-                  <article
-                    key={b.id}
-                    className='rounded-xl border border-border/80 bg-muted/10 p-4 transition-colors hover:border-primary/25'
-                  >
-                    <div className='flex justify-between gap-3'>
-                      <div>
-                        <p className='flex items-center gap-2 text-sm font-semibold'>
-                          {b.blockType === 'MAINTENANCE' ? (
-                            <Wrench className='size-4 text-amber-600 dark:text-amber-400' />
-                          ) : (
-                            <LockKeyhole className='size-4 text-primary' />
-                          )}
-                          {b.resourceName}
-                        </p>
-                        <p className='text-xs text-muted-foreground'>
-                          {c('Floor', 'Tầng')} {b.floorNumber} ·{' '}
-                          {b.blockType === 'MAINTENANCE'
-                            ? c('Maintenance', 'Bảo trì')
-                            : c('Private use / unavailable', 'Dùng riêng / ngừng nhận đặt')}
-                          {new Date(b.endTime) <= now && ` · ${c('Ended', 'Đã kết thúc')}`}
-                        </p>
-                      </div>
-                      <Button
-                        variant='ghost'
-                        size='icon'
-                        aria-label={c('Remove blockout', 'Gỡ lịch khóa')}
-                        onClick={() => {
-                          setError('');
-                          setRemove(b);
-                        }}
-                      >
-                        <Trash2 className='size-4 text-destructive' />
-                      </Button>
-                    </div>
-                    <p className='mt-3 rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-xs font-medium tabular-nums'>
-                      {formatDateTime(b.startTime)} → {formatDateTime(b.endTime)}
-                    </p>
-                    <p className='mt-1 whitespace-pre-wrap break-words text-sm text-muted-foreground'>
-                      {b.reason}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </section>
-            <BlockCreation
-              key={state.workspaceId}
-              state={state}
-              saved={async () => {
-                await state.invalidate();
-                await blocks.refetch();
-              }}
+    <>
+      <div className='grid gap-5'>
+        <section id='maintenance-form' className={panelClass}>
+          <h2 className='flex items-center gap-2 text-base font-semibold'>
+            <Wrench className='size-5 text-primary' />
+            {c('Schedule maintenance', 'Tạo lịch bảo trì')}
+          </h2>
+          <p className='mt-1.5 text-sm text-muted-foreground'>
+            {c(
+              'Select items on the left, then set the maintenance period.',
+              'Chọn phòng, ghế hoặc đồ bố trí bên trái, rồi đặt thời gian bảo trì bên phải.'
+            )}
+          </p>
+          <form
+            className='mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]'
+            onSubmit={save}
+          >
+            <MaintenanceTargetPicker
+              targets={all}
+              selected={selected}
+              onChange={setSelected}
+              busy={busy}
+              loading={targets.isPending}
+              error={targets.error?.message}
             />
+            <div className='space-y-4 rounded-xl border bg-muted/15 p-4 lg:sticky lg:top-24'>
+              <p className='text-sm font-semibold'>
+                {c('Maintenance period', 'Thời gian bảo trì')}
+              </p>
+              <div className='grid grid-cols-2 gap-3'>
+                <label className='block min-w-0 space-y-1.5 text-sm'>
+                  <span>{c('From date', 'Từ ngày')} *</span>
+                  <DateInput
+                    required
+                    value={startDay}
+                    min={today}
+                    onValueChange={(day) => {
+                      setStartDay(day);
+                      if (day > endDay) setEndDay(day);
+                    }}
+                  />
+                </label>
+                <label className='block min-w-0 space-y-1.5 text-sm'>
+                  <span>{c('Through date', 'Đến ngày')} *</span>
+                  <DateInput
+                    required
+                    value={endDay}
+                    min={startDay || today}
+                    onValueChange={setEndDay}
+                  />
+                </label>
+              </div>
+              <p className='text-xs leading-relaxed text-muted-foreground'>
+                {c(
+                  'Through the end of the selected date. Starting today takes effect immediately.',
+                  'Bảo trì đến hết ngày kết thúc. Chọn hôm nay sẽ áp dụng từ lúc tạo lịch.'
+                )}
+              </p>
+              {periodError && (
+                <p role='alert' className='text-xs leading-relaxed text-destructive'>
+                  {periodError}
+                </p>
+              )}
+              {reservations.isPending && selected.length > 0 && (
+                <p role='status' className='text-xs text-muted-foreground'>
+                  {c('Checking dates…', 'Đang kiểm tra lịch…')}
+                </p>
+              )}
+              {reservations.isError && (
+                <button
+                  type='button'
+                  className='text-xs text-destructive underline'
+                  onClick={() => void reservations.refetch()}
+                >
+                  {c('Retry availability', 'Thử kiểm tra lại lịch')}
+                </button>
+              )}
+              <label className='block space-y-1 text-sm'>
+                {c('Reason', 'Lý do')} *
+                <Input
+                  required
+                  maxLength={255}
+                  value={reason}
+                  onChange={(e) => setReason(e.target.value)}
+                />
+              </label>
+              {error && !remove && (
+                <p role='alert' className='text-sm text-destructive'>
+                  {error}
+                </p>
+              )}
+              <Button
+                type='submit'
+                className='w-full'
+                disabled={
+                  busy ||
+                  !selected.length ||
+                  targets.isPending ||
+                  !!targets.error ||
+                  !start ||
+                  !end ||
+                  !!periodError ||
+                  reservations.isPending ||
+                  reservations.isError
+                }
+              >
+                {busy ? c('Saving…', 'Đang lưu…') : c('Save maintenance', 'Tạo lịch bảo trì')}
+              </Button>
+              <p className='text-xs leading-relaxed text-muted-foreground'>
+                {c(
+                  'Existing bookings and active holds cannot be overwritten.',
+                  'Không tạo bảo trì trùng với booking hoặc giữ chỗ đang có hiệu lực.'
+                )}
+              </p>
+            </div>
+          </form>
+        </section>
+        <section className={panelClass}>
+          <h2 className='flex items-center gap-2 font-semibold'>
+            <CalendarRange className='size-4 text-primary' />
+            {c('Maintenance periods', 'Các lịch bảo trì')}
+          </h2>
+          <div className='mt-4 flex flex-wrap gap-3'>
+            <label className='space-y-1 text-xs'>
+              {c('From date', 'Từ ngày')}
+              <DateInput value={from} onValueChange={setFrom} />
+            </label>
+            <label className='space-y-1 text-xs'>
+              {c('To date', 'Đến ngày')}
+              <DateInput value={to} onValueChange={setTo} />
+            </label>
           </div>
-        </>
-      )}
+          {!validRange && (
+            <p role='alert' className='mt-3 text-sm text-destructive'>
+              {c('Choose a range within 366 days.', 'Chọn khoảng ngày hợp lệ, tối đa 366 ngày.')}
+            </p>
+          )}
+          {schedules.isPending && validRange && (
+            <p role='status' className='py-6 text-sm'>
+              {c('Loading maintenance…', 'Đang tải lịch bảo trì…')}
+            </p>
+          )}
+          {schedules.error && (
+            <p role='alert' className='mt-4 text-sm text-destructive'>
+              {schedules.error.message}
+              <Button variant='outline' onClick={() => void schedules.refetch()}>
+                {c('Retry', 'Thử lại')}
+              </Button>
+            </p>
+          )}
+          {!schedules.isPending && !schedules.error && validRange && !schedules.data?.length && (
+            <div className='mt-4 rounded-xl border border-dashed py-12 text-center text-sm text-muted-foreground'>
+              <Wrench className='mx-auto mb-3 size-7' />
+              {c('No maintenance in these dates.', 'Chưa có lịch bảo trì trong khoảng ngày này.')}
+            </div>
+          )}
+          <div className='mt-4 max-h-[640px] space-y-3 overflow-auto'>
+            {schedules.data?.map((s) => {
+              const ended = s.endTime != null && new Date(s.endTime) <= now;
+              const ongoing = !ended && new Date(s.startTime) <= now;
+              return (
+                <article key={s.key} className='rounded-xl border bg-muted/10 p-4'>
+                  <div className='flex items-start justify-between gap-3'>
+                    <div>
+                      <p className='text-sm font-semibold'>{s.name}</p>
+                      <p className='mt-1 text-xs text-muted-foreground'>
+                        {labels[s.kind]}
+                        {s.floorNumber != null && ' · ' + c('Floor ', 'Tầng ') + s.floorNumber}
+                        {' · ' +
+                          (ended
+                            ? c('Ended', 'Đã kết thúc')
+                            : ongoing
+                              ? c('Under maintenance', 'Đang bảo trì')
+                              : c('Scheduled', 'Sắp bảo trì'))}
+                      </p>
+                    </div>
+                    <Button
+                      size='icon'
+                      variant='ghost'
+                      aria-label={c('Remove maintenance', 'Gỡ lịch bảo trì')}
+                      onClick={() => {
+                        setError('');
+                        setRemove(s);
+                      }}
+                    >
+                      <Trash2 className='size-4 text-destructive' />
+                    </Button>
+                  </div>
+                  <p className='mt-3 text-xs tabular-nums'>
+                    {formatDate(s.startTime)} →{' '}
+                    {s.endTime
+                      ? formatDate(new Date(Date.parse(s.endTime) - 1))
+                      : c('Until removed', 'Đến khi gỡ lịch')}
+                  </p>
+                  <p className='mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground'>
+                    {s.reason}
+                  </p>
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      </div>
       <Dialog
         open={!!remove}
         onOpenChange={(open) => {
@@ -250,12 +487,12 @@ export function BlockoutLiveView() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{c('Remove this blockout?', 'Gỡ khung giờ ngừng nhận đặt?')}</DialogTitle>
+            <DialogTitle>{c('Remove maintenance?', 'Gỡ lịch bảo trì?')}</DialogTitle>
             <DialogDescription>
-              {remove?.resourceName}.{' '}
+              {remove?.name}.{' '}
               {c(
-                'New bookings may use this time again, subject to operating hours and availability.',
-                'Khách có thể đặt lại khung giờ này nếu đáp ứng giờ hoạt động và các điều kiện còn lại.'
+                'Other independent schedules remain in effect.',
+                'Đối tượng tự khôi phục nếu không còn lịch bảo trì khác đang có hiệu lực.'
               )}
             </DialogDescription>
           </DialogHeader>
@@ -266,19 +503,20 @@ export function BlockoutLiveView() {
           )}
           <DialogFooter>
             <Button variant='outline' disabled={busy} onClick={() => setRemove(null)}>
-              {c('Keep blockout', 'Giữ lịch khóa')}
+              {c('Cancel', 'Hủy')}
             </Button>
             <Button
               variant='destructive'
               disabled={busy}
               onClick={async () => {
-                if (!remove || !state.workspaceId) return;
+                if (!remove) return;
                 setBusy(true);
+                setError('');
                 try {
-                  await operationsApi.deleteBlock(state.workspaceId, remove.id);
-                  await state.invalidate();
+                  await maintenanceApi.remove(workspaceId, remove.key);
                   setRemove(null);
-                  toast.success(c('Blockout removed', 'Đã gỡ lịch khóa'));
+                  await refresh();
+                  toast.success(c('Maintenance removed', 'Đã gỡ lịch bảo trì'));
                 } catch (e) {
                   setError((e as Error).message);
                 } finally {
@@ -286,208 +524,11 @@ export function BlockoutLiveView() {
                 }
               }}
             >
-              {c('Remove', 'Gỡ lịch')}
+              {busy ? c('Removing…', 'Đang gỡ…') : c('Remove', 'Gỡ lịch')}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
-  );
-}
-function nextDay(value: string) {
-  const d = new Date(`${value}T12:00:00`);
-  d.setDate(d.getDate() + 1);
-  return localDate(d);
-}
-
-function BlockCreation({
-  state,
-  saved
-}: {
-  state: ReturnType<typeof useOperationsWorkspace>;
-  saved: () => Promise<void>;
-}) {
-  const c = useOrganizerCopy();
-  const [selected, setSelected] = useState<number[]>([]);
-  const [floor, setFloor] = useState('all');
-  const [search, setSearch] = useState('');
-  const [start, setStart] = useState('');
-  const [end, setEnd] = useState('');
-  const [reason, setReason] = useState('');
-  const [kind, setKind] = useState<'BLOCKED' | 'MAINTENANCE'>('MAINTENANCE');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const resources =
-    state.pricing.data?.resources.filter((r) => r.status === 'ACTIVE' || r.status === 'DRAFT') ??
-    [];
-  const shown = resources.filter(
-    (r) =>
-      (floor === 'all' || r.floorNumber === Number(floor)) &&
-      `${r.name} ${r.code}`.toLocaleLowerCase().includes(search.toLocaleLowerCase())
-  );
-  return (
-    <section className={panelClass}>
-      <h2 className='flex items-center gap-2.5 font-semibold'>
-        <span className='organizer-section-icon'>
-          <CalendarPlus className='size-4' />
-        </span>
-        {c('Create blockout', 'Tạo lịch ngừng nhận đặt')}
-      </h2>
-      <p className='mt-2 text-xs leading-relaxed text-muted-foreground'>
-        {c(
-          'Blocking a room also blocks its seats. A blocked seat makes the whole room unavailable. Existing bookings and active holds cannot be overwritten.',
-          'Khóa phòng cũng chặn ghế bên trong. Khóa một ghế trong phòng khiến phòng không thể được đặt trọn. Không ghi đè booking hoặc giữ chỗ đang có hiệu lực.'
-        )}
-      </p>
-      <form
-        className='mt-4 space-y-4'
-        onSubmit={async (e) => {
-          e.preventDefault();
-          setError('');
-          if (!selected.length || selected.length > 200) {
-            setError(c('Select 1–200 seats / rooms.', 'Chọn từ 1 đến 200 ghế/phòng.'));
-            return;
-          }
-          if (!start || !end || start >= end || new Date(start) <= new Date()) {
-            setError(
-              c(
-                'Choose a future start and an end after it.',
-                'Chọn giờ bắt đầu trong tương lai và kết thúc sau bắt đầu.'
-              )
-            );
-            return;
-          }
-          setBusy(true);
-          try {
-            await operationsApi.createBlocks(state.workspaceId!, {
-              resourceIds: selected,
-              startTime: start,
-              endTime: end,
-              blockType: kind,
-              reason
-            });
-            await saved();
-            setSelected([]);
-            setReason('');
-            toast.success(c('Blockout saved', 'Đã lưu lịch ngừng nhận đặt'));
-          } catch (err) {
-            setError((err as Error).message);
-          } finally {
-            setBusy(false);
-          }
-        }}
-      >
-        <div className='flex gap-2'>
-          <select
-            className={selectClass}
-            aria-label={c('Floor', 'Tầng')}
-            value={floor}
-            onChange={(e) => setFloor(e.target.value)}
-          >
-            <option value='all'>{c('All floors', 'Tất cả tầng')}</option>
-            {floorNumbers(resources).map((n) => (
-              <option key={n} value={n}>
-                {c('Floor', 'Tầng')} {n}
-              </option>
-            ))}
-          </select>
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder={c('Search…', 'Tìm ghế/phòng…')}
-          />
-        </div>
-        <div className='overflow-hidden rounded-xl border'>
-          <div className='flex items-center justify-between gap-2 border-b px-3 py-2 text-xs'>
-            <span>
-              {c('Selected', 'Đã chọn')}: {selected.length}
-            </span>
-            <Button
-              type='button'
-              variant='ghost'
-              size='sm'
-              onClick={() =>
-                setSelected(
-                  shown.every((r) => selected.includes(r.id))
-                    ? selected.filter((id) => !shown.some((r) => r.id === id))
-                    : [...new Set([...selected, ...shown.map((r) => r.id)])]
-                )
-              }
-            >
-              {c('Toggle visible', 'Chọn / bỏ nhóm đang hiện')}
-            </Button>
-          </div>
-          <div className='max-h-52 space-y-1 overflow-auto p-2'>
-            {shown.map((r) => (
-              <label
-                key={r.id}
-                className='flex cursor-pointer items-start gap-2 rounded-lg p-2 text-sm hover:bg-muted'
-              >
-                <input
-                  className='mt-1'
-                  type='checkbox'
-                  checked={selected.includes(r.id)}
-                  onChange={(e) =>
-                    setSelected((p) =>
-                      e.target.checked ? [...p, r.id] : p.filter((id) => id !== r.id)
-                    )
-                  }
-                />
-                <span>
-                  {r.name || r.code}
-                  <span className='block text-xs text-muted-foreground'>
-                    {r.code} · {c('Floor', 'Tầng')} {r.floorNumber}
-                    {r.parentRoomId && ` · ${c('Inside a room', 'Thuộc phòng')}`}
-                  </span>
-                </span>
-              </label>
-            ))}
-            {!shown.length && (
-              <p className='p-3 text-xs text-muted-foreground'>
-                {c('No eligible resources.', 'Chưa có ghế/phòng phù hợp để khóa lịch.')}
-              </p>
-            )}
-          </div>
-        </div>
-        <label className='block space-y-1 text-sm'>
-          {c('Start', 'Bắt đầu')} *
-          <DateInput type='datetime-local' required value={start} onValueChange={setStart} />
-        </label>
-        <label className='block space-y-1 text-sm'>
-          {c('End', 'Kết thúc')} *
-          <DateInput type='datetime-local' required value={end} onValueChange={setEnd} />
-        </label>
-        <label className='block space-y-1 text-sm'>
-          {c('Blockout type', 'Loại lịch khóa')}
-          <select
-            className={`${selectClass} w-full`}
-            value={kind}
-            onChange={(e) => setKind(e.target.value as typeof kind)}
-          >
-            <option value='MAINTENANCE'>{c('Maintenance', 'Bảo trì')}</option>
-            <option value='BLOCKED'>
-              {c('Private use / unavailable', 'Sử dụng riêng / ngừng nhận đặt')}
-            </option>
-          </select>
-        </label>
-        <label className='block space-y-1 text-sm'>
-          {c('Reason', 'Lý do')} *
-          <Input
-            required
-            maxLength={255}
-            value={reason}
-            onChange={(e) => setReason(e.target.value)}
-          />
-        </label>
-        {error && (
-          <p role='alert' className='text-sm text-destructive'>
-            {error}
-          </p>
-        )}
-        <Button className='w-full' disabled={busy || !resources.length}>
-          {busy ? c('Saving…', 'Đang lưu…') : c('Save blockout', 'Lưu lịch ngừng nhận đặt')}
-        </Button>
-      </form>
-    </section>
+    </>
   );
 }

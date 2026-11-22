@@ -123,4 +123,3 @@ export function SeatTourModal({ open, onOpenChange }: SeatTourModalProps) {
     </Dialog>
   );
 }
-

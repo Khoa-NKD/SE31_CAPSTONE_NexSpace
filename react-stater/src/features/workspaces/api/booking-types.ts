@@ -137,7 +137,7 @@ export interface ResourceAvailabilityItem {
   zoneName?: string;
   pricePerHour?: number;
   selectable: boolean;
-  state: 'AVAILABLE' | 'BOOKED' | 'LOCKED' | 'MAINTENANCE' | 'HOLDING';
+  state: 'AVAILABLE' | 'BOOKED' | 'LOCKED' | 'MAINTENANCE' | 'HOLDING' | 'DISABLED';
   flags?: string[];
   isOccupiedByMe?: boolean;
 }
