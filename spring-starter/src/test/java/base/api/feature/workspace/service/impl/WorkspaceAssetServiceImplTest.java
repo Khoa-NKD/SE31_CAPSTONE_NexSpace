@@ -70,6 +70,8 @@ class WorkspaceAssetServiceImplTest {
     private IAuditService auditService;
     @Mock
     private CurrentUserProvider currentUserProvider;
+    @Mock
+    private base.api.feature.resource.repository.IResourceBlockedSlotRepository blockedSlots;
 
     @InjectMocks
     private WorkspaceAssetServiceImpl service;
@@ -221,6 +223,9 @@ class WorkspaceAssetServiceImplTest {
         BookableResourceModel resource = new BookableResourceModel();
         resource.setId(20L);
         resource.setLabel("Phòng họp Sapphire");
+        var assetFloor = new base.api.shared.entity.resource.FloorPlanModel();
+        assetFloor.setWorkspace(workspace);
+        resource.setFloorPlan(assetFloor);
         when(resourceRepository.findById(20L)).thenReturn(Optional.of(resource));
 
         AmenityModel amenity = new AmenityModel();

@@ -3,6 +3,8 @@ package base.api.feature.workspace.service.impl;
 import base.api.feature.auth.repository.IUserRepository;
 import base.api.feature.governance.service.IAuditService;
 import base.api.feature.resource.repository.IBookableResourceRepository;
+import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
+import base.api.feature.resource.service.ResourceMaintenance;
 import base.api.feature.workspace.dto.request.CreateMaintenanceLogDto;
 import base.api.feature.workspace.dto.request.CreateWorkspaceAssetDto;
 import base.api.feature.workspace.dto.request.UpdateMaintenanceLogDto;
@@ -32,6 +34,7 @@ import base.api.shared.security.CurrentUserProvider;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -58,6 +61,7 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
     private final IUserRepository userRepository;
     private final IAuditService auditService;
     private final CurrentUserProvider currentUserProvider;
+    private final IResourceBlockedSlotRepository blockedSlots;
 
     @Override
     @Transactional(readOnly = true)
@@ -73,8 +77,10 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
 
         if (Boolean.TRUE.equals(all)) {
             List<WorkspaceAssetModel> allList = assetRepository.findByWorkspaceId(workspaceId);
+            var maintained = maintainedAssets(workspaceId);
+            var maintainedResources = maintainedResources(workspaceId);
             List<WorkspaceAssetResponseDto> dtoList = allList.stream()
-                    .map(WorkspaceAssetMapper::toDto)
+                    .map(asset -> effectiveDto(asset, maintained, maintainedResources))
                     .toList();
             int total = dtoList.size();
             return new PageResponseDTO<>(dtoList, 1, Math.max(1, total), total, 1, false, false);
@@ -88,8 +94,23 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
             normalizedSearch = normalizedSearch.trim();
         }
 
+        if (status != null) {
+            var maintained = maintainedAssets(workspaceId);
+            var maintainedResources = maintainedResources(workspaceId);
+            var filtered = assetRepository.searchAssets(workspaceId, null, normalizedSearch,
+                    Pageable.unpaged(pageable.getSort())).stream()
+                    .map(asset -> effectiveDto(asset, maintained, maintainedResources))
+                    .filter(asset -> asset.getStatus() == status).toList();
+            int from = (int) Math.min(pageable.getOffset(), filtered.size());
+            int to = Math.min(from + pageable.getPageSize(), filtered.size());
+            return PageResponseDTO.from(new PageImpl<>(
+                    filtered.subList(from, to), pageable, filtered.size()));
+        }
+
         Page<WorkspaceAssetModel> page = assetRepository.searchAssets(workspaceId, status, normalizedSearch, pageable);
-        return PageResponseDTO.from(page.map(WorkspaceAssetMapper::toDto));
+        var maintained = maintainedAssets(workspaceId);
+        var maintainedResources = maintainedResources(workspaceId);
+        return PageResponseDTO.from(page.map(asset -> effectiveDto(asset, maintained, maintainedResources)));
     }
 
     @Override
@@ -100,7 +121,7 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         WorkspaceAssetModel asset = assetRepository.findByIdAndWorkspaceId(assetId, workspaceId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy tài sản với ID: " + assetId));
 
-        return WorkspaceAssetMapper.toDto(asset);
+        return effectiveDto(asset, maintainedAssets(workspaceId), maintainedResources(workspaceId));
     }
 
     @Override
@@ -118,6 +139,8 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         asset.setAssetCode(code);
         asset.setName(dto.getName().trim());
         asset.setQuantity(dto.getQuantity() > 0 ? dto.getQuantity() : 1);
+        if (dto.getStatus() == AssetStatus.UNDER_MAINTENANCE)
+            throw new BadRequestException("Tạo lịch bảo trì có thời hạn sau khi thêm tài sản.");
         asset.setStatus(dto.getStatus() != null ? dto.getStatus() : AssetStatus.IN_USE);
         asset.setPurchaseDate(dto.getPurchaseDate());
         asset.setPurchasePrice(dto.getPurchasePrice());
@@ -128,6 +151,9 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         if (dto.getResourceId() != null) {
             BookableResourceModel resource = resourceRepository.findById(dto.getResourceId())
                     .orElseThrow(() -> new BadRequestException("Không tìm thấy vị trí / chỗ ngồi với ID: " + dto.getResourceId()));
+            if (resource.getFloorPlan() == null || resource.getFloorPlan().getWorkspace() == null
+                    || !workspaceId.equals(resource.getFloorPlan().getWorkspace().getId()))
+                throw new BadRequestException("Vị trí không thuộc không gian này.");
             asset.setResource(resource);
         }
 
@@ -154,6 +180,11 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         WorkspaceAssetModel asset = assetRepository.findByIdAndWorkspaceId(assetId, workspaceId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy tài sản với ID: " + assetId));
 
+        boolean maintenanceLocked = maintainedAssets(workspaceId).contains(assetId)
+                || ResourceMaintenance.affected(asset.getResource(), maintainedResources(workspaceId));
+        Long currentPlacement = asset.getResource() == null ? null : asset.getResource().getId();
+        if (maintenanceLocked && !java.util.Objects.equals(currentPlacement, dto.getResourceId()))
+            throw new ConflictException("Không thể đổi vị trí tài sản đang bảo trì; hãy gỡ lịch bảo trì trước.");
         String code = dto.getAssetCode().trim();
         if (assetRepository.existsByWorkspaceIdAndAssetCodeIgnoreCaseAndIdNot(workspaceId, code, assetId)) {
             throw new ConflictException("Mã tài sản '" + code + "' đã được sử dụng bởi một tài sản khác");
@@ -164,7 +195,9 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         if (dto.getQuantity() > 0) {
             asset.setQuantity(dto.getQuantity());
         }
-        if (dto.getStatus() != null) {
+        if (!maintainedAssets(workspaceId).contains(assetId)
+                && !ResourceMaintenance.affected(asset.getResource(), maintainedResources(workspaceId))
+                && dto.getStatus() != null && dto.getStatus() != AssetStatus.UNDER_MAINTENANCE) {
             asset.setStatus(dto.getStatus());
         }
         asset.setPurchaseDate(dto.getPurchaseDate());
@@ -176,6 +209,9 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         if (dto.getResourceId() != null) {
             BookableResourceModel resource = resourceRepository.findById(dto.getResourceId())
                     .orElseThrow(() -> new BadRequestException("Không tìm thấy vị trí / chỗ ngồi với ID: " + dto.getResourceId()));
+            if (resource.getFloorPlan() == null || resource.getFloorPlan().getWorkspace() == null
+                    || !workspaceId.equals(resource.getFloorPlan().getWorkspace().getId()))
+                throw new BadRequestException("Vị trí không thuộc không gian này.");
             asset.setResource(resource);
         } else {
             asset.setResource(null);
@@ -244,16 +280,20 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         log.setReportedBy(actorUser);
         log.setPerformedBy(dto.getPerformedBy());
         log.setCost(dto.getCost());
+        var periodStart = dto.getStartedAt() != null ? dto.getStartedAt() : dto.getScheduledAt();
+        if (dto.getPlannedEndAt() != null && (periodStart == null || !dto.getPlannedEndAt().isAfter(periodStart)))
+            throw new BadRequestException("Kết thúc bảo trì phải sau bắt đầu.");
+        log.setPlannedEndAt(dto.getPlannedEndAt());
         log.setScheduledAt(dto.getScheduledAt());
         log.setStartedAt(dto.getStartedAt());
         log.setCompletedAt(dto.getCompletedAt());
         log.setResultNote(dto.getResultNote());
 
         // State Machine Integrity: Transition asset status based on maintenance state
-        if (log.getStatus() == MaintenanceStatus.IN_PROGRESS) {
+        if (log.getPlannedEndAt() == null && log.getStatus() == MaintenanceStatus.IN_PROGRESS) {
             asset.setStatus(AssetStatus.UNDER_MAINTENANCE);
             assetRepository.save(asset);
-        } else if (log.getStatus() == MaintenanceStatus.COMPLETED) {
+        } else if (log.getPlannedEndAt() == null && log.getStatus() == MaintenanceStatus.COMPLETED) {
             if (log.getCompletedAt() == null) {
                 log.setCompletedAt(LocalDateTime.now());
             }
@@ -287,6 +327,9 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
 
         AssetMaintenanceLogModel log = maintenanceLogRepository.findByIdAndAssetId(logId, assetId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy lịch sử bảo trì với ID: " + logId));
+        if (log.getPlannedEndAt() != null && dto.getStartedAt() != null
+                && !log.getPlannedEndAt().isAfter(dto.getStartedAt()))
+            throw new BadRequestException("Bắt đầu bảo trì phải trước kết thúc dự kiến.");
 
         if (dto.getPerformedBy() != null) {
             log.setPerformedBy(dto.getPerformedBy());
@@ -307,13 +350,13 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
         if (dto.getStatus() != null && dto.getStatus() != log.getStatus()) {
             log.setStatus(dto.getStatus());
             // State Machine Transition
-            if (dto.getStatus() == MaintenanceStatus.IN_PROGRESS) {
+            if (log.getPlannedEndAt() == null && dto.getStatus() == MaintenanceStatus.IN_PROGRESS) {
                 asset.setStatus(AssetStatus.UNDER_MAINTENANCE);
                 if (log.getStartedAt() == null) {
                     log.setStartedAt(LocalDateTime.now());
                 }
                 assetRepository.save(asset);
-            } else if (dto.getStatus() == MaintenanceStatus.COMPLETED) {
+            } else if (log.getPlannedEndAt() == null && dto.getStatus() == MaintenanceStatus.COMPLETED) {
                 if (log.getCompletedAt() == null) {
                     log.setCompletedAt(LocalDateTime.now());
                 }
@@ -321,7 +364,7 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
                     asset.setStatus(AssetStatus.IN_USE);
                     assetRepository.save(asset);
                 }
-            } else if (dto.getStatus() == MaintenanceStatus.CANCELLED) {
+            } else if (log.getPlannedEndAt() == null && dto.getStatus() == MaintenanceStatus.CANCELLED) {
                 if (asset.getStatus() == AssetStatus.UNDER_MAINTENANCE) {
                     asset.setStatus(AssetStatus.IN_USE);
                     assetRepository.save(asset);
@@ -336,6 +379,26 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
                 updatedLog.getId(), "Cập nhật tiến độ bảo trì cho tài sản " + asset.getAssetCode());
 
         return WorkspaceAssetMapper.toLogDto(updatedLog);
+    }
+
+    private Set<Long> maintainedAssets(Long workspaceId) {
+        return maintenanceLogRepository.findMaintainedAssetIds(workspaceId, LocalDateTime.now(),
+                List.of(MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS));
+    }
+
+    private Set<Long> maintainedResources(Long workspaceId) {
+        var now = LocalDateTime.now();
+        return ResourceMaintenance.maintenanceIds(
+                blockedSlots.findForWorkspace(workspaceId, now, now.plusNanos(1000)));
+    }
+
+    private WorkspaceAssetResponseDto effectiveDto(WorkspaceAssetModel asset,
+            Set<Long> maintained, Set<Long> resources) {
+        var dto = WorkspaceAssetMapper.toDto(asset);
+        if (maintained.contains(asset.getId())
+                || ResourceMaintenance.affected(asset.getResource(), resources))
+            return dto.toBuilder().status(AssetStatus.UNDER_MAINTENANCE).build();
+        return dto;
     }
 
     private WorkspaceModel getWorkspaceWithOwnershipCheck(Long workspaceId, Long actorId) {

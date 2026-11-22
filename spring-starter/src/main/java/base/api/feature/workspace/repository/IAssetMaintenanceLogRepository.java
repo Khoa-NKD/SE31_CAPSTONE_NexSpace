@@ -13,6 +13,15 @@ import java.util.Optional;
 @Repository
 public interface IAssetMaintenanceLogRepository extends JpaRepository<AssetMaintenanceLogModel, Long> {
 
+    @org.springframework.data.jpa.repository.Query("""
+            select distinct log.asset.id from AssetMaintenanceLogModel log
+            where log.asset.workspace.id = :workspaceId and log.status in :statuses
+              and coalesce(log.startedAt, log.scheduledAt, log.createdAt) <= :now
+              and (log.plannedEndAt is null or log.plannedEndAt > :now)
+            """)
+    java.util.Set<Long> findMaintainedAssetIds(Long workspaceId, java.time.LocalDateTime now,
+            java.util.Collection<base.api.shared.enums.MaintenanceStatus> statuses);
+
     @EntityGraph(attributePaths = {"asset", "reportedBy"})
     List<AssetMaintenanceLogModel> findByAssetIdOrderByCreatedAtDesc(Long assetId);
 

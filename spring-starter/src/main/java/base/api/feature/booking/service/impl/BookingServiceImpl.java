@@ -19,6 +19,7 @@ import base.api.feature.pricing.repository.IPricingRuleRepository;
 import base.api.feature.resource.dto.FloorManagement.AvailabilityState;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
+import base.api.feature.resource.service.ResourceMaintenance;
 import base.api.feature.resource.repository.ResourceUsageRepository;
 import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.feature.resource.service.PublishedGeometry;
@@ -119,7 +120,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     private int spamHoldWindowHours = 24;
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public BookingResponseDto createBooking(Long customerId, CreateBookingRequestDto dto) {
         base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType());
         // 1. Identify Customer
@@ -213,9 +214,15 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         List<ResourceBlockedSlotModel> conflictingBlockedSlots = blockedSlotRepository.findConflictingBlockedSlots(
                 resource.getId(), startTime, endTime);
 
-        if (!conflictingBlockedSlots.isEmpty()) {
+        if (conflictingBlockedSlots.stream().anyMatch(slot -> ResourceMaintenance.preventsBooking(resource, slot))) {
             throw new ConflictException("Chỗ ngồi/phòng đang bị khoá tạm thời (bảo trì hoặc sự kiện riêng)");
         }
+        int availableCapacity = ResourceMaintenance.capacity(resource, resourceRepository.findByParentRoomId(resource.getId()),
+                ResourceMaintenance.maintenanceIds(conflictingBlockedSlots));
+        if (availableCapacity == 0)
+            throw new ConflictException("Phòng không còn ghế khả dụng trong thời gian bảo trì.");
+        if (dto.getPartySize() > availableCapacity)
+            throw new ConflictException("Số người vượt số ghế khả dụng sau khi trừ ghế đang bảo trì.");
 
         // 8. Calculate Pricing & Tariffs
         PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType());
@@ -511,13 +518,16 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             resources = resourceRepository.findByFloorPlanId(floorId);
         } else {
             resources = resourceRepository.findByFloorPlanWorkspaceIdAndStatusNot(
-                    workspaceId, BookableResourceStatus.DISABLED);
+                    workspaceId, BookableResourceStatus.ARCHIVED);
         }
 
         LocalDateTime now = LocalDateTime.now();
         var occupancyMap = floorId != null
                 ? resourceUsageRepository.occupancy(floorId, startTime, endTime, now)
                 : resourceUsageRepository.occupancyByWorkspace(workspaceId, startTime, endTime, now);
+        Set<Long> maintenanceIds = occupancyMap.entrySet().stream()
+                .filter(entry -> entry.getValue().contains(AvailabilityState.MAINTENANCE))
+                .map(Map.Entry::getKey).collect(Collectors.toSet());
         boolean suspended = workspaceRepository.findById(workspaceId)
                 .map(WorkspaceModel::getOrganizer)
                 .flatMap(organizer -> organizerProfiles.findByOrganizerId(organizer.getId()))
@@ -532,19 +542,36 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                         .collect(Collectors.toSet())
                 : Collections.emptySet();
 
+        var childrenByRoom = resources.stream().filter(child -> child.getParentRoom() != null)
+                .collect(Collectors.groupingBy(child -> child.getParentRoom().getId()));
         List<ResourceAvailabilityDto> results = new ArrayList<>();
         for (BookableResourceModel res : resources) {
             if (!workspaceId.equals(res.getFloorPlan().getWorkspace().getId())
-                    || res.getParentRoom() != null) continue;
-            Set<AvailabilityState> flags = occupancyMap.getOrDefault(res.getId(), Collections.emptySet());
+                    || res.getStatus() == BookableResourceStatus.ARCHIVED) continue;
+            var publishedPlacement = PublishedGeometry.read(res.getFloorPlan());
+            if (res.getStatus() == BookableResourceStatus.DRAFT
+                    && (publishedPlacement == null || !publishedPlacement.containsKey(res.getId()))) continue;
+            Set<AvailabilityState> flags = new HashSet<>(occupancyMap.getOrDefault(res.getId(), Collections.emptySet()));
+            if (res.getParentRoom() != null)
+                flags.addAll(occupancyMap.getOrDefault(res.getParentRoom().getId(), Collections.emptySet()));
+            // Child maintenance reduces capacity; a live child reservation still excludes a room booking.
+            var children = childrenByRoom.getOrDefault(res.getId(), Collections.emptyList());
+            for (var child : children) {
+                var childFlags = occupancyMap.getOrDefault(child.getId(), Collections.emptySet());
+                if (childFlags.contains(AvailabilityState.BOOKED)) flags.add(AvailabilityState.BOOKED);
+                if (childFlags.contains(AvailabilityState.LOCKED)) flags.add(AvailabilityState.LOCKED);
+            }
+            int availableCapacity = ResourceMaintenance.capacity(res, children, maintenanceIds);
+            if (availableCapacity == 0) flags.add(AvailabilityState.MAINTENANCE);
 
             boolean isOccupiedByMe = myHeldResourceIds.contains(res.getId());
 
             AvailabilityState state = AvailabilityState.AVAILABLE;
-            if (res.getStatus() != BookableResourceStatus.ACTIVE) {
+            if (flags.contains(AvailabilityState.MAINTENANCE)) {
                 state = AvailabilityState.MAINTENANCE;
-            } else if (flags.contains(AvailabilityState.MAINTENANCE)) {
-                state = AvailabilityState.MAINTENANCE;
+            } else if (res.getStatus() != BookableResourceStatus.ACTIVE
+                    || res.getParentRoom() != null && res.getParentRoom().getStatus() != BookableResourceStatus.ACTIVE) {
+                state = AvailabilityState.DISABLED;
             } else if (flags.contains(AvailabilityState.BOOKED)) {
                 state = AvailabilityState.BOOKED;
             } else if (flags.contains(AvailabilityState.LOCKED)) {
@@ -553,7 +580,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 state = AvailabilityState.DISABLED;
             }
             if (state == AvailabilityState.AVAILABLE && !PublishedGeometry.isCurrentPublishedPlacement(res))
-                state = AvailabilityState.MAINTENANCE;
+                state = AvailabilityState.DISABLED;
 
             BigDecimal price = res.getPricePerHour() != null
                     ? res.getPricePerHour()
@@ -561,12 +588,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
             // Nếu chính user này đang giữ chỗ (isOccupiedByMe = true), cho phép selectable để họ tiếp tục thanh toán
             boolean selectable = (state == AvailabilityState.AVAILABLE || (isOccupiedByMe && state == AvailabilityState.LOCKED))
+                    && res.getParentRoom() == null
                     && res.getStatus() == BookableResourceStatus.ACTIVE
                     && res.getResourceType() != null && res.getResourceType().isActive();
 
-            Integer capacity = res.getCapacityOverride() != null
-                    ? res.getCapacityOverride()
-                    : (res.getResourceType() != null ? res.getResourceType().getCapacity() : 1);
+            Integer capacity = availableCapacity;
             String typeName = res.getResourceType() != null ? res.getResourceType().getName() : null;
 
             results.add(ResourceAvailabilityDto.builder()

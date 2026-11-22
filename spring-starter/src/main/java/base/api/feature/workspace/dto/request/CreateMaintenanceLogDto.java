@@ -45,6 +45,9 @@ public class CreateMaintenanceLogDto {
     @Schema(description = "Thời gian lên lịch bảo trì")
     private LocalDateTime scheduledAt;
 
+    @Schema(description = "Planned end of the maintenance period")
+    private LocalDateTime plannedEndAt;
+
     @Schema(description = "Thời gian bắt đầu xử lý")
     private LocalDateTime startedAt;
 

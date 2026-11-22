@@ -297,6 +297,22 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("excludeBookingId") Long excludeBookingId
     );
 
+    /** Maintenance also protects the live checkout countdown, separately from reserved usage time. */
+    @Query("""
+            SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
+            WHERE b.resource.id IN :resourceIds
+              AND b.status IN (base.api.shared.enums.BookingStatus.PENDING_PAYMENT,
+                    base.api.shared.enums.BookingStatus.PENDING_APPROVAL)
+              AND b.holdExpiresAt > :now
+              AND b.holdExpiresAt > :startTime
+              AND COALESCE(b.createdAt, :now) < :endTime
+            """)
+    boolean existsOverlappingActiveHoldWindow(
+            @Param("resourceIds") Collection<Long> resourceIds,
+            @Param("now") LocalDateTime now,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime);
+
     @Query("""
             SELECT CASE WHEN COUNT(b) > 0 THEN TRUE ELSE FALSE END FROM BookingModel b
             WHERE b.resource.id = :resourceId

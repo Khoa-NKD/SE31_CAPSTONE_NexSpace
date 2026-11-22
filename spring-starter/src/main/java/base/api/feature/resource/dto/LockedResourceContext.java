@@ -15,6 +15,7 @@ import java.util.List;
 @Builder
 public class LockedResourceContext {
     BookableResourceModel targetResource;
+    Integer availableCapacity;
     List<BookableResourceModel> lockedResources;
     List<Long> lockedResourceIds;
     LocalDateTime startTime;
