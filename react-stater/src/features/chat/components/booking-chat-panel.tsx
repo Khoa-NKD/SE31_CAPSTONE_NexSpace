@@ -33,7 +33,7 @@ import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useConversationMessages, useAiSmartReplies } from '../api/queries';
-import { useMarkAsReadMutation, useSendMessageMutation, useAdjustToneMutation } from '../api/mutations';
+import { useMarkAsReadMutation, useSendMessageMutation, useAdjustToneMutation, useSummarizeConversationMutation } from '../api/mutations';
 import { useChatSocket } from '../hooks/use-chat-socket';
 import type { BookingChatMessageDto, BookingConversationDto, AiToneMode } from '../api/types';
 
@@ -121,7 +121,18 @@ export function BookingChatPanel({
     isLoading: isLoadingSmartReplies,
     refetch: refetchSmartReplies
   } = useAiSmartReplies(conversationId);
+  const [privateSummary, setPrivateSummary] = useState<string | null>(null);
   const adjustToneMutation = useAdjustToneMutation(conversationId);
+  const summarizeMutation = useSummarizeConversationMutation(conversationId);
+
+  const handleSummarize = () => {
+    summarizeMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        setPrivateSummary(data.summary);
+        toast.success('Đã tổng hợp cuộc trò chuyện (Chỉ riêng bạn thấy)');
+      }
+    });
+  };
 
   const handleAdjustTone = (mode: AiToneMode) => {
     const trimmed = content.trim();
@@ -309,6 +320,31 @@ export function BookingChatPanel({
         </div>
       </div>
 
+      {/* Private AI Chat Summary (Organizer only - Khách hàng không thấy) */}
+      {!isCustomer && privateSummary && (
+        <div className='p-3 sm:p-3.5 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-card border-b border-purple-500/30 text-xs shadow-xs shrink-0 animate-in fade-in slide-in-from-top-2 duration-200'>
+          <div className='flex items-center justify-between pb-1.5 border-b border-purple-500/20 mb-2'>
+            <div className='flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-semibold'>
+              <Sparkles className='h-4 w-4 text-purple-500 shrink-0' />
+              <span>Tóm tắt cuộc trò chuyện (Chỉ riêng bạn thấy)</span>
+            </div>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              onClick={() => setPrivateSummary(null)}
+              className='h-6 w-6 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer'
+              title='Đóng tóm tắt'
+            >
+              <X className='h-3.5 w-3.5' />
+            </Button>
+          </div>
+          <div className='whitespace-pre-line text-foreground/90 leading-relaxed font-sans max-h-40 overflow-y-auto pr-1'>
+            {privateSummary}
+          </div>
+        </div>
+      )}
+
       {/* Booking Context Banner */}
       {conversation && (
         <div className='px-4 py-2 bg-muted/40 border-b border-border/40 text-xs text-muted-foreground flex items-center justify-between gap-2 shrink-0'>
@@ -461,21 +497,24 @@ export function BookingChatPanel({
         ) : (
           // Chủ không gian (Organizer): Gợi ý tổng hợp chat hoặc smart replies
           <>
-            <Badge
-              variant='outline'
-              className='bg-gradient-to-r from-purple-500/15 to-indigo-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25 text-[10px] font-medium gap-1 px-2 py-0.5 shrink-0 shadow-2xs'
-            >
-              <Sparkles className='h-3 w-3 animate-pulse text-purple-500' />
-              <span className='font-semibold'>@NexSpace AI:</span>
-            </Badge>
-
             <button
               type='button'
-              onClick={() => setContent('@NexSpace AI tổng hợp đoạn chat đã nhắn gì giúp tôi')}
-              className='border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95'
-              title='Nhấn để yêu cầu AI tóm tắt nội dung cuộc trò chuyện'
+              onClick={handleSummarize}
+              disabled={summarizeMutation.isPending}
+              className='border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 flex items-center gap-1'
+              title='Yêu cầu AI tóm tắt nội dung cuộc trò chuyện (Chỉ riêng bạn thấy)'
             >
-              ✨ Tổng hợp đoạn chat
+              {summarizeMutation.isPending ? (
+                <>
+                  <Loader2 className='h-3 w-3 animate-spin text-purple-500' />
+                  <span>Đang tổng hợp...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className='h-3 w-3 text-purple-500' />
+                  <span>✨ Tổng hợp đoạn chat</span>
+                </>
+              )}
             </button>
 
             {isLoadingSmartReplies ? (
@@ -522,20 +561,22 @@ export function BookingChatPanel({
 
       {/* Input Composer */}
       <div className='p-3 sm:p-4 border-t border-border/60 bg-card flex items-end gap-2 shrink-0'>
-        {/* Nút bấm nhanh @AI */}
-        <Button
-          type='button'
-          variant='ghost'
-          onClick={() => {
-            setContent((prev) => (prev.startsWith('@NexSpace AI ') ? prev : `@NexSpace AI ${prev}`));
-          }}
-          className='h-[42px] px-2.5 rounded-xl border border-purple-500/25 bg-purple-500/5 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15 shrink-0 cursor-pointer transition flex items-center gap-1 font-semibold text-xs'
-          title='Nhắc @NexSpace AI để hỏi hoặc tóm tắt'
-          aria-label='Nhắc @NexSpace AI'
-        >
-          <Sparkles className='h-3.5 w-3.5 text-purple-500' />
-          <span>@AI</span>
-        </Button>
+        {/* Nút bấm nhanh @AI - Chỉ dành cho khách hàng */}
+        {isCustomer && (
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={() => {
+              setContent((prev) => (prev.startsWith('@NexSpace AI ') ? prev : `@NexSpace AI ${prev}`));
+            }}
+            className='h-[42px] px-2.5 rounded-xl border border-purple-500/25 bg-purple-500/5 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15 shrink-0 cursor-pointer transition flex items-center gap-1 font-semibold text-xs'
+            title='Nhắc @NexSpace AI để hỏi thông tin'
+            aria-label='Nhắc @NexSpace AI'
+          >
+            <Sparkles className='h-3.5 w-3.5 text-purple-500' />
+            <span>@AI</span>
+          </Button>
+        )}
 
         <Textarea
           value={content}
@@ -549,7 +590,7 @@ export function BookingChatPanel({
             // Đảm bảo cập nhật chuỗi ký tự tiếng Việt sau khi kết thúc gõ bộ gõ Telex / VNI
             setContent(e.currentTarget.value);
           }}
-          placeholder='Nhập tin nhắn (tag @NexSpace AI để hỏi AI)...'
+          placeholder={isCustomer ? 'Nhập tin nhắn (tag @NexSpace AI để hỏi AI)...' : 'Nhập tin nhắn...'}
           rows={1}
           className='min-h-[42px] max-h-32 text-xs sm:text-sm resize-none rounded-xl border-border/80 focus-visible:ring-indigo-500/30'
         />

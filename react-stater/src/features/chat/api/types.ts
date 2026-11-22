@@ -69,3 +69,9 @@ export interface AiToneAdjustmentResponse {
   adjustedText: string;
   mode: string;
 }
+
+export interface AiChatSummaryResponse {
+  conversationId: number;
+  summary: string;
+  generatedAt: string;
+}

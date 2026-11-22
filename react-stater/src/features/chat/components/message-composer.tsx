@@ -36,6 +36,8 @@ interface MessageComposerProps {
   onAdjustTone?: (mode: AiToneMode) => void;
   isAdjustingTone?: boolean;
   isCustomer?: boolean;
+  onSummarize?: () => void;
+  isSummarizing?: boolean;
 }
 
 const DEFAULT_QUICK_REPLIES = [
@@ -56,7 +58,9 @@ export function MessageComposer({
   onRefreshSmartReplies,
   onAdjustTone,
   isAdjustingTone = false,
-  isCustomer = false
+  isCustomer = false,
+  onSummarize,
+  isSummarizing = false
 }: MessageComposerProps) {
   const isComposingRef = useRef(false);
 
@@ -113,22 +117,27 @@ export function MessageComposer({
         ) : (
           // Chủ không gian: Gợi ý tổng hợp chat hoặc smart replies
           <>
-            <Badge
-              variant='outline'
-              className='bg-gradient-to-r from-purple-500/15 to-indigo-500/15 text-purple-600 dark:text-purple-400 border-purple-500/25 text-[11px] font-medium gap-1 px-2.5 py-0.5 shrink-0 shadow-2xs'
-            >
-              <Sparkles className='h-3 w-3 animate-pulse text-purple-500' />
-              <span className='font-semibold'>@NexSpace AI:</span>
-            </Badge>
-
-            <button
-              type='button'
-              onClick={() => onDraftChange('@NexSpace AI tổng hợp đoạn chat đã nhắn gì giúp tôi')}
-              className='border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 rounded-full border px-2.5 py-1 text-xs font-medium transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95'
-              title='Nhấn để yêu cầu AI tóm tắt nội dung cuộc trò chuyện'
-            >
-              ✨ Tổng hợp đoạn chat
-            </button>
+            {onSummarize && (
+              <button
+                type='button'
+                onClick={onSummarize}
+                disabled={isSummarizing}
+                className='border-purple-500/40 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 rounded-full border px-2.5 py-1 text-xs font-medium transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 flex items-center gap-1.5'
+                title='Yêu cầu AI tóm tắt nội dung cuộc trò chuyện (Chỉ riêng bạn thấy)'
+              >
+                {isSummarizing ? (
+                  <>
+                    <Loader2 className='h-3 w-3 animate-spin text-purple-500' />
+                    <span>Đang tổng hợp...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className='h-3 w-3 text-purple-500' />
+                    <span>✨ Tổng hợp đoạn chat</span>
+                  </>
+                )}
+              </button>
+            )}
 
             {isLoadingSmartReplies ? (
               <div className='flex items-center gap-1.5 text-xs text-muted-foreground py-0.5 px-2 animate-pulse'>
@@ -172,19 +181,21 @@ export function MessageComposer({
 
       {/* Main Composer Box */}
       <div className='border-border/60 bg-card/70 focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all flex items-end gap-2 rounded-2xl border p-2.5 backdrop-blur-xs sm:gap-3 sm:rounded-2xl sm:p-3'>
-        {/* Nút bấm nhanh @AI */}
-        <Button
-          type='button'
-          variant='ghost'
-          onClick={() => {
-            onDraftChange(draft.startsWith('@NexSpace AI ') ? draft : `@NexSpace AI ${draft}`);
-          }}
-          className='size-8 sm:size-9 rounded-full border border-purple-500/25 bg-purple-500/5 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15 shrink-0 cursor-pointer transition flex items-center justify-center font-bold text-xs'
-          title='Nhắc @NexSpace AI để hỏi hoặc tóm tắt'
-          aria-label='Nhắc @NexSpace AI'
-        >
-          <Sparkles className='h-3.5 w-3.5 text-purple-500' />
-        </Button>
+        {/* Nút bấm nhanh @AI - Chỉ hiển thị cho khách hàng */}
+        {isCustomer && (
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={() => {
+              onDraftChange(draft.startsWith('@NexSpace AI ') ? draft : `@NexSpace AI ${draft}`);
+            }}
+            className='size-8 sm:size-9 rounded-full border border-purple-500/25 bg-purple-500/5 text-purple-600 dark:text-purple-400 hover:bg-purple-500/15 shrink-0 cursor-pointer transition flex items-center justify-center font-bold text-xs'
+            title='Nhắc @NexSpace AI để hỏi thông tin'
+            aria-label='Nhắc @NexSpace AI'
+          >
+            <Sparkles className='h-3.5 w-3.5 text-purple-500' />
+          </Button>
+        )}
 
         <div className='min-w-0 flex-1'>
           <label htmlFor='messenger-editor' className='sr-only'>
@@ -211,7 +222,11 @@ export function MessageComposer({
                 handleSubmit();
               }
             }}
-            placeholder={`Nhắn cho ${contactName} (tag @NexSpace AI để hỏi AI)...`}
+            placeholder={
+              isCustomer
+                ? 'Nhắn tin hoặc tag @NexSpace AI để hỏi...'
+                : `Nhắn cho ${contactName}...`
+            }
             rows={1}
             className='text-foreground placeholder:text-muted-foreground/70 min-h-[2.5rem] max-h-32 w-full resize-none border-none bg-transparent text-xs sm:text-sm focus-visible:ring-0 focus-visible:outline-none p-1'
             aria-label={`Nhắn cho ${contactName}`}

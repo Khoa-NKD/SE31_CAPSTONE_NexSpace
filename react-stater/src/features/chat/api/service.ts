@@ -1,6 +1,7 @@
 import { apiClient } from '@/lib/api-client';
 import type { PageResponse } from '@/types/api';
 import type {
+  AiChatSummaryResponse,
   AiSmartRepliesResponse,
   AiToneAdjustmentPayload,
   AiToneAdjustmentResponse,
@@ -75,6 +76,12 @@ export const bookingChatService = {
     return apiClient.post<AiToneAdjustmentResponse>(
       `/chat/conversations/${conversationId}/ai/tone`,
       payload
+    );
+  },
+
+  summarizeConversation: async (conversationId: number): Promise<AiChatSummaryResponse> => {
+    return apiClient.post<AiChatSummaryResponse>(
+      `/chat/conversations/${conversationId}/ai/summarize`
     );
   }
 };

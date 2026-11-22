@@ -76,3 +76,12 @@ export function useAdjustToneMutation(conversationId: number) {
     }
   });
 }
+
+export function useSummarizeConversationMutation(conversationId: number) {
+  return useMutation({
+    mutationFn: () => bookingChatService.summarizeConversation(conversationId),
+    onError: (err: Error) => {
+      toast.error(err.message || 'Không thể tổng hợp cuộc trò chuyện bằng AI');
+    }
+  });
+}

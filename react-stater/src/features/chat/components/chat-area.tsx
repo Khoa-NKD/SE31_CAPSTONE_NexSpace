@@ -1,10 +1,11 @@
-import { FormEvent, useEffect, useRef } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Loader2, MessageSquare, Info } from 'lucide-react';
+import { Loader2, MessageSquare, Info, Sparkles, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import type { AiToneMode, BookingChatMessageDto, BookingConversationDto } from '../api/types';
 import { useAiSmartReplies } from '../api/queries';
-import { useAdjustToneMutation } from '../api/mutations';
+import { useAdjustToneMutation, useSummarizeConversationMutation } from '../api/mutations';
 import { ChatHeader } from './chat-header';
 import { MessageBubble } from './message-bubble';
 import { MessageComposer } from './message-composer';
@@ -67,7 +68,24 @@ export function ChatArea({
     refetch: refetchSmartReplies
   } = useAiSmartReplies(conversation.id);
 
+  const [privateSummary, setPrivateSummary] = useState<string | null>(null);
+
+  // Xóa bản tóm tắt cũ khi chuyển đổi cuộc hội thoại
+  useEffect(() => {
+    setPrivateSummary(null);
+  }, [conversation.id]);
+
   const adjustToneMutation = useAdjustToneMutation(conversation.id);
+  const summarizeMutation = useSummarizeConversationMutation(conversation.id);
+
+  const handleSummarize = () => {
+    summarizeMutation.mutate(undefined, {
+      onSuccess: (data) => {
+        setPrivateSummary(data.summary);
+        toast.success('Đã tổng hợp cuộc trò chuyện (Chỉ riêng bạn thấy)');
+      }
+    });
+  };
 
   const handleAdjustTone = (mode: AiToneMode) => {
     if (!draft.trim()) {
@@ -116,6 +134,31 @@ export function ChatArea({
             {conversation.bookingStatus}
           </span>
         </div>
+
+        {/* Private AI Chat Summary Banner (Organizer only - Khách hàng hoàn toàn không thấy) */}
+        {!isCustomer && privateSummary && (
+          <div className='p-3 sm:p-3.5 bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-card border border-purple-500/30 rounded-xl relative text-xs shadow-xs shrink-0 animate-in fade-in slide-in-from-top-2 duration-200'>
+            <div className='flex items-center justify-between pb-1.5 border-b border-purple-500/20 mb-2'>
+              <div className='flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-semibold'>
+                <Sparkles className='h-4 w-4 text-purple-500 shrink-0' />
+                <span>Tóm tắt cuộc trò chuyện (Chỉ riêng bạn thấy)</span>
+              </div>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                onClick={() => setPrivateSummary(null)}
+                className='h-6 w-6 rounded-lg text-muted-foreground hover:text-foreground cursor-pointer'
+                title='Đóng tóm tắt'
+              >
+                <X className='h-3.5 w-3.5' />
+              </Button>
+            </div>
+            <div className='whitespace-pre-line text-foreground/90 leading-relaxed font-sans max-h-48 overflow-y-auto pr-1'>
+              {privateSummary}
+            </div>
+          </div>
+        )}
 
         {/* Messages Stream */}
         <div
@@ -167,6 +210,8 @@ export function ChatArea({
           onAdjustTone={handleAdjustTone}
           isAdjustingTone={adjustToneMutation.isPending}
           isCustomer={isCustomer}
+          onSummarize={!isCustomer ? handleSummarize : undefined}
+          isSummarizing={summarizeMutation.isPending}
         />
       </motion.div>
     </AnimatePresence>
