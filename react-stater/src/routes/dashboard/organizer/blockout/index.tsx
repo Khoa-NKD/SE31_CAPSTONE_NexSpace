@@ -1,12 +1,14 @@
 import React from 'react';
+import { z } from 'zod';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { BlockoutManagementView } from '@/features/organizer-blockout/components/blockout-management-view';
 
 export const Route = createFileRoute('/dashboard/organizer/blockout/')({
+  validateSearch: z.object({ workspaceId: z.coerce.number().int().positive().optional() }),
   head: () => ({
     meta: [
-      { title: 'Unavailability & Blockout Hours | NexSpace Organizer Hub' },
+      { title: 'Maintenance schedule | NexSpace Organizer Hub' },
       {
         name: 'description',
         content:
@@ -18,9 +20,10 @@ export const Route = createFileRoute('/dashboard/organizer/blockout/')({
 });
 
 function OrganizerBlockoutPage() {
+  const { workspaceId } = Route.useSearch();
   return (
     <PageContainer>
-      <BlockoutManagementView />
+      <BlockoutManagementView initialWorkspaceId={workspaceId} />
     </PageContainer>
   );
 }

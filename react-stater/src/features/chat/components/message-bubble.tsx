@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from 'motion/react';
-import { Check, CheckCheck, Paperclip } from 'lucide-react';
+import { Check, CheckCheck, Paperclip } from '@/components/ui/hugeicons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
 import type { BookingChatMessageDto } from '../api/types';
@@ -39,9 +39,7 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
 
       <div className={cn('max-w-[85%] sm:max-w-[75%] space-y-1', isMe && 'ml-auto')}>
         {!isMe && (
-          <p className='text-[11px] text-muted-foreground font-medium pl-1'>
-            {message.senderName}
-          </p>
+          <p className='text-[11px] text-muted-foreground font-medium pl-1'>{message.senderName}</p>
         )}
 
         <div
@@ -76,8 +74,8 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
           )}
         >
           <span>{timeStr}</span>
-          {isMe && (
-            message.isRead ? (
+          {isMe &&
+            (message.isRead ? (
               <span title='Đã đọc' className='text-emerald-500 flex items-center'>
                 <CheckCheck className='h-3 w-3' />
               </span>
@@ -85,8 +83,7 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
               <span title='Đã gửi' className='text-muted-foreground/60 flex items-center'>
                 <Check className='h-3 w-3' />
               </span>
-            )
-          )}
+            ))}
         </div>
       </div>
     </motion.div>

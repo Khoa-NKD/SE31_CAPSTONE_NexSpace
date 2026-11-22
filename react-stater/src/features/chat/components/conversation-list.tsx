@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Search, Inbox, Radio } from 'lucide-react';
+import { Search, Inbox, Wifi } from '@/components/ui/hugeicons';
 import { motion } from 'motion/react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -54,9 +54,7 @@ export function ConversationList({
       <div className='flex items-center justify-between gap-3'>
         <div>
           <p className='text-foreground text-sm font-semibold'>Hội thoại & Hỗ trợ</p>
-          <p className='text-muted-foreground text-xs'>
-            {conversations.length} cuộc hội thoại
-          </p>
+          <p className='text-muted-foreground text-xs'>{conversations.length} cuộc hội thoại</p>
         </div>
         <Badge
           variant='outline'
@@ -67,7 +65,7 @@ export function ConversationList({
               : 'bg-muted/50 text-muted-foreground'
           )}
         >
-          <Radio className={cn('h-2.5 w-2.5', isConnected && 'animate-pulse text-emerald-500')} />
+          <Wifi className={cn('h-2.5 w-2.5', isConnected && 'animate-pulse text-emerald-500')} />
           <span>{isConnected ? 'Trực tuyến' : 'Đang kết nối'}</span>
         </Badge>
       </div>
@@ -100,7 +98,10 @@ export function ConversationList({
         {isLoading ? (
           <div className='space-y-2 py-1'>
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className='flex items-center gap-3 p-3 rounded-2xl bg-muted/20 animate-pulse'>
+              <div
+                key={i}
+                className='flex items-center gap-3 p-3 rounded-2xl bg-muted/20 animate-pulse'
+              >
                 <Skeleton className='h-10 w-10 rounded-2xl shrink-0' />
                 <div className='space-y-1.5 flex-1 min-w-0'>
                   <Skeleton className='h-3.5 w-24' />
@@ -180,7 +181,9 @@ export function ConversationList({
                   <div className='flex items-center gap-1 text-[11px] text-primary font-medium truncate'>
                     <span className='font-mono font-semibold'>#{conversation.bookingCode}</span>
                     <span className='text-muted-foreground/60'>•</span>
-                    <span className='text-muted-foreground truncate'>{conversation.workspaceName}</span>
+                    <span className='text-muted-foreground truncate'>
+                      {conversation.workspaceName}
+                    </span>
                   </div>
 
                   <p className='text-muted-foreground line-clamp-1 text-xs mt-0.5'>

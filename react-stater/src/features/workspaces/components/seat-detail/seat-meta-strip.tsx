@@ -1,4 +1,13 @@
-import { Star, VolumeX, Sunset, Wifi, QrCode, Users, Armchair, Building } from '@/components/ui/hugeicons';
+import {
+  Star,
+  VolumeX,
+  Sunset,
+  Wifi,
+  QrCode,
+  Users,
+  Chair,
+  Building
+} from '@/components/ui/hugeicons';
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
 import { useCurrency } from '@/features/landing/context/currency-context';
@@ -18,14 +27,17 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
   const capacity = resource?.capacity || (isRoom ? (isOffice ? 4 : 6) : 1);
   const hourlyRate = resource?.pricePerHour || 35000;
 
-  const zoneTag = resource?.zoneName?.toUpperCase() || (isRoom ? 'KHU PHÒNG HỌP' : 'KHU BÀN LÀM VIỆC');
+  const zoneTag =
+    resource?.zoneName?.toUpperCase() || (isRoom ? 'KHU PHÒNG HỌP' : 'KHU BÀN LÀM VIỆC');
   const seatId = resource?.code ? `MÃ #${resource.code}` : 'Seat ID #CT14-A04';
-  const title = resource?.name ? `${resource.name} (${resource.code})` : 'Desk A-04 — Executive Ergonomic Hot Desk';
+  const title = resource?.name
+    ? `${resource.name} (${resource.code})`
+    : 'Desk A-04 — Executive Ergonomic Hot Desk';
   const locationDesc = `${workspace?.name || 'NexSpace Enouvo'}, ${floor?.name || 'Tầng 2'} — ${resource?.typeName || (isRoom ? 'Phòng họp & làm việc cách âm tiêu chuẩn' : 'Bàn làm việc Focus tiêu chuẩn')}`;
 
   const metaBadges = [
     {
-      icon: isRoom ? (isOffice ? Building : Users) : Armchair,
+      icon: isRoom ? (isOffice ? Building : Users) : Chair,
       label: 'SỨC CHỨA',
       value: `${capacity} Chỗ ngồi`
     },
@@ -55,16 +67,12 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
             <span className='bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-semibold'>
               {zoneTag}
             </span>
-            <span className='text-muted-foreground text-xs font-medium font-mono'>
-              {seatId}
-            </span>
+            <span className='text-muted-foreground text-xs font-medium font-mono'>{seatId}</span>
           </div>
           <h1 className='text-foreground font-sans text-xl font-bold tracking-tight sm:text-2xl'>
             {title}
           </h1>
-          <p className='text-muted-foreground mt-1 text-xs sm:text-sm'>
-            {locationDesc}
-          </p>
+          <p className='text-muted-foreground mt-1 text-xs sm:text-sm'>{locationDesc}</p>
         </div>
 
         {/* Rating Block */}
@@ -95,9 +103,7 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
                 <p className='text-muted-foreground text-[10px] font-bold tracking-wider uppercase'>
                   {badge.label}
                 </p>
-                <p className='text-foreground text-xs font-semibold sm:text-sm'>
-                  {badge.value}
-                </p>
+                <p className='text-foreground text-xs font-semibold sm:text-sm'>{badge.value}</p>
               </div>
             </div>
           );
@@ -106,4 +112,3 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
     </div>
   );
 }
-

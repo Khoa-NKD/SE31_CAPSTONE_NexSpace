@@ -1,7 +1,8 @@
+import { customerResourceStatus } from '../../utils/customer-resource-status';
 import React, { useState, useMemo } from 'react';
 import {
   Users,
-  Armchair,
+  Chair,
   Building,
   CheckCircle2,
   Clock,
@@ -60,7 +61,10 @@ function getResourceImage(resource: MapResource): string {
     }
     return RESOURCE_PHOTOS.ROOM_POD;
   }
-  if (resource.code.startsWith('DD') || (resource.typeName && resource.typeName.includes('Cố Định'))) {
+  if (
+    resource.code.startsWith('DD') ||
+    (resource.typeName && resource.typeName.includes('Cố Định'))
+  ) {
     return RESOURCE_PHOTOS.DESK_DEDICATED;
   }
   return RESOURCE_PHOTOS.DESK_HOT;
@@ -87,10 +91,17 @@ export function SeatsListView({
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortBy, setSortBy] = useState<'default' | 'priceAsc' | 'priceDesc' | 'capacity'>('default');
+  const [sortBy, setSortBy] = useState<'default' | 'priceAsc' | 'priceDesc' | 'capacity'>(
+    'default'
+  );
 
   const filteredResources = useMemo(() => {
-    let list = resources.filter((res) => matchesSpaceCategory(res, filterCategory));
+    let list = resources
+      .filter((res) => {
+        const status = customerResourceStatus(res, availabilityMap?.get(res.id));
+        return !status.maintenance && !status.disabled && matchesSpaceCategory(res, filterCategory);
+      })
+      .map((res) => ({ ...res, capacity: availabilityMap?.get(res.id)?.capacity ?? res.capacity }));
 
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase();
@@ -112,7 +123,7 @@ export function SeatsListView({
     }
 
     return list;
-  }, [resources, filterCategory, searchTerm, sortBy]);
+  }, [resources, availabilityMap, filterCategory, searchTerm, sortBy]);
 
   return (
     <div className='space-y-5 animate-in fade-in duration-300'>
@@ -154,7 +165,7 @@ export function SeatsListView({
       {filteredResources.length === 0 ? (
         <div className='rounded-2xl border border-dashed border-border bg-card p-12 text-center'>
           <div className='mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-muted text-muted-foreground'>
-            <Armchair className='size-6' />
+            <Chair className='size-6' />
           </div>
           <h3 className='text-sm font-bold text-foreground'>
             {c('No spaces found matching criteria', 'Không tìm thấy vị trí phù hợp')}
@@ -171,16 +182,11 @@ export function SeatsListView({
           {filteredResources.map((res) => {
             const avail = availabilityMap?.get(res.id);
             const isHeldByMe = Boolean(avail?.isOccupiedByMe);
-            const isBooked = avail?.state === 'BOOKED';
-            const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
-            const isMaintenance = avail?.state === 'MAINTENANCE' || (!res.selectable && !isHeldByMe);
-            const isAvailable =
-              (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
-              (res.selectable || isHeldByMe) &&
-              !isBooked &&
-              !isLocked &&
-              !isMaintenance;
-
+            const status = customerResourceStatus(res, avail, isHeldByMe);
+            const isBooked = status.booked,
+              isLocked = status.locked,
+              isMaintenance = status.maintenance;
+            const isAvailable = status.available;
             const isSelected = selectedResourceId === res.id;
             const isOffice = isResourceOffice(res);
             const capacity = res.capacity || (res.category === 'ROOM' ? (isOffice ? 4 : 6) : 1);
@@ -191,7 +197,9 @@ export function SeatsListView({
             return (
               <div
                 key={res.id}
-                onClick={() => onSelectResource?.(res)}
+                onClick={() => {
+                  if (isAvailable) onSelectResource?.(res);
+                }}
                 className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:shadow-xl cursor-pointer ${
                   isSelected
                     ? 'border-primary ring-2 ring-primary/30 shadow-md'
@@ -244,8 +252,10 @@ export function SeatsListView({
                           {c('Booked', 'Đã có người đặt')}
                         </span>
                       ) : (
-                        <span className='inline-flex items-center gap-1.5 rounded-full bg-slate-500/90 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs'>
-                          {c('Maintenance', 'Bảo trì')}
+                        <span className='inline-flex items-center gap-1.5 rounded-full bg-purple-600/90 backdrop-blur-md px-2.5 py-0.5 text-[11px] font-bold text-white shadow-xs'>
+                          {isMaintenance
+                            ? c('Under maintenance', 'Đang bảo trì')
+                            : c('Not accepting bookings', 'Ngừng nhận đặt')}
                         </span>
                       )}
                     </div>
@@ -257,7 +267,8 @@ export function SeatsListView({
                       {res.name}
                     </h4>
                     <p className='text-[11px] text-white/80 drop-shadow-sm truncate'>
-                      {res.zoneName || (floor?.name ?? 'Enouvo Space')} • {capacity} {c('seats', 'chỗ ngồi')}
+                      {res.zoneName || (floor?.name ?? 'Enouvo Space')} • {capacity}{' '}
+                      {c('seats', 'chỗ ngồi')}
                     </p>
                   </div>
                 </div>
@@ -288,7 +299,7 @@ export function SeatsListView({
                     ) : (
                       <>
                         <div className='flex items-center gap-1.5 truncate'>
-                          <Armchair className='size-3 text-primary shrink-0' />
+                          <Chair className='size-3 text-primary shrink-0' />
                           <span>{c('Ergonomic Chair', 'Ghế công thái học')}</span>
                         </div>
                         <div className='flex items-center gap-1.5 truncate'>

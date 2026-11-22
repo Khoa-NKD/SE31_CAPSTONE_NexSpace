@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { SeatItem } from '../../types/seat';
 import { SeatCard } from './seat-card';
 import { SeatBookingDialog } from './seat-booking-dialog';
-import { Armchair } from '@/components/ui/hugeicons';
+import { Chair } from '@/components/ui/hugeicons';
 
 interface SeatsListProps {
   seats: SeatItem[];
@@ -21,7 +21,7 @@ export function SeatsList({ seats }: SeatsListProps) {
     return (
       <div className='bg-card border-border flex flex-col items-center justify-center rounded-2xl border p-12 text-center'>
         <div className='bg-muted text-muted-foreground mb-4 flex h-14 w-14 items-center justify-center rounded-full'>
-          <Armchair className='h-7 w-7' />
+          <Chair className='h-7 w-7' />
         </div>
         <h3 className='text-foreground text-base font-bold'>No resources found</h3>
         <p className='text-muted-foreground mt-1 max-w-sm text-xs'>
@@ -47,4 +47,3 @@ export function SeatsList({ seats }: SeatsListProps) {
     </>
   );
 }
-

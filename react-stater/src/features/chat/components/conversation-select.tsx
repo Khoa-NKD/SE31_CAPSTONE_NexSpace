@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge';
-import { Radio } from 'lucide-react';
+import { Wifi } from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
 import type { BookingConversationDto } from '../api/types';
 
@@ -36,7 +36,7 @@ export function ConversationSelect({
               : 'bg-muted/50 text-muted-foreground'
           )}
         >
-          <Radio className={cn('h-2 w-2', isConnected && 'animate-pulse text-emerald-500')} />
+          <Wifi className={cn('h-2 w-2', isConnected && 'animate-pulse text-emerald-500')} />
           <span>{isConnected ? 'Trực tuyến' : 'Đang kết nối'}</span>
         </Badge>
       </div>

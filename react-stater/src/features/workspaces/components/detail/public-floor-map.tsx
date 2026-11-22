@@ -1,10 +1,13 @@
+import { ResourceStatusLegend, selectedResourceColor } from './resource-status-legend';
+import { availabilityColors } from '@/features/organizer-resources/utils/availability';
+import { customerResourceStatus } from '../../utils/customer-resource-status';
 import type { FloorLocation } from '@/features/organizer-resources/api/buildings';
-import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Layers3,
   Users,
-  Armchair,
+  Chair,
   Building,
   ZoomIn,
   ZoomOut,
@@ -32,7 +35,11 @@ import {
 
 export { type SpaceFilterType, isResourceOffice, matchesSpaceCategory };
 
+const CustomerFloor3d = lazy(() => import('./customer-floor-3d'));
+
 export interface MapResource {
+  state?: 'AVAILABLE' | 'DISABLED' | 'MAINTENANCE';
+  visual3d?: import('@/features/organizer-resources/utils/visual-3d').Visual3d | null;
   id: number;
   code: string;
   name: string;
@@ -50,6 +57,7 @@ export interface MapResource {
 }
 
 export interface CustomerFloor {
+  pixelsPerMetre?: number | null;
   location?: FloorLocation | null;
   id: number;
   name: string;
@@ -93,10 +101,13 @@ function computeOptimalViewBox(floor: CustomerFloor): ViewBoxRect {
   const fullW = Math.max(100, Number(floor.width) || 1200);
   const fullH = Math.max(100, Number(floor.height) || 800);
 
-  const items: Array<{ posX: number; posY: number; width: number; height: number; rotation?: number }> = [
-    ...(floor.resources || []),
-    ...(floor.decorations || [])
-  ].filter(
+  const items: Array<{
+    posX: number;
+    posY: number;
+    width: number;
+    height: number;
+    rotation?: number;
+  }> = [...(floor.resources || []), ...(floor.decorations || [])].filter(
     (item) =>
       typeof item.posX === 'number' &&
       typeof item.posY === 'number' &&
@@ -119,8 +130,10 @@ function computeOptimalViewBox(floor: CustomerFloor): ViewBoxRect {
     const cx = item.posX + item.width / 2;
     const cy = item.posY + item.height / 2;
     const rad = ((item.rotation || 0) * Math.PI) / 180;
-    const halfW = (Math.abs(Math.cos(rad)) * item.width + Math.abs(Math.sin(rad)) * item.height) / 2;
-    const halfH = (Math.abs(Math.sin(rad)) * item.width + Math.abs(Math.cos(rad)) * item.height) / 2;
+    const halfW =
+      (Math.abs(Math.cos(rad)) * item.width + Math.abs(Math.sin(rad)) * item.height) / 2;
+    const halfH =
+      (Math.abs(Math.sin(rad)) * item.width + Math.abs(Math.cos(rad)) * item.height) / 2;
 
     minX = Math.min(minX, cx - halfW);
     minY = Math.min(minY, cy - halfH);
@@ -199,6 +212,7 @@ export function PublicFloorMap({
 
   const query = useQuery({
     queryKey: ['public-floor-maps', workspaceId],
+    refetchInterval: 3000,
     enabled: Number.isSafeInteger(workspaceId) && workspaceId > 0,
     queryFn: ({ signal }) =>
       backendRequest<CustomerFloor[]>(
@@ -216,15 +230,26 @@ export function PublicFloorMap({
   const [internalSelectedId, setInternalSelectedId] = useState<number | null>(null);
   const [internalFilter, setInternalFilter] = useState<SpaceFilterType>('ALL');
 
-  const activeSelectedId = selectedResourceId !== undefined ? selectedResourceId : internalSelectedId;
-  const activeFilter = onFilterCategoryChange ? filterCategory : filterCategory !== 'ALL' ? filterCategory : internalFilter;
+  const activeSelectedId =
+    selectedResourceId !== undefined ? selectedResourceId : internalSelectedId;
+  const activeFilter = onFilterCategoryChange
+    ? filterCategory
+    : filterCategory !== 'ALL'
+      ? filterCategory
+      : internalFilter;
 
   // Viewport Zoom & Pan state
+  const [dimension, setDimension] = useState<'2d' | '3d'>('2d');
   const [viewMode, setViewMode] = useState<'fit' | 'full'>('fit');
   const [zoom, setZoom] = useState<number>(1);
   const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<boolean>(false);
-  const dragStartRef = useRef<{ clientX: number; clientY: number; panX: number; panY: number } | null>(null);
+  const dragStartRef = useRef<{
+    clientX: number;
+    clientY: number;
+    panX: number;
+    panY: number;
+  } | null>(null);
   const svgRef = useRef<SVGSVGElement | null>(null);
 
   useEffect(() => {
@@ -236,7 +261,11 @@ export function PublicFloorMap({
   const effectiveFloorId = activeFloorId ?? floorId;
 
   const floor = useMemo(() => {
-    return query.data?.find((item) => item.id === effectiveFloorId) ?? query.data?.[0];
+    return (
+      query.data?.find((item) => item.id === effectiveFloorId) ??
+      query.data?.find((item) => item.resources.length > 0) ??
+      query.data?.[0]
+    );
   }, [query.data, effectiveFloorId]);
 
   useEffect(() => {
@@ -293,7 +322,8 @@ export function PublicFloorMap({
       const avail = availabilityMap?.get(res.id);
       const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
       const isMaintenance = avail?.state === 'MAINTENANCE';
-      const isAvailable = (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
+      const isAvailable =
+        (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
 
       if (isAvailable) {
         all++;
@@ -360,8 +390,14 @@ export function PublicFloorMap({
     const maxPanX = baseViewBox.width * 0.45;
     const maxPanY = baseViewBox.height * 0.45;
 
-    const nextX = Math.max(-maxPanX, Math.min(maxPanX, dragStartRef.current.panX - dxPx * unitsPerPxX));
-    const nextY = Math.max(-maxPanY, Math.min(maxPanY, dragStartRef.current.panY - dyPx * unitsPerPxY));
+    const nextX = Math.max(
+      -maxPanX,
+      Math.min(maxPanX, dragStartRef.current.panX - dxPx * unitsPerPxX)
+    );
+    const nextY = Math.max(
+      -maxPanY,
+      Math.min(maxPanY, dragStartRef.current.panY - dyPx * unitsPerPxY)
+    );
 
     setPan({ x: nextX, y: nextY });
   };
@@ -386,21 +422,31 @@ export function PublicFloorMap({
 
   function shape(resource: MapResource) {
     const avail = availabilityMap?.get(resource.id);
-    const isHeldByMe = Boolean(avail?.isOccupiedByMe || (holdData?.resourceId === resource.id));
-    const isBooked = avail?.state === 'BOOKED';
-    const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
-    const isMaintenance = avail?.state === 'MAINTENANCE' || (!resource.selectable && !isHeldByMe);
-    const isAvailable =
-      (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
-      (resource.selectable || isHeldByMe) &&
-      !isBooked &&
-      !isLocked &&
-      !isMaintenance;
-    const isCurrentSelected = activeSelectedId === resource.id;
+    resource = { ...resource, capacity: avail?.capacity ?? resource.capacity };
+    const isHeldByMe = Boolean(avail?.isOccupiedByMe || holdData?.resourceId === resource.id);
+    const status = customerResourceStatus(resource, avail, isHeldByMe);
+    const isBooked = status.booked,
+      isLocked = status.locked,
+      isMaintenance = status.maintenance;
+    const isDisabled =
+      status.disabled ||
+      (!resource.state && !avail && !resource.selectable && !isHeldByMe && !isMaintenance);
+    const isAvailable = status.available;
+    const isCurrentSelected = activeSelectedId === resource.id && isAvailable;
+    const resourceTone = isCurrentSelected
+      ? selectedResourceColor
+      : availabilityColors[status.state];
     const matchesCurrentFilter = matchesSpaceCategory(resource, activeFilter);
 
     const isOffice = isResourceOffice(resource);
-    const capacityText = resource.capacity ? `${resource.capacity}` : isOffice ? '4' : resource.category === 'ROOM' ? '6' : '1';
+    const capacityText =
+      resource.capacity != null
+        ? `${resource.capacity}`
+        : isOffice
+          ? '4'
+          : resource.category === 'ROOM'
+            ? '6'
+            : '1';
 
     const handleResourceClick = () => {
       if (!matchesCurrentFilter) return;
@@ -425,11 +471,11 @@ export function PublicFloorMap({
         return;
       }
 
-      if (isMaintenance) {
+      if (isMaintenance || isDisabled) {
         toast.warning(
           c(
             `Seat ${resource.name || resource.code} is currently under maintenance.`,
-            `Vị trí ${resource.name || resource.code} hiện đang tạm khóa hoặc bảo trì.`
+            `Vị trí ${resource.name || resource.code} hiện không nhận đặt trong khung giờ này.`
           )
         );
         return;
@@ -452,7 +498,9 @@ export function PublicFloorMap({
     } else if (isLocked) {
       fillColor = 'fill-amber-500/15 stroke-amber-500/70 [stroke-dasharray:3_3]';
     } else if (isMaintenance) {
-      fillColor = 'fill-muted/40 stroke-muted-foreground/40 [stroke-dasharray:2_2]';
+      fillColor = 'fill-purple-500/20 stroke-purple-500 [stroke-dasharray:4_2]';
+    } else if (isDisabled) {
+      fillColor = 'fill-slate-500/15 stroke-slate-500 [stroke-dasharray:2_2]';
     } else if (isAvailable) {
       fillColor =
         resource.category === 'ROOM'
@@ -474,10 +522,12 @@ export function PublicFloorMap({
         : isLocked
           ? c('Holding / In Checkout', 'Đang giữ chỗ')
           : isMaintenance
-            ? c('Unavailable', 'Tạm ngưng')
-            : hasScheduleSelected
-              ? c('Available for selected time', 'Còn trống khung giờ này')
-              : c('Active space', 'Không gian hoạt động');
+            ? c('Under maintenance', 'Đang bảo trì')
+            : isDisabled
+              ? c('Not accepting bookings', 'Ngừng nhận đặt')
+              : hasScheduleSelected
+                ? c('Available for selected time', 'Còn trống khung giờ này')
+                : c('Active space', 'Không gian hoạt động');
 
     const priceLabel =
       typeof resource.pricePerHour === 'number' && resource.pricePerHour > 0
@@ -562,26 +612,21 @@ export function PublicFloorMap({
           strokeWidth={isCurrentSelected ? 3 : 1.75}
           vectorEffect='non-scaling-stroke'
           className={fillColor}
+          style={{ fill: resourceTone + '22', stroke: resourceTone }}
         />
 
         {/* Desk Symbol */}
         {resource.category === 'DESK' && (
-          <ResourceMapSymbol
-            category='DESK'
-            x={resource.posX}
-            y={resource.posY - 2}
-            width={resource.width}
-            height={resource.height * 0.78}
-            className={
-              isCurrentSelected
-                ? 'text-primary'
-                : isBooked
-                  ? 'text-amber-600/70 dark:text-amber-400/70'
-                  : isMaintenance
-                    ? 'text-muted-foreground/50'
-                    : 'text-emerald-700 dark:text-emerald-300'
-            }
-          />
+          <g style={{ color: resourceTone }}>
+            <ResourceMapSymbol
+              category='DESK'
+              x={resource.posX}
+              y={resource.posY - 2}
+              width={resource.width}
+              height={resource.height * 0.78}
+              className='text-current'
+            />
+          </g>
         )}
 
         {/* Room Header Strip & Capacity Badge */}
@@ -613,7 +658,7 @@ export function PublicFloorMap({
         )}
 
         {/* Non-color Status Indicator Badge (Selected / Booked / Maintenance) */}
-        {(isCurrentSelected || isBooked || isMaintenance) && (
+        {(isCurrentSelected || isBooked || isMaintenance || isDisabled) && (
           <g className='pointer-events-none select-none'>
             <circle
               cx={badgeCx}
@@ -624,7 +669,9 @@ export function PublicFloorMap({
                   ? 'fill-primary'
                   : isBooked
                     ? 'fill-amber-500'
-                    : 'fill-muted-foreground/70'
+                    : isMaintenance
+                      ? 'fill-purple-500'
+                      : 'fill-slate-500'
               }
             />
             <text
@@ -644,9 +691,19 @@ export function PublicFloorMap({
           {resource.category === 'ROOM' ? (
             <>
               <rect
-                x={resource.posX + resource.width / 2 - Math.min(resource.width * 0.42, (resource.code.length * codeFontSize * 0.65) / 2 + 10)}
+                x={
+                  resource.posX +
+                  resource.width / 2 -
+                  Math.min(
+                    resource.width * 0.42,
+                    (resource.code.length * codeFontSize * 0.65) / 2 + 10
+                  )
+                }
                 y={resource.posY + resource.height / 2 - codeFontSize * 0.75 + 4}
-                width={Math.min(resource.width * 0.84, resource.code.length * codeFontSize * 0.65 + 20)}
+                width={Math.min(
+                  resource.width * 0.84,
+                  resource.code.length * codeFontSize * 0.65 + 20
+                )}
                 height={codeFontSize * 1.55}
                 rx='5'
                 className={
@@ -689,9 +746,7 @@ export function PublicFloorMap({
                 height={codeFontSize * 1.35}
                 rx='3.5'
                 className={
-                  isCurrentSelected
-                    ? 'fill-primary'
-                    : 'fill-background/90 dark:fill-card/90'
+                  isCurrentSelected ? 'fill-primary' : 'fill-background/90 dark:fill-card/90'
                 }
               />
               <text
@@ -712,12 +767,29 @@ export function PublicFloorMap({
     );
   }
 
-  const filterButtons: Array<{ id: SpaceFilterType; label: string; count: number; icon: React.ElementType }> = [
+  const filterButtons: Array<{
+    id: SpaceFilterType;
+    label: string;
+    count: number;
+    icon: React.ElementType;
+  }> = [
     { id: 'ALL', label: c('All', 'Tất cả'), count: categoryStats.all, icon: Sparkles },
-    { id: 'DESK', label: c('Desks', 'Bàn lẻ'), count: categoryStats.desks, icon: Armchair },
-    { id: 'MEETING_ROOM', label: c('Meeting Rooms', 'Phòng họp'), count: categoryStats.rooms, icon: Users },
+    { id: 'DESK', label: c('Desks', 'Bàn lẻ'), count: categoryStats.desks, icon: Chair },
+    {
+      id: 'MEETING_ROOM',
+      label: c('Meeting Rooms', 'Phòng họp'),
+      count: categoryStats.rooms,
+      icon: Users
+    },
     ...(categoryStats.offices > 0
-      ? [{ id: 'PRIVATE_OFFICE' as SpaceFilterType, label: c('Offices', 'Văn phòng'), count: categoryStats.offices, icon: Building }]
+      ? [
+          {
+            id: 'PRIVATE_OFFICE' as SpaceFilterType,
+            label: c('Offices', 'Văn phòng'),
+            count: categoryStats.offices,
+            icon: Building
+          }
+        ]
       : [])
   ];
 
@@ -791,7 +863,11 @@ export function PublicFloorMap({
       {floor && (
         <div className='mb-3 flex flex-wrap items-center justify-between gap-2.5 border-y border-border/60 py-2.5'>
           {showCategoryFilters ? (
-            <div className='flex flex-wrap items-center gap-1.5' role='group' aria-label={c('Filter space types', 'Lọc loại không gian')}>
+            <div
+              className='flex flex-wrap items-center gap-1.5'
+              role='group'
+              aria-label={c('Filter space types', 'Lọc loại không gian')}
+            >
               {filterButtons.map((btn) => {
                 const Icon = btn.icon;
                 const isActive = activeFilter === btn.id;
@@ -823,31 +899,29 @@ export function PublicFloorMap({
             </div>
           ) : (
             <div className='text-xs font-medium text-muted-foreground'>
-              {floor.resources.length} {c('mapped spaces on this floor', 'vị trí trên mặt bằng tầng này')}
+              {floor.resources.length}{' '}
+              {c('mapped spaces on this floor', 'vị trí trên mặt bằng tầng này')}
             </div>
           )}
 
-          {/* Accessible Legend with Shape & Color Semantics */}
-          <div className='flex flex-wrap items-center gap-3 text-[11px] text-muted-foreground'>
-            <span className='inline-flex items-center gap-1.5 font-medium text-foreground'>
-              <span className='size-2.5 rounded-xs bg-emerald-500/30 border border-emerald-600 dark:border-emerald-400' />
-              {hasScheduleSelected ? c('Available', 'Còn trống') : c('Bookable', 'Có thể đặt')}
-            </span>
-            <span className='inline-flex items-center gap-1.5 font-medium text-foreground'>
-              <span className='size-2.5 rounded-xs bg-primary/30 border-2 border-primary' />
-              {c('Selected (✓)', 'Đang chọn (✓)')}
-            </span>
-            {hasScheduleSelected && (
-              <span className='inline-flex items-center gap-1.5'>
-                <span className='size-2.5 rounded-xs bg-amber-500/25 border border-dashed border-amber-500' />
-                {c('Occupied (!)', 'Đã đặt (!)')}
-              </span>
-            )}
-            <span className='inline-flex items-center gap-1.5'>
-              <span className='size-2.5 rounded-xs bg-muted border border-dotted border-muted-foreground/60' />
-              {c('Unavailable (×)', 'Bảo trì (×)')}
-            </span>
+          <div
+            className='inline-flex rounded-lg border bg-muted/30 p-1'
+            aria-label={c('Map view', 'Chế độ sơ đồ')}
+          >
+            {(['2d', '3d'] as const).map((value) => (
+              <Button
+                key={value}
+                type='button'
+                size='sm'
+                variant={dimension === value ? 'default' : 'ghost'}
+                aria-pressed={dimension === value}
+                onClick={() => setDimension(value)}
+              >
+                {value.toUpperCase()}
+              </Button>
+            ))}
           </div>
+          <ResourceStatusLegend />
         </div>
       )}
 
@@ -867,118 +941,165 @@ export function PublicFloorMap({
       ) : !floor ? (
         <div className='flex h-48 flex-col items-center justify-center rounded-xl border border-border bg-muted/20 p-6 text-center text-sm text-muted-foreground'>
           <Layers3 className='size-7 text-muted-foreground/40 mb-2' />
-          <p>{c('No published floor map yet for this workspace.', 'Không gian này chưa công bố sơ đồ mặt bằng.')}</p>
+          <p>
+            {c(
+              'No published floor map yet for this workspace.',
+              'Không gian này chưa công bố sơ đồ mặt bằng.'
+            )}
+          </p>
         </div>
       ) : (
         <>
-          <div className='relative overflow-hidden rounded-xl border border-border bg-muted/15 dark:bg-slate-950/50 shadow-inner'>
-            {/* Floating Viewport Controls (Zoom In, Zoom Out, Fit, Reset) */}
-            <div className='absolute top-2.5 right-2.5 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card/95 p-1 shadow-sm backdrop-blur-md'>
-              <button
-                type='button'
-                onClick={handleZoomOut}
-                disabled={zoom <= 0.75}
-                aria-label={c('Zoom out floor map', 'Thu nhỏ sơ đồ')}
-                title={c('Zoom out', 'Thu nhỏ')}
-                className='flex size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:pointer-events-none cursor-pointer'
-              >
-                <ZoomOut className='size-3.5' />
-              </button>
-              <span className='min-w-[40px] text-center font-mono text-[11px] font-semibold text-foreground select-none'>
-                {Math.round(zoom * 100)}%
-              </span>
-              <button
-                type='button'
-                onClick={handleZoomIn}
-                disabled={zoom >= 2.5}
-                aria-label={c('Zoom in floor map', 'Phóng to sơ đồ')}
-                title={c('Zoom in', 'Phóng to')}
-                className='flex size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:pointer-events-none cursor-pointer'
-              >
-                <ZoomIn className='size-3.5' />
-              </button>
-              <div className='mx-0.5 h-4 w-[1px] bg-border' />
-              <button
-                type='button'
-                onClick={handleFitToContent}
-                aria-label={c('Fit floor plan to screen', 'Căn vừa màn hình')}
-                title={c('Fit spaces to viewport', 'Tự động căn vừa các vị trí')}
-                className={`flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-colors cursor-pointer ${
-                  viewMode === 'fit' && zoom === 1 && pan.x === 0 && pan.y === 0
-                    ? 'bg-primary/10 text-primary'
-                    : 'text-foreground hover:bg-muted'
-                }`}
-              >
-                <Maximize2 className='size-3' />
-                <span className='hidden sm:inline'>{c('Fit', 'Vừa khung')}</span>
-              </button>
-              <button
-                type='button'
-                onClick={handleResetFullCanvas}
-                aria-label={c('Toggle full floor canvas or reset view', 'Xem toàn bộ mặt bằng hoặc đặt lại')}
-                title={c('Reset / Full floor view', 'Đặt lại / Xem toàn sàn')}
-                className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
-              >
-                <RotateCcw className='size-3.5' />
-              </button>
+          {dimension === '3d' ? (
+            <Suspense
+              fallback={
+                <p role='status' className='p-8 text-center text-sm'>
+                  {c('Loading 3D…', 'Đang tải 3D…')}
+                </p>
+              }
+            >
+              <CustomerFloor3d
+                floor={floor}
+                availabilityMap={availabilityMap}
+                selectedId={activeSelectedId}
+                filterCategory={activeFilter}
+                onSelect={(resource) => {
+                  const status = customerResourceStatus(
+                    resource,
+                    availabilityMap?.get(resource.id),
+                    Boolean(
+                      availabilityMap?.get(resource.id)?.isOccupiedByMe ||
+                      holdData?.resourceId === resource.id
+                    )
+                  );
+                  if (!status.available) {
+                    toast.warning(
+                      status.maintenance
+                        ? c('Under maintenance', 'Đang bảo trì')
+                        : status.disabled
+                          ? c('Not accepting bookings', 'Ngừng nhận đặt')
+                          : c('This place is unavailable.', 'Chỗ này hiện không khả dụng.')
+                    );
+                    return;
+                  }
+                  setInternalSelectedId(resource.id);
+                  onSelect?.(resource);
+                  onSelectResource?.(resource);
+                }}
+              />
+            </Suspense>
+          ) : (
+            <div className='relative overflow-hidden rounded-xl border border-border bg-muted/15 dark:bg-slate-950/50 shadow-inner'>
+              {/* Floating Viewport Controls (Zoom In, Zoom Out, Fit, Reset) */}
+              <div className='absolute top-2.5 right-2.5 z-10 flex items-center gap-1 rounded-lg border border-border/80 bg-card/95 p-1 shadow-sm backdrop-blur-md'>
+                <button
+                  type='button'
+                  onClick={handleZoomOut}
+                  disabled={zoom <= 0.75}
+                  aria-label={c('Zoom out floor map', 'Thu nhỏ sơ đồ')}
+                  title={c('Zoom out', 'Thu nhỏ')}
+                  className='flex size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:pointer-events-none cursor-pointer'
+                >
+                  <ZoomOut className='size-3.5' />
+                </button>
+                <span className='min-w-[40px] text-center font-mono text-[11px] font-semibold text-foreground select-none'>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button
+                  type='button'
+                  onClick={handleZoomIn}
+                  disabled={zoom >= 2.5}
+                  aria-label={c('Zoom in floor map', 'Phóng to sơ đồ')}
+                  title={c('Zoom in', 'Phóng to')}
+                  className='flex size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-muted disabled:opacity-40 disabled:pointer-events-none cursor-pointer'
+                >
+                  <ZoomIn className='size-3.5' />
+                </button>
+                <div className='mx-0.5 h-4 w-[1px] bg-border' />
+                <button
+                  type='button'
+                  onClick={handleFitToContent}
+                  aria-label={c('Fit floor plan to screen', 'Căn vừa màn hình')}
+                  title={c('Fit spaces to viewport', 'Tự động căn vừa các vị trí')}
+                  className={`flex h-7 items-center gap-1 rounded-md px-2 text-[11px] font-semibold transition-colors cursor-pointer ${
+                    viewMode === 'fit' && zoom === 1 && pan.x === 0 && pan.y === 0
+                      ? 'bg-primary/10 text-primary'
+                      : 'text-foreground hover:bg-muted'
+                  }`}
+                >
+                  <Maximize2 className='size-3' />
+                  <span className='hidden sm:inline'>{c('Fit', 'Vừa khung')}</span>
+                </button>
+                <button
+                  type='button'
+                  onClick={handleResetFullCanvas}
+                  aria-label={c(
+                    'Toggle full floor canvas or reset view',
+                    'Xem toàn bộ mặt bằng hoặc đặt lại'
+                  )}
+                  title={c('Reset / Full floor view', 'Đặt lại / Xem toàn sàn')}
+                  className='flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground cursor-pointer'
+                >
+                  <RotateCcw className='size-3.5' />
+                </button>
+              </div>
+
+              {/* Interactive SVG Canvas */}
+              <div className='w-full'>
+                <svg
+                  ref={svgRef}
+                  viewBox={`${activeViewBox.x} ${activeViewBox.y} ${activeViewBox.width} ${activeViewBox.height}`}
+                  preserveAspectRatio='xMidYMid meet'
+                  onPointerDown={handlePointerDown}
+                  onPointerMove={handlePointerMove}
+                  onPointerUp={handlePointerUp}
+                  onPointerCancel={handlePointerUp}
+                  className={`h-[300px] sm:h-[380px] lg:h-[420px] w-full select-none ${
+                    isDragging ? 'cursor-grabbing' : 'cursor-grab'
+                  }`}
+                  aria-label={c('Published floor layout', 'Bố trí tầng đã publish')}
+                >
+                  <defs>
+                    <pattern
+                      id={`floor-grid-${workspaceId}`}
+                      width='40'
+                      height='40'
+                      patternUnits='userSpaceOnUse'
+                    >
+                      <path
+                        d='M 40 0 L 0 0 0 40'
+                        fill='none'
+                        stroke='currentColor'
+                        strokeWidth='0.6'
+                        className='text-border/40'
+                      />
+                    </pattern>
+                  </defs>
+
+                  {/* Subtle Architectural Floor Boundary & Grid */}
+                  <rect
+                    x={0}
+                    y={0}
+                    width={floor.width}
+                    height={floor.height}
+                    rx='12'
+                    fill={`url(#floor-grid-${workspaceId})`}
+                    className='stroke-border/60'
+                    strokeWidth='1.5'
+                  />
+
+                  {/* 1. Rooms layer (Meeting rooms & Private offices) */}
+                  {floor.resources.filter((item) => item.category === 'ROOM').map(shape)}
+
+                  {/* 2. Architectural Decorations (walls, doors, plants, dividers) */}
+                  <DecorationLayer items={floor.decorations} blockSelection />
+
+                  {/* 3. Desks layer (Individual desks) */}
+                  {floor.resources.filter((item) => item.category === 'DESK').map(shape)}
+                </svg>
+              </div>
             </div>
-
-            {/* Interactive SVG Canvas */}
-            <div className='w-full'>
-              <svg
-                ref={svgRef}
-                viewBox={`${activeViewBox.x} ${activeViewBox.y} ${activeViewBox.width} ${activeViewBox.height}`}
-                preserveAspectRatio='xMidYMid meet'
-                onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerUp}
-                className={`h-[300px] sm:h-[380px] lg:h-[420px] w-full select-none ${
-                  isDragging ? 'cursor-grabbing' : 'cursor-grab'
-                }`}
-                aria-label={c('Published floor layout', 'Bố trí tầng đã publish')}
-              >
-                <defs>
-                  <pattern
-                    id={`floor-grid-${workspaceId}`}
-                    width='40'
-                    height='40'
-                    patternUnits='userSpaceOnUse'
-                  >
-                    <path
-                      d='M 40 0 L 0 0 0 40'
-                      fill='none'
-                      stroke='currentColor'
-                      strokeWidth='0.6'
-                      className='text-border/40'
-                    />
-                  </pattern>
-                </defs>
-
-                {/* Subtle Architectural Floor Boundary & Grid */}
-                <rect
-                  x={0}
-                  y={0}
-                  width={floor.width}
-                  height={floor.height}
-                  rx='12'
-                  fill={`url(#floor-grid-${workspaceId})`}
-                  className='stroke-border/60'
-                  strokeWidth='1.5'
-                />
-
-                {/* 1. Rooms layer (Meeting rooms & Private offices) */}
-                {floor.resources.filter((item) => item.category === 'ROOM').map(shape)}
-
-                {/* 2. Architectural Decorations (walls, doors, plants, dividers) */}
-                <DecorationLayer items={floor.decorations} blockSelection />
-
-                {/* 3. Desks layer (Individual desks) */}
-                {floor.resources.filter((item) => item.category === 'DESK').map(shape)}
-              </svg>
-            </div>
-          </div>
-
+          )}
           {/* Quick Selection Summary Footer inside Map */}
           {showResourceInspector && selected && (
             <div className='mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 animate-in fade-in duration-200'>
@@ -991,14 +1112,12 @@ export function PublicFloorMap({
                       <Users className='size-5' />
                     )
                   ) : (
-                    <Armchair className='size-5' />
+                    <Chair className='size-5' />
                   )}
                 </div>
                 <div>
                   <div className='flex flex-wrap items-center gap-2'>
-                    <span className='text-sm font-bold text-foreground'>
-                      {selected.name}
-                    </span>
+                    <span className='text-sm font-bold text-foreground'>{selected.name}</span>
                     <span className='rounded-md bg-background px-1.5 py-0.5 font-mono text-xs font-bold text-primary border border-primary/20'>
                       {selected.code}
                     </span>
@@ -1048,9 +1167,7 @@ export function PublicFloorMap({
                   onClick={() => onContinueWithResource(selected, floor.id)}
                   className='shrink-0 gap-1.5 rounded-xl font-semibold shadow-xs cursor-pointer'
                 >
-                  <span>
-                    {c(`Book ${selected.code}`, `Đặt vị trí ${selected.code}`)}
-                  </span>
+                  <span>{c(`Book ${selected.code}`, `Đặt vị trí ${selected.code}`)}</span>
                   <ArrowRight className='size-3.5' />
                 </Button>
               )}

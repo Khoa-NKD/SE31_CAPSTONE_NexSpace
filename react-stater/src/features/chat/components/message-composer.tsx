@@ -1,5 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { FormEvent, useRef } from 'react';
-import { Send, Loader2, Sparkles } from 'lucide-react';
+import { Send, Sparkles } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 
@@ -104,7 +105,7 @@ export function MessageComposer({
             aria-label='Gửi tin nhắn'
           >
             {isSending ? (
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4 ' />
             ) : (
               <Send className='h-3.5 w-3.5 sm:h-4 sm:w-4' aria-hidden='true' />
             )}

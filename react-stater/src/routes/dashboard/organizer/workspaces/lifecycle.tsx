@@ -1,5 +1,5 @@
 import React from 'react';
-import { createFileRoute } from '@tanstack/react-router';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 import { z } from 'zod';
 import PageContainer from '@/components/layout/page-container';
 import { WorkspaceLifecycleView } from '@/features/organizer-workspaces/components/workspace-lifecycle-view';
@@ -13,6 +13,9 @@ export const Route = createFileRoute(
   '/dashboard/organizer/workspaces/lifecycle'
 )({
   validateSearch: (search) => lifecycleSearchSchema.parse(search),
+  beforeLoad: ({ search }) => {
+    if (search.tab === 'assets') throw redirect({ to: '/dashboard/organizer/blockout', search: { workspaceId: Number(search.id) > 0 ? Number(search.id) : undefined } });
+  },
   head: () => ({
     meta: [
       { title: 'O16 — Workspace Status & Lifecycle Control | NexSpace Organizer Hub' },

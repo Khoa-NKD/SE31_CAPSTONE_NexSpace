@@ -1,25 +1,11 @@
+import { getAmenityIcon } from './amenity-icons';
 import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo } from 'react';
 import {
-  Wifi,
-  PhoneCall,
-  Cast,
-  Monitor,
-  Printer,
-  Armchair,
-  MoveVertical,
-  Lock,
-  ShowerHead,
-  Bike,
-  Presentation,
   Coffee,
-  Droplets,
-  Utensils,
-  Heart,
   Sparkles,
-  Zap,
   Plus,
   Search,
   Filter,
@@ -60,43 +46,8 @@ import { AmenityFormDialog } from './amenity-form-dialog';
 import { AmenityDeleteDialog } from './amenity-delete-dialog';
 
 function renderAmenityIcon(iconName?: string) {
-  const props = { className: 'size-4' };
-  switch (iconName) {
-    case 'Wifi':
-      return <Wifi {...props} />;
-    case 'PhoneCall':
-      return <PhoneCall {...props} />;
-    case 'Cast':
-      return <Cast {...props} />;
-    case 'Monitor':
-      return <Monitor {...props} />;
-    case 'Printer':
-      return <Printer {...props} />;
-    case 'Armchair':
-      return <Armchair {...props} />;
-    case 'MoveVertical':
-      return <MoveVertical {...props} />;
-    case 'Lock':
-      return <Lock {...props} />;
-    case 'ShowerHead':
-      return <ShowerHead {...props} />;
-    case 'Bike':
-      return <Bike {...props} />;
-    case 'Presentation':
-      return <Presentation {...props} />;
-    case 'Coffee':
-      return <Coffee {...props} />;
-    case 'Droplets':
-      return <Droplets {...props} />;
-    case 'Utensils':
-      return <Utensils {...props} />;
-    case 'Heart':
-      return <Heart {...props} />;
-    case 'Zap':
-      return <Zap {...props} />;
-    default:
-      return <Sparkles {...props} />;
-  }
+  const Icon = getAmenityIcon(iconName);
+  return <Icon className='size-4' />;
 }
 
 function getCategoryBadge(category: AmenityCategory, c: OrganizerCopy) {
@@ -246,7 +197,11 @@ export function OrganizerAmenitiesView() {
             disabled={isFetchingCustom}
             className='gap-1.5'
           >
-            {isFetchingCustom ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
+            {isFetchingCustom ? (
+              <Spinner className={`size-3.5 `} />
+            ) : (
+              <RefreshCw className={`size-3.5 `} />
+            )}
 
             {c('Refresh', 'Làm mới')}
           </Button>

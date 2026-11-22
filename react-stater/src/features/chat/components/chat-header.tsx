@@ -1,4 +1,4 @@
-import { ArrowLeft, Building2, Phone, Info } from 'lucide-react';
+import { ArrowLeft, Building2, Phone, Info } from '@/components/ui/hugeicons';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -23,9 +23,7 @@ export function ChatHeader({
   const displayName = isCustomer
     ? conversation.organizerName || 'Ban Quản Lý Không Gian'
     : conversation.customerName || 'Khách Hàng';
-  const avatarUrl = isCustomer
-    ? conversation.organizerAvatarUrl
-    : conversation.customerAvatarUrl;
+  const avatarUrl = isCustomer ? conversation.organizerAvatarUrl : conversation.customerAvatarUrl;
   const initials = displayName.slice(0, 2).toUpperCase();
   const roleTitle = isCustomer ? 'Chủ không gian' : 'Khách đặt chỗ';
 
@@ -66,7 +64,10 @@ export function ChatHeader({
             <p className='text-foreground text-xs sm:text-sm font-semibold truncate'>
               {displayName}
             </p>
-            <Badge variant='outline' className='text-[10px] px-1.5 py-0 font-normal border-border/80 shrink-0'>
+            <Badge
+              variant='outline'
+              className='text-[10px] px-1.5 py-0 font-normal border-border/80 shrink-0'
+            >
               {roleTitle}
             </Badge>
           </div>

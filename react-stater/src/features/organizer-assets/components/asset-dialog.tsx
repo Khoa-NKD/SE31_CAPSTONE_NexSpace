@@ -2,6 +2,9 @@ import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { operationsApi } from '@/features/organizer-operations/api';
 import {
   Dialog,
   DialogContent,
@@ -60,6 +63,9 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
   const [nextMaintenanceDate, setNextMaintenanceDate] = useState(
     assetToEdit?.nextMaintenanceDate ? assetToEdit.nextMaintenanceDate.split('T')[0] : ''
   );
+  const [resourceId, setResourceId] = useState(assetToEdit?.resourceId ? String(assetToEdit.resourceId) : '');
+  const actorId = useAuthStore((state) => state.user?.id);
+  const locations = useQuery({ enabled: !!actorId, queryKey: ['organizer-operations', actorId, Number(workspaceId), 'asset-locations'], queryFn: ({ signal }) => operationsApi.pricing(Number(workspaceId), signal) });
   const [note, setNote] = useState(assetToEdit?.note || '');
 
   const createMutation = useCreateWorkspaceAssetMutation();
@@ -82,6 +88,8 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
             name: name.trim(),
             quantity: Number(quantity) > 0 ? Number(quantity) : 1,
             status,
+            resourceId: resourceId ? Number(resourceId) : null,
+            amenityId: assetToEdit?.amenityId ?? null,
             purchasePrice: parsedPrice,
             purchaseDate: purchaseDate || null,
             warrantyUntil: warrantyUntil || null,
@@ -102,6 +110,8 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
             name: name.trim(),
             quantity: Number(quantity) > 0 ? Number(quantity) : 1,
             status,
+            resourceId: resourceId ? Number(resourceId) : null,
+            amenityId: assetToEdit?.amenityId ?? null,
             purchasePrice: parsedPrice,
             purchaseDate: purchaseDate || null,
             warrantyUntil: warrantyUntil || null,
@@ -118,6 +128,14 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
 
   return (
     <form onSubmit={handleSubmit} className='space-y-4 pt-2'>
+      <label className='block space-y-1 text-sm'>
+        {c('Room / seat location', 'Vị trí phòng / ghế')}
+        <select className='organizer-control w-full' value={resourceId} onChange={(event) => setResourceId(event.target.value)} disabled={locations.isPending || locations.isError || assetToEdit?.status === 'UNDER_MAINTENANCE'}>
+          <option value=''>{c('Shared equipment', 'Thiết bị dùng chung')}</option>
+          {locations.data?.resources.map((resource) => <option key={resource.id} value={resource.id}>{resource.name || resource.code}</option>)}
+        </select>
+        {locations.isError && <p role='alert' className='text-destructive'>{locations.error.message}</p>}
+      </label>
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
         <div className='space-y-1.5'>
           <Label htmlFor='assetCode' className='text-xs font-semibold'>
@@ -165,7 +183,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
           <Label htmlFor='status' className='text-xs font-semibold'>
             {c('Operational status', 'Trạng thái hoạt động')}
           </Label>
-          <Select value={status} onValueChange={(val: AssetStatus) => setStatus(val)}>
+          <Select disabled={assetToEdit?.status === 'UNDER_MAINTENANCE'} value={status} onValueChange={(val: AssetStatus) => setStatus(val)}>
             <SelectTrigger
               id='status'
               className='w-full min-w-0 [&_[data-slot=select-value]]:truncate [&_[data-slot=select-value]]:block'
@@ -174,7 +192,7 @@ function AssetForm({ workspaceId, assetToEdit, onClose }: AssetFormProps) {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value='IN_USE'>{c('In Use', 'Đang sử dụng (In Use)')}</SelectItem>
-              <SelectItem value='UNDER_MAINTENANCE'>
+              <SelectItem value='UNDER_MAINTENANCE' disabled>
                 {c('Under Maintenance', 'Đang bảo trì (Under Maintenance)')}
               </SelectItem>
               <SelectItem value='BROKEN'>{c('Broken', 'Báo hỏng (Broken)')}</SelectItem>

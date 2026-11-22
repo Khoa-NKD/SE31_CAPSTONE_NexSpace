@@ -9,7 +9,7 @@ Vendored effects: ElectricLogo, BlurText, SpotlightCard, GridMotion, Orb, GridSc
 
 NexSpace adaptations:
 - BlurText uses a span root to fit a semantic h1.
-- CodeSlots and SwipeToast use the existing Lucide icons rather than adding Hugeicons.
+- CodeSlots and SwipeToast use the application's shared Hugeicons adapters.
 - CardSwap has no default demonstration items or remote sample-document images.
 - Decorative wrappers defer rendering until visible, disable effects for reduced motion and preserve static content without WebGL.
 - Document CardSwap is manual, not autoplay; local object URLs are released on change/unmount.

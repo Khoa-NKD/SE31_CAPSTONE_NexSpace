@@ -58,7 +58,7 @@ const dashboardMenuVietnamese: Record<string, string> = {
   Amenities: 'Tiện ích',
   'Create Seat/Room': 'Tạo ghế/phòng',
   'Pricing Matrix': 'Bảng giá',
-  'Blockout Hours': 'Lịch ngừng nhận đặt',
+  'Maintenance schedule': 'Lịch bảo trì',
   Bookings: 'Quản lý đặt chỗ',
   'Schedule (Gantt)': 'Lịch biểu (Gantt)',
   Analytics: 'Phân tích',

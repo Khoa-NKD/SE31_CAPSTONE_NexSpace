@@ -1,23 +1,6 @@
+import { getAmenityIcon } from '@/features/amenities/components/amenity-icons';
 import React from 'react';
-import {
-  Zap,
-  Armchair,
-  Wifi,
-  Maximize2,
-  Monitor,
-  Lock,
-  BadgeCheck,
-  Ear,
-  Video,
-  Wind,
-  Cable,
-  Network,
-  Coffee,
-  MapPin,
-  CheckCircle2,
-  ArrowRight,
-  Timer
-} from '@/components/ui/hugeicons';
+import { MapPin, CheckCircle2, ArrowRight, Timer } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 import { useCurrency } from '@/features/landing/context/currency-context';
@@ -27,22 +10,6 @@ interface SeatCardProps {
   seat: SeatItem;
   onSelect: (seat: SeatItem) => void;
 }
-
-const amenityIconMap: Record<string, React.ElementType> = {
-  zap: Zap,
-  chair: Armchair,
-  wifi: Wifi,
-  maximize: Maximize2,
-  monitor: Monitor,
-  lock: Lock,
-  badge: BadgeCheck,
-  ear: Ear,
-  video: Video,
-  wind: Wind,
-  cable: Cable,
-  network: Network,
-  coffee: Coffee
-};
 
 export function SeatCard({ seat, onSelect }: SeatCardProps) {
   const { formatPrice } = useCurrency();
@@ -121,7 +88,7 @@ export function SeatCard({ seat, onSelect }: SeatCardProps) {
         {/* Amenities Chip Badges Grid */}
         <div className='flex flex-wrap gap-2 pt-1'>
           {seat.amenities.map((amenity, idx) => {
-            const Icon = amenityIconMap[amenity.icon] || Zap;
+            const Icon = getAmenityIcon(amenity.icon);
             return (
               <div
                 key={idx}
@@ -186,4 +153,3 @@ export function SeatCard({ seat, onSelect }: SeatCardProps) {
     </article>
   );
 }
-

@@ -1,5 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MessageSquare } from 'lucide-react';
+import { MessageSquare } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { useConversations, useConversationMessages } from '../api/queries';
@@ -160,7 +160,8 @@ export function Messenger({ initialConversationId }: MessengerProps) {
           </div>
           <h3 className='font-bold text-base text-foreground mb-1'>Chọn một cuộc hội thoại</h3>
           <p className='text-xs text-muted-foreground max-w-sm'>
-            Chọn khách hàng từ danh sách bên trái để xem lịch sử trao đổi và hỗ trợ dịch vụ trực tiếp.
+            Chọn khách hàng từ danh sách bên trái để xem lịch sử trao đổi và hỗ trợ dịch vụ trực
+            tiếp.
           </p>
         </div>
       )}

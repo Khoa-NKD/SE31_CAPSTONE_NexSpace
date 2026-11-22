@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { FormEvent, useEffect, useRef } from 'react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
-import { Loader2, MessageSquare, Info } from 'lucide-react';
+import { MessageSquare, Info } from '@/components/ui/hugeicons';
 import type { BookingChatMessageDto, BookingConversationDto } from '../api/types';
 import { ChatHeader } from './chat-header';
 import { MessageBubble } from './message-bubble';
@@ -81,7 +82,8 @@ export function ChatArea({
           <div className='flex items-center gap-1.5 truncate'>
             <Info className='h-3.5 w-3.5 text-primary shrink-0' />
             <span className='truncate'>
-              Kênh hỗ trợ đơn <strong className='text-foreground font-mono'>#{conversation.bookingCode}</strong>
+              Kênh hỗ trợ đơn{' '}
+              <strong className='text-foreground font-mono'>#{conversation.bookingCode}</strong>
               {conversation.workspaceAddress && ` • ${conversation.workspaceAddress}`}
             </span>
           </div>
@@ -99,7 +101,7 @@ export function ChatArea({
         >
           {isLoadingMessages ? (
             <div className='flex flex-col items-center justify-center h-full text-muted-foreground py-10 gap-2'>
-              <Loader2 className='h-6 w-6 animate-spin text-primary' />
+              <Loader2 className='h-6 w-6  text-primary' />
               <span className='text-xs'>Đang tải tin nhắn...</span>
             </div>
           ) : messages.length === 0 ? (
@@ -117,11 +119,7 @@ export function ChatArea({
           ) : (
             <AnimatePresence initial={false}>
               {messages.map((message) => (
-                <MessageBubble
-                  key={message.id}
-                  message={message}
-                  currentUserId={currentUserId}
-                />
+                <MessageBubble key={message.id} message={message} currentUserId={currentUserId} />
               ))}
             </AnimatePresence>
           )}

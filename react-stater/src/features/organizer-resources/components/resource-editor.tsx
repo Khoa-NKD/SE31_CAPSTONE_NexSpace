@@ -53,7 +53,7 @@ import {
   Save,
   LockKeyhole,
   ArrowLeft,
-  Armchair,
+  Chair,
   DoorOpen,
   MapPin,
   Ruler,
@@ -1069,7 +1069,7 @@ export function ResourceEditor({
             {type?.category === 'ROOM' ? (
               <DoorOpen className='size-3.5' />
             ) : (
-              <Armchair className='size-3.5' />
+              <Chair className='size-3.5' />
             )}
             {type?.category === 'ROOM'
               ? c('Meeting room', 'Phòng')
@@ -1619,18 +1619,20 @@ export function ResourceEditor({
             </section>
           </EditorCanvas>
         </div>
-        {!emptyCanvas && placement.result && !placement.result.valid &&
+        {!emptyCanvas &&
+          placement.result &&
+          !placement.result.valid &&
           !placement.result.roomEdgeCollisions.size && (
-          <p
-            role='alert'
-            className='rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive'
-          >
-            {c(
-              'Cannot save: objects overlap or extend outside their floor/room. Adjust the layout.',
-              'Không thể lưu: các đối tượng chồng lấn hoặc vượt khỏi tầng/phòng. Vui lòng chỉnh lại vị trí.'
-            )}
-          </p>
-        )}
+            <p
+              role='alert'
+              className='rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-sm text-destructive'
+            >
+              {c(
+                'Cannot save: objects overlap or extend outside their floor/room. Adjust the layout.',
+                'Không thể lưu: các đối tượng chồng lấn hoặc vượt khỏi tầng/phòng. Vui lòng chỉnh lại vị trí.'
+              )}
+            </p>
+          )}
         <footer
           className={
             studio
@@ -1651,11 +1653,7 @@ export function ResourceEditor({
               type='submit'
               disabled={busy || (!emptyCanvas && placement.blocked) || sizeUnavailable}
             >
-              {busy ? (
-                <LoaderCircle className='size-4' />
-              ) : (
-                <Save className='size-4' />
-              )}
+              {busy ? <LoaderCircle className='size-4' /> : <Save className='size-4' />}
               {drafts.length > 1
                 ? c(`Save ${drafts.length} resources`, `Lưu ${drafts.length} ghế/phòng`)
                 : c('Save resource', 'Lưu ghế/phòng')}
@@ -1906,11 +1904,7 @@ export function FloorDimensionsDialog({
               {c('Cancel', 'Hủy')}
             </Button>
             <Button type='submit' disabled={busy || outdated || (!!review && !review.applicable)}>
-              {busy ? (
-                <LoaderCircle className='size-4' />
-              ) : (
-                <Save className='size-4' />
-              )}
+              {busy ? <LoaderCircle className='size-4' /> : <Save className='size-4' />}
               {review
                 ? c('Confirm and save', 'Xác nhận và lưu')
                 : c('Review dimensions', 'Kiểm tra kích thước')}
