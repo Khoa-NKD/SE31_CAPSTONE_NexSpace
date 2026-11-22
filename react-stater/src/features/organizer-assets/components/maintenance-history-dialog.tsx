@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
@@ -27,7 +28,7 @@ import type {
   MaintenanceStatus,
   WorkspaceAssetDto
 } from '@/features/workspaces/api/types';
-import { History, Wrench, CheckCircle, Loader2, Calendar } from 'lucide-react';
+import { History, Wrench, CheckCircle, Calendar } from '@/components/ui/hugeicons';
 
 interface MaintenanceHistoryDialogProps {
   open: boolean;
@@ -118,7 +119,7 @@ export function MaintenanceHistoryDialog({
 
         {isLoading ? (
           <div className='py-12 flex flex-col items-center justify-center text-muted-foreground gap-2'>
-            <Loader2 className='w-6 h-6 animate-spin text-indigo-600' />
+            <Loader2 className='w-6 h-6 text-indigo-600' />
             <p className='text-sm'>
               {c('Loading maintenance history...', 'Đang tải lịch sử bảo trì...')}
             </p>
@@ -293,7 +294,7 @@ export function MaintenanceHistoryDialog({
                   disabled={isUpdating}
                   className='h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white'
                 >
-                  {isUpdating && <Loader2 className='w-3 h-3 animate-spin mr-1' />}
+                  {isUpdating && <Loader2 className='w-3 h-3 mr-1' />}
 
                   {c('Save progress', 'Lưu tiến độ')}
                 </Button>

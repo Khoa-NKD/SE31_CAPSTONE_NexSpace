@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layers, CheckCircle2, Wrench, CircleDollarSign, TrendingUp, Clock, SlidersHorizontal, Building2 } from 'lucide-react';
+import { Layers, CheckCircle2, Wrench, CircleDollarSign, TrendingUp, Clock, SlidersHorizontal, Building2 } from '@/components/ui/hugeicons';
 import { ResourceKpiSummary } from '../types';
 
 interface ResourceKpiGridProps {

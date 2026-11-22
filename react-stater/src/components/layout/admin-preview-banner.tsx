@@ -1,6 +1,6 @@
 import React from 'react';
 import { useLocation, useRouter } from '@tanstack/react-router';
-import { ShieldCheck, ArrowRight } from 'lucide-react';
+import { ShieldCheck, ArrowRight } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 

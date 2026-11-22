@@ -4,7 +4,7 @@ import {
   Star,
   Trash2,
   ImagePlus
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { ResourcePhoto } from '../types';
 import { cn } from '@/lib/utils';

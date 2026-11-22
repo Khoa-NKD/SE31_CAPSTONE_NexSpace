@@ -10,7 +10,7 @@ import {
   Clock,
   MapPin,
   Lock
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

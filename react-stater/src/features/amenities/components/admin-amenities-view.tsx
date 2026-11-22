@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState, useMemo } from 'react';
 import {
   Wifi,
@@ -28,9 +29,8 @@ import {
   Layers,
   Cpu,
   Coffee as CoffeeIcon,
-  Building2,
-  Loader2
-} from 'lucide-react';
+  Building2
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -235,7 +235,7 @@ export function AdminAmenitiesView() {
             disabled={isFetching}
             className='gap-1.5 text-xs'
           >
-            <RefreshCw className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} />
+            {isFetching ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
             <span>Refresh</span>
           </Button>
 
@@ -360,7 +360,7 @@ export function AdminAmenitiesView() {
               <TableRow>
                 <TableCell colSpan={6} className='h-32 text-center text-muted-foreground'>
                   <div className='flex items-center justify-center gap-2'>
-                    <Loader2 className='size-4 animate-spin' />
+                    <Loader2 className='size-4' />
                     <span className='text-xs'>Loading amenities catalog...</span>
                   </div>
                 </TableCell>

@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import {
   expandCanvasSelection,
   pasteCanvasSelection,
@@ -49,7 +50,6 @@ import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import type { ResourceUsageKind } from '../api/resources';
 import { FloorAllocationDialog } from './floor-allocation-dialog';
 import {
-  LoaderCircle,
   Save,
   LockKeyhole,
   ArrowLeft,
@@ -61,7 +61,7 @@ import {
   Copy,
   Plus,
   Trash2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { ApiError } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1652,7 +1652,7 @@ export function ResourceEditor({
               disabled={busy || (!emptyCanvas && placement.blocked) || sizeUnavailable}
             >
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Save className='size-4' />
               )}
@@ -1907,7 +1907,7 @@ export function FloorDimensionsDialog({
             </Button>
             <Button type='submit' disabled={busy || outdated || (!!review && !review.applicable)}>
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Save className='size-4' />
               )}
@@ -2226,7 +2226,7 @@ function ResourceTypeSetupDialog({
               {c('Cancel', 'Hủy')}
             </Button>
             <Button type='submit' disabled={busy}>
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Save', 'Lưu')}
             </Button>
           </div>

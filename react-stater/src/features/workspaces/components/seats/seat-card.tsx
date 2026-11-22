@@ -17,7 +17,7 @@ import {
   CheckCircle2,
   ArrowRight,
   Timer
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 import { useCurrency } from '@/features/landing/context/currency-context';

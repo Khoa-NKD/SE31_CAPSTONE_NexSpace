@@ -1,5 +1,5 @@
 import React from 'react';
-import { CheckCircle2, Clock, Ban, Lock, MinusCircle } from 'lucide-react';
+import { CheckCircle2, Clock, Ban, Lock, MinusCircle } from '@/components/ui/hugeicons';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { ResourceOccupancyStatus } from '../api/types';

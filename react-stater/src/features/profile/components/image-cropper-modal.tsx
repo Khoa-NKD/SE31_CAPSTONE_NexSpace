@@ -17,7 +17,7 @@ import {
   Crop,
   Check,
   Zap
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 
 export type CropShape = 'circle';

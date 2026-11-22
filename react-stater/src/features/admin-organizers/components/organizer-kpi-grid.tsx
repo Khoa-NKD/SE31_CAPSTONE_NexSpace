@@ -1,5 +1,5 @@
 import React from 'react';
-import { Clock, RefreshCw, CheckCircle2, AlertOctagon, TrendingUp } from 'lucide-react';
+import { Clock, RefreshCw, CheckCircle2, AlertOctagon, TrendingUp } from '@/components/ui/hugeicons';
 import { OrganizerPipelineKpis } from '../data/mock-organizers';
 
 interface OrganizerKpiGridProps {

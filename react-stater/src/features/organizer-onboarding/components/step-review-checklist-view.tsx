@@ -1,4 +1,8 @@
-import { cancellationPolicyError, defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
+import { Spinner as Loader2 } from '@/components/ui/spinner';
+import {
+  cancellationPolicyError,
+  defaultCancellationRules
+} from '@/features/workspaces/utils/cancellation-policy';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
@@ -17,9 +21,8 @@ import {
   Eye,
   Sparkles,
   QrCode,
-  ShieldCheck,
-  Loader2
-} from 'lucide-react';
+  ShieldCheck
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -874,7 +877,7 @@ export function StepReviewChecklistView() {
               className='h-10 px-4 text-xs sm:text-sm font-medium border-border gap-1.5'
             >
               {isSaving || isSubmitting ? (
-                <Loader2 className='size-4 animate-spin' />
+                <Loader2 className='size-4' />
               ) : (
                 <Save className='size-4' />
               )}
@@ -893,7 +896,7 @@ export function StepReviewChecklistView() {
             >
               <span>{c('Go to Setup Floor & Zone', 'Thiết lập tầng và khu vực')}</span>
               {isSubmitting ? (
-                <Loader2 className='size-4 animate-spin' />
+                <Loader2 className='size-4' />
               ) : (
                 <ArrowRight className='size-4' />
               )}

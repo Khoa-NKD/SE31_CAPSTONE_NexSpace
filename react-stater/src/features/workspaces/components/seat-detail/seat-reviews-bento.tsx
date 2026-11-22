@@ -5,7 +5,7 @@ import {
   ThumbsUp,
   BadgeCheck,
   ChevronDown
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 export function SeatReviewsBento() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'tech' | 'remote' | 'photos'>('all');

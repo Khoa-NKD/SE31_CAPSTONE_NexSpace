@@ -11,7 +11,7 @@ import {
   X,
   Users,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';

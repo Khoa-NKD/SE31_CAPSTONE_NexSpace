@@ -14,7 +14,7 @@ import {
   Sparkles,
   Star,
   X
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {

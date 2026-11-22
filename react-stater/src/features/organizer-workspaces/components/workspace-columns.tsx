@@ -26,7 +26,7 @@ import {
   Users,
   Star,
   Edit
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerWorkspace, WorkspaceStatus } from '../types';
 import { getWorkspaceResumeRoute } from '../utils/workspace-routing';
 

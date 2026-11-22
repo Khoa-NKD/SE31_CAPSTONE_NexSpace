@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Unlock, CheckCircle2 } from 'lucide-react';
+import { Unlock, CheckCircle2 } from '@/components/ui/hugeicons';
 import { useUpdateUserStatusMutation } from '../api/mutations';
 import type { AdminUserRecord } from '../api/types';
 

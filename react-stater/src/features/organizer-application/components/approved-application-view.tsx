@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -12,7 +13,7 @@ import {
   ArrowDownRight,
   CheckCheck,
   LockKeyhole
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { ContractPanel } from '@/features/organizer-contract/components/contract-panel';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -24,7 +25,9 @@ import {
 import { verificationDocumentsQueryOptions } from '@/features/organizer-verification-documents/api/documents';
 import { documentPoliciesQueryOptions, documentTypeLabel } from '../api/document-requirements';
 import { invalidateLifecycle } from '@/features/organizer-lifecycle/api/lifecycle';
-import { OwnerDocumentActions } from '@/features/organizer-verification-documents/components/owner-document-actions';
+import {
+  OwnerDocumentActions
+} from '@/features/organizer-verification-documents/components/owner-document-actions';
 import { useBusinessTypes } from '../hooks/use-business-types';
 import { useOrganizerTranslation } from '../hooks/use-organizer-translation';
 
@@ -118,9 +121,11 @@ export function ApprovedApplicationView() {
               aria-label={tr('Refresh application record')}
               onClick={() => void invalidateLifecycle(client)}
             >
-              <RefreshCw
-                className={`size-4 ${application.isFetching || documents.isFetching ? 'animate-spin' : ''}`}
-              />
+              {application.isFetching || documents.isFetching ? <Spinner
+                className={`size-4 `}
+              /> : <RefreshCw
+                className={`size-4 `}
+              />}
             </Button>
           </div>
         </div>

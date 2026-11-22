@@ -6,7 +6,7 @@ import {
   Building,
   QrCode,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {

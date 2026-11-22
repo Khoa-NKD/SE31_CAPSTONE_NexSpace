@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Building2, ArrowRight } from 'lucide-react';
+import { Building2, ArrowRight } from '@/components/ui/hugeicons';
 import { MOCK_RECENT_OVERVIEW_SUBMISSIONS } from '../data/mock-organizers';
 
 export function RecentSubmissionsTable() {

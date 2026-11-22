@@ -1,7 +1,7 @@
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { X, ChevronRight } from 'lucide-react';
+import { X, ChevronRight } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 

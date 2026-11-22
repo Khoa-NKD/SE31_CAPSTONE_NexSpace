@@ -11,7 +11,7 @@ import {
   Eye,
   Hand,
   AlertTriangle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { FloorLayout, AvailabilityState } from '../api/resources';

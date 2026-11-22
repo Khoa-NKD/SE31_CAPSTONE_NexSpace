@@ -8,7 +8,7 @@ import {
   Laptop,
   CreditCard,
   PlusCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

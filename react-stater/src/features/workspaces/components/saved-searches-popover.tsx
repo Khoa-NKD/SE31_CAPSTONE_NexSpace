@@ -1,16 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React from 'react';
-import {
-  Bookmark,
-  Trash2,
-  Check,
-  MapPin,
-  Sparkles,
-  Tag,
-  Star,
-  DollarSign,
-  Plus,
-  Loader2
-} from 'lucide-react';
+import { Bookmark, Trash2, Check, MapPin, Sparkles, Tag, Star, DollarSign, Plus } from '@/components/ui/hugeicons';
 import {
   Popover,
   PopoverContent,
@@ -92,7 +82,7 @@ export function SavedSearchesPopover({
         <div className="max-h-80 overflow-y-auto divide-y divide-border/40 p-1">
           {isLoading ? (
             <div className="flex items-center justify-center py-8 text-xs text-muted-foreground gap-2">
-              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              <Loader2 className="h-4 w-4 text-primary" />
               <span>Đang tải bộ lọc đã lưu...</span>
             </div>
           ) : count === 0 ? (

@@ -11,10 +11,11 @@ import {
   User,
   Users,
   X
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '../context/language-context';
 import type { WorkspaceType } from '../api/types';
+import { highlightSearchCard } from './search-card-highlight';
 
 export interface SearchCriteria {
   mode: WorkspaceType | 'all';
@@ -135,6 +136,7 @@ export function SearchCard({
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
+    highlightSearchCard();
     const criteria: SearchCriteria = {
       mode: activeMode,
       location: location.trim(),
@@ -170,10 +172,8 @@ export function SearchCard({
       className='mx-auto mt-7 max-w-5xl rounded-2xl border border-slate-200/90 bg-white p-4 sm:p-5 text-left shadow-xl shadow-slate-900/5 dark:border-slate-800 dark:bg-slate-900'
     >
       {/* Primary Horizontal Search Form */}
-      <form
-        onSubmit={handleSearch}
-        className='flex flex-col md:flex-row md:items-end gap-3'
-      >
+      <span data-search-orbit aria-hidden='true' className='ns-search-orbit' />
+      <form onSubmit={handleSearch} className='flex flex-col md:flex-row md:items-end gap-3'>
         {/* 1. Location */}
         <div className='flex-[1.4] min-w-0 space-y-1.5'>
           <label
@@ -261,9 +261,12 @@ export function SearchCard({
 
         {/* 4. Search Action CTA */}
         <div className='shrink-0 space-y-1.5'>
-          <label className='invisible hidden md:block text-xs font-semibold select-none' aria-hidden='true'>
+          <span
+            className='invisible hidden md:block text-xs font-semibold select-none'
+            aria-hidden='true'
+          >
             &nbsp;
-          </label>
+          </span>
           <Button
             type='submit'
             className='group h-11 w-full md:w-auto cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#3f36c8] px-6 text-sm font-bold text-white shadow-md shadow-[#4b41e1]/25 transition-all duration-150 active:scale-[0.98] flex items-center justify-center gap-2'
@@ -275,7 +278,7 @@ export function SearchCard({
       </form>
 
       {/* Progressive Disclosure Footer: Quick Space Type Pills, Popular Locations & Capacity */}
-      <div className='mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800/80'>
+      <div className='ns-search-options mt-3.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800/80'>
         {/* Quick Category & Location Chips */}
         <div className='flex flex-wrap items-center gap-1.5'>
           {modeOptions.slice(1).map((tab) => {
@@ -286,6 +289,7 @@ export function SearchCard({
                 key={tab.id}
                 type='button'
                 onClick={() => handleModeChange(isActive ? 'all' : tab.id)}
+                aria-pressed={isActive}
                 className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-medium transition-colors ${
                   isActive
                     ? 'bg-indigo-50 text-[#4b41e1] font-semibold border border-indigo-200 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800'

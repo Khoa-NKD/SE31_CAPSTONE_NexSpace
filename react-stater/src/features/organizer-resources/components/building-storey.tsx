@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { FloorSlabSides } from './floor-slab-sides';
 import type { CSSProperties } from 'react';
-import { ArrowRight, X, LoaderCircle, Layers3, Scan } from 'lucide-react';
+import { ArrowRight, X, Layers3, Scan } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { FloorOption, FloorLayout } from '../api/resources';
@@ -97,7 +98,7 @@ export function BuildingStorey({
                     role='status'
                     className='flex h-full items-center justify-center gap-2 text-xs text-muted-foreground'
                   >
-                    <LoaderCircle className='size-5 animate-spin' />
+                    <LoaderCircle className='size-5' />
                     {c('Loading floor…', 'Đang tải tầng…')}
                   </span>
                 ) : layout ? (

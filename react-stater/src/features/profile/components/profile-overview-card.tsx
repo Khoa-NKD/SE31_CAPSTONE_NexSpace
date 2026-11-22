@@ -3,7 +3,7 @@ import React from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { Camera, CheckCircle2, Clock, LogOut, ShieldCheck, Mail, User as UserIcon } from 'lucide-react';
+import { Camera, CheckCircle2, Clock, LogOut, ShieldCheck, Mail, User as UserIcon } from '@/components/ui/hugeicons';
 import type { UserDto } from '../api/types';
 
 interface ProfileOverviewCardProps {

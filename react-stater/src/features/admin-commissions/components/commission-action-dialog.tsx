@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { KeyRound, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import { KeyRound, ShieldAlert, CheckCircle2 } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 
 interface CommissionActionDialogProps {

@@ -1,8 +1,9 @@
+import { Spinner } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, RefreshCw, BarChart3, AlertTriangle, SlidersHorizontal } from 'lucide-react';
+import { Download, RefreshCw, BarChart3, AlertTriangle, SlidersHorizontal } from '@/components/ui/hugeicons';
 import { analyticsApi, type AnalyticsFilter, type AnalyticsReport } from '../api';
 import { chartTrends, localDate, preset, displayAnalyticsDate } from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
@@ -114,7 +115,7 @@ export function OrganizerAnalyticsView() {
             disabled={report.isFetching}
             onClick={() => void refreshReport()}
           >
-            <RefreshCw className={report.isFetching ? 'size-4 animate-spin' : 'size-4'} />
+            {report.isFetching ? <Spinner className={'size-4'} /> : <RefreshCw className={'size-4'} />}
             {c('Refresh', 'Làm mới')}
           </Button>
           <Button

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sun, RotateCcw } from 'lucide-react';
+import { Sun, RotateCcw } from '@/components/ui/hugeicons';
 import { SeatTourModal } from './seat-tour-modal';
 
 export function SeatPhotoGallery() {

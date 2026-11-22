@@ -13,7 +13,7 @@ import {
   type UserNotificationDto
 } from '../api/queries';
 import { useLanguage } from '@/features/landing/context/language-context';
-import { Check, CheckCheck, CreditCard, CalendarCheck, AlertCircle, Bell, ExternalLink, RotateCcw, Building2, ShieldCheck, Clock, Sparkles } from 'lucide-react';
+import { Check, CheckCheck, CreditCard, CalendarCheck, AlertCircle, Bell, ExternalLink, RotateCcw, Building2, ShieldCheck, Clock, Sparkles } from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
 
 export function NotificationCenter() {
@@ -288,7 +288,7 @@ export function NotificationCenter() {
         <ScrollArea className='max-h-[420px] overflow-y-auto'>
           {isLoading ? (
             <div className='flex flex-col items-center justify-center py-12 text-muted-foreground gap-2'>
-              <Icons.spinner className='h-6 w-6 animate-spin text-indigo-500' />
+              <Icons.spinner className='h-6 w-6 text-indigo-500' />
               <p className='text-xs'>{isVi ? 'Đang tải thông báo...' : 'Loading notifications...'}</p>
             </div>
           ) : notifications.length === 0 ? (

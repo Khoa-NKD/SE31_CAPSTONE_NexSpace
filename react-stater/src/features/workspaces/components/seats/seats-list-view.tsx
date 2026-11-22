@@ -16,7 +16,7 @@ import {
   Monitor,
   ShieldCheck,
   AlertCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';

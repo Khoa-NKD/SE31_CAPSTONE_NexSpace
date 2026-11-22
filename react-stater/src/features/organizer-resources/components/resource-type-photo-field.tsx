@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ImagePlus, Star, Upload, X } from 'lucide-react';
+import { ImagePlus, Star, Upload, X } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {

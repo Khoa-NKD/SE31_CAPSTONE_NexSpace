@@ -1,3 +1,5 @@
+import { Spinner as IconLoader2 } from '@/components/ui/spinner';
+import { IconBrandGithub, IconBrandGoogle, IconBrandTwitter } from '@tabler/icons-react';
 import {
   IconBriefcase,
   IconBuildingCommunity,
@@ -15,9 +17,6 @@ import {
   IconBell,
   IconBold,
   IconBox,
-  IconBrandGithub,
-  IconBrandGoogle,
-  IconBrandTwitter,
   IconBrightness,
   IconCalendar,
   IconCheck,
@@ -36,7 +35,6 @@ import {
   IconClipboardText,
   IconClock,
   IconCode,
-  IconCommand,
   IconCreditCard,
   IconDeviceLaptop,
   IconDots,
@@ -58,7 +56,6 @@ import {
   IconLayoutDashboard,
   IconLayoutKanban,
   IconLayoutSidebar,
-  IconLoader2,
   IconLock,
   IconLogin,
   IconLogout,
@@ -93,12 +90,11 @@ import {
   IconUser,
   IconUserCircle,
   IconUserEdit,
-  IconUserX,
   IconUsers,
   IconVideo,
   IconCrown,
   IconX
-} from '@tabler/icons-react';
+} from '@/components/ui/hugeicons';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
 
 export type Icon = React.ComponentType<IconProps>;
@@ -144,7 +140,7 @@ export const Icons = {
   user2: IconUserCircle,
   account: IconUserCircle,
   profile: IconUser,
-  employee: IconUserX,
+  employee: IconUser,
   userPen: IconUserEdit,
   teams: IconUsers,
 
@@ -152,7 +148,7 @@ export const Icons = {
   github: IconBrandGithub,
   google: IconBrandGoogle,
   twitter: IconBrandTwitter,
-  logo: IconCommand,
+  logo: NexSpaceMark,
   nexSpace: NexSpaceLogo,
   nexSpaceMark: NexSpaceMark,
 

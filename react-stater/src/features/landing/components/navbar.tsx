@@ -11,7 +11,7 @@ import {
   SlidersHorizontal,
   Compass,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,8 +29,9 @@ import {
 } from '@/components/ui/sheet';
 import { ThemeModeToggle } from '@/components/themes/theme-mode-toggle';
 import { NexSpaceLogo } from '@/components/brand/logo';
+import { scrollLandingTo } from './landing-smooth-scroll';
 import { useLanguage } from '../context/language-context';
-import { useCurrency } from '../context/currency-context';
+
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole, getRoleHomeUrl } from '@/features/auth/utils/role-guard';
 import { UserNav } from '@/components/layout/user-nav';
@@ -38,12 +39,13 @@ import { NotificationCenter } from '@/features/notifications/components/notifica
 
 interface NavbarProps {
   sticky?: boolean;
+  brand?: React.ReactNode;
 }
 
-export function Navbar({ sticky = true }: NavbarProps = {}) {
+export function Navbar({ sticky = true, brand }: NavbarProps = {}) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { language, setLanguage, t } = useLanguage();
-  const { currency, setCurrency } = useCurrency();
+
   const navigate = useNavigate();
   const location = useLocation();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
@@ -61,7 +63,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
       const target = document.getElementById('how-it-works');
       if (target) {
         e.preventDefault();
-        target.scrollIntoView({ behavior: 'smooth' });
+        scrollLandingTo(target);
       }
     }
   };
@@ -82,7 +84,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
             title='NexSpace Home'
             aria-label='NexSpace Home'
           >
-            <NexSpaceLogo className='h-8 sm:h-9 w-auto cursor-pointer' />
+            {brand ?? <NexSpaceLogo className='h-8 sm:h-9 w-auto cursor-pointer' />}
           </button>
         </div>
 
@@ -149,7 +151,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
 
         {/* Right Controls - Aligned to right corner */}
         <div className='flex flex-1 items-center justify-end gap-2 sm:gap-2.5 whitespace-nowrap'>
-          {/* Utility Capsule: Theme, Language, Currency */}
+          {/* Utility Capsule: Theme and Language */}
           <div className='flex items-center rounded-full border border-slate-200/90 bg-slate-50/80 p-0.5 shadow-2xs dark:border-slate-800 dark:bg-slate-900/80'>
             <ThemeModeToggle compact />
 
@@ -163,9 +165,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                   aria-label='Chuyển đổi ngôn ngữ / Switch Language'
                   className='flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
                 >
-                  <span className='text-[11px] font-bold uppercase tracking-wider'>
-                    {language}
-                  </span>
+                  <span className='text-[11px] font-bold uppercase tracking-wider'>{language}</span>
                   <ChevronDown className='h-3 w-3 opacity-60' />
                 </button>
               </DropdownMenuTrigger>
@@ -199,52 +199,6 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                     <span>English</span>
                   </div>
                   {language === 'en' && (
-                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
-                  )}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-
-            <div className='hidden sm:block mx-0.5 h-3.5 w-px bg-slate-200 dark:bg-slate-800' />
-
-            {/* Currency Selector */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type='button'
-                  aria-label='Change Currency'
-                  className='hidden sm:flex h-7 cursor-pointer items-center gap-1 rounded-full px-2 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200/60 hover:text-slate-900 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-white'
-                >
-                  <span className='text-[11px] font-bold uppercase tracking-wider'>
-                    {currency === 'VND' ? '₫ VND' : '$ USD'}
-                  </span>
-                  <ChevronDown className='h-3 w-3 opacity-60' />
-                </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end' className='w-40 p-1.5 shadow-lg'>
-                <DropdownMenuItem
-                  onSelect={() => setCurrency('USD')}
-                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
-                    currency === 'USD'
-                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                      : 'text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <span>USD ($)</span>
-                  {currency === 'USD' && (
-                    <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => setCurrency('VND')}
-                  className={`flex cursor-pointer items-center justify-between rounded-lg px-2.5 py-2 text-xs font-medium ${
-                    currency === 'VND'
-                      ? 'bg-indigo-50 font-bold text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                      : 'text-foreground hover:bg-muted'
-                  }`}
-                >
-                  <span>VND (₫)</span>
-                  {currency === 'VND' && (
                     <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
                   )}
                 </DropdownMenuItem>
@@ -298,7 +252,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
           )}
 
           {/* Mobile Hamburger Menu */}
-          <div className='md:hidden'>
+          <div className='ns-mobile-menu md:hidden'>
             <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
               <SheetTrigger asChild>
                 <button
@@ -371,7 +325,7 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                     )}
                   </nav>
 
-                  {/* Mobile Preferences: Language & Currency */}
+                  {/* Mobile Preferences: Language */}
                   <div className='mt-6 border-t border-slate-200/80 dark:border-slate-800 pt-5 space-y-4'>
                     <div>
                       <span className='block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2'>
@@ -399,36 +353,6 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                           }`}
                         >
                           🇺🇸 English
-                        </button>
-                      </div>
-                    </div>
-
-                    <div>
-                      <span className='block text-[11px] font-semibold uppercase tracking-wider text-slate-400 mb-2'>
-                        {language === 'vi' ? 'Tiền tệ' : 'Currency'}
-                      </span>
-                      <div className='grid grid-cols-2 gap-2'>
-                        <button
-                          type='button'
-                          onClick={() => setCurrency('USD')}
-                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                            currency === 'USD'
-                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          $ USD
-                        </button>
-                        <button
-                          type='button'
-                          onClick={() => setCurrency('VND')}
-                          className={`cursor-pointer rounded-lg border px-3 py-2 text-xs font-semibold transition-colors ${
-                            currency === 'VND'
-                              ? 'border-indigo-500 bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300'
-                              : 'border-slate-200 text-slate-600 dark:border-slate-800 dark:text-slate-300'
-                          }`}
-                        >
-                          ₫ VND
                         </button>
                       </div>
                     </div>
@@ -461,7 +385,9 @@ export function Navbar({ sticky = true }: NavbarProps = {}) {
                             ? window.location.pathname + window.location.search
                             : undefined;
                         handleMobileNavigate(
-                          currentPath ? `/auth/sign-in?redirect=${encodeURIComponent(currentPath)}` : '/auth/sign-in'
+                          currentPath
+                            ? `/auth/sign-in?redirect=${encodeURIComponent(currentPath)}`
+                            : '/auth/sign-in'
                         );
                       }}
                     >

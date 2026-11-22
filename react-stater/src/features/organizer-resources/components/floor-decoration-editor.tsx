@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useState } from 'react';
 import { z } from 'zod';
-import { Save, LoaderCircle, Check, Shapes, Ruler, RotateCcw } from 'lucide-react';
+import { Save, Check, Shapes, Ruler, RotateCcw } from '@/components/ui/hugeicons';
 import { DecorationIcon } from './decoration-visual';
 import { decorationPresets, changeDecorationKind } from '../utils/decoration-presets';
 import {
@@ -336,7 +337,7 @@ export function FloorDecorationEditor({
             </Button>
             <Button type='submit' disabled={busy || placement.blocked}>
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Save className='size-4' />
               )}

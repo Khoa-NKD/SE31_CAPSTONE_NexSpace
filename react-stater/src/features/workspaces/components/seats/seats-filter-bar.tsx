@@ -1,5 +1,5 @@
 import { formatDateLabel } from '@/lib/format';
-import { Calendar, List, LayoutGrid } from 'lucide-react';
+import { Calendar, List, LayoutGrid } from '@/components/ui/hugeicons';
 import type { SeatCategory } from '../../types/seat';
 import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
 

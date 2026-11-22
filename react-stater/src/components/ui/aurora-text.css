@@ -1,0 +1,45 @@
+.ns-aurora-text {
+  position: relative;
+  display: inline-block;
+}
+
+.ns-aurora-text-gradient {
+  background-size: 200% auto;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: ns-aurora-text-flow 10s ease-in-out infinite alternate;
+}
+
+/* Keep Vietnamese accents and heading geometry stable while the gradient moves. */
+@keyframes ns-aurora-text-flow {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 50% 100%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  75% {
+    background-position: 50% 0%;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns-aurora-text-gradient {
+    animation: none;
+    background-position: 50% 50%;
+  }
+}
+
+@media (forced-colors: active) {
+  .ns-aurora-text-gradient {
+    background: none !important;
+    color: CanvasText;
+    -webkit-text-fill-color: CanvasText;
+  }
+}

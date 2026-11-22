@@ -1,6 +1,6 @@
 import { Link } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import { ChevronDown, Check, ArrowLeft, Building2, ShieldCheck, Gauge } from 'lucide-react';
+import { ChevronDown, Check, ArrowLeft, Building2, ShieldCheck, Gauge } from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,

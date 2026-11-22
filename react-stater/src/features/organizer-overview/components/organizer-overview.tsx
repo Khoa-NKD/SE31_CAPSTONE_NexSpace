@@ -17,7 +17,7 @@ import {
   UserRound,
   MapPin,
   Building2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Button } from '@/components/ui/button';

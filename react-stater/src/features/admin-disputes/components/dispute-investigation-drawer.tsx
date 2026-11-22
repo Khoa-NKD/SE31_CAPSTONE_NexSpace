@@ -12,7 +12,7 @@ import {
   CheckCircle2,
   SignalZero,
   ZoomIn
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';

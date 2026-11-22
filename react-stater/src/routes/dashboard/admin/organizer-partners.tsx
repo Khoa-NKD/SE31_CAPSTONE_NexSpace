@@ -1,12 +1,32 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, type FormEvent } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, ArrowUpRight, Building2, CalendarDays, CircleAlert, Loader2, Mail, PauseCircle, PlayCircle, Search, ShieldCheck, X } from 'lucide-react';
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  Building2,
+  CalendarDays,
+  CircleAlert,
+  Mail,
+  PauseCircle,
+  PlayCircle,
+  Search,
+  ShieldCheck,
+  X
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle
+} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -120,7 +140,7 @@ function PartnerDirectory({ actorId }: { actorId: number }) {
         </div>
       </CardHeader>
       <CardContent className='p-0'>
-        {partners.isPending && <p role='status' className='flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground'><Loader2 className='size-4 animate-spin' /> Đang tải đối tác…</p>}
+        {partners.isPending && <p role='status' className='flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground'><Loader2 className='size-4' /> Đang tải đối tác…</p>}
         {partners.isError && <div role='alert' className='flex flex-wrap items-center gap-3 p-5 text-sm'>{partners.error.message} <Button variant='outline' onClick={() => void partners.refetch()}>Thử lại</Button></div>}
         {partners.data && (
           <>
@@ -193,7 +213,7 @@ function PartnerDetail({ actorId, id }: { actorId: number; id: string }) {
   return (
     <div className='space-y-4'>
       <Button asChild variant='ghost' className='-ml-2'><Link to={path} search={{}}><ArrowLeft className='size-4' /> Danh sách đối tác</Link></Button>
-      {detail.isPending && <p role='status' className='flex items-center gap-2 rounded-2xl border p-6 text-sm text-muted-foreground'><Loader2 className='size-4 animate-spin' /> Đang tải thông tin đối tác…</p>}
+      {detail.isPending && <p role='status' className='flex items-center gap-2 rounded-2xl border p-6 text-sm text-muted-foreground'><Loader2 className='size-4' /> Đang tải thông tin đối tác…</p>}
       {detail.isError && <div role='alert' className='flex items-center gap-3 text-sm'>{detail.error.message} <Button variant='outline' onClick={() => void detail.refetch()}>Tải lại</Button></div>}
       {data && <>
         <Card className='rounded-2xl bg-linear-to-br from-primary/5 via-card to-card shadow-sm'>
@@ -259,7 +279,7 @@ function PartnerDetail({ actorId, id }: { actorId: number; id: string }) {
               <Button type='button' variant='outline' disabled={change.isPending} onClick={() => setConfirmation(undefined)}>Hủy</Button>
               <Button type='submit' variant={confirmation.partner.suspended ? 'default' : 'destructive'}
                 disabled={!reason.trim() || change.isPending || data?.revision !== confirmation.revision}>
-                {change.isPending && <Loader2 className='size-4 animate-spin' />}
+                {change.isPending && <Loader2 className='size-4' />}
                 {confirmation.partner.suspended ? 'Xác nhận khôi phục' : 'Xác nhận tạm ngưng'}
               </Button>
             </DialogFooter>

@@ -1,6 +1,6 @@
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { createFileRoute } from '@tanstack/react-router';
-import { Building2 } from 'lucide-react';
+import { Building2 } from '@/components/ui/hugeicons';
 import { Navbar } from '@/features/landing/components/navbar';
 import { ApplicationForm } from '@/features/organizer-application/components/application-form';
 

@@ -15,7 +15,7 @@ import {
   useMarkAllNotificationsReadMutation,
   type UserNotificationDto
 } from '../api/queries';
-import { CheckCheck, CheckSquare } from 'lucide-react';
+import { CheckCheck, CheckSquare } from '@/components/ui/hugeicons';
 
 export default function NotificationsPage() {
   const router = useRouter();
@@ -153,7 +153,7 @@ export default function NotificationsPage() {
     if (isLoading) {
       return (
         <div className='flex flex-col items-center justify-center py-16 gap-3'>
-          <Icons.spinner className='h-8 w-8 animate-spin text-primary' />
+          <Icons.spinner className='h-8 w-8 text-primary' />
           <p className='text-muted-foreground text-sm'>Đang tải thông báo...</p>
         </div>
       );

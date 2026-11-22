@@ -19,7 +19,7 @@ import {
   MousePointer2,
   LockKeyhole,
   Maximize2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useLanguage } from '@/features/landing/context/language-context';

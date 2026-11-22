@@ -13,7 +13,7 @@ import {
   RotateCcw,
   Ban,
   Maximize2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 import { toast } from 'sonner';

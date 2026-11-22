@@ -1,7 +1,7 @@
 import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Users, Building2, Store, Calendar, CreditCard, TrendingUp, TrendingDown } from 'lucide-react';
+import { Users, Building2, Store, Calendar, CreditCard, TrendingUp, TrendingDown } from '@/components/ui/hugeicons';
 import { KpiMetric } from '../data/mock-overview';
 
 interface AdminKpiRowProps {

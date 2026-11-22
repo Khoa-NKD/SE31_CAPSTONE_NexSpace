@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import {
@@ -9,7 +10,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Loader2 } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/hugeicons';
 import type { AmenityDto } from '../api/types';
 import { useDeleteAmenityMutation, useDeleteOrganizerAmenityMutation } from '../api/mutations';
 
@@ -101,7 +102,7 @@ export function AmenityDeleteDialog({
             disabled={isPending}
             className='gap-2'
           >
-            {isPending && <Loader2 className='size-4 animate-spin' />}
+            {isPending && <Loader2 className='size-4' />}
             {c('Confirm Delete', 'Xác nhận xóa')}
           </Button>
         </DialogFooter>

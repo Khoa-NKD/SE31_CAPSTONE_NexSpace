@@ -21,7 +21,7 @@ import {
   Layers3,
   Armchair,
   DoorOpen
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';

@@ -1,4 +1,4 @@
-import { Building2, Link2, MapPin } from 'lucide-react';
+import { Building2, Link2, MapPin } from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { FloorOption } from '../api/resources';
 

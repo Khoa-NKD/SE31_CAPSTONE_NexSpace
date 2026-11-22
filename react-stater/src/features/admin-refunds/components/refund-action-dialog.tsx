@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ShieldCheck, AlertTriangle } from 'lucide-react';
+import { ShieldCheck, AlertTriangle } from '@/components/ui/hugeicons';
 import { RefundRecord } from '../data/mock-refunds';
 
 interface RefundActionDialogProps {

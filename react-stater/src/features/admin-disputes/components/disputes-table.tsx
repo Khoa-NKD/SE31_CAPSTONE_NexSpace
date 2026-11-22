@@ -8,7 +8,7 @@ import {
   MapPin,
   ChevronRight,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { DisputeCase } from '../data/mock-disputes';
 
 interface DisputesTableProps {

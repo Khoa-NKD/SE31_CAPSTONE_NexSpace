@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Trash2, AlertTriangle } from 'lucide-react';
+import { Trash2, AlertTriangle } from '@/components/ui/hugeicons';
 import { useUpdateUserStatusMutation } from '../api/mutations';
 import type { AdminUserRecord } from '../api/types';
 

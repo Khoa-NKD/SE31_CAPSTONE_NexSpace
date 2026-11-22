@@ -7,7 +7,7 @@ import {
   PhoneCall,
   TrendingDown,
   CreditCard
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { ReportsKpis } from '../data/mock-reports-overview';
 
 interface ReportsKpiGridProps {

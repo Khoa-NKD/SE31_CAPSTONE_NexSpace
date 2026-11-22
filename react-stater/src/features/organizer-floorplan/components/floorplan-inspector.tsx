@@ -10,7 +10,7 @@ import {
   Tag,
   ShieldAlert,
   CalendarCheck
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';

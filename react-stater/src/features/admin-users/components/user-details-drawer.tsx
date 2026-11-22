@@ -27,7 +27,7 @@ import {
   Calendar,
   Trash2,
   Clock
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import type { AdminUserRecord } from '../api/types';
 import { getUserInitial } from '../api/service';

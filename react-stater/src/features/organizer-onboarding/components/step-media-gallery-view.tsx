@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { getWizardValidationMessage } from '../utils/wizard-copy';
 import React, { useState, useRef, useEffect } from 'react';
@@ -17,9 +18,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Check,
-  Loader2,
   Eye
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -637,7 +637,7 @@ export function StepMediaGalleryView({
             {/* Content: Loading State vs Empty State vs Grid */}
             {isLoadingBackendMedia ? (
               <div className='flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl'>
-                <Loader2 className='size-8 animate-spin text-indigo-600 mb-3' />
+                <Loader2 className='size-8 text-indigo-600 mb-3' />
                 <p className='text-sm font-medium'>
                   {c('Loading existing workspace photos...', 'Đang tải ảnh không gian hiện có...')}
                 </p>
@@ -705,7 +705,7 @@ export function StepMediaGalleryView({
                           )}
                           {item.uploadStatus === 'uploading' && (
                             <span className='inline-flex items-center gap-1 bg-sky-600 text-white text-[10px] font-semibold px-2 py-0.5 rounded shadow-sm tracking-wide'>
-                              <Loader2 className='size-3 animate-spin' />
+                              <Loader2 className='size-3' />
                               <span>{c('Uploading...', 'Đang tải lên...')}</span>
                             </span>
                           )}
@@ -951,7 +951,7 @@ export function StepMediaGalleryView({
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>
               {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
             </span>
@@ -969,7 +969,7 @@ export function StepMediaGalleryView({
                 : c('Continue', 'Tiếp tục')}
             </span>
             {isSaving || isContinuing ? (
-              <Loader2 className='size-4 animate-spin' />
+              <Loader2 className='size-4' />
             ) : (
               <ArrowRight className='size-4' />
             )}

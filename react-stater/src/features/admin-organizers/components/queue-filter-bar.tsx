@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar, Filter, ChevronDown } from 'lucide-react';
+import { Search, Calendar, Filter, ChevronDown } from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,

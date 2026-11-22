@@ -1,73 +1,77 @@
-import React from 'react';
-import { CalendarCheck2, LayoutGrid, Search } from 'lucide-react';
 import { useLanguage } from '../context/language-context';
-
+import { LandingReveal } from './landing-effects';
+import { lazy, useRef } from 'react';
+import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
+import { DeferredEffect } from '@/components/react-bits/effect-boundary';
+const GridMotion = lazy(() => import('@/components/react-bits/GridMotion'));
+const gallery = ['editorial', 'meeting', 'lounge', 'studio'].map((name) => ({
+  src: `/images/landing/workspace-${name}.jpg`,
+  alt: ''
+}));
 export function HowItWorksSection() {
-  const { t } = useLanguage();
-
-  const steps = [
-    {
-      stepNumber: '01',
-      titleKey: 'how.step1.title',
-      descKey: 'how.step1.desc',
-      icon: Search
-    },
-    {
-      stepNumber: '02',
-      titleKey: 'how.step2.title',
-      descKey: 'how.step2.desc',
-      icon: LayoutGrid
-    },
-    {
-      stepNumber: '03',
-      titleKey: 'how.step3.title',
-      descKey: 'how.step3.desc',
-      icon: CalendarCheck2
-    }
-  ];
-
+  const root = useRef<HTMLElement>(null);
+  const reduced = useReducedMotion();
+  const { scrollYProgress } = useScroll({ target: root, offset: ['start end', 'end start'] });
+  const y = useTransform(scrollYProgress, [0, 1], [-14, 14]);
+  const { t, language } = useLanguage();
   return (
-    <section
-      id='how-it-works'
-      className='scroll-mt-20 border-b border-slate-200/70 py-14 sm:py-16 dark:border-slate-800/70'
-    >
-      <div className='mx-auto max-w-7xl px-4 sm:px-6 lg:px-8'>
-        <div className='mx-auto max-w-2xl text-center'>
-          <h2 className='font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white'>
-            {t('how.title')}
-          </h2>
-          <p className='mt-2 text-sm sm:text-base text-slate-600 dark:text-slate-400'>
-            {t('how.subtitle')}
-          </p>
-        </div>
-
-        <div className='mt-8 grid grid-cols-1 gap-5 md:grid-cols-3'>
-          {steps.map((step) => {
-            const Icon = step.icon;
-            return (
-              <div
-                key={step.stepNumber}
-                className='relative flex flex-col rounded-2xl border border-slate-200/90 bg-white p-6 shadow-xs dark:border-slate-800 dark:bg-slate-900'
-              >
-                <div className='flex items-center justify-between'>
-                  <div className='flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-50 text-[#4b41e1] dark:bg-indigo-950/60 dark:text-indigo-400'>
-                    <Icon className='h-5 w-5' />
-                  </div>
-                  <span className='font-mono text-xs font-bold text-slate-400 dark:text-slate-500'>
-                    {step.stepNumber}
-                  </span>
-                </div>
-
-                <h3 className='font-display mt-4 text-base font-bold text-slate-900 dark:text-white'>
-                  {t(step.titleKey)}
-                </h3>
-                <p className='mt-1.5 text-sm leading-relaxed text-slate-600 dark:text-slate-400'>
-                  {t(step.descKey)}
-                </p>
+    <section ref={root} id='how-it-works' className='ns-how scroll-mt-20'>
+      <div className='ns-shell ns-how-grid'>
+        <LandingReveal>
+          <figure className='ns-how-image'>
+            <motion.div
+              className='absolute inset-0'
+              style={reduced ? undefined : { y, scale: 1.08 }}
+            >
+              <img
+                src='/images/landing/workspace-meeting.jpg'
+                alt={
+                  language === 'vi'
+                    ? 'Văn phòng với các phòng họp kính sáng thoáng'
+                    : 'A bright office with glass meeting rooms'
+                }
+                loading='lazy'
+                width={1000}
+                height={700}
+              />
+              <DeferredEffect renderer='dom' className='ns-how-motion'>
+                <GridMotion
+                  items={gallery}
+                  rows={3}
+                  aspectRatio={1.25}
+                  gap={14}
+                  radius={16}
+                  angle={-10}
+                  tilt={3}
+                  speed={7}
+                  parallax={0.16}
+                  spotlight={0.15}
+                  dim={0.02}
+                  fade={0.08}
+                />
+              </DeferredEffect>
+            </motion.div>
+            <figcaption>
+              {language === 'vi'
+                ? 'Một góc làm việc mới. Một ngày nhiều cảm hứng.'
+                : 'A fresh space. A different kind of day.'}
+            </figcaption>
+          </figure>
+        </LandingReveal>
+        <LandingReveal className='ns-how-copy'>
+          <p className='ns-eyebrow'>NEXSPACE, YOUR WAY</p>
+          <h2>{t('how.title')}</h2>
+          <p>{t('how.subtitle')}</p>
+          {[1, 2, 3].map((step) => (
+            <div className='ns-how-step' key={step}>
+              <span>0{step}</span>
+              <div>
+                <h3>{t(`how.step${step}.title`)}</h3>
+                <p>{t(`how.step${step}.desc`)}</p>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          ))}
+        </LandingReveal>
       </div>
     </section>
   );

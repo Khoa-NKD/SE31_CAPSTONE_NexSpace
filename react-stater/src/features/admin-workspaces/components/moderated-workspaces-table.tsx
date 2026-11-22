@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
 import React, { useState } from 'react';
-import { Search, History } from 'lucide-react';
+import { Search, History } from '@/components/ui/hugeicons';
 import { ModerationDecisionRecord } from '../data/mock-workspaces';
 import { AuditLogDialog } from './audit-log-dialog';
 

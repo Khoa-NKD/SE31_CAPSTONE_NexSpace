@@ -1,5 +1,5 @@
 import React from 'react';
-import { Copy, ChevronRight, Check } from 'lucide-react';
+import { Copy, ChevronRight, Check } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { RefundRecord } from '../data/mock-refunds';
 

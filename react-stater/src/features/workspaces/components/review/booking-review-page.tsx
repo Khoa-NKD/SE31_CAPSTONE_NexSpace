@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { backendRequest } from '@/features/auth/api/session';
@@ -14,7 +15,7 @@ import { useBookingByIdQuery, useBookingByCodeQuery } from '../../api/booking-qu
 import type { CustomerFloor } from '../detail/public-floor-map';
 import type { BookingDto } from '../../api/booking-types';
 import { useCurrentPendingBooking } from '@/features/payments/api';
-import { Building2, Loader2 } from 'lucide-react';
+import { Building2 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 
@@ -184,7 +185,7 @@ export function BookingReviewPage({
         <WorkspaceHeader />
         <main className='mx-auto w-full max-w-[1200px] flex-1 px-6 py-16 lg:px-8 text-center'>
           <div className='max-w-md mx-auto rounded-2xl border border-border bg-card p-8 shadow-xs flex flex-col items-center justify-center'>
-            <Loader2 className='size-10 animate-spin text-primary mb-4' />
+            <Loader2 className='size-10 text-primary mb-4' />
             <h2 className='text-lg font-bold tracking-tight'>Đang tải thông tin đơn đặt chỗ...</h2>
             <p className='mt-2 text-xs text-muted-foreground'>
               Hệ thống đang truy xuất dữ liệu giữ chỗ để bạn tiếp tục hoàn tất thanh toán.

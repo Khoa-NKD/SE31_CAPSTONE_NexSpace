@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo } from 'react';
@@ -28,9 +29,8 @@ import {
   CheckCircle2,
   Cpu,
   Building2,
-  ShieldCheck,
-  Loader2
-} from 'lucide-react';
+  ShieldCheck
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -246,7 +246,7 @@ export function OrganizerAmenitiesView() {
             disabled={isFetchingCustom}
             className='gap-1.5'
           >
-            <RefreshCw className={`size-3.5 ${isFetchingCustom ? 'animate-spin' : ''}`} />
+            {isFetchingCustom ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
 
             {c('Refresh', 'Làm mới')}
           </Button>
@@ -429,7 +429,7 @@ export function OrganizerAmenitiesView() {
                   <TableRow>
                     <TableCell colSpan={6} className='h-48 text-center'>
                       <div className='flex flex-col items-center justify-center gap-2 text-muted-foreground'>
-                        <Loader2 className='size-6 animate-spin text-primary' />
+                        <Loader2 className='size-6 text-primary' />
                         <span className='text-xs'>
                           {c('Loading custom amenities...', 'Đang tải danh sách tiện ích riêng...')}
                         </span>
@@ -608,7 +608,7 @@ export function OrganizerAmenitiesView() {
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5'>
             {isLoadingStandard ? (
               <div className='col-span-full h-40 flex items-center justify-center text-muted-foreground gap-2'>
-                <Loader2 className='size-5 animate-spin text-primary' />
+                <Loader2 className='size-5 text-primary' />
                 <span className='text-xs'>
                   {c('Loading standard amenities...', 'Đang tải danh mục tiện ích chuẩn...')}
                 </span>

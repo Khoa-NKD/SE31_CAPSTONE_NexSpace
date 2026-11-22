@@ -6,7 +6,7 @@ import {
   Ruler,
   Grid3X3,
   MapPin
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { FloorplanTool } from '../types';

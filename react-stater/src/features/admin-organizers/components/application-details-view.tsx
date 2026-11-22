@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import {
   ArrowLeft,
   RefreshCw,
@@ -7,7 +8,7 @@ import {
   Files,
   MessageSquare,
   Clock3
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -148,10 +149,13 @@ export function ApplicationDetailsView({
           disabled={query.isFetching}
           onClick={() => void invalidateLifecycle(queryClient)}
         >
-          <RefreshCw
-            className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`}
+          {query.isFetching ? <Spinner
+            className={`size-3.5 `}
             aria-hidden='true'
-          />{' '}
+          /> : <RefreshCw
+            className={`size-3.5 `}
+            aria-hidden='true'
+          />}{' '}
           Refresh details
         </Button>
       </div>

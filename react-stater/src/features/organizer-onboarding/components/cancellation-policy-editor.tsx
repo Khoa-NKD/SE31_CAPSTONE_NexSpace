@@ -1,4 +1,4 @@
-import { Info, Plus, RotateCcw, ShieldCheck, Trash2 } from 'lucide-react';
+import { Info, Plus, RotateCcw, ShieldCheck, Trash2 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';

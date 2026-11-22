@@ -8,7 +8,7 @@ import {
   CheckCircle2,
   Clock,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';

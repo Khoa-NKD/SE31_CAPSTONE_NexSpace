@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -5,7 +6,7 @@ import { zodValidator } from '@tanstack/zod-adapter';
 import { useQueryClient } from '@tanstack/react-query';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { FileDown, RefreshCw, CheckCircle2 } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import {
   INITIAL_TRANSACTIONS,
@@ -19,8 +20,12 @@ import {
 } from '@/features/admin-reconciliation/data/transaction-adapter';
 import { FinancialKpiGrid } from '@/features/admin-reconciliation/components/financial-kpi-grid';
 import { TransactionsFilterBar } from '@/features/admin-reconciliation/components/transactions-filter-bar';
-import { TransactionsLedgerTable } from '@/features/admin-reconciliation/components/transactions-ledger-table';
-import { TransactionDetailsDrawer } from '@/features/admin-reconciliation/components/transaction-details-drawer';
+import {
+  TransactionsLedgerTable
+} from '@/features/admin-reconciliation/components/transactions-ledger-table';
+import {
+  TransactionDetailsDrawer
+} from '@/features/admin-reconciliation/components/transaction-details-drawer';
 import {
   useAdminPaymentHistory,
   useReconcileTransaction,
@@ -283,7 +288,7 @@ function FinancialReconciliationPage() {
             >
               {isReconcilingBatch || batchMutation.isPending ? (
                 <>
-                  <RefreshCw className='size-3.5 animate-spin' aria-hidden='true' />
+                  <Spinner className='size-3.5' aria-hidden='true' />
                   Đang đối soát sao kê...
                 </>
               ) : (

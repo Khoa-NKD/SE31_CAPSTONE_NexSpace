@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { History } from 'lucide-react';
+import { History } from '@/components/ui/hugeicons';
 import { ModerationDecisionRecord } from '../data/mock-workspaces';
 
 interface AuditLogDialogProps {

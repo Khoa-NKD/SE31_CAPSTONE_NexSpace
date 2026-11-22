@@ -1,10 +1,10 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Eye,
   Download,
-  LoaderCircle,
   FileText,
   ShieldCheck,
   ExternalLink,
@@ -12,7 +12,7 @@ import {
   ZoomOut,
   RotateCw,
   RotateCcw
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,
@@ -102,7 +102,7 @@ export function DocumentActions({
           aria-label={`Download document ${document.fileName}`}
         >
           {downloading ? (
-            <LoaderCircle className='size-3.5 animate-spin' aria-hidden='true' />
+            <LoaderCircle className='size-3.5' aria-hidden='true' />
           ) : (
             <Download className='size-3.5' aria-hidden='true' />
           )}
@@ -203,7 +203,7 @@ function DocumentPreviewContent({
           role='status'
           className='flex min-h-60 items-center justify-center gap-2 text-sm text-muted-foreground'
         >
-          <LoaderCircle className='size-5 animate-spin text-primary' aria-hidden='true' />
+          <LoaderCircle className='size-5 text-primary' aria-hidden='true' />
           {tr('Loading document…')}
         </p>
       )}

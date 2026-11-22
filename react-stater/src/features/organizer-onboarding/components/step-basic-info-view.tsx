@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
@@ -10,9 +11,8 @@ import {
   Phone,
   Mail,
   Save,
-  ArrowRight,
-  Loader2
-} from 'lucide-react';
+  ArrowRight
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -432,7 +432,7 @@ export function StepBasicInfoView({
               onClick={handleSaveDraft}
               className='gap-2 text-xs sm:text-sm border-border hover:bg-muted'
             >
-              {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+              {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
               <span>
                 {isSaving
                   ? c(c('Saving Draft...', 'Đang lưu bản nháp...'), 'Đang lưu bản nháp...')
@@ -447,7 +447,7 @@ export function StepBasicInfoView({
             >
               <span>{c('Continue to Operating Hours', 'Tiếp tục đến giờ hoạt động')}</span>
               {isSaving ? (
-                <Loader2 className='size-4 animate-spin' />
+                <Loader2 className='size-4' />
               ) : (
                 <ArrowRight className='size-4' />
               )}

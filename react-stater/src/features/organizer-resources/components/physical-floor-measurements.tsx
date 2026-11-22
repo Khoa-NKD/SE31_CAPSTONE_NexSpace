@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useEffect, useState, type KeyboardEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Ruler, LoaderCircle } from 'lucide-react';
+import { Ruler } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -251,7 +252,7 @@ export function PhysicalFloorMeasurements({
               }
               onClick={() => void save()}
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {review
                 ? c('Confirm and save', 'Xác nhận và lưu')
                 : reference

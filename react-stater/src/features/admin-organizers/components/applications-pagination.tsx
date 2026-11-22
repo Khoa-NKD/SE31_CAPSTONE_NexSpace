@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import type { AdminOrganizerApplicationsPage } from '../api/applications';
 

@@ -3,7 +3,7 @@ import {
   User,
   PlusCircle,
   MapPin
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

@@ -1,4 +1,4 @@
-import { Bot, User, ExternalLink } from 'lucide-react';
+import { Bot, User, ExternalLink } from '@/components/ui/hugeicons';
 import { useRouter } from '@tanstack/react-router';
 import type { ChatUiMessage } from '../api/types';
 import { QuickSuggestions } from './quick-suggestions';

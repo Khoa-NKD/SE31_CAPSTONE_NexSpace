@@ -1,4 +1,4 @@
-import { Star, VolumeX, Sunset, Wifi, QrCode, Users, Armchair, Building } from 'lucide-react';
+import { Star, VolumeX, Sunset, Wifi, QrCode, Users, Armchair, Building } from '@/components/ui/hugeicons';
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
 import { useCurrency } from '@/features/landing/context/currency-context';

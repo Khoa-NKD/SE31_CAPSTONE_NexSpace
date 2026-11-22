@@ -7,7 +7,7 @@ import {
   DialogDescription
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { ZoomIn, ZoomOut, RotateCw, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { ZoomIn, ZoomOut, RotateCw, CheckCircle2, ShieldCheck } from '@/components/ui/hugeicons';
 import { VerificationDocument } from '../data/mock-organizers';
 
 interface DocumentScanDialogProps {

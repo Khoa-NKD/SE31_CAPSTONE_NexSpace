@@ -7,7 +7,7 @@ import {
   CalendarX2,
   Wrench,
   CheckCircle2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { BlockoutMetrics } from '../types';
 
 interface BlockoutHeaderBarProps {

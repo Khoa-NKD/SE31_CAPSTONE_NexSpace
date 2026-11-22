@@ -1,4 +1,4 @@
-import { Armchair, DoorOpen, Pencil, Trash2 } from 'lucide-react';
+import { Armchair, DoorOpen, Pencil, Trash2 } from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';

@@ -76,16 +76,21 @@ body {
   background-size: 100% 28rem;
 }
 
-/* Apply theme fonts to body for all themes */
-/* This ensures theme-specific fonts override Next.js font variables */
-/* Font variables are defined on [data-theme] (html element) */
-/* We need to override Next.js font variables on body to use html's values */
-/* Using initial removes the property, allowing parent (html) values to cascade */
+/* Inherit the root font tokens so route changes and portals keep the same font. */
 [data-theme] body {
-  /* Remove Next.js font variables to allow theme variables from html to cascade */
-  --font-sans: initial;
-  --font-mono: initial;
-  --font-serif: initial;
-  /* Apply font-family - will now resolve from html's [data-theme] variables */
-  font-family: var(--font-sans);
+  font-family: var(--font-app);
+}
+
+/* Map libraries ship their own font rules outside Tailwind's layers. */
+:root
+  :is(
+    .mapboxgl-map,
+    .mapboxgl-popup,
+    .maplibregl-map,
+    .maplibregl-popup,
+    .leaflet-container,
+    .leaflet-popup-content,
+    .leaflet-tooltip
+  ) {
+  font-family: var(--font-app);
 }

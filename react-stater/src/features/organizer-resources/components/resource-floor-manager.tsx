@@ -1,17 +1,8 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import {
-  Layers3,
-  LoaderCircle,
-  Check,
-  Pencil,
-  AlertCircle,
-  Focus,
-  Armchair,
-  DoorOpen,
-  Plus
-} from 'lucide-react';
+import { Layers3, Check, Pencil, AlertCircle, Focus, Armchair, DoorOpen, Plus } from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import {
   Dialog,
@@ -449,7 +440,7 @@ export function ResourceFloorManager({
                 onClick={() => void publish()}
               >
                 {busy ? (
-                  <LoaderCircle className='size-4 animate-spin' />
+                  <LoaderCircle className='size-4' />
                 ) : (
                   <Check className='size-4' />
                 )}

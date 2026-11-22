@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
@@ -27,7 +28,7 @@ import {
   PhoneCall,
   Cast,
   Zap
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
@@ -416,7 +417,7 @@ export function WorkspaceDetailsDrawer({
         <div className='flex-1 overflow-y-auto p-6 space-y-6'>
           {isLoadingDetail && !activeWorkspace && (
             <div className='p-12 text-center flex flex-col items-center justify-center gap-2'>
-              <RefreshCw className='size-6 animate-spin text-primary' />
+              <Spinner className='size-6 text-primary' />
               <p className='text-xs text-muted-foreground'>Đang tải thông tin chi tiết không gian làm việc...</p>
             </div>
           )}
@@ -554,7 +555,7 @@ export function WorkspaceDetailsDrawer({
 
                 {isLoadingAmenities ? (
                   <div className='p-4 rounded-xl border border-border bg-muted/30 flex items-center justify-center gap-2 text-xs text-muted-foreground'>
-                    <RefreshCw className='size-3.5 animate-spin text-primary' />
+                    <Spinner className='size-3.5 text-primary' />
                     <span>Đang tải tiện ích không gian...</span>
                   </div>
                 ) : effectiveAmenities.length > 0 ? (
@@ -730,7 +731,7 @@ export function WorkspaceDetailsDrawer({
 
                 {isLoadingAmenities ? (
                   <div className='p-8 rounded-xl border border-border bg-card flex items-center justify-center gap-2 text-xs text-muted-foreground'>
-                    <RefreshCw className='size-4 animate-spin text-primary' />
+                    <Spinner className='size-4 text-primary' />
                     <span>Đang tải danh sách tiện ích từ máy chủ...</span>
                   </div>
                 ) : effectiveAmenities.length > 0 ? (
