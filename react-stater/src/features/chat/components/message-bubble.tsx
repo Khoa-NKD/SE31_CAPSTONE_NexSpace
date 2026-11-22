@@ -24,7 +24,7 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
           className={cn(
             'rounded-md px-1.5 py-0.5 font-mono text-[11px] sm:text-xs font-semibold select-all mx-0.5 inline-block',
             isMe
-              ? 'bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30'
+              ? 'bg-white/20 text-white border border-white/30'
               : isAi
               ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
               : 'bg-muted text-foreground border border-border/60'
@@ -43,7 +43,7 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
           className={cn(
             'rounded-md px-1.5 py-0.5 font-mono text-[11px] sm:text-xs font-semibold select-all mx-0.5 inline-block',
             isMe
-              ? 'bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30'
+              ? 'bg-white/20 text-white border border-white/30'
               : isAi
               ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
               : 'bg-muted text-foreground border border-border/60'
@@ -120,7 +120,7 @@ export function MessageBubble({ message, currentUserId }: MessageBubbleProps) {
           className={cn(
             'relative rounded-2xl px-3.5 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words shadow-2xs',
             isMe
-              ? 'border-primary/40 bg-primary text-primary-foreground rounded-br-xs'
+              ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-br-xs shadow-xs'
               : isAi
               ? 'border border-purple-500/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-card text-foreground rounded-bl-xs shadow-xs'
               : 'bg-card text-foreground border border-border/80 rounded-bl-xs'

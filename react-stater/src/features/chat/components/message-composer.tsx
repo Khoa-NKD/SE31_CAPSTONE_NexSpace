@@ -143,7 +143,7 @@ export function MessageComposer({
                     key={reply}
                     type='button'
                     onClick={() => onDraftChange(cleanReply)}
-                    className='border-border/50 bg-background/80 text-foreground hover:border-primary/50 hover:bg-primary/5 rounded-full border px-3 py-1 text-xs transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 max-w-[280px] sm:max-w-[360px] truncate'
+                    className='border-border/60 bg-card text-foreground hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-full border px-3 py-1 text-xs transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 max-w-[280px] sm:max-w-[360px] truncate'
                     title={cleanReply}
                   >
                     {cleanReply}
@@ -171,7 +171,7 @@ export function MessageComposer({
       </div>
 
       {/* Main Composer Box */}
-      <div className='border-border/40 bg-background/80 flex items-end gap-2 rounded-2xl border p-2.5 backdrop-blur sm:gap-3 sm:rounded-3xl sm:p-3'>
+      <div className='border-border/60 bg-card/70 focus-within:border-indigo-500/50 focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all flex items-end gap-2 rounded-2xl border p-2.5 backdrop-blur-xs sm:gap-3 sm:rounded-2xl sm:p-3'>
         {/* Nút bấm nhanh @AI */}
         <Button
           type='button'
@@ -229,7 +229,7 @@ export function MessageComposer({
                   size='icon'
                   disabled={isAdjustingTone}
                   className={cn(
-                    'size-8 sm:size-9 rounded-full border border-primary/20 bg-primary/5 text-primary hover:bg-primary/15 transition cursor-pointer',
+                    'size-8 sm:size-9 rounded-full border border-indigo-500/25 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 transition cursor-pointer',
                     isAdjustingTone && 'animate-pulse'
                   )}
                   title='Trợ lý AI tinh chỉnh văn phong'
@@ -303,7 +303,7 @@ export function MessageComposer({
           <Button
             type='submit'
             size='icon'
-            className='bg-primary text-primary-foreground hover:bg-primary/90 size-8 sm:size-9 rounded-full shadow-md transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer'
+            className='bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white shadow-md shadow-indigo-500/20 active:scale-95 size-8 sm:size-9 rounded-full transition disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer'
             disabled={!draft.trim() || isSending}
             aria-label='Gửi tin nhắn'
           >

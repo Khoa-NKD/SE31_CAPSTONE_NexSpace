@@ -90,7 +90,7 @@ export function Messenger({ initialConversationId }: MessengerProps) {
         }
       });
     }
-  }, [activeConversation?.id, activeConversation?.unreadCount]);
+  }, [activeConversation?.id, activeConversation?.unreadCount, markAsReadMutation]);
 
   // Handle message submission
   const handleSubmit = useCallback(
@@ -127,7 +127,7 @@ export function Messenger({ initialConversationId }: MessengerProps) {
   );
 
   return (
-    <div className='border-border/50 bg-background/70 relative grid h-[calc(100dvh-5.5rem)] w-full grid-rows-[auto,1fr] gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur-xl sm:gap-4 sm:p-4 lg:[grid-template-columns:320px_1fr] xl:[grid-template-columns:360px_1fr] lg:grid-rows-[1fr] lg:gap-4 lg:rounded-3xl lg:p-5'>
+    <div className='border-border/60 bg-card/40 relative grid h-[calc(100dvh-5.5rem)] w-full grid-rows-[auto,1fr] gap-3 overflow-hidden rounded-2xl border p-3 backdrop-blur-xs sm:gap-4 sm:p-4 lg:[grid-template-columns:340px_1fr] xl:[grid-template-columns:380px_1fr] lg:grid-rows-[1fr] lg:gap-4 lg:rounded-3xl lg:p-4 shadow-xs'>
       {/* Mobile Selector */}
       {conversations.length > 0 && (
         <ConversationSelect
@@ -166,8 +166,8 @@ export function Messenger({ initialConversationId }: MessengerProps) {
           onBack={() => setSelectedConversationId(null)}
         />
       ) : (
-        <div className='border-border/40 bg-background/80 hidden lg:flex flex-col items-center justify-center h-full rounded-2xl border p-8 text-center text-muted-foreground backdrop-blur lg:col-start-2 lg:col-end-3 lg:rounded-3xl shadow-xs'>
-          <div className='h-16 w-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-4 shadow-xs'>
+        <div className='border-border/60 bg-card/90 hidden lg:flex flex-col items-center justify-center h-full rounded-2xl border p-8 text-center text-muted-foreground shadow-xs lg:col-start-2 lg:col-end-3 lg:rounded-2xl'>
+          <div className='h-16 w-16 rounded-3xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4 shadow-xs'>
             <MessageSquare className='h-8 w-8' />
           </div>
           <h3 className='font-bold text-base text-foreground mb-1'>Chọn một cuộc hội thoại</h3>

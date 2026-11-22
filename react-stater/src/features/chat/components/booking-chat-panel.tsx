@@ -60,7 +60,7 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
           className={cn(
             'rounded-md px-1.5 py-0.5 font-mono text-[11px] sm:text-xs font-semibold select-all mx-0.5 inline-block',
             isMe
-              ? 'bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30'
+              ? 'bg-white/20 text-white border border-white/30'
               : isAi
               ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
               : 'bg-muted text-foreground border border-border/60'
@@ -79,7 +79,7 @@ function renderMessageContent(content: string, isMe: boolean, isAi: boolean) {
           className={cn(
             'rounded-md px-1.5 py-0.5 font-mono text-[11px] sm:text-xs font-semibold select-all mx-0.5 inline-block',
             isMe
-              ? 'bg-primary-foreground/20 text-primary-foreground border border-primary-foreground/30'
+              ? 'bg-white/20 text-white border border-white/30'
               : isAi
               ? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
               : 'bg-muted text-foreground border border-border/60'
@@ -142,6 +142,7 @@ export function BookingChatPanel({
 
   const rawMessages: BookingChatMessageDto[] = messagesPage?.content ?? [];
   // Messages are returned DESC from backend, reverse to display ASC (oldest at top, newest at bottom)
+  // oxlint-disable-next-line unicorn/no-array-reverse
   const messages = [...rawMessages].reverse();
 
   // Determine counterpart info based on current user
@@ -173,7 +174,7 @@ export function BookingChatPanel({
         }
       });
     }
-  }, [conversationId, unreadCount]);
+  }, [conversationId, unreadCount, markAsReadMutation]);
 
   // Autoscroll to bottom without scrolling outer window or ancestors
   const scrollToBottom = useCallback((behavior: ScrollBehavior = 'smooth') => {
@@ -187,6 +188,7 @@ export function BookingChatPanel({
 
   useEffect(() => {
     scrollToBottom('auto');
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [messages.length, scrollToBottom]);
 
   const handleSend = (e?: React.FormEvent | React.MouseEvent) => {
@@ -253,7 +255,7 @@ export function BookingChatPanel({
           <div className='relative shrink-0'>
             <Avatar className='h-9 w-9 sm:h-10 sm:w-10 border border-border/80'>
               <AvatarImage src={counterpartAvatar} alt={counterpartName} />
-              <AvatarFallback className='bg-primary/10 text-primary font-bold text-xs'>
+              <AvatarFallback className='bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 font-bold text-xs'>
                 {counterpartName.slice(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
@@ -274,12 +276,12 @@ export function BookingChatPanel({
             </div>
             {conversation && (
               <div className='flex items-center gap-1.5 text-xs text-muted-foreground mt-0.5 truncate'>
-                <Building2 className='h-3 w-3 text-primary/70 shrink-0' />
+                <Building2 className='h-3 w-3 text-indigo-500/80 shrink-0' />
                 <span className='font-medium text-foreground truncate max-w-[150px] sm:max-w-[260px]'>
                   {conversation.workspaceName}
                 </span>
                 <span>•</span>
-                <span className='font-mono font-semibold text-primary shrink-0'>#{conversation.bookingCode}</span>
+                <span className='font-mono font-semibold text-indigo-600 dark:text-indigo-400 shrink-0'>#{conversation.bookingCode}</span>
               </div>
             )}
           </div>
@@ -288,7 +290,7 @@ export function BookingChatPanel({
         <div className='flex items-center gap-2 shrink-0'>
           <Badge
             variant='secondary'
-            className='hidden sm:inline-flex text-[11px] font-medium bg-primary/10 text-primary border-primary/20 shrink-0'
+            className='hidden sm:inline-flex text-[11px] font-medium bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20 shrink-0'
           >
             Đơn xác nhận
           </Badge>
@@ -311,7 +313,7 @@ export function BookingChatPanel({
       {conversation && (
         <div className='px-4 py-2 bg-muted/40 border-b border-border/40 text-xs text-muted-foreground flex items-center justify-between gap-2 shrink-0'>
           <div className='flex items-center gap-1.5 truncate'>
-            <Info className='h-3.5 w-3.5 text-primary shrink-0' />
+            <Info className='h-3.5 w-3.5 text-indigo-500 shrink-0' />
             <span className='truncate'>
               Kênh hỗ trợ cho đơn <strong className='text-foreground'>#{conversation.bookingCode}</strong> ({conversation.workspaceAddress})
             </span>
@@ -326,12 +328,12 @@ export function BookingChatPanel({
       <div ref={messagesContainerRef} className='flex-1 min-h-0 overflow-y-auto p-4 sm:p-5 space-y-3.5 bg-muted/10'>
         {loadingMessages ? (
           <div className='flex flex-col items-center justify-center h-full text-muted-foreground py-10 gap-2'>
-            <Loader2 className='h-6 w-6 animate-spin text-primary' />
+            <Loader2 className='h-6 w-6 animate-spin text-indigo-600 dark:text-indigo-400' />
             <span className='text-xs'>Đang tải tin nhắn...</span>
           </div>
         ) : messages.length === 0 ? (
           <div className='flex flex-col items-center justify-center h-full text-muted-foreground py-12 text-center px-4'>
-            <div className='h-12 w-12 rounded-2xl bg-primary/10 text-primary flex items-center justify-center mb-3'>
+            <div className='h-12 w-12 rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-3'>
               <MessageSquare className='h-6 w-6' />
             </div>
             <h5 className='font-bold text-sm text-foreground mb-1'>Bắt đầu cuộc trò chuyện</h5>
@@ -393,7 +395,7 @@ export function BookingChatPanel({
                   <div
                     className={`rounded-2xl px-4 py-2.5 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words ${
                       isMe
-                        ? 'bg-primary text-primary-foreground rounded-br-xs shadow-xs'
+                        ? 'bg-gradient-to-r from-indigo-600 to-violet-600 text-white rounded-br-xs shadow-xs'
                         : isAi
                         ? 'border border-purple-500/30 bg-gradient-to-br from-purple-500/10 via-indigo-500/5 to-card text-foreground rounded-bl-xs shadow-xs'
                         : 'bg-card text-foreground border border-border/80 rounded-bl-xs shadow-2xs'
@@ -478,7 +480,7 @@ export function BookingChatPanel({
 
             {isLoadingSmartReplies ? (
               <div className='flex items-center gap-1.5 text-xs text-muted-foreground py-0.5 px-2 animate-pulse'>
-                <Loader2 className='h-3 w-3 animate-spin text-primary' />
+                <Loader2 className='h-3 w-3 animate-spin text-indigo-600 dark:text-indigo-400' />
                 <span className='text-[10px]'>NexSpace AI đang phân tích...</span>
               </div>
             ) : (
@@ -493,7 +495,7 @@ export function BookingChatPanel({
                     key={reply}
                     type='button'
                     onClick={() => setContent(cleanReply)}
-                    className='border-border/50 bg-background/80 text-foreground hover:border-primary/50 hover:bg-primary/5 rounded-full border px-2.5 py-0.5 text-[11px] transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 max-w-[240px] truncate'
+                    className='border-border/60 bg-card text-foreground hover:border-indigo-500/50 hover:bg-indigo-500/5 rounded-full border px-2.5 py-0.5 text-[11px] transition shrink-0 cursor-pointer shadow-2xs whitespace-nowrap active:scale-95 max-w-[240px] truncate'
                     title={cleanReply}
                   >
                     {cleanReply}
@@ -549,7 +551,7 @@ export function BookingChatPanel({
           }}
           placeholder='Nhập tin nhắn (tag @NexSpace AI để hỏi AI)...'
           rows={1}
-          className='min-h-[42px] max-h-32 text-xs sm:text-sm resize-none rounded-xl border-border/80 focus-visible:ring-primary/40'
+          className='min-h-[42px] max-h-32 text-xs sm:text-sm resize-none rounded-xl border-border/80 focus-visible:ring-indigo-500/30'
         />
 
         {/* AI Tone & Writing Assistant Dropdown */}
@@ -561,22 +563,22 @@ export function BookingChatPanel({
               size='icon'
               disabled={adjustToneMutation.isPending}
               className={cn(
-                'h-[42px] w-[42px] rounded-xl border border-primary/20 bg-primary/5 text-primary hover:bg-primary/15 shrink-0 cursor-pointer transition',
+                'h-[42px] w-[42px] rounded-xl border border-indigo-500/25 bg-indigo-500/5 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 shrink-0 cursor-pointer transition',
                 adjustToneMutation.isPending && 'animate-pulse'
               )}
               title='Trợ lý AI tinh chỉnh văn phong'
               aria-label='Trợ lý AI tinh chỉnh văn phong'
             >
               {adjustToneMutation.isPending ? (
-                <Loader2 className='h-4 w-4 animate-spin text-primary' />
+                <Loader2 className='h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400' />
               ) : (
-                <Wand2 className='h-4 w-4 text-primary' />
+                <Wand2 className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />
               )}
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align='end' side='top' className='w-56 p-1.5 shadow-xl rounded-2xl'>
             <DropdownMenuLabel className='text-xs font-semibold text-muted-foreground px-2 py-1 flex items-center gap-1.5'>
-              <Sparkles className='h-3.5 w-3.5 text-primary' />
+              <Sparkles className='h-3.5 w-3.5 text-indigo-500' />
               <span>{isCustomer ? 'Trợ lý AI cho Khách hàng' : 'Trợ lý AI cho Chủ không gian'}</span>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
@@ -635,7 +637,7 @@ export function BookingChatPanel({
           onClick={handleSend}
           disabled={!content.trim() || sendMessageMutation.isPending}
           size='icon'
-          className='h-[42px] w-[42px] rounded-xl shrink-0 cursor-pointer shadow-xs'
+          className='h-[42px] w-[42px] rounded-xl shrink-0 cursor-pointer shadow-md bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white active:scale-95 transition'
         >
           {sendMessageMutation.isPending ? (
             <Loader2 className='h-4 w-4 animate-spin' />

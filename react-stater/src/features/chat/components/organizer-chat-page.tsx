@@ -49,7 +49,7 @@ export function OrganizerChatPage() {
       <div className='flex items-center justify-between pb-3 border-b border-border/60 shrink-0'>
         <div>
           <h1 className='text-lg sm:text-xl font-bold text-foreground flex items-center gap-2'>
-            <MessageSquare className='h-5 w-5 text-primary' />
+            <MessageSquare className='h-5 w-5 text-indigo-600 dark:text-indigo-400' />
             <span>Hội thoại & Hỗ trợ Khách hàng</span>
           </h1>
           <p className='text-xs text-muted-foreground mt-0.5'>
@@ -58,7 +58,7 @@ export function OrganizerChatPage() {
         </div>
 
         <div className='hidden sm:flex items-center gap-2'>
-          <Badge variant='outline' className='text-xs font-semibold px-2.5 py-1 bg-primary/5 text-primary border-primary/20'>
+          <Badge variant='outline' className='text-xs font-semibold px-2.5 py-1 bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20'>
             {conversations.length} cuộc hội thoại
           </Badge>
         </div>
@@ -124,19 +124,19 @@ export function OrganizerChatPage() {
                     onClick={() => setSelectedConversationId(conv.id)}
                     className={`w-full text-left flex items-start gap-3 p-3.5 rounded-xl cursor-pointer transition-all duration-150 ${
                       isSelected
-                        ? 'bg-primary/10 border-primary/20 text-foreground font-medium'
+                        ? 'bg-indigo-500/10 border border-indigo-500/30 text-foreground font-medium shadow-xs'
                         : 'hover:bg-muted/50 text-muted-foreground'
                     }`}
                   >
                     <div className='relative shrink-0'>
                       <Avatar className='h-10 w-10 border border-border/80'>
                         <AvatarImage src={conv.customerAvatarUrl} alt={conv.customerName} />
-                        <AvatarFallback className='text-xs font-bold bg-primary/10 text-primary'>
+                        <AvatarFallback className='text-xs font-bold bg-indigo-500/15 text-indigo-600 dark:text-indigo-400'>
                           {conv.customerName.slice(0, 2).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
                       {conv.unreadCount > 0 && (
-                        <span className='absolute -top-1 -right-1 bg-red-600 text-white font-bold text-[10px] h-4.5 min-w-4.5 px-1 rounded-full flex items-center justify-center ring-2 ring-card'>
+                        <span className='absolute -top-1 -right-1 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold text-[10px] h-4.5 min-w-4.5 px-1 rounded-full flex items-center justify-center ring-2 ring-card'>
                           {conv.unreadCount}
                         </span>
                       )}
@@ -150,7 +150,7 @@ export function OrganizerChatPage() {
                         <span className='text-[10px] text-muted-foreground shrink-0'>{timeStr}</span>
                       </div>
 
-                      <div className='flex items-center gap-1.5 text-[11px] text-primary font-semibold mt-0.5'>
+                      <div className='flex items-center gap-1.5 text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold mt-0.5'>
                         <span>#{conv.bookingCode}</span>
                         <span className='text-muted-foreground font-normal'>•</span>
                         <span className='text-muted-foreground font-normal truncate'>{conv.workspaceName}</span>
@@ -183,7 +183,7 @@ export function OrganizerChatPage() {
             />
           ) : (
             <div className='flex flex-col items-center justify-center h-full bg-card border border-border/80 rounded-2xl p-8 text-center text-muted-foreground shadow-xs'>
-              <div className='h-16 w-16 rounded-3xl bg-primary/10 text-primary flex items-center justify-center mb-4'>
+              <div className='h-16 w-16 rounded-3xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center mb-4'>
                 <MessageSquare className='h-8 w-8' />
               </div>
               <h3 className='font-bold text-base text-foreground mb-1'>Chọn một cuộc hội thoại</h3>
