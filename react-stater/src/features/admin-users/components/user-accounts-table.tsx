@@ -1,13 +1,19 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { MoreHorizontal } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { MoreHorizontal } from '@/components/ui/hugeicons';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger
+} from '@/components/ui/dropdown-menu';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock, HelpCircle, Phone, UserCog } from 'lucide-react';
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock, HelpCircle, Phone, UserCog } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import type { AdminUserRecord } from '../api/types';
 import { getUserInitial } from '../api/service';
@@ -371,7 +377,7 @@ export function UserAccountsTable({
               <tr>
                 <td colSpan={8} aria-label='Loading users from Mock API' className='py-12 text-center text-muted-foreground'>
                   <div className='flex items-center justify-center gap-2'>
-                    <div className='size-4 border-2 border-primary border-t-transparent animate-spin rounded-full' />
+                    <Spinner className='size-4 ' />
                     <span>Loading users from Mock API...</span>
                   </div>
                 </td>

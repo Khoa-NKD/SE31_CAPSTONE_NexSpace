@@ -4,7 +4,7 @@ import { Link, useSearch, useRouter } from '@tanstack/react-router';
 import { InteractiveGridPattern } from './interactive-grid';
 import SignUpForm from './sign-up-form';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import { ChevronDown, Check, ArrowLeft } from 'lucide-react';
+import { ChevronDown, Check, ArrowLeft } from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,

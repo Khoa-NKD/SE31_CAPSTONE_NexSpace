@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShieldCheck } from 'lucide-react';
+import { ShieldCheck } from '@/components/ui/hugeicons';
 import { MOCK_SLA_TIERS } from '../data/mock-reports-overview';
 
 export function ReportsSlaCard() {

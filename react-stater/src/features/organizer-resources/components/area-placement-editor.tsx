@@ -1,5 +1,5 @@
 import { useRef, useState, type PointerEvent } from 'react';
-import { Move, Scaling } from 'lucide-react';
+import { Move, Scaling } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { PhysicalFloor } from '../api/buildings';

@@ -1,6 +1,6 @@
 'use client';
 
-import { GripVerticalIcon } from 'lucide-react';
+import { GripVerticalIcon } from '@/components/ui/hugeicons';
 import * as ResizablePrimitive from 'react-resizable-panels';
 
 import { cn } from '@/lib/utils';

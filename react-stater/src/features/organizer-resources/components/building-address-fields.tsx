@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckCircle2, LoaderCircle, MapPin } from 'lucide-react';
+import { CheckCircle2, MapPin } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -302,7 +303,7 @@ export function BuildingAddressFields({
         </p>
         <p className='text-muted-foreground mt-3 flex items-start gap-2 text-xs leading-relaxed'>
           {status === 'loading' ? (
-            <LoaderCircle className='text-primary size-4 shrink-0 animate-spin' />
+            <LoaderCircle className='text-primary size-4 shrink-0' />
           ) : status === 'ready' ? (
             <CheckCircle2 className='size-4 shrink-0 text-emerald-500' />
           ) : (

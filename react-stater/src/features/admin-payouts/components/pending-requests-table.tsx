@@ -18,7 +18,7 @@ import {
   Check,
   X,
   Inbox
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerPayoutSetting, PageResponse } from '../api/types';
 import { ReviewRequestDialog } from './review-request-dialog';
 import { useLanguage } from '@/features/landing/context/language-context';

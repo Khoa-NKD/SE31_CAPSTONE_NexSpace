@@ -1,4 +1,4 @@
-import { Moon, Sun } from 'lucide-react';
+import { Moon, Sun } from '@/components/ui/hugeicons';
 import { useTheme } from '@/components/themes/theme-provider';
 import * as React from 'react';
 
@@ -11,8 +11,15 @@ export interface ThemeModeToggleProps {
   compact?: boolean;
 }
 
+const subscribeToMount = () => () => {};
+
 export function ThemeModeToggle({ className, compact = false }: ThemeModeToggleProps = {}) {
   const { setTheme, resolvedTheme } = useTheme();
+  const mounted = React.useSyncExternalStore(
+    subscribeToMount,
+    () => true,
+    () => false
+  );
 
   const handleThemeToggle = React.useCallback(
     (e?: React.MouseEvent) => {
@@ -37,7 +44,7 @@ export function ThemeModeToggle({ className, compact = false }: ThemeModeToggleP
     [resolvedTheme, setTheme]
   );
 
-  const isDark = resolvedTheme === 'dark';
+  const isDark = mounted && resolvedTheme === 'dark';
 
   return (
     <Tooltip>

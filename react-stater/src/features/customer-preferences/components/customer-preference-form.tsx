@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -20,7 +21,7 @@ import {
   AlertCircle,
   ChevronsUpDown,
   Search
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -726,7 +727,7 @@ export function CustomerPreferenceForm({ initialData }: CustomerPreferenceFormPr
         >
           {saveMutation.isPending ? (
             <span className='flex items-center gap-2'>
-              <span className='animate-spin'>⏳</span>
+              <Spinner className='size-4' aria-hidden='true' />
               Đang lưu...
             </span>
           ) : (

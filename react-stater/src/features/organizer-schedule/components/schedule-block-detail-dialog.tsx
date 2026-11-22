@@ -9,7 +9,7 @@ import {
   Check,
   Send,
   XCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

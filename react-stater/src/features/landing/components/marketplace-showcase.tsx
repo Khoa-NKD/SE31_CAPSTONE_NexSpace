@@ -1,24 +1,21 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import React, { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Building2, Compass } from 'lucide-react';
+import { ArrowRight, Building2, Compass } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
-import {
-  useFeaturedWorkspacesQuery,
-  usePublicWorkspacesQuery
-} from '@/features/workspaces/api';
+import { useFeaturedWorkspacesQuery, usePublicWorkspacesQuery } from '@/features/workspaces/api';
 import { WorkspaceCard, type LandingWorkspaceCardData } from './workspace-card';
 import { useLanguage } from '../context/language-context';
 import type { SearchCriteria } from './search-card';
+import SpotlightCard from '@/components/react-bits/SpotlightCard';
+import { LandingReveal } from './landing-effects';
 
 interface MarketplaceShowcaseProps {
   filterCriteria?: SearchCriteria | null;
   onResetFilters?: () => void;
 }
 
-export function MarketplaceShowcase({
-  filterCriteria,
-  onResetFilters
-}: MarketplaceShowcaseProps) {
+export function MarketplaceShowcase({ filterCriteria, onResetFilters }: MarketplaceShowcaseProps) {
   const { t, language } = useLanguage();
   const [selectedCity, setSelectedCity] = useState<string>('all');
 
@@ -105,7 +102,11 @@ export function MarketplaceShowcase({
           ) {
             return false;
           }
-          if (filterCriteria.mode === 'meeting-room' && !cat.includes('MEETING') && !cat.includes('COWORKING')) {
+          if (
+            filterCriteria.mode === 'meeting-room' &&
+            !cat.includes('MEETING') &&
+            !cat.includes('COWORKING')
+          ) {
             return false;
           }
           if (
@@ -190,9 +191,9 @@ export function MarketplaceShowcase({
             className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'
           >
             {[1, 2, 3, 4, 5, 6].map((item) => (
-              <div
+              <LoadingPlaceholder
                 key={item}
-                className='flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 animate-pulse'
+                className='flex flex-col overflow-hidden rounded-2xl border border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900'
               >
                 <div className='aspect-[16/10] w-full bg-slate-200 dark:bg-slate-800' />
                 <div className='space-y-3 p-5'>
@@ -204,7 +205,7 @@ export function MarketplaceShowcase({
                     <div className='h-4 w-16 rounded bg-slate-200 dark:bg-slate-800' />
                   </div>
                 </div>
-              </div>
+              </LoadingPlaceholder>
             ))}
           </div>
         ) : isError || displayedWorkspaces.length === 0 ? (
@@ -219,7 +220,9 @@ export function MarketplaceShowcase({
               {t('market.emptyDesc')}
             </p>
             <div className='mt-5 flex flex-wrap items-center justify-center gap-3'>
-              {(selectedCity !== 'all' || filterCriteria?.location || (filterCriteria?.mode && filterCriteria.mode !== 'all')) && (
+              {(selectedCity !== 'all' ||
+                filterCriteria?.location ||
+                (filterCriteria?.mode && filterCriteria.mode !== 'all')) && (
                 <Button
                   type='button'
                   variant='outline'
@@ -246,9 +249,21 @@ export function MarketplaceShowcase({
             </div>
           </div>
         ) : (
-          <div className='mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-            {displayedWorkspaces.map((workspace) => (
-              <WorkspaceCard key={String(workspace.id)} workspace={workspace} />
+          <div className='ns-workspace-grid mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
+            {displayedWorkspaces.map((workspace, index) => (
+              <LandingReveal key={String(workspace.id)} delay={index * 0.04}>
+                <SpotlightCard
+                  className='ns-workspace-spotlight'
+                  intensity={0.25}
+                  borderGlow={0.3}
+                  proximity={0}
+                  ambient={false}
+                  flare={false}
+                  spotlightColor='#a5b4fc'
+                >
+                  <WorkspaceCard workspace={workspace} />
+                </SpotlightCard>
+              </LandingReveal>
             ))}
           </div>
         )}

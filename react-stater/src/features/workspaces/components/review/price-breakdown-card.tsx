@@ -1,14 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from 'react';
-import {
-  Info,
-  Wallet,
-  Lock,
-  FileText,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
-  AlertTriangle
-} from 'lucide-react';
+import { Info, Wallet, Lock, FileText, CheckCircle2, AlertCircle, AlertTriangle } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -305,7 +297,7 @@ export function PriceBreakdownCard({
             </span>
             <span className='font-medium font-mono'>
               {isCalculating ? (
-                <Loader2 className='size-3.5 animate-spin inline' />
+                <Loader2 className='size-3.5 inline' />
               ) : (
                 formatPrice(baseRate)
               )}
@@ -344,7 +336,7 @@ export function PriceBreakdownCard({
             <div className='text-right'>
               <span className='text-primary font-sans text-2xl font-bold tracking-tight sm:text-3xl font-mono'>
                 {isCalculating ? (
-                  <Loader2 className='size-6 animate-spin inline text-primary' />
+                  <Loader2 className='size-6 inline text-primary' />
                 ) : (
                   formatPrice(totalAmount)
                 )}
@@ -371,7 +363,7 @@ export function PriceBreakdownCard({
           >
             {createBookingMutation.isPending || createPaymentMutation.isPending ? (
               <>
-                <Loader2 className='size-4 animate-spin' />
+                <Loader2 className='size-4' />
                 <span>Đang xử lý xác nhận...</span>
               </>
             ) : (
@@ -412,7 +404,7 @@ export function PriceBreakdownCard({
             >
               {cancelBookingMutation.isPending ? (
                 <>
-                  <Loader2 className='size-3.5 animate-spin mr-1.5' />
+                  <Loader2 className='size-3.5 mr-1.5' />
                   <span>Đang hủy giữ chỗ...</span>
                 </>
               ) : (

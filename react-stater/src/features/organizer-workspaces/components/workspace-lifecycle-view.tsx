@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState, useMemo } from 'react';
 import { useRouter, Link } from '@tanstack/react-router';
 import {
@@ -27,10 +28,9 @@ import {
   Sliders,
   History,
   QrCode,
-  Loader2,
   RefreshCw,
   AlertCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -280,7 +280,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
   if (isDetailLoading && !activeWorkspace) {
     return (
       <div className='flex flex-col items-center justify-center min-h-[50vh] p-8 text-center'>
-        <Loader2 className='size-8 animate-spin text-indigo-600 mb-4' />
+        <Loader2 className='size-8 text-indigo-600 mb-4' />
         <h2 className='text-base font-bold text-foreground'>Loading Workspace Controls...</h2>
         <p className='text-xs text-muted-foreground mt-1'>Fetching canonical workspace record from server.</p>
       </div>
@@ -407,7 +407,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 {activeWorkspace.name}
               </h1>
               {isDetailFetching && !isDetailLoading && (
-                <Loader2 className='size-4 text-indigo-500 animate-spin' aria-label='Refreshing workspace status' />
+                <Loader2 className='size-4 text-indigo-500' aria-label='Refreshing workspace status' />
               )}
 
               {/* Status Badge */}
@@ -499,7 +499,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 className='h-10 text-xs sm:text-sm font-semibold bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5 shadow-2xs'
               >
                 {submitMutation.isPending ? (
-                  <Loader2 className='size-4 animate-spin' />
+                  <Loader2 className='size-4' />
                 ) : (
                   <ShieldCheck className='size-4' />
                 )}
@@ -513,7 +513,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 className='h-10 text-xs sm:text-sm font-semibold border-amber-300 dark:border-amber-900 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40 gap-1.5 shadow-2xs'
               >
                 {lifecycleMutation.isPending ? (
-                  <Loader2 className='size-4 animate-spin' />
+                  <Loader2 className='size-4' />
                 ) : (
                   <Pause className='size-4 text-amber-500' />
                 )}
@@ -544,7 +544,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                 className='h-10 text-xs sm:text-sm font-semibold bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 shadow-2xs'
               >
                 {lifecycleMutation.isPending ? (
-                  <Loader2 className='size-4 animate-spin' />
+                  <Loader2 className='size-4' />
                 ) : (
                   <Play className='size-4' />
                 )}
@@ -1278,7 +1278,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             >
               {lifecycleMutation.isPending ? (
                 <>
-                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  <Loader2 className='mr-2 size-4' />
                   Pausing...
                 </>
               ) : (
@@ -1313,7 +1313,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             >
               {lifecycleMutation.isPending ? (
                 <>
-                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  <Loader2 className='mr-2 size-4' />
                   Resuming...
                 </>
               ) : (
@@ -1354,7 +1354,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             >
               {lifecycleMutation.isPending ? (
                 <>
-                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  <Loader2 className='mr-2 size-4' />
                   Scheduling...
                 </>
               ) : (
@@ -1400,7 +1400,7 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
             >
               {lifecycleMutation.isPending ? (
                 <>
-                  <Loader2 className='mr-2 size-4 animate-spin' />
+                  <Loader2 className='mr-2 size-4' />
                   Archiving...
                 </>
               ) : (

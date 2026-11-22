@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useLanguage } from '../../landing/context/language-context';
 import { authService } from '../api/auth-service';
@@ -8,7 +9,7 @@ import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
 import { ApiError } from '@/lib/api-client';
 import { cn } from '@/lib/utils';
-import { Loader2 } from 'lucide-react';
+
 
 const GoogleIcon = ({ className }: { className?: string }) => (
   <svg className={className} viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'>
@@ -253,7 +254,7 @@ export default function GoogleSignInButton({
         )}
       >
         {isLoading ? (
-          <Loader2 className='w-4.5 h-4.5 animate-spin text-indigo-600 dark:text-indigo-400' />
+          <Loader2 className='w-4.5 h-4.5 text-indigo-600 dark:text-indigo-400' />
         ) : (
           <GoogleIcon className='w-5 h-5 flex-shrink-0' />
         )}

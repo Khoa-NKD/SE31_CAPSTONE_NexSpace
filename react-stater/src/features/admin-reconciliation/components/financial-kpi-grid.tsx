@@ -1,5 +1,5 @@
 import React from 'react';
-import { Wallet, Percent, Landmark, Receipt, TrendingUp } from 'lucide-react';
+import { Wallet, Percent, Landmark, Receipt, TrendingUp } from '@/components/ui/hugeicons';
 import { FinancialSummaryKpis } from '../data/mock-transactions';
 
 interface FinancialKpiGridProps {

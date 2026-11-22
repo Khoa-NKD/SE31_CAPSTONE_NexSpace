@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { useSyncExternalStore } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
@@ -31,7 +32,7 @@ import {
   Building2,
   ArrowUpRight,
   Inbox
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 const emptySubscribe = () => () => {};
 
@@ -184,10 +185,13 @@ export function ApplicationsListView({
               className='h-10 rounded-xl text-xs shadow-none'
               onClick={() => void query.refetch()}
             >
-              <RefreshCw
-                className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`}
+              {query.isFetching ? <Spinner
+                className={`size-3.5 `}
                 aria-hidden='true'
-              />{' '}
+              /> : <RefreshCw
+                className={`size-3.5 `}
+                aria-hidden='true'
+              />}{' '}
               Refresh applications
             </Button>
           </div>

@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
 import React from 'react';
-import { ChevronRight, Copy, CreditCard } from 'lucide-react';
+import { ChevronRight, Copy, CreditCard } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { TransactionRecord } from '../data/mock-transactions';

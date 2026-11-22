@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, CheckCircle2 } from 'lucide-react';
+import { ChevronRight, CheckCircle2 } from '@/components/ui/hugeicons';
 
 interface ConfirmationBreadcrumbProps {
   orderRef?: string;

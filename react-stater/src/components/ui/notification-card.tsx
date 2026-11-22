@@ -153,7 +153,7 @@ export const NotificationCard: FC<NotificationCardProps> = ({
                     )}
                   >
                     {showLoading ? (
-                      <Icons.spinner size={12} className='animate-spin' />
+                      <Icons.spinner size={12} className='' />
                     ) : (
                       <>
                         <span>{action.label}</span>

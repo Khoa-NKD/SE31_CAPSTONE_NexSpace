@@ -1,10 +1,11 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import React from 'react';
 import { Heading } from '../ui/heading';
 import type { InfobarContent } from '@/components/ui/infobar';
 
 function PageSkeleton() {
   return (
-    <div className='flex flex-1 animate-pulse flex-col min-w-0 w-full gap-4 p-4 md:px-6'>
+    <LoadingPlaceholder className='flex flex-1 flex-col min-w-0 w-full gap-4 p-4 md:px-6'>
       <div className='flex items-center justify-between'>
         <div>
           <div className='bg-muted mb-2 h-8 w-48 rounded' />
@@ -13,7 +14,7 @@ function PageSkeleton() {
       </div>
       <div className='bg-muted mt-6 h-40 w-full rounded-lg' />
       <div className='bg-muted h-40 w-full rounded-lg' />
-    </div>
+    </LoadingPlaceholder>
   );
 }
 

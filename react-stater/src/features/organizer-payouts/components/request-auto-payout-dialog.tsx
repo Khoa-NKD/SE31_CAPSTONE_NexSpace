@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Clock, Sparkles, CheckCircle2 } from 'lucide-react';
+import { Clock, Sparkles, CheckCircle2 } from '@/components/ui/hugeicons';
 import { useRequestAutoPayoutMutation } from '../api/mutations';
 import { useLanguage } from '@/features/landing/context/language-context';
 

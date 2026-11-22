@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { furnishingIconCatalog, matchFurnishingIcon } from '../utils/furnishing-icon-catalog';
 import { ResourceTypePhotoField } from './resource-type-photo-field';
 import {
@@ -14,7 +15,6 @@ import {
   Copy,
   Send,
   X,
-  LoaderCircle,
   Ruler,
   Library,
   Plus,
@@ -30,7 +30,7 @@ import {
   Info,
   Maximize2,
   Minimize2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -1094,7 +1094,7 @@ export function FloorAiAssistant({
                   className='flex items-center gap-2.5 text-sm text-muted-foreground'
                 >
                   <span className='flex size-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary'>
-                    <LoaderCircle className='size-4 motion-safe:animate-spin' aria-hidden='true' />
+                    <LoaderCircle className='size-4 ' aria-hidden='true' />
                   </span>
                   <span>
                     {generating === 'image'
@@ -1590,7 +1590,7 @@ export function FloorAiAssistant({
                   onClick={() => void (isRetainedPreview ? generate() : apply())}
                 >
                   {busy ? (
-                    <LoaderCircle className='size-4 animate-spin' />
+                    <LoaderCircle className='size-4' />
                   ) : (
                     <Check className='size-4' />
                   )}
@@ -2166,7 +2166,7 @@ export function FloorAiAssistant({
               onClick={() => imageInput.current?.click()}
             >
               {preparingImage ? (
-                <LoaderCircle className='size-4 motion-safe:animate-spin' />
+                <LoaderCircle className='size-4 ' />
               ) : (
                 <Plus className='size-5' />
               )}
@@ -2217,7 +2217,7 @@ export function FloorAiAssistant({
               }
             >
               {generating ? (
-                <LoaderCircle className='size-4 motion-safe:animate-spin' />
+                <LoaderCircle className='size-4 ' />
               ) : (
                 <Send className='size-4' />
               )}

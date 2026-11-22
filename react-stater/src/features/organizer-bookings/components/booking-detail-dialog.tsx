@@ -22,7 +22,7 @@ import {
   Presentation,
   PhoneCall,
   LockOpen
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

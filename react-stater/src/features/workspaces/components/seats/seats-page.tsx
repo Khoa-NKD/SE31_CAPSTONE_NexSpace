@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
 import { formatDate } from '@/lib/format';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -16,12 +17,11 @@ import {
   Building,
   Sparkles,
   MousePointerClick,
-  Loader2,
   Map as MapIcon,
   LayoutList,
   Eye,
   ShieldAlert
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { Button } from '@/components/ui/button';
@@ -818,7 +818,7 @@ export function SeatsPage({
                       >
                         {createBookingMutation.isPending ? (
                           <>
-                            <Loader2 className='size-4 animate-spin' />
+                            <Loader2 className='size-4' />
                             <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
                           </>
                         ) : isHoldBlocked ? (

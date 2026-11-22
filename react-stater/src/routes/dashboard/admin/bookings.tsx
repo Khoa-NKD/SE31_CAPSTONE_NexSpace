@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
@@ -5,7 +6,7 @@ import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, Radio, RefreshCw } from 'lucide-react';
+import { FileDown, Radio, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import {
   MOCK_BOOKING_KPIS,
@@ -263,7 +264,7 @@ function BookingsManagementPage() {
               disabled={isFetching}
               className='gap-2 shadow-2xs text-xs'
             >
-              <RefreshCw className={`size-3.5 ${isFetching ? 'animate-spin' : ''}`} aria-hidden='true' />
+              {isFetching ? <Spinner className={`size-3.5 `} aria-hidden='true' /> : <RefreshCw className={`size-3.5 `} aria-hidden='true' />}
               <span>Refresh Data</span>
             </Button>
 

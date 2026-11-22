@@ -10,7 +10,7 @@ import {
   Wrench,
   CalendarPlus,
   LockKeyhole
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Button } from '@/components/ui/button';

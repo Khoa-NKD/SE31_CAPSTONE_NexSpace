@@ -8,7 +8,7 @@ import {
   Clock,
   SunMedium,
   CheckCircle2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';

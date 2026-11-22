@@ -1,7 +1,8 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useNavigate } from '@tanstack/react-router';
-import { ArrowLeft, ArrowRight, Check, Layers3, LoaderCircle, MapPin } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, Layers3, MapPin } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
@@ -491,7 +492,7 @@ function SiteForm({
             </Button>
           ) : (
             <Button type='submit' disabled={busy || locating} className='min-w-44'>
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {showFloors
                 ? studio
                   ? c('Save and open studio', 'Lưu và mở sơ đồ')

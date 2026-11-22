@@ -15,7 +15,7 @@ import {
   ArrowUpRight,
   TrendingUp,
   Building2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerPayoutBalance } from '../api/types';
 import { ManualWithdrawalDialog } from './manual-withdrawal-dialog';
 import { useLanguage } from '@/features/landing/context/language-context';

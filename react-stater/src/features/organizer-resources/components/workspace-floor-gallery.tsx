@@ -7,7 +7,7 @@ import {
   Layers3,
   SlidersHorizontal,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { canConfigureWorkspaceResources, type WorkspaceOption } from '../api/resources';

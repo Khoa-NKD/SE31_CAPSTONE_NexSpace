@@ -6,7 +6,7 @@ import {
   ChevronRight,
   Search,
   Info
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {

@@ -6,7 +6,7 @@ import {
   Copy,
   Check,
   Wifi
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { NexSpaceLogo } from '@/components/brand/logo';
 import { cn } from '@/lib/utils';
 

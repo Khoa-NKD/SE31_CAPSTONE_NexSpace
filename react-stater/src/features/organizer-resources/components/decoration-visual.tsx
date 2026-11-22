@@ -29,7 +29,7 @@ import {
   Bed,
   Camera,
   Phone
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 function SinkIcon({ className }: { className?: string }) {
   return (

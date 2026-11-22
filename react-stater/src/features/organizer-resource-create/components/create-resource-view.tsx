@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Rocket, Save } from 'lucide-react';
+import { Rocket, Save } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { CreateResourceHeader } from './create-resource-header';
 import { ResourceIdentitySection } from './resource-identity-section';

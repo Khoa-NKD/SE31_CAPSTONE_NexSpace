@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Info } from 'lucide-react';
+import { Info } from '@/components/ui/hugeicons';
 import { MOCK_CATEGORY_BREAKDOWN } from '../data/mock-reports-overview';
 
 export function ReportsCategoryChart() {

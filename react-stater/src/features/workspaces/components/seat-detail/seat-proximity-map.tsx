@@ -1,4 +1,4 @@
-import { Coffee, PhoneCall, Lock, DoorClosed } from 'lucide-react';
+import { Coffee, PhoneCall, Lock, DoorClosed } from '@/components/ui/hugeicons';
 
 export function SeatProximityMap() {
   return (

@@ -8,7 +8,7 @@ import {
   ChevronDown,
   Check,
   Plus
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,

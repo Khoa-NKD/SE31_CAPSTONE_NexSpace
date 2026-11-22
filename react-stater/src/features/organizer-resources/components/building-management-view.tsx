@@ -1,3 +1,5 @@
+import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
+import { Spinner, Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { lazy, Suspense, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,13 +10,12 @@ import {
   Building2,
   Check,
   Layers3,
-  LoaderCircle,
   MapPin,
   Plus,
   RefreshCw,
   Search,
   X
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -389,7 +390,7 @@ export function BuildingManagementView({
                   }
                 >
                   {busy ? (
-                    <LoaderCircle className='size-4 animate-spin' />
+                    <LoaderCircle className='size-4' />
                   ) : (
                     <Check className='size-4' />
                   )}
@@ -446,7 +447,7 @@ export function BuildingManagementView({
                 <Suspense
                   fallback={
                     <div className='text-muted-foreground flex h-[520px] items-center justify-center gap-2'>
-                      <LoaderCircle className='size-5 animate-spin' />
+                      <LoaderCircle className='size-5' />
                       {c('Loading map…', 'Đang tải bản đồ…')}
                     </div>
                   }
@@ -538,13 +539,13 @@ export function BuildingManagementView({
           )}
         </div>
         <Button variant='outline' disabled={query.isFetching} onClick={() => void query.refetch()}>
-          <RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />
+          {query.isFetching ? <Spinner className={`size-4 `} /> : <RefreshCw className={`size-4 `} />}
           {c('Refresh', 'Làm mới')}
         </Button>
       </div>
       {all.length > 0 && (
         <Suspense
-          fallback={<div className='bg-muted h-[28rem] animate-pulse rounded-2xl border' />}
+          fallback={<LoadingPlaceholder className='bg-muted h-[28rem] rounded-2xl border' />}
         >
           <OverviewMap
             buildings={filtered}
@@ -561,7 +562,7 @@ export function BuildingManagementView({
           className='text-muted-foreground flex min-h-60 items-center justify-center gap-3'
           role='status'
         >
-          <LoaderCircle className='size-5 animate-spin' />
+          <LoaderCircle className='size-5' />
           {c('Loading buildings…', 'Đang tải tòa nhà…')}
         </div>
       ) : query.isError ? (

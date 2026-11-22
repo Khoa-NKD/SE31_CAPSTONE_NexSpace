@@ -1,13 +1,7 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, type ReactNode } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  Building2,
-  RefreshCw,
-  AlertCircle,
-  Loader2,
-  Activity,
-  type LucideIcon
-} from 'lucide-react';
+import { Building2, RefreshCw, AlertCircle, Activity, type AppIcon } from '@/components/ui/hugeicons';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { resourceWorkspacesOptions } from '@/features/organizer-resources/api/resources';
@@ -67,7 +61,7 @@ export function OperationsHeader({
           disabled={disabled}
           onClick={() => void state.invalidate()}
         >
-          <RefreshCw className={`size-4 ${state.pricing.isFetching ? 'animate-spin' : ''}`} />
+          {state.pricing.isFetching ? <Spinner className={`size-4 `} /> : <RefreshCw className={`size-4 `} />}
         </Button>
       </OrganizerPageHeader>
       <div className='organizer-toolbar justify-between'>
@@ -125,7 +119,7 @@ export function OperationsState({ state }: { state: OperationsWorkspace }) {
   if (state.workspaces.isPending || (state.workspaceId && state.pricing.isPending))
     return (
       <div role='status' className={`${panelClass} flex items-center gap-2`}>
-        <Loader2 className='size-4 animate-spin' />
+        <Loader2 className='size-4' />
         {c('Loading workspace data…', 'Đang tải dữ liệu workspace…')}
       </div>
     );
@@ -143,7 +137,7 @@ export function OperationsState({ state }: { state: OperationsWorkspace }) {
 export function OperationMetrics({
   items
 }: {
-  items: Array<{ label: string; value: ReactNode; icon?: LucideIcon; unit?: string }>;
+  items: Array<{ label: string; value: ReactNode; icon?: AppIcon; unit?: string }>;
 }) {
   return (
     <div className='grid grid-cols-2 gap-3 lg:grid-cols-4'>

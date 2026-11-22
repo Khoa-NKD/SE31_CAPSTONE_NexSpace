@@ -5,7 +5,7 @@ import {
   TrendingUp,
   ShieldCheck,
   Wrench
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { ScheduleKpiSummary } from '../types';

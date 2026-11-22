@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
@@ -21,7 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
-import { Save, Lock, AlertCircle, RotateCcw } from 'lucide-react';
+import { Save, Lock, AlertCircle, RotateCcw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { profileFormSchema, type ProfileFormValues } from '../schemas/profile-schema';
 import { useUpdateProfileMutation } from '../api/mutations';
@@ -326,7 +327,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
               className='bg-indigo-600 hover:bg-indigo-700 text-white text-xs flex items-center gap-1.5 shadow-sm'
             >
               {isPending ? (
-                <div className='w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                <Spinner className='w-3.5 h-3.5 ' />
               ) : (
                 <>
                   <Save className='w-3.5 h-3.5' />

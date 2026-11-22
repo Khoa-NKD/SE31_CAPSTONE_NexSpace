@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { Download, SlidersHorizontal } from 'lucide-react';
+import { Download, SlidersHorizontal } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import {
   INITIAL_REFUNDS_DATA,

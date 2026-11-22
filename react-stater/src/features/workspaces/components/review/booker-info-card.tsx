@@ -1,4 +1,4 @@
-import { ShieldCheck, User, Mail, Smartphone, Receipt, Sparkles, AlertCircle } from 'lucide-react';
+import { ShieldCheck, User, Mail, Smartphone, Receipt, Sparkles, AlertCircle } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';

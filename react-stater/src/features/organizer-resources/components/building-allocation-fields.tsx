@@ -1,9 +1,10 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { PhysicalFloorMeasurements } from './physical-floor-measurements';
 import { AreaPlacementEditor } from './area-placement-editor';
 import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Building2, Layers3, MapPin, LoaderCircle } from 'lucide-react';
+import { Building2, Layers3, MapPin } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';
@@ -82,7 +83,7 @@ export function BuildingAllocationFields({
       </div>
       {query.isPending ? (
         <p className='flex items-center gap-2 text-sm text-muted-foreground'>
-          <LoaderCircle className='size-4 animate-spin' />
+          <LoaderCircle className='size-4' />
           {c('Loading buildings…', 'Đang tải tòa nhà…')}
         </p>
       ) : query.isError ? (

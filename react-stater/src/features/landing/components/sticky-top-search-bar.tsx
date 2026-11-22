@@ -1,15 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import {
-  MapPin,
-  Calendar,
-  Building2,
-  Users,
-  Search,
-  ChevronDown,
-  Check,
-  X
-} from 'lucide-react';
+import { MapPin, Calendar, Building2, Users, Search, ChevronDown, Check, X } from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,12 +8,7 @@ import {
   DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 import { useLanguage } from '../context/language-context';
-import {
-  MODE_OPTIONS,
-  getDateOptions,
-  CAPACITY_OPTIONS,
-  type SearchCriteria
-} from './search-card';
+import { MODE_OPTIONS, getDateOptions, CAPACITY_OPTIONS, type SearchCriteria } from './search-card';
 
 interface StickyTopSearchBarProps {
   criteria: SearchCriteria;
@@ -97,13 +83,12 @@ export function StickyTopSearchBar({
   };
 
   const selectedMode = MODE_OPTIONS.find((m) => m.id === criteria.mode) || MODE_OPTIONS[0];
-  const selectedDate =
-    dateOptions.find((d) => d.value === criteria.dateTime) || dateOptions[0];
+  const selectedDate = dateOptions.find((d) => d.value === criteria.dateTime) || dateOptions[0];
 
   return (
     <aside
       aria-label='Sticky Search Header'
-      className={`fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-950/95 shadow-lg shadow-slate-900/5 py-2.5 sm:py-3.5 ${
+      className={`ns-sticky-search fixed top-0 left-0 right-0 z-50 w-full border-b border-slate-200/90 bg-white/95 backdrop-blur-md transition-all duration-300 ease-in-out dark:border-slate-800 dark:bg-slate-950/95 shadow-lg shadow-slate-900/5 py-2.5 sm:py-3.5 ${
         isVisible
           ? 'translate-y-0 opacity-100 pointer-events-auto'
           : '-translate-y-full opacity-0 pointer-events-none'
@@ -251,9 +236,7 @@ export function StickyTopSearchBar({
                           : 'text-foreground hover:bg-muted'
                       }`}
                     >
-                      <span>
-                        {language === 'vi' ? cap.replace('People', 'người') : cap}
-                      </span>
+                      <span>{language === 'vi' ? cap.replace('People', 'người') : cap}</span>
                       {criteria.capacity === cap && (
                         <Check className='h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400' />
                       )}

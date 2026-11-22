@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useState } from 'react';
 import {
@@ -19,7 +20,7 @@ import {
   ChevronRight,
   Sparkles,
   ExternalLink
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Link } from '@tanstack/react-router';
 import type { BookingDto } from '../../api/booking-types';
@@ -260,7 +261,7 @@ export function BookingHistoryCard({
       {isPendingPayment && booking.holdExpiresAt && !isHoldExpired && (
         <div className="mt-4 flex items-center justify-between rounded-xl bg-amber-500/10 border border-amber-500/20 px-3.5 py-2 text-xs text-amber-700 dark:text-amber-300">
           <div className="flex items-center gap-2 font-medium">
-            <Clock className="size-4 animate-spin text-amber-600 dark:text-amber-400" />
+            <Spinner className="size-4 text-amber-600 dark:text-amber-400" />
             <span>Chỗ ngồi đang được tạm giữ. Vui lòng thanh toán trước khi hết hạn!</span>
           </div>
           <span className="font-mono text-xs font-bold text-amber-800 dark:text-amber-200">

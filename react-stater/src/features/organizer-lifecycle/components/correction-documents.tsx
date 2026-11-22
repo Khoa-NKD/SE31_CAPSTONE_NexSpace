@@ -1,4 +1,6 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useLanguage } from '@/features/landing/context/language-context';
+import { DocumentPreviewDeck } from './document-preview-deck';
 import type { ApplicationInput } from '@/features/organizer-application/api/application';
 import {
   documentPoliciesQueryOptions,
@@ -23,14 +25,13 @@ import {
   UploadCloud,
   ShieldCheck,
   Check,
-  LoaderCircle,
   FileCheck2,
   ArrowUpFromLine,
   ArrowLeftRight,
   ChevronDown,
   Trash2,
   X
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,7 +42,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle
 } from '@/components/ui/alert-dialog';
-import { OwnerDocumentActions } from '@/features/organizer-verification-documents/components/owner-document-actions';
+import {
+  OwnerDocumentActions
+} from '@/features/organizer-verification-documents/components/owner-document-actions';
 import {
   DOCUMENT_LABELS,
   allowsDocumentPages,
@@ -785,6 +788,14 @@ export function CorrectionDocuments({
                 </p>
               </div>
             </div>
+            {files.length > 1 && (
+              <DocumentPreviewDeck
+                key={files
+                  .map((file) => `${file.name}:${file.size}:${file.lastModified}`)
+                  .join('|')}
+                files={files}
+              />
+            )}
             <div
               onDragOver={(event) => {
                 event.preventDefault();
@@ -909,7 +920,7 @@ export function CorrectionDocuments({
                 aria-live='polite'
                 className='flex items-center gap-3 rounded-xl border bg-primary/5 p-4 text-sm text-primary'
               >
-                <LoaderCircle className='size-5 animate-spin' aria-hidden='true' />
+                <LoaderCircle className='size-5' aria-hidden='true' />
                 {vi
                   ? 'Đang tối ưu dung lượng ảnh trước khi kiểm tra…'
                   : 'Optimizing photo size before checking…'}
@@ -930,7 +941,7 @@ export function CorrectionDocuments({
                 >
                   {!pairItems && (
                     <LoaderCircle
-                      className='size-5 shrink-0 animate-spin text-primary'
+                      className='size-5 shrink-0 text-primary'
                       aria-hidden='true'
                     />
                   )}
@@ -994,7 +1005,7 @@ export function CorrectionDocuments({
                   className={`flex items-center gap-2 text-sm ${identityCheck?.error ? 'text-destructive' : identityCheck ? 'text-emerald-700 dark:text-emerald-300' : 'text-muted-foreground'}`}
                 >
                   {!identityCheck && (
-                    <LoaderCircle className='size-4 animate-spin' aria-hidden='true' />
+                    <LoaderCircle className='size-4' aria-hidden='true' />
                   )}
                   {wrongSide
                     ? oppositeSide === 'ID_CARD_BACK'
@@ -1064,7 +1075,7 @@ export function CorrectionDocuments({
               onClick={() => void upload()}
             >
               {mutation.isPending && mutation.variables === undefined ? (
-                <LoaderCircle className='size-4 animate-spin' aria-hidden='true' />
+                <LoaderCircle className='size-4' aria-hidden='true' />
               ) : (
                 <UploadCloud className='size-4' aria-hidden='true' />
               )}

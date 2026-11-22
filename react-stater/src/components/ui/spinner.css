@@ -1,0 +1,35 @@
+/* Shared loading visual, inspired by Motion's infinite path drawing example.
+   The implementation uses native SVG/CSS, compatible with the installed Motion 11. */
+.ns-infinity-loader {
+  animation: none !important;
+  vertical-align: middle;
+  overflow: visible;
+}
+
+.ns-infinity-loader-trace {
+  animation: ns-infinity-trace 1.55s linear infinite;
+  filter: drop-shadow(0 0 1.5px #a78bfa) drop-shadow(0 0 3px #67e8f980);
+}
+
+@keyframes ns-infinity-trace {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ns-infinity-loader-trace {
+    animation: none;
+    stroke-dasharray: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .ns-infinity-loader path {
+    stroke: CanvasText;
+    filter: none;
+  }
+}

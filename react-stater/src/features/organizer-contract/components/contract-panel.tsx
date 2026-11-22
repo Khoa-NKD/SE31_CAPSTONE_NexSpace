@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -8,16 +9,16 @@ import {
   Download,
   FileCheck2,
   FileSignature,
-  Loader2,
   LockKeyhole,
   Mail,
   RefreshCw,
   ShieldCheck
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
+import { VerificationCode } from '@/components/ui/verification-code';
+import Counter from '@/components/react-bits/Counter';
 import {
   Dialog,
   DialogContent,
@@ -213,7 +214,7 @@ export function ContractPanel({
         role='status'
         className='flex items-center gap-3 rounded-2xl border bg-card p-6 text-sm text-muted-foreground'
       >
-        <Loader2 className='size-4 animate-spin' />
+        <Loader2 className='size-4' />
         {t('Đang tải hợp đồng…', 'Loading agreement…')}
       </div>
     );
@@ -340,7 +341,7 @@ export function ContractPanel({
                 aria-label={t('Làm mới hợp đồng', 'Refresh agreement')}
                 onClick={() => void invalidateLifecycle(client)}
               >
-                <RefreshCw className={query.isFetching ? 'size-4 animate-spin' : 'size-4'} />
+                {query.isFetching ? <Spinner className={'size-4'} /> : <RefreshCw className={'size-4'} />}
               </Button>
             </div>
           </div>
@@ -552,29 +553,38 @@ export function ContractPanel({
                 onClick={() => void execute('otp')}
               >
                 {busy === 'otp' ? (
-                  <Loader2 className='size-4 animate-spin' />
+                  <Loader2 className='size-4' />
                 ) : (
                   <Mail className='size-4' />
                 )}
-                {cooldown > 0
-                  ? `${t('Gửi lại sau', 'Resend in')} ${cooldown}s`
-                  : t('Gửi mã xác nhận', 'Send verification code')}
+                {cooldown > 0 ? (
+                  <>
+                    {t('Gửi lại sau', 'Resend in')}{' '}
+                    <Counter
+                      value={cooldown}
+                      fontSize={14}
+                      padding={0}
+                      gap={0}
+                      duration={0.3}
+                      intro={false}
+                      direction='down'
+                    />{' '}
+                    s
+                  </>
+                ) : (
+                  t('Gửi mã xác nhận', 'Send verification code')
+                )}
               </Button>
               {contract.otpExpiresAt && (
                 <div className='space-y-2'>
-                  <label htmlFor={`contract-otp-${contract.id}`} className='text-xs font-medium'>
+                  <p className='text-xs font-medium'>
                     {t('Mã OTP gồm 6 số', '6-digit verification code')}
-                  </label>
-                  <Input
-                    id={`contract-otp-${contract.id}`}
-                    inputMode='numeric'
-                    autoComplete='one-time-code'
-                    maxLength={6}
+                  </p>
+                  <VerificationCode
+                    ariaLabel={t('Mã OTP gồm 6 số', '6-digit verification code')}
                     value={otp}
                     disabled={!!busy}
-                    onChange={(e) => setOtp(e.target.value.replace(/\D/g, ''))}
-                    placeholder='••••••'
-                    className='h-12 text-center font-mono text-xl tracking-[.4em]'
+                    onChange={setOtp}
                   />
                   <p className='text-xs leading-5 text-muted-foreground'>
                     {t(
@@ -597,7 +607,7 @@ export function ContractPanel({
                 onClick={() => void execute('sign')}
               >
                 {busy === 'sign' ? (
-                  <Loader2 className='size-4 animate-spin' />
+                  <Loader2 className='size-4' />
                 ) : (
                   <FileSignature className='size-4' />
                 )}
@@ -619,7 +629,7 @@ export function ContractPanel({
             disabled={!!busy || query.isFetching}
             onClick={() => void invalidateLifecycle(client)}
           >
-            <RefreshCw className={`size-3.5 ${query.isFetching ? 'animate-spin' : ''}`} />
+            {query.isFetching ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
             {t('Làm mới hợp đồng', 'Refresh agreement')}
           </Button>
         </aside>

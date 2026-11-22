@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Search, RefreshCw, ArrowUpRight, PackageOpen, Plus, Pencil } from 'lucide-react';
+import { Search, RefreshCw, ArrowUpRight, PackageOpen, Plus, Pencil } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';

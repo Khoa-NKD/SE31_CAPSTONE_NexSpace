@@ -2,7 +2,7 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { Search, Calendar, FilterX, X } from 'lucide-react';
+import { Search, Calendar, FilterX, X } from '@/components/ui/hugeicons';
 
 interface UserFiltersBarProps {
   searchQuery: string;

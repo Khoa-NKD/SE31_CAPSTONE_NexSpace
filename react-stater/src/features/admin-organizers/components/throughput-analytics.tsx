@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Timer, CheckCircle } from 'lucide-react';
+import { Timer, CheckCircle } from '@/components/ui/hugeicons';
 import { DailyThroughputPoint, OrganizerPipelineKpis } from '../data/mock-organizers';
 
 interface ThroughputAnalyticsProps {

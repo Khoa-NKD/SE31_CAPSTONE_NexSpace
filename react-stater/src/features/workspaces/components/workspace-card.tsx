@@ -18,7 +18,7 @@ import {
   Car,
   Building,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
 import type { PublicWorkspaceSummary } from '../api/types';

@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { CalendarDays } from 'lucide-react';
+import { CalendarDays } from '@/components/ui/hugeicons';
 import { Input } from './input';
 import { Calendar } from './calendar';
 import { Popover, PopoverContent, PopoverTrigger } from './popover';

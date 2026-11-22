@@ -128,7 +128,7 @@ export const FilePreview: FC<FilePreviewProps> = ({
           >
             {file.isUploading && (
               <div className='absolute inset-0 flex items-center justify-center rounded-xl bg-black/30'>
-                <Icons.spinner size={20} className='animate-spin text-white' />
+                <Icons.spinner size={20} className=' text-white' />
               </div>
             )}
 

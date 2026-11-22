@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/hugeicons';
 import { useRequestCancelAutoPayoutMutation } from '../api/mutations';
 import { useLanguage } from '@/features/landing/context/language-context';
 

@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue
 } from '@/components/ui/select';
-import { UserCheck, ShieldAlert, AlertTriangle, Shield, User, Building2 } from 'lucide-react';
+import { UserCheck, ShieldAlert, AlertTriangle, Shield, User, Building2 } from '@/components/ui/hugeicons';
 import { useUpdateUserRoleMutation } from '../api/mutations';
 import type { AdminUserRecord, BackendUserRole } from '../api/types';
 

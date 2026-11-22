@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState, useEffect, useTransition } from 'react';
 import { useAuthStore } from '@/features/auth/store/auth-store';
@@ -22,7 +23,7 @@ import {
   Clock,
   ShieldCheck,
   Building2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useRouter } from '@tanstack/react-router';
 
 function getPasswordStrength(password: string) {
@@ -330,7 +331,7 @@ export function ProfileSettingsView() {
                   className='h-10 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 text-white font-medium text-sm rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer'
                 >
                   {isUpdatingProfile ? (
-                    <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                    <Spinner className='w-4 h-4 ' />
                   ) : (
                     <>
                       <Save className='w-4 h-4' />
@@ -455,7 +456,7 @@ export function ProfileSettingsView() {
                   className='h-10 px-5 bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 disabled:opacity-60 text-white font-medium text-sm rounded-lg flex items-center gap-2 shadow-sm transition-all cursor-pointer'
                 >
                   {isChangingPassword ? (
-                    <div className='w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                    <Spinner className='w-4 h-4 ' />
                   ) : (
                     <>
                       <KeyRound className='w-4 h-4' />

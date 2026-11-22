@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Lock, AlertTriangle, Calendar as CalendarIcon, Clock } from 'lucide-react';
+import { Lock, AlertTriangle, Calendar as CalendarIcon, Clock } from '@/components/ui/hugeicons';
 import { useUpdateUserStatusMutation } from '../api/mutations';
 import type { AdminUserRecord } from '../api/types';
 

@@ -1,5 +1,5 @@
 import React from 'react';
-import { DoorOpen, Users, Store, ArrowUp } from 'lucide-react';
+import { DoorOpen, Users, Store, ArrowUp } from '@/components/ui/hugeicons';
 import type { AdminPlatformAnalyticsResponseDTO } from '../api/types';
 
 interface AnalyticsKpiGridProps {

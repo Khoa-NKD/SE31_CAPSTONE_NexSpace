@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect } from 'react';
 import {
   Dialog,
@@ -6,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription
 } from '@/components/ui/dialog';
-import { Loader2, MessageSquare } from 'lucide-react';
+import { MessageSquare } from '@/components/ui/hugeicons';
 import { BookingChatPanel } from './booking-chat-panel';
 import { useGetOrCreateBookingConversationMutation } from '../api/mutations';
 
@@ -51,7 +52,7 @@ export function BookingChatDialog({
               <MessageSquare className='h-6 w-6' />
             </div>
             <div className='flex items-center gap-2 text-sm font-medium text-foreground'>
-              <Loader2 className='h-4 w-4 animate-spin text-indigo-600 dark:text-indigo-400' />
+              <Loader2 className='h-4 w-4 text-indigo-600 dark:text-indigo-400' />
               <span>Đang kết nối với ban quản lý không gian...</span>
             </div>
             <p className='text-xs text-muted-foreground max-w-xs'>

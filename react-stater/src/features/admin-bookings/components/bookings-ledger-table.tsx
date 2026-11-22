@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, ChevronRight, Copy } from 'lucide-react';
+import { Calendar, ChevronRight, Copy } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { BookingItem } from '../data/mock-bookings';

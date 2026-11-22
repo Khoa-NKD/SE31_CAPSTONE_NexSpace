@@ -1,6 +1,6 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { ArrowRight, BookOpen, Clock } from 'lucide-react';
+import { ArrowRight, BookOpen, Clock } from '@/components/ui/hugeicons';
 import { RESOURCE_ARTICLES } from '../api/data';
 import { useLanguage } from '../context/language-context';
 

@@ -14,7 +14,7 @@ import { getUserRole } from '@/features/auth/utils/role-guard';
 import { authService } from '@/features/auth/api/auth-service';
 import { useRouter } from '@tanstack/react-router';
 import { toast } from 'sonner';
-import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar, SlidersHorizontal } from 'lucide-react';
+import { Settings, LayoutDashboard, LogOut, ClipboardList, Eye, User, Home, Calendar, SlidersHorizontal } from '@/components/ui/hugeicons';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { applicationStatusQueryOptions } from '@/features/organizer-application-status/api/status';

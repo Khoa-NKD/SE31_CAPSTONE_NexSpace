@@ -7,7 +7,7 @@ import { ThemeModeToggle } from '../themes/theme-mode-toggle';
 import { NotificationCenter } from '@/features/notifications/components/notification-center';
 import { UserNav } from './user-nav';
 import { Badge } from '../ui/badge';
-import { ShieldCheck, Activity, Eye, Home } from 'lucide-react';
+import { ShieldCheck, Activity, Eye, Home } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { DashboardLanguageSwitcher } from './dashboard-language-switcher';

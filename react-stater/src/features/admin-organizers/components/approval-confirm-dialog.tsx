@@ -8,7 +8,7 @@ import {
   DialogFooter
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Lock } from 'lucide-react';
+import { CheckCircle2, Lock } from '@/components/ui/hugeicons';
 import { VerificationApplication } from '../data/mock-organizers';
 
 interface ApprovalConfirmDialogProps {

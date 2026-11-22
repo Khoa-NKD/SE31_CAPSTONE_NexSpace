@@ -1,7 +1,16 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import { ChevronDown, Check, ArrowLeft, CheckCircle2, ShieldCheck, ArrowRight, Building2, Loader2 } from 'lucide-react';
+import {
+  ChevronDown,
+  Check,
+  ArrowLeft,
+  CheckCircle2,
+  ShieldCheck,
+  ArrowRight,
+  Building2
+} from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -299,7 +308,7 @@ export default function VerifySuccessViewPage() {
             <div className='pt-4 space-y-3'>
               {isProcessingAutoLogin ? (
                 <div className='flex items-center justify-center gap-2 py-3 text-indigo-600 dark:text-indigo-400 font-medium'>
-                  <Loader2 className='w-5 h-5 animate-spin' />
+                  <Loader2 className='w-5 h-5' />
                   <span>{language === 'vi' ? 'Đang chuyển hướng...' : 'Redirecting...'}</span>
                 </div>
               ) : (

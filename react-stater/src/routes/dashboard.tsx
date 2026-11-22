@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useSyncExternalStore } from 'react';
 import { createFileRoute, Outlet, useLocation, useRouter, redirect } from '@tanstack/react-router';
 import CommandMenu from '@/components/command-menu';
@@ -9,10 +10,13 @@ import { SidebarInset, SidebarProvider } from '@/components/ui/sidebar';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { checkRouteAccess, getUserRole } from '@/features/auth/utils/role-guard';
 import { toast } from 'sonner';
-import { ShieldAlert, Loader2 } from 'lucide-react';
+import { ShieldAlert } from '@/components/ui/hugeicons';
 import { useQuery } from '@tanstack/react-query';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { getOrganizerOperationalStatus, organizerOperationalStatusKey } from '@/features/admin-organizers/api/partners';
+import {
+  getOrganizerOperationalStatus,
+  organizerOperationalStatusKey
+} from '@/features/admin-organizers/api/partners';
 import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 
 const emptySubscribe = () => () => {};
@@ -74,7 +78,7 @@ function DashboardLayout() {
           <p className='text-xs text-muted-foreground'>
             {access.reason || 'Redirecting to your authorized workspace...'}
           </p>
-          <Loader2 className='size-5 animate-spin text-muted-foreground mt-2' />
+          <Loader2 className='size-5 text-muted-foreground mt-2' />
         </div>
       </div>
     );

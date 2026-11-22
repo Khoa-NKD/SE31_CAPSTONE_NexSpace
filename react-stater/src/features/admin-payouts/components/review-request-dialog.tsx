@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, XCircle } from '@/components/ui/hugeicons';
 import type { OrganizerPayoutSetting } from '../api/types';
 import { useReviewPayoutRequestMutation } from '../api/mutations';
 import { useLanguage } from '@/features/landing/context/language-context';

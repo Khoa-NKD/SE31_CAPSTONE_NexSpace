@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -24,7 +25,7 @@ import type {
   MaintenanceType,
   WorkspaceAssetDto
 } from '@/features/workspaces/api/types';
-import { Loader2, Wrench } from 'lucide-react';
+import { Wrench } from '@/components/ui/hugeicons';
 
 interface MaintenanceDialogProps {
   open: boolean;
@@ -217,7 +218,7 @@ export function MaintenanceDialog({
               disabled={isSubmitting || !description.trim()}
               className='bg-amber-600 hover:bg-amber-700 text-white'
             >
-              {isSubmitting && <Loader2 className='w-4 h-4 animate-spin mr-2' />}
+              {isSubmitting && <Loader2 className='w-4 h-4 mr-2' />}
 
               {c('Record maintenance', 'Ghi nhận bảo trì')}
             </Button>

@@ -10,7 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Bookmark, Sparkles, MapPin, Tag, Star, DollarSign, Layers } from 'lucide-react';
+import { Bookmark, Sparkles, MapPin, Tag, Star, DollarSign, Layers } from '@/components/ui/hugeicons';
 import type { SavedSearchCriteria } from '../api/types';
 
 interface SaveSearchModalProps {

@@ -1,5 +1,5 @@
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
-import { ShieldCheck, History, QrCode } from 'lucide-react';
+import { ShieldCheck, History, QrCode } from '@/components/ui/hugeicons';
 
 export function SeatsReassuranceBar() {
   const c=useOrganizerCopy();

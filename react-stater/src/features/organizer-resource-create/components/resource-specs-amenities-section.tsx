@@ -9,15 +9,15 @@ import {
   Sun,
   Coffee,
   VolumeX,
-  LucideIcon
-} from 'lucide-react';
+  AppIcon
+} from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { AVAILABLE_AMENITIES } from '../data/mock-create-resource';
 import { cn } from '@/lib/utils';
 
-const AMENITY_ICONS: Record<string, LucideIcon> = {
+const AMENITY_ICONS: Record<string, AppIcon> = {
   Wifi,
   Monitor,
   Armchair,

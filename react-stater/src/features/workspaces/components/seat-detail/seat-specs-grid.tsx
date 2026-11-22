@@ -7,7 +7,7 @@ import {
   SunMedium,
   Monitor,
   Check
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 interface SeatSpecsGridProps {
   monitorAddonSelected?: boolean;

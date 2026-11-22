@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store } from 'lucide-react';
+import { Store } from '@/components/ui/hugeicons';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 

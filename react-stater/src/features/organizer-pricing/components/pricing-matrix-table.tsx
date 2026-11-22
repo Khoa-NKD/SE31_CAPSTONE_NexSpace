@@ -6,7 +6,7 @@ import {
   Tag,
   CheckCircle2,
   AlertCircle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

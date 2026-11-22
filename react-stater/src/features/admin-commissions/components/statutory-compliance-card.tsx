@@ -1,5 +1,5 @@
 import React from 'react';
-import { CalendarClock, CheckCircle, Receipt, Info, ArrowRight } from 'lucide-react';
+import { CalendarClock, CheckCircle, Receipt, Info, ArrowRight } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 

@@ -13,7 +13,7 @@ import {
   ArrowRight,
   Sparkles,
   CheckCircle2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import { useLanguage } from '@/features/landing/context/language-context';

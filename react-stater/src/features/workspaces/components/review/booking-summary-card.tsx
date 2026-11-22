@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import {
@@ -10,9 +11,8 @@ import {
   Wifi,
   VolumeX,
   Calendar,
-  QrCode,
-  Loader2
-} from 'lucide-react';
+  QrCode
+} from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
 interface BookingSummaryCardProps {
@@ -52,7 +52,7 @@ export function BookingSummaryCard({
     return (
       <section className='bg-card border-border shadow-xs flex min-h-[300px] items-center justify-center rounded-2xl border p-6'>
         <div className='flex items-center gap-3 text-sm text-muted-foreground'>
-          <Loader2 className='size-5 animate-spin text-primary' />
+          <Loader2 className='size-5 text-primary' />
           <span>Loading workspace &amp; station specifications...</span>
         </div>
       </section>

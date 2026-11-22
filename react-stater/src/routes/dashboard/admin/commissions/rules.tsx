@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { createFileRoute } from '@tanstack/react-router';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { Plus, ShieldCheck } from 'lucide-react';
+import { Plus, ShieldCheck } from '@/components/ui/hugeicons';
 import { CommissionImmutabilityBanner } from '@/features/admin-commissions/components/commission-immutability-banner';
 import { CommissionRulesTable } from '@/features/admin-commissions/components/commission-rules-table';
 import { CommissionRuleDrawer } from '@/features/admin-commissions/components/commission-rule-drawer';

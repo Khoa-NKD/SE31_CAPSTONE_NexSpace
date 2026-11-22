@@ -4,7 +4,7 @@ import {
   MapPin,
   CheckCircle2,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import type { SeatItem } from '../../types/seat';

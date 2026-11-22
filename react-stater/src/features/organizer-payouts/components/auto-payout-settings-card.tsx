@@ -11,7 +11,7 @@ import {
   HelpCircle,
   CalendarCheck,
   ShieldCheck
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerPayoutSetting } from '../api/types';
 import { RequestAutoPayoutDialog } from './request-auto-payout-dialog';
 import { RequestCancelAutoDialog } from './request-cancel-auto-dialog';

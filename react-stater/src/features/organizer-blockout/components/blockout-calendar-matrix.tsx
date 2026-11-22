@@ -8,7 +8,7 @@ import {
   Lock,
   Wrench,
   ShieldAlert
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   Select,

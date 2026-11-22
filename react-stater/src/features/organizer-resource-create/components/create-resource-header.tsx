@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, Building2, Store } from 'lucide-react';
+import { ChevronRight, Building2, Store } from '@/components/ui/hugeicons';
 
 export function CreateResourceHeader() {
   return (

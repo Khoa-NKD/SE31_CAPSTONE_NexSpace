@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import React, { useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -14,7 +15,6 @@ import {
   Download,
   ArrowRight,
   AlertCircle,
-  Loader2,
   Building2,
   CheckCircle2,
   XCircle,
@@ -22,8 +22,11 @@ import {
   ChevronRight,
   MessageSquare,
   Ban
-} from 'lucide-react';
-import { useCancellationPreviewQuery, useCancelBookingMutation } from '@/features/workspaces/api/booking-queries';
+} from '@/components/ui/hugeicons';
+import {
+  useCancellationPreviewQuery,
+  useCancelBookingMutation
+} from '@/features/workspaces/api/booking-queries';
 import { BookingChatDialog } from '@/features/chat/components/booking-chat-dialog';
 import { WorkspaceHeader } from '@/features/workspaces/components/workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -299,7 +302,7 @@ export function MyBookingsPage() {
               disabled={isFetching}
               className='gap-2 text-xs font-semibold h-9 rounded-lg border-border'
             >
-              {isFetching ? <Loader2 className='h-3.5 w-3.5 animate-spin' /> : <Clock className='h-3.5 w-3.5' />}
+              {isFetching ? <Loader2 className='h-3.5 w-3.5' /> : <Clock className='h-3.5 w-3.5' />}
               <span>{isVi ? 'Làm mới' : 'Refresh'}</span>
             </Button>
             <Button
@@ -360,7 +363,7 @@ export function MyBookingsPage() {
         {/* Loading State */}
         {isLoading ? (
           <div className='flex flex-col items-center justify-center py-20 text-center'>
-            <Loader2 className='h-8 w-8 animate-spin text-primary mb-3' />
+            <Loader2 className='h-8 w-8 text-primary mb-3' />
             <p className='text-sm text-muted-foreground'>
               {isVi ? 'Đang tải danh sách đặt chỗ của bạn...' : 'Loading your workspace bookings...'}
             </p>
@@ -500,7 +503,7 @@ export function MyBookingsPage() {
                             className='cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl border-border hover:bg-muted'
                           >
                             {downloadingId === b.bookingId ? (
-                              <Loader2 className='h-3.5 w-3.5 animate-spin text-primary' />
+                              <Loader2 className='h-3.5 w-3.5 text-primary' />
                             ) : (
                               <Download className='h-3.5 w-3.5 text-muted-foreground' />
                             )}
@@ -759,7 +762,7 @@ export function MyBookingsPage() {
               {/* Cancellation Policy Preview */}
               {isPreviewLoading ? (
                 <div className='flex items-center gap-2 p-3 rounded-xl bg-muted/40 text-xs text-muted-foreground'>
-                  <Loader2 className='size-4 animate-spin text-primary' />
+                  <Loader2 className='size-4 text-primary' />
                   <span>{isVi ? 'Đang tính toán chính sách hoàn tiền...' : 'Calculating refund preview...'}</span>
                 </div>
               ) : cancelPreview ? (
@@ -874,7 +877,7 @@ export function MyBookingsPage() {
                 disabled={cancelMutation.isPending}
                 className='bg-red-600 hover:bg-red-700 text-white text-xs h-9 font-semibold gap-1.5 cursor-pointer'
               >
-                {cancelMutation.isPending && <Loader2 className='size-3.5 animate-spin' />}
+                {cancelMutation.isPending && <Loader2 className='size-3.5' />}
                 <span>{isVi ? 'Xác nhận hủy & Hoàn tiền' : 'Confirm Cancel & Refund'}</span>
               </Button>
             </DialogFooter>

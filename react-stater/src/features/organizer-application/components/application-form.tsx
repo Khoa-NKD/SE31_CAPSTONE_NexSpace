@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { DOCUMENT_LABELS } from '@/features/organizer-verification-documents/api/documents';
 import { ContractPanel } from '@/features/organizer-contract/components/contract-panel';
 import { DocumentRequirementsChecklist } from './document-requirements-checklist';
@@ -15,8 +16,12 @@ import { ApiError } from '@/lib/api-client';
 import { currentUser } from '@/features/auth/api/session';
 import type { SessionUser } from '@/features/auth/api/session';
 import { useAuthStore } from '@/features/auth/store/auth-store';
-import { VerificationDocumentsView } from '@/features/organizer-verification-documents/components/verification-documents-view';
-import { DraftVerificationDocuments } from '@/features/organizer-verification-documents/components/draft-verification-documents';
+import {
+  VerificationDocumentsView
+} from '@/features/organizer-verification-documents/components/verification-documents-view';
+import {
+  DraftVerificationDocuments
+} from '@/features/organizer-verification-documents/components/draft-verification-documents';
 import { verificationDocumentKeys } from '@/features/organizer-verification-documents/api/documents';
 import {
   applicationDraftSchema,
@@ -41,7 +46,7 @@ import {
   ArrowDown,
   ArrowDownRight,
   LockKeyhole
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   applicationStatusPresentation,
   applicationTimestamp
@@ -563,7 +568,7 @@ function OwnedApplicationForm({ onRetry }: { onRetry: () => void }) {
             disabled={busy}
             onClick={() => void refreshStatus()}
           >
-            <RefreshCw className={`size-4 ${busy ? 'animate-spin' : ''}`} aria-hidden='true' />{' '}
+            {busy ? <Spinner className={`size-4 `} aria-hidden='true' /> : <RefreshCw className={`size-4 `} aria-hidden='true' />}{' '}
             {tr('Refresh status')}{' '}
           </Button>
           {details.status === 'REJECTED' && (

@@ -1,7 +1,7 @@
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from 'lucide-react';
+import { MapPin, ArrowRight, Edit, AlertTriangle, Layers, Star } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { OrganizerWorkspace } from '../types';
