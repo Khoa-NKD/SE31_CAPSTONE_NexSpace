@@ -5,21 +5,15 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * Cấu hình tự động sửa chữa schema history của Flyway trước khi thực thi migration.
- * Giúp triệt tiêu hoàn toàn các lỗi:
- * - Validate failed: Migrations have failed validation
- * - Checksum mismatch khi sửa file migration
- * - Bản ghi lỗi dở dang (failed migration) chặn khởi động backend
+ * Validate and apply migrations without rewriting the recorded schema history.
+ * Checksum conflicts and failed migrations require explicit review before repair.
  */
 @Configuration
 public class FlywayConfig {
 
     @Bean
     public FlywayMigrationStrategy flywayMigrationStrategy() {
-        return flyway -> {
-            flyway.repair();
-            flyway.migrate();
-        };
+        return flyway -> flyway.migrate();
     }
 }
 

@@ -12,7 +12,7 @@ import java.time.LocalDateTime;
  * DTO phản hồi trạng thái khả dụng của phòng làm việc/họp theo thời gian thực (Real-time Room Availability).
  */
 @Value
-@Builder
+@Builder(toBuilder = true)
 @Schema(description = "Thông tin trạng thái khả dụng của phòng làm việc/họp theo thời gian thực")
 public class RoomAvailabilityResponseDto {
 

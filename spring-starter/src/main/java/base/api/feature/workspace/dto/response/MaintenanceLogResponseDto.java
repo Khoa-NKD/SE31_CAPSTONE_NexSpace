@@ -23,6 +23,7 @@ public class MaintenanceLogResponseDto {
     String performedBy;
     BigDecimal cost;
     LocalDateTime scheduledAt;
+    LocalDateTime plannedEndAt;
     LocalDateTime startedAt;
     LocalDateTime completedAt;
     String resultNote;

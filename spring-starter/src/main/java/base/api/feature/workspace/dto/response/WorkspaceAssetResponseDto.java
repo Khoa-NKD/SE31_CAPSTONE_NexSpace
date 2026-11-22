@@ -9,7 +9,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @Value
-@Builder
+@Builder(toBuilder = true)
 public class WorkspaceAssetResponseDto {
     Long id;
     Long workspaceId;

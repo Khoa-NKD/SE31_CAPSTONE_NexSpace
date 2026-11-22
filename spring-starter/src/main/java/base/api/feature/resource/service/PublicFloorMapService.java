@@ -23,6 +23,8 @@ public class PublicFloorMapService {
     private final IFloorPlanRepository floors;
     private final IBookableResourceRepository resources;
     private final IOrganizerProfileRepository profiles;
+    private final IResourceBlockedSlotRepository blocks;
+    private final IDecorationMaintenanceRepository decorationMaintenance;
 
     public record ObjectView(
             Long id,
@@ -38,7 +40,17 @@ public class PublicFloorMapService {
             Integer capacity,
             String typeName,
             BigDecimal pricePerHour,
-            String zoneName) {}
+            String zoneName,
+            base.api.feature.resource.dto.FloorManagement.AvailabilityState state,
+            base.api.feature.resource.dto.Visual3d visual3d) {
+        public ObjectView(Long id, String code, String name, ResourceCategory category, BigDecimal posX, BigDecimal posY,
+                BigDecimal width, BigDecimal height, BigDecimal rotation, boolean selectable, Integer capacity,
+                String typeName, BigDecimal pricePerHour, String zoneName) {
+            this(id, code, name, category, posX, posY, width, height, rotation, selectable, capacity, typeName,
+                    pricePerHour, zoneName, selectable ? base.api.feature.resource.dto.FloorManagement.AvailabilityState.AVAILABLE
+                            : base.api.feature.resource.dto.FloorManagement.AvailabilityState.DISABLED, null);
+        }
+    }
 
     public record FloorView(
             Long id,
@@ -47,7 +59,13 @@ public class PublicFloorMapService {
             BigDecimal height,
             List<ObjectView> resources,
             List<FloorDecorations.Item> decorations,
-            base.api.feature.resource.dto.BuildingResponses.Location location) {}
+            base.api.feature.resource.dto.BuildingResponses.Location location,
+            BigDecimal pixelsPerMetre) {
+        public FloorView(Long id, String name, BigDecimal width, BigDecimal height, List<ObjectView> resources,
+                List<FloorDecorations.Item> decorations, base.api.feature.resource.dto.BuildingResponses.Location location) {
+            this(id,name,width,height,resources,decorations,location,null);
+        }
+    }
 
     public List<FloorView> maps(Long workspaceId) {
         var workspace =
@@ -60,6 +78,10 @@ public class PublicFloorMapService {
         var profile = profiles.findByOrganizerId(workspace.getOrganizer().getId())
                 .filter(p -> p.getStatus() == OrganizerProfileStatus.APPROVED)
                 .orElseThrow(() -> new NotFoundException("Workspace map not found"));
+        var now = java.time.LocalDateTime.now();
+        var maintained = ResourceMaintenance.maintenanceIds(blocks.findForWorkspace(workspaceId, now, now.plusNanos(1)));
+        var maintainedDecorations = decorationMaintenance.overlapping(workspaceId, now, now.plusNanos(1)).stream()
+                .map(d -> d.getFloorPlan().getId() + ":" + d.getDecorationId()).collect(java.util.stream.Collectors.toSet());
         return floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId).stream()
                 .filter(
                         f ->
@@ -93,8 +115,9 @@ public class PublicFloorMapService {
                                                                     || r.getStatus()
                                                                             == BookableResourceStatus
                                                                                     .DISABLED
-                                                                    || activeParents.contains(
-                                                                            r.getId()))
+                                                                    || activeParents.contains(r.getId())
+                                                                    || published != null && published.containsKey(r.getId())
+                                                                        && r.getStatus() != BookableResourceStatus.ARCHIVED)
                                             .filter(
                                                     r ->
                                                             r.getPosX() != null
@@ -114,6 +137,13 @@ public class PublicFloorMapService {
                                                                 ? r.getCapacityOverride()
                                                                 : (r.getResourceType() != null ? r.getResourceType().getCapacity() : 1);
 
+                                                        capacity = ResourceMaintenance.capacity(r, all, maintained);
+                                                        var state = ResourceMaintenance.affected(r, maintained) || capacity == 0
+                                                                ? base.api.feature.resource.dto.FloorManagement.AvailabilityState.MAINTENANCE
+                                                                : r.getStatus() != BookableResourceStatus.ACTIVE || r.getParentRoom() != null && r.getParentRoom().getStatus() != BookableResourceStatus.ACTIVE
+                                                                    ? base.api.feature.resource.dto.FloorManagement.AvailabilityState.DISABLED
+                                                                    : base.api.feature.resource.dto.FloorManagement.AvailabilityState.AVAILABLE;
+                                                        selectable = selectable && state == base.api.feature.resource.dto.FloorManagement.AvailabilityState.AVAILABLE;
                                                         String typeName = r.getResourceType() != null ? r.getResourceType().getName() : null;
 
                                                         BigDecimal price = r.getPricePerHour() != null
@@ -134,7 +164,7 @@ public class PublicFloorMapService {
                                                                 capacity,
                                                                 typeName,
                                                                 price,
-                                                                r.getZoneName());
+                                                                r.getZoneName(), state, r.getResourceType() == null ? null : r.getResourceType().getVisual3d());
                                                     })
                                             .toList();
                             return new FloorView(
@@ -143,8 +173,13 @@ public class PublicFloorMapService {
                                      bounds.width(),
                                      bounds.height(),
                                      objects,
-                                     ResourceCanvas.decorations(f, false),
-                                     PublishedGeometry.location(f));
+                                     ResourceCanvas.decorations(f, false).stream()
+                                             .map(d -> maintainedDecorations.contains(f.getId() + ":" + d.id())
+                                                     || ResourceMaintenance.affected(DecorationRoom.parent(d, all, f, true), maintained)
+                                                     ? new FloorDecorations.Item(d.id(), d.kind(), d.label(), d.posX(), d.posY(), d.width(), d.height(), d.rotation(), "#a855f7", d.icon(), d.visual3d()) : d).toList(),
+                                     PublishedGeometry.location(f),
+                                     f.getBuildingFloor() != null && f.getBuildingFloor().getGeometryVersion() >= 2
+                                         ? base.api.shared.entity.resource.MetricGeometry.PIXELS_PER_METRE : null);
                         })
                 .toList();
     }

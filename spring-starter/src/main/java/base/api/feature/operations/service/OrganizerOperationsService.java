@@ -134,11 +134,14 @@ public class OrganizerOperationsService {
                 r.getFloorPlan().getFloorNumber(), r.getParentRoom() == null ? null : r.getParentRoom().getId(),
                 row.getBlockType(), row.getStartTime(), row.getEndTime(), row.getReason());
     }
-    @Transactional
+    // Read reservations committed while waiting for the ordered resource locks.
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public List<Block> createBlocks(Long actor, Long workspaceId, BlockInput input) {
         owned(actor, workspaceId);
+        if (input.blockType() != ResourceBlockType.MAINTENANCE)
+            throw new BadRequestException("Chỉ hỗ trợ tạo lịch bảo trì.");
         if (input.startTime() == null || input.endTime() == null || !input.startTime().isBefore(input.endTime())
-                || input.startTime().isBefore(LocalDateTime.now()) || input.reason() == null || input.reason().isBlank())
+                || input.startTime().isBefore(LocalDateTime.now().minusMinutes(2)) || input.reason() == null || input.reason().isBlank())
             throw new BadRequestException("Cần lý do và thời gian hợp lệ trong tương lai.");
         if (input.resourceIds() == null || input.resourceIds().isEmpty() || input.resourceIds().size() > 200)
             throw new BadRequestException("Chọn từ 1 đến 200 ghế/phòng.");

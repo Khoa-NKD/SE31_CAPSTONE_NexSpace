@@ -139,6 +139,17 @@ class ResourceHoldServiceTest {
     }
 
     @Test
+    void holdRejectsPartyLargerThanCapacityAfterMaintenance() {
+        var request = HoldResourceRequestDto.builder().resourceId(mockResource.getId())
+                .startTime(baseStartTime).endTime(baseEndTime).partySize(10).build();
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(resourceLockService.acquireResourceLock(mockResource.getId(), baseStartTime, baseEndTime))
+                .thenReturn(LockedResourceContext.builder().targetResource(mockResource).availableCapacity(9).build());
+        assertThatThrownBy(() -> holdService.holdResource(mockCustomer.getId(), request))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("ghế khả dụng");
+    }
+
+    @Test
     void holdChargesRentalAndConfiguredVatWithoutCustomerFees() {
         mockResource.setPricePerHour(new BigDecimal("500000"));
         var vat = new base.api.shared.entity.governance.PlatformSettingModel();

@@ -524,8 +524,20 @@ public class OrganizerResourceService {
         if (request.status() != BookableResourceStatus.ACTIVE
                 && request.status() != BookableResourceStatus.DISABLED)
             throw new BadRequestException("Choose ACTIVE or DISABLED");
-        if (resource.getParentRoom() != null)
-            throw new ConflictException("Ghế trong phòng bật/tắt theo phòng. Hãy đổi trạng thái của phòng.");
+        var maintenanceNow = java.time.LocalDateTime.now();
+        if (usage.occupancyByWorkspace(resource.getFloorPlan().getWorkspace().getId(),
+                maintenanceNow, maintenanceNow.plusNanos(1), maintenanceNow)
+                .entrySet().stream().anyMatch(entry ->
+                        (entry.getKey().equals(resource.getId())
+                                || resource.getParentRoom() != null && entry.getKey().equals(resource.getParentRoom().getId()))
+                                && entry.getValue().contains(base.api.feature.resource.dto.FloorManagement.AvailabilityState.MAINTENANCE)))
+            throw new ConflictException("Đang bảo trì. Kết thúc hoặc xóa lịch bảo trì trước khi bật/tắt.");
+        if (resource.getParentRoom() != null) {
+            var parent = resource.getParentRoom();
+            em.refresh(parent, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+            if (parent.getStatus() != BookableResourceStatus.ACTIVE)
+                throw new ConflictException("Bật phòng trước khi bật/tắt riêng ghế bên trong.");
+        }
         if (request.status() == BookableResourceStatus.ACTIVE) activation(resource);
         if (resource.getResourceType().getCategory() == ResourceCategory.ROOM) {
             for (var child : children(resource)) {
@@ -784,7 +796,8 @@ public class OrganizerResourceService {
                         .computeIfAbsent(
                                 item.getParentRoom().getId(),
                                 ignored -> EnumSet.noneOf(AvailabilityState.class))
-                        .addAll(signals.getOrDefault(item.getId(), Set.of()));
+                        .addAll(signals.getOrDefault(item.getId(), Set.of()).stream()
+                                .filter(signal -> signal != AvailabilityState.MAINTENANCE).toList());
         var items =
                 current.stream()
                         .map(
@@ -809,7 +822,8 @@ public class OrganizerResourceService {
                                                     && item.getPosY() != null
                                                     && item.getWidth() != null
                                                     && item.getHeight() != null
-                                                    && item.getParentRoom() == null;
+                                                    && (item.getParentRoom() == null
+                                                        || item.getParentRoom().getStatus() == BookableResourceStatus.ACTIVE);
                                     var state =
                                             flags.contains(AvailabilityState.BOOKED)
                                                     ? AvailabilityState.BOOKED
@@ -1327,10 +1341,11 @@ public class OrganizerResourceService {
         var previous = resource.getParentRoom();
         resource.setParentRoom(parent);
         if (resource.getStatus() == BookableResourceStatus.ARCHIVED) return;
-        // A contained seat follows its room. Moving it to the open area requires explicit activation.
-        if (parent != null) {
+        // Preserve individual seat activation while its room remains unchanged.
+        // Joining a room inherits its state; leaving it requires explicit activation.
+        if (parent != null && (previous == null || !parent.getId().equals(previous.getId()))) {
             resource.setStatus(parent.getStatus());
-        } else if (previous != null) {
+        } else if (parent == null && previous != null) {
             resource.setStatus(BookableResourceStatus.DISABLED);
         }
     }
