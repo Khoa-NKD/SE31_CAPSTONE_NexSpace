@@ -17,8 +17,9 @@ export function useRequestAutoPayoutMutation() {
       toast.success('Đã gửi yêu cầu kích hoạt Auto Payout lên Admin xét duyệt thành công!');
       queryClient.invalidateQueries({ queryKey: organizerPayoutKeys.settings() });
     },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Không thể gửi yêu cầu kích hoạt Auto Payout');
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : (error as { message?: string })?.message;
+      toast.error(msg || 'Không thể gửi yêu cầu kích hoạt Auto Payout');
     }
   });
 }
@@ -32,8 +33,9 @@ export function useRequestCancelAutoPayoutMutation() {
       toast.success('Đã gửi yêu cầu hủy chế độ Auto Payout lên Admin xét duyệt!');
       queryClient.invalidateQueries({ queryKey: organizerPayoutKeys.settings() });
     },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Không thể gửi yêu cầu hủy Auto Payout');
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : (error as { message?: string })?.message;
+      toast.error(msg || 'Không thể gửi yêu cầu hủy Auto Payout');
     }
   });
 }
@@ -48,8 +50,9 @@ export function useManualWithdrawalMutation() {
       queryClient.invalidateQueries({ queryKey: organizerPayoutKeys.balance() });
       queryClient.invalidateQueries({ queryKey: organizerPayoutKeys.all });
     },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Không thể thực hiện rút tiền');
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : (error as { message?: string })?.message;
+      toast.error(msg || 'Không thể thực hiện rút tiền');
     }
   });
 }

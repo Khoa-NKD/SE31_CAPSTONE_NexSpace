@@ -7,9 +7,11 @@ import { WithdrawalHistoryTable } from './withdrawal-history-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 export const OrganizerPayoutsView: React.FC = () => {
-  const { data: balance, isLoading: isBalanceLoading, error: balanceError } = useQuery(
+  const { language } = useLanguage();
+  const { data: balance, isLoading: isBalanceLoading } = useQuery(
     organizerPayoutQueries.balance()
   );
 
@@ -44,13 +46,15 @@ export const OrganizerPayoutsView: React.FC = () => {
               <ArrowLeft className="h-3 w-3" /> Dashboard
             </Link>
             <span>/</span>
-            <span>Doanh thu & Chi trả</span>
+            <span>{language === 'vi' ? 'Doanh thu & Chi trả' : 'Payouts & Balance'}</span>
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            Quản lý Chi trả & Rút tiền
+            {language === 'vi' ? 'Quản lý Chi trả & Rút tiền' : 'Payouts & Balance Management'}
           </h1>
           <p className="text-xs text-slate-500 mt-0.5">
-            Theo dõi số dư doanh thu, dòng tiền ký quỹ (HELD), rút tiền về ngân hàng và cài đặt rút tiền tự động hàng ngày.
+            {language === 'vi'
+              ? 'Theo dõi số dư doanh thu, dòng tiền ký quỹ (HELD), rút tiền về ngân hàng và cài đặt rút tiền tự động hàng ngày.'
+              : 'Track revenue balance, escrow funds (HELD), bank withdrawals, and daily auto-payout configurations.'}
           </p>
         </div>
       </div>
@@ -60,17 +64,34 @@ export const OrganizerPayoutsView: React.FC = () => {
         <Alert variant="destructive" className="border-rose-200 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/30">
           <ShieldAlert className="h-4 w-4 text-rose-600" />
           <AlertTitle className="text-sm font-semibold text-rose-800 dark:text-rose-200">
-            Chưa hoàn tất thông tin tài khoản ngân hàng
+            {language === 'vi'
+              ? 'Chưa hoàn tất thông tin tài khoản ngân hàng'
+              : 'Bank account information incomplete'}
           </AlertTitle>
           <AlertDescription className="text-xs text-rose-700 dark:text-rose-300">
-            Bạn cần cập nhật và xác thực số tài khoản ngân hàng trong{' '}
-            <Link
-              to="/dashboard/organizer/business-profile"
-              className="font-bold underline hover:text-rose-900"
-            >
-              Hồ sơ doanh nghiệp
-            </Link>{' '}
-            để có thể thực hiện rút tiền hoặc kích hoạt tính năng Auto Payout.
+            {language === 'vi' ? (
+              <>
+                Bạn cần cập nhật và xác thực số tài khoản ngân hàng trong{' '}
+                <Link
+                  to="/dashboard/organizer/business-profile"
+                  className="font-bold underline hover:text-rose-900"
+                >
+                  Hồ sơ doanh nghiệp
+                </Link>{' '}
+                để có thể thực hiện rút tiền hoặc kích hoạt tính năng Auto Payout.
+              </>
+            ) : (
+              <>
+                You need to update and verify your bank account details in{' '}
+                <Link
+                  to="/dashboard/organizer/business-profile"
+                  className="font-bold underline hover:text-rose-900"
+                >
+                  Business Profile
+                </Link>{' '}
+                to withdraw funds or activate Auto Payout.
+              </>
+            )}
           </AlertDescription>
         </Alert>
       )}

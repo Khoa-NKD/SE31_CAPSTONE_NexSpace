@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -12,6 +12,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Clock, Sparkles, CheckCircle2 } from 'lucide-react';
 import { useRequestAutoPayoutMutation } from '../api/mutations';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface RequestAutoPayoutDialogProps {
   open: boolean;
@@ -20,7 +21,7 @@ interface RequestAutoPayoutDialogProps {
   isAutoDaily?: boolean;
 }
 
-const PRESET_HOURS = [
+const PRESET_HOURS_VI = [
   { hour: 9, label: '09:00', desc: 'Đầu giờ sáng' },
   { hour: 12, label: '12:00', desc: 'Nghỉ trưa' },
   { hour: 15, label: '15:00', desc: 'Đầu giờ chiều' },
@@ -28,21 +29,35 @@ const PRESET_HOURS = [
   { hour: 21, label: '21:00', desc: 'Đóng cửa / Tối' }
 ];
 
+const PRESET_HOURS_EN = [
+  { hour: 9, label: '09:00', desc: 'Morning' },
+  { hour: 12, label: '12:00', desc: 'Noon' },
+  { hour: 15, label: '15:00', desc: 'Afternoon' },
+  { hour: 18, label: '18:00', desc: 'End of day' },
+  { hour: 21, label: '21:00', desc: 'Night' }
+];
+
+const formatHourString = (h: number) => `${h < 10 ? `0${h}` : h}:00`;
+
 export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = ({
   open,
   onOpenChange,
   currentHour = 9,
   isAutoDaily = false
 }) => {
+  const { language } = useLanguage();
   const [hour, setHour] = useState<number>(currentHour);
   const [note, setNote] = useState<string>('');
   const requestMutation = useRequestAutoPayoutMutation();
+  const presetHours = language === 'vi' ? PRESET_HOURS_VI : PRESET_HOURS_EN;
 
-  useEffect(() => {
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setHour(currentHour);
     }
-  }, [open, currentHour]);
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -60,8 +75,6 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
     );
   };
 
-  const formatHourString = (h: number) => `${h < 10 ? `0${h}` : h}:00`;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[500px]">
@@ -69,18 +82,28 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
           <div className="flex items-center gap-2 text-indigo-600 mb-1">
             <Sparkles className="h-5 w-5" />
             <span className="text-xs font-semibold uppercase tracking-wider">
-              {isAutoDaily ? 'Điều chỉnh khung giờ' : 'Đăng ký chế độ tự động'}
+              {isAutoDaily
+                ? (language === 'vi' ? 'Điều chỉnh khung giờ' : 'Adjust Schedule')
+                : (language === 'vi' ? 'Đăng ký chế độ tự động' : 'Register Auto Mode')}
             </span>
           </div>
           <DialogTitle className="text-lg font-bold text-slate-900 dark:text-white">
             {isAutoDaily
-              ? 'Thay đổi khung giờ Rút tiền tự động (Auto Payout)'
-              : 'Yêu cầu kích hoạt Rút tiền tự động hàng ngày'}
+              ? (language === 'vi'
+                  ? 'Thay đổi khung giờ Rút tiền tự động (Auto Payout)'
+                  : 'Change Daily Auto Payout Hour')
+              : (language === 'vi'
+                  ? 'Yêu cầu kích hoạt Rút tiền tự động hàng ngày'
+                  : 'Request Daily Auto Payout Activation')}
           </DialogTitle>
           <DialogDescription className="text-xs text-slate-500">
             {isAutoDaily
-              ? `Hiện tại hệ thống đang quét vào ${formatHourString(currentHour)} mỗi ngày. Bạn có thể chọn bất kỳ khung giờ nào (từ 00:00 đến 23:00) theo nhu cầu dòng tiền của mình.`
-              : 'Hệ thống sẽ tự động quét toàn bộ số dư khả dụng (RELEASED) và chi tiền qua PayOS vào đúng giờ bạn chọn mỗi ngày (00:00 - 23:00). Yêu cầu cần được Admin xem xét và phê duyệt.'}
+              ? (language === 'vi'
+                  ? `Hiện tại hệ thống đang quét vào ${formatHourString(currentHour)} mỗi ngày. Bạn có thể chọn bất kỳ khung giờ nào (từ 00:00 đến 23:00) theo nhu cầu dòng tiền của mình.`
+                  : `Currently scheduled at ${formatHourString(currentHour)} daily. You can choose any time slot (00:00 to 23:00) to fit your cash flow.`)
+              : (language === 'vi'
+                  ? 'Hệ thống sẽ tự động quét toàn bộ số dư khả dụng (RELEASED) và chi tiền qua PayOS vào đúng giờ bạn chọn mỗi ngày (00:00 - 23:00). Yêu cầu cần được Admin xem xét và phê duyệt.'
+                  : 'The system will automatically transfer all available balance (RELEASED) via PayOS at your chosen daily hour (00:00 - 23:00). Subject to Admin review and approval.')}
           </DialogDescription>
         </DialogHeader>
 
@@ -88,10 +111,10 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
           {/* Quick presets */}
           <div className="space-y-1.5">
             <Label className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Gợi ý các khung giờ phổ biến
+              {language === 'vi' ? 'Gợi ý các khung giờ phổ biến' : 'Popular time slots'}
             </Label>
             <div className="grid grid-cols-5 gap-1.5">
-              {PRESET_HOURS.map((preset) => {
+              {presetHours.map((preset) => {
                 const isSelected = hour === preset.hour;
                 return (
                   <button
@@ -117,9 +140,9 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
           {/* Full 24h custom dropdown */}
           <div className="space-y-1.5">
             <Label htmlFor="hour" className="text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between">
-              <span>Tùy chỉnh giờ rút tiền chính xác (0h - 23h)</span>
+              <span>{language === 'vi' ? 'Tùy chỉnh giờ rút tiền chính xác (0h - 23h)' : 'Custom exact payout hour (0h - 23h)'}</span>
               <span className="text-indigo-600 dark:text-indigo-400 font-bold">
-                {formatHourString(hour)} hàng ngày
+                {formatHourString(hour)} {language === 'vi' ? 'hàng ngày' : 'daily'}
               </span>
             </Label>
             <div className="relative">
@@ -131,7 +154,7 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
               >
                 {Array.from({ length: 24 }).map((_, idx) => (
                   <option key={idx} value={idx}>
-                    {idx < 10 ? `0${idx}` : idx}:00 ({idx < 6 ? 'Đêm' : idx < 12 ? 'Sáng' : idx < 14 ? 'Trưa' : idx < 18 ? 'Chiều' : 'Tối'})
+                    {idx < 10 ? `0${idx}` : idx}:00 ({language === 'vi' ? (idx < 6 ? 'Đêm' : idx < 12 ? 'Sáng' : idx < 14 ? 'Trưa' : idx < 18 ? 'Chiều' : 'Tối') : (idx < 12 ? 'AM' : 'PM')})
                   </option>
                 ))}
               </select>
@@ -140,19 +163,27 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
             <div className="flex items-center gap-1.5 text-[11px] text-slate-500 bg-slate-50 dark:bg-slate-900/40 p-2 rounded border border-slate-100 dark:border-slate-800">
               <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
               <span>
-                Hệ thống tự động kích hoạt tiến trình chuyển tiền vào đúng <strong>{formatHourString(hour)}:00 (GMT+7)</strong> mỗi ngày.
+                {language === 'vi' ? (
+                  <>Hệ thống tự động kích hoạt tiến trình chuyển tiền vào đúng <strong>{formatHourString(hour)}:00 (GMT+7)</strong> mỗi ngày.</>
+                ) : (
+                  <>The system automatically executes payout transfers at <strong>{formatHourString(hour)}:00 (GMT+7)</strong> daily.</>
+                )}
               </span>
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label htmlFor="note" className="text-xs font-medium text-slate-700 dark:text-slate-300">
-              Ghi chú gửi Admin (tùy chọn)
+              {language === 'vi' ? 'Ghi chú gửi Admin (tùy chọn)' : 'Note to Admin (optional)'}
             </Label>
             <Textarea
               id="note"
               rows={3}
-              placeholder="Lý do điều chỉnh giờ hoặc yêu cầu riêng về dòng tiền..."
+              placeholder={
+                language === 'vi'
+                  ? 'Lý do điều chỉnh giờ hoặc yêu cầu riêng về dòng tiền...'
+                  : 'Reason for schedule change or cash flow requirements...'
+              }
               value={note}
               onChange={(e) => setNote(e.target.value)}
               className="text-xs resize-none"
@@ -166,7 +197,7 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
               onClick={() => onOpenChange(false)}
               disabled={requestMutation.isPending}
             >
-              Hủy
+              {language === 'vi' ? 'Hủy' : 'Cancel'}
             </Button>
             <Button
               type="submit"
@@ -175,10 +206,10 @@ export const RequestAutoPayoutDialog: React.FC<RequestAutoPayoutDialogProps> = (
             >
               <Sparkles className="h-3.5 w-3.5" />
               {requestMutation.isPending
-                ? 'Đang gửi yêu cầu...'
+                ? (language === 'vi' ? 'Đang gửi yêu cầu...' : 'Submitting...')
                 : isAutoDaily
-                  ? 'Gửi yêu cầu đổi giờ lên Admin'
-                  : 'Gửi yêu cầu kích hoạt lên Admin'}
+                  ? (language === 'vi' ? 'Gửi yêu cầu đổi giờ lên Admin' : 'Submit Hour Change Request')
+                  : (language === 'vi' ? 'Gửi yêu cầu kích hoạt lên Admin' : 'Submit Activation Request')}
             </Button>
           </DialogFooter>
         </form>
