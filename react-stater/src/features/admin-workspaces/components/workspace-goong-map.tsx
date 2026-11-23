@@ -1,14 +1,8 @@
+import { mapMarkerIcon } from '@/components/ui/map-marker-icon';
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import type * as MapLibreGL from 'maplibre-gl';
-import {
-  MapPin,
-  Plus,
-  Minus,
-  LocateFixed,
-  Layers,
-  ExternalLink,
-  Loader2
-} from 'lucide-react';
+import { MapPin, Plus, Minus, LocateFixed, Layers, ExternalLink } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 
 interface WorkspaceGoongMapProps {
@@ -74,13 +68,13 @@ function buildVenueMarkerElement(name: string, address: string) {
     'position: relative; display: flex; flex-direction: column; align-items: center; pointer-events: auto; user-select: none;';
 
   container.innerHTML = `
-    <div style="margin-bottom: 6px; background-color: #0F172A; color: #FFFFFF; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif; white-space: nowrap; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); border: 1px solid #334155; display: flex; align-items: center; gap: 6px; pointer-events: none;">
+    <div style="margin-bottom: 6px; background-color: #0F172A; color: #FFFFFF; padding: 4px 10px; border-radius: 8px; font-size: 11px; font-weight: 600; font-family: var(--font-app); white-space: nowrap; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.25); border: 1px solid #334155; display: flex; align-items: center; gap: 6px; pointer-events: none;">
       <span style="display: inline-block; width: 6px; height: 6px; border-radius: 9999px; background-color: #10B981; animation: pulse 2s infinite;"></span>
       <span class="marker-venue-name" style="max-width: 180px; overflow: hidden; text-overflow: ellipsis;">${name || 'NexSpace Venue'}</span>
       <span class="marker-venue-address" style="color: #94A3B8; font-size: 10px; font-weight: normal; margin-left: 2px; max-width: 140px; overflow: hidden; text-overflow: ellipsis;">${address ? address.split(',')[0] : 'Vietnam'}</span>
     </div>
     <div style="position: relative; width: 34px; height: 34px; border-radius: 9999px; background-color: #4F46E5; border: 2.5px solid #FFFFFF; box-shadow: 0 10px 15px -3px rgba(79, 70, 229, 0.4); display: flex; align-items: center; justify-content: center; color: #FFFFFF; pointer-events: none;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
+      ${mapMarkerIcon("building", { size: 16 })}
       <div style="position: absolute; bottom: -6px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 7px solid #4F46E5;"></div>
     </div>
     <div style="width: 18px; height: 4px; background-color: rgba(15, 23, 42, 0.35); border-radius: 9999px; filter: blur(1px); margin-top: 4px; pointer-events: none;"></div>
@@ -297,7 +291,7 @@ export function WorkspaceGoongMap({
       {/* Loading Skeleton */}
       {!isLoaded && !loadError && (
         <div className='absolute inset-0 bg-slate-900/90 flex flex-col items-center justify-center gap-2 text-white z-10'>
-          <Loader2 className='size-5 animate-spin text-primary' />
+          <Loader2 className='size-5 text-primary' />
           <span className='text-xs font-medium text-slate-300'>Đang tải bản đồ Goong Map...</span>
         </div>
       )}

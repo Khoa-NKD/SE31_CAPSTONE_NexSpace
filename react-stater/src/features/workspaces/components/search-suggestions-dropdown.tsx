@@ -1,13 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useEffect, useRef } from 'react';
-import {
-  Building2,
-  MapPin,
-  Tag,
-  Star,
-  Loader2,
-  ExternalLink,
-  ChevronRight
-} from 'lucide-react';
+import { Building2, MapPin, Tag, Star, ExternalLink, ChevronRight } from '@/components/ui/hugeicons';
 import type {
   WorkspaceSuggestionsResponse,
   WorkspaceSuggestionItem,
@@ -113,7 +106,7 @@ export function SearchSuggestionsDropdown({
     >
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground font-medium">
-          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+          <Loader2 className="h-4 w-4 text-primary" />
           <span>Đang tìm gợi ý phù hợp...</span>
         </div>
       ) : !hasResults ? (

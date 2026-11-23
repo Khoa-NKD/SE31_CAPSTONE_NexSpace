@@ -3,7 +3,7 @@ import type { AvailabilityState } from '../api/resources';
 export const availabilityColors: Record<AvailabilityState, string> = {
   AVAILABLE: '#10b981',
   LOCKED: '#d97706',
-  BOOKED: '#3b82f6',
+  BOOKED: '#f43f5e',
   DISABLED: '#64748b',
   MAINTENANCE: '#a855f7'
 };
@@ -12,7 +12,7 @@ export function availabilityLabel(state: AvailabilityState, vi: boolean) {
     AVAILABLE: ['Available', 'Còn trống'],
     LOCKED: ['Locked', 'Đang khóa / giữ chỗ'],
     BOOKED: ['Booked', 'Đã được đặt'],
-    DISABLED: ['Disabled', 'Chưa / ngừng nhận đặt'],
+    DISABLED: ['Not accepting bookings', 'Ngừng nhận đặt'],
     MAINTENANCE: ['Maintenance', 'Đang bảo trì']
   };
   return labels[state][vi ? 1 : 0];

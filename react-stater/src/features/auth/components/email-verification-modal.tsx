@@ -1,6 +1,7 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState, useEffect, useCallback, useTransition } from 'react';
 import { useNavigate } from '@tanstack/react-router';
-import { Mail, ArrowRight, CheckCircle2, RotateCw } from 'lucide-react';
+import { Mail, ArrowRight, CheckCircle2, RotateCw } from '@/components/ui/hugeicons';
 import { useLanguage } from '../../landing/context/language-context';
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { authService } from '../api/auth-service';
@@ -222,7 +223,7 @@ export function EmailVerificationModal({
                   disabled={resendCooldown > 0 || isResending}
                   className='text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold disabled:cursor-not-allowed disabled:opacity-60 ml-2 inline-flex items-center gap-1 transition-colors cursor-pointer'
                 >
-                  {isResending && <RotateCw className='w-3 h-3 animate-spin' />}
+                  {isResending && <Spinner className='w-3 h-3' />}
                   <span>
                     {resendCooldown > 0 ? `Gửi lại sau (${resendCooldown}s)` : 'Gửi lại email'}
                   </span>

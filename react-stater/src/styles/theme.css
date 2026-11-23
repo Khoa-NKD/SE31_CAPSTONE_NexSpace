@@ -19,7 +19,8 @@ body {
   --stitch-status-critical: #ef4444;
 }
 
-/* Set tokens on the root so dashboard dialogs and menus inherit them through portals. */
+/* Canonical NexSpace Design Tokens for all pages (both customer & organizer) */
+[data-theme],
 [data-theme][data-organizer-theme] {
   --background: var(--stitch-canvas);
   --foreground: #0f172a;
@@ -48,10 +49,14 @@ body {
   --sidebar-ring: var(--ring);
 }
 
+[data-theme].dark,
 [data-theme][data-organizer-theme].dark {
   --background: var(--stitch-sidebar);
   --foreground: #f1f5f9;
   --card: #111827;
+  --card-foreground: #f1f5f9;
+  --popover: #111827;
+  --popover-foreground: #f1f5f9;
   --primary: #a5b4fc;
   --primary-foreground: #1e1b4b;
   --secondary: #202c48;
@@ -62,6 +67,7 @@ body {
   --accent-foreground: #e0e7ff;
   --border: #263349;
   --input: #42516b;
+  --ring: #4f46e5;
   --sidebar: #0e1523;
   --sidebar-foreground: #cbd5e1;
 }
@@ -76,16 +82,21 @@ body {
   background-size: 100% 28rem;
 }
 
-/* Apply theme fonts to body for all themes */
-/* This ensures theme-specific fonts override Next.js font variables */
-/* Font variables are defined on [data-theme] (html element) */
-/* We need to override Next.js font variables on body to use html's values */
-/* Using initial removes the property, allowing parent (html) values to cascade */
+/* Inherit the root font tokens so route changes and portals keep the same font. */
 [data-theme] body {
-  /* Remove Next.js font variables to allow theme variables from html to cascade */
-  --font-sans: initial;
-  --font-mono: initial;
-  --font-serif: initial;
-  /* Apply font-family - will now resolve from html's [data-theme] variables */
-  font-family: var(--font-sans);
+  font-family: var(--font-app);
+}
+
+/* Map libraries ship their own font rules outside Tailwind's layers. */
+:root
+  :is(
+    .mapboxgl-map,
+    .mapboxgl-popup,
+    .maplibregl-map,
+    .maplibregl-popup,
+    .leaflet-container,
+    .leaflet-popup-content,
+    .leaflet-tooltip
+  ) {
+  font-family: var(--font-app);
 }

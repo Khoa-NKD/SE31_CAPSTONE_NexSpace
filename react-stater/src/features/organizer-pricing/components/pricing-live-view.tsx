@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Pencil, Download, Tags, Layers, Armchair, Coins, ReceiptText } from 'lucide-react';
+import { Pencil, Download, Tags, Layers, Armchair, Coins, ReceiptText } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';

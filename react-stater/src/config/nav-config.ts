@@ -26,11 +26,11 @@ export const navGroups: NavGroup[] = [
       {
         title: 'Organizer Applications',
         url: '/dashboard/admin/organizers/queue',
-        icon: 'badgeCheck',
+        icon: 'applications',
         isActive: false
       },
       {
-        title: 'Quản lý đối tác',
+        title: 'Organizer Partners',
         url: '/dashboard/admin/organizer-partners',
         icon: 'building',
         isActive: false
@@ -54,54 +54,54 @@ export const navGroups: NavGroup[] = [
           {
             title: 'Amenities Catalog',
             url: '/dashboard/admin/amenities',
-            icon: 'adjustments'
+            icon: 'amenities'
           }
         ]
       },
       {
         title: 'Users List',
         url: '/dashboard/admin/users',
-        icon: 'user',
+        icon: 'teams',
         shortcut: ['u', 'u'],
         isActive: false
       },
       {
         title: 'Bookings Ledger',
         url: '/dashboard/admin/bookings',
-        icon: 'calendar',
+        icon: 'bookings',
         isActive: false,
         label: '12 Active'
       },
       {
         title: 'Reconciliation',
         url: '/dashboard/admin/reconciliation',
-        icon: 'billing',
+        icon: 'reconciliation',
         isActive: false,
         label: 'Reconciled'
       },
       {
         title: 'Refunds & Claims',
         url: '/dashboard/admin/refunds',
-        icon: 'creditCard',
+        icon: 'refunds',
         isActive: false,
         label: '3'
       },
       {
         title: 'Payouts & Ledger',
         url: '/dashboard/admin/payouts',
-        icon: 'billing',
+        icon: 'payouts',
         isActive: false
       },
       {
         title: 'Commission & Fees',
         url: '/dashboard/admin/commissions',
-        icon: 'adjustments',
+        icon: 'commission',
         isActive: false,
         items: [
           {
             title: 'Fee Structure Overview',
             url: '/dashboard/admin/commissions',
-            icon: 'billing'
+            icon: 'commission'
           },
           {
             title: 'Rules Configuration',
@@ -125,14 +125,14 @@ export const navGroups: NavGroup[] = [
       {
         title: 'Dispute Cases',
         url: '/dashboard/admin/disputes',
-        icon: 'badgeCheck',
+        icon: 'disputes',
         isActive: false,
         label: '5'
       },
       {
         title: 'Audit Logs',
         url: '#audit-logs',
-        icon: 'page',
+        icon: 'audit',
         disabled: true,
         label: 'Planned'
       },
@@ -244,7 +244,7 @@ export const organizerNavGroups: NavGroup[] = [
       {
         title: 'Amenities',
         url: '/dashboard/organizer/amenities',
-        icon: 'sparkles',
+        icon: 'amenities',
         isActive: false
       },
       {
@@ -254,7 +254,7 @@ export const organizerNavGroups: NavGroup[] = [
         isActive: false
       },
       {
-        title: 'Blockout Hours',
+        title: 'Maintenance schedule',
         url: '/dashboard/organizer/blockout',
         icon: 'blockout',
         isActive: false
@@ -266,13 +266,6 @@ export const organizerNavGroups: NavGroup[] = [
         shortcut: ['b', 'b'],
         isActive: false,
         label: '8 Active'
-      },
-      {
-        title: 'Messages',
-        url: '/dashboard/organizer/messages',
-        icon: 'chat',
-        shortcut: ['m', 'm'],
-        isActive: false
       },
       {
         title: 'Schedule (Gantt)',
@@ -291,7 +284,7 @@ export const organizerNavGroups: NavGroup[] = [
       {
         title: 'Payouts & Balance',
         url: '/dashboard/organizer/payouts',
-        icon: 'billing',
+        icon: 'payouts',
         isActive: false
       }
     ]

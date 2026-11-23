@@ -118,10 +118,10 @@ export function AnalyticsMacroCharts({
               <line stroke='currentColor' className='text-border' strokeWidth='1' x1='0' x2='540' y1='180' y2='180' />
 
               {/* Left Axis Labels */}
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='0' y='26'>$150k</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='0' y='76'>$100k</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='0' y='126'>$50k</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='0' y='176'>$0</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='0' y='26'>$150k</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='0' y='76'>$100k</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='0' y='126'>$50k</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='0' y='176'>$0</text>
 
               {/* GMV Area & Line */}
               <path
@@ -152,12 +152,12 @@ export function AnalyticsMacroCharts({
               <circle cx='530' cy='129' fill='#10B981' r='4.5' stroke='#FFFFFF' strokeWidth='2' />
 
               {/* Dynamic Timestamps */}
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='40' y='200'>{months[0]}</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='135' y='200'>{months[1]}</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='235' y='200'>{months[2]}</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='335' y='200'>{months[3]}</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='10' textAnchor='middle' x='435' y='200'>{months[4]}</text>
-              <text fill='currentColor' className='text-foreground font-bold' fontFamily='Inter' fontSize='10' textAnchor='middle' x='530' y='200'>{months[5]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='10' textAnchor='middle' x='40' y='200'>{months[0]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='10' textAnchor='middle' x='135' y='200'>{months[1]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='10' textAnchor='middle' x='235' y='200'>{months[2]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='10' textAnchor='middle' x='335' y='200'>{months[3]}</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='10' textAnchor='middle' x='435' y='200'>{months[4]}</text>
+              <text fill='currentColor' className='text-foreground font-bold' fontFamily='inherit' fontSize='10' textAnchor='middle' x='530' y='200'>{months[5]}</text>
             </svg>
           </div>
         </div>
@@ -219,10 +219,10 @@ export function AnalyticsMacroCharts({
               <line stroke='currentColor' className='text-border' strokeWidth='1' x1='40' x2='540' y1='180' y2='180' />
 
               {/* Left Axis Labels */}
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='10' y='34'>800 bk</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='10' y='84'>500 bk</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='10' y='134'>250 bk</text>
-              <text fill='currentColor' className='text-muted-foreground' fontFamily='Inter' fontSize='9' x='10' y='180'>0</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='10' y='34'>800 bk</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='10' y='84'>500 bk</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='10' y='134'>250 bk</text>
+              <text fill='currentColor' className='text-muted-foreground' fontFamily='inherit' fontSize='9' x='10' y='180'>0</text>
 
               {/* Grouped Bars: Wk 48 - Wk 01 */}
               {[
@@ -240,7 +240,7 @@ export function AnalyticsMacroCharts({
                   <text
                     fill='currentColor'
                     className={grp.isLatest ? 'text-foreground font-bold' : 'text-muted-foreground'}
-                    fontFamily='Inter'
+                    fontFamily='inherit'
                     fontSize='10'
                     textAnchor='middle'
                     x='26'

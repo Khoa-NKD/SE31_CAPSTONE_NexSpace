@@ -1,16 +1,9 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useOrganizerTranslation } from '@/features/organizer-application/hooks/use-organizer-translation';
 import { useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy, PDFDocumentLoadingTask, RenderTask } from 'pdfjs-dist';
 import { Button } from '@/components/ui/button';
-import {
-  ChevronLeft,
-  ChevronRight,
-  ZoomIn,
-  ZoomOut,
-  RotateCw,
-  RotateCcw,
-  LoaderCircle
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut, RotateCw, RotateCcw } from '@/components/ui/hugeicons';
 
 /** Canvas-only PDF rendering: no document scripts, external links or annotation actions execute. */
 export function PdfDocumentViewer({ url }: { url: string }) {
@@ -104,7 +97,7 @@ export function PdfDocumentViewer({ url }: { url: string }) {
           role='status'
           className='pointer-events-none absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-2 rounded-md border bg-background/95 px-4 py-2 text-xs shadow-sm'
         >
-          <LoaderCircle className='size-3.5 animate-spin text-primary' aria-hidden='true' />
+          <LoaderCircle className='size-3.5 text-primary' aria-hidden='true' />
           {tr('Rendering PDF…')}
         </p>
       )}

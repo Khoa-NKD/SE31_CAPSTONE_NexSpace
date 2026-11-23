@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
 import { formatDate } from '@/lib/format';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
@@ -12,16 +13,15 @@ import {
   ShieldCheck,
   ChevronDown,
   Users,
-  Armchair,
+  Chair,
   Building,
   Sparkles,
   MousePointerClick,
-  Loader2,
   Map as MapIcon,
   LayoutList,
   Eye,
   ShieldAlert
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { Button } from '@/components/ui/button';
@@ -116,21 +116,23 @@ export function SeatsPage({
   const { data: holdData } = useCurrentPendingBooking();
   const isHoldBlocked = Boolean(
     holdData?.isBookingSuspended ||
-      (holdData?.remainingHoldAttempts !== undefined && holdData.remainingHoldAttempts <= 0)
+    (holdData?.remainingHoldAttempts !== undefined && holdData.remainingHoldAttempts <= 0)
   );
 
   const defaults = useMemo(() => getDefaultSchedule(), []);
 
-  const [viewMode, setViewMode] = useState<'map' | 'list'>(
-    initialView === 'list' ? 'list' : 'map'
-  );
+  const [viewMode, setViewMode] = useState<'map' | 'list'>(initialView === 'list' ? 'list' : 'map');
   const initialDuration = useMemo(() => {
     return computeDurationHours(startTime, endTime, 4);
   }, [startTime, endTime]);
 
-  const [currentStartTime, setCurrentStartTime] = useState<string>(startTime || defaults.isoStartTime);
+  const [currentStartTime, setCurrentStartTime] = useState<string>(
+    startTime || defaults.isoStartTime
+  );
   const [currentEndTime, setCurrentEndTime] = useState<string>(endTime || defaults.isoEndTime);
-  const [currentDateLabel, setCurrentDateLabel] = useState<string>(formatDateLabel(date) || defaults.date);
+  const [currentDateLabel, setCurrentDateLabel] = useState<string>(
+    formatDateLabel(date) || defaults.date
+  );
   const [durationHours, setDurationHours] = useState<number>(initialDuration);
 
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>(initialFloorId);
@@ -157,11 +159,14 @@ export function SeatsPage({
   }, [currentStartTime, currentEndTime]);
 
   // 1. Fetch Workspace Details
-  const { data: workspace } = usePublicWorkspaceDetailQuery(workspaceId ? String(workspaceId) : null);
+  const { data: workspace } = usePublicWorkspaceDetailQuery(
+    workspaceId ? String(workspaceId) : null
+  );
 
   // 1.5. Fetch Floor Maps directly so both Map and List views always have full floor and resource data
   const { data: apiFloors = [] } = useQuery<CustomerFloor[]>({
     queryKey: ['public-floor-maps', workspaceId],
+    refetchInterval: 3000,
     enabled: Number.isSafeInteger(workspaceId) && Number(workspaceId) > 0,
     queryFn: ({ signal }) =>
       backendRequest<CustomerFloor[]>(
@@ -184,7 +189,7 @@ export function SeatsPage({
     if (initialFloorId) {
       setActiveFloorId(initialFloorId);
     } else if (apiFloors.length > 0 && !activeFloorId) {
-      setActiveFloorId(apiFloors[0].id);
+      setActiveFloorId((apiFloors.find((floor) => floor.resources.length > 0) ?? apiFloors[0]).id);
     }
   }, [initialFloorId, apiFloors, activeFloorId]);
 
@@ -238,7 +243,8 @@ export function SeatsPage({
       const avail = availabilityMap.get(res.id);
       const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
       const isMaintenance = avail?.state === 'MAINTENANCE';
-      const isAvailable = (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
+      const isAvailable =
+        (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
 
       if (isAvailable) {
         allAvailable++;
@@ -306,7 +312,10 @@ export function SeatsPage({
         (currentPendingBooking?.resourceId && Number(currentPendingBooking.resourceId) === Number(selectedResource.id))
       );
       if (
-        (avail?.state === 'BOOKED' || avail?.state === 'LOCKED' || avail?.state === 'MAINTENANCE') &&
+        (avail?.state === 'BOOKED' ||
+          avail?.state === 'LOCKED' ||
+          avail?.state === 'MAINTENANCE' ||
+          avail?.state === 'DISABLED') &&
         !isOccupiedByMe &&
         lastUnavailableIdRef.current !== selectedResource.id
       ) {
@@ -337,7 +346,9 @@ export function SeatsPage({
       Boolean(currentPendingBooking.bookingId) &&
       currentPendingBooking.resourceId === res.id &&
       (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
-      (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
+      (currentPendingBooking.remainingSeconds
+        ? Number(currentPendingBooking.remainingSeconds) > 0
+        : true);
 
     navigate({
       to: '/workspaces/seat-detail',
@@ -379,7 +390,9 @@ export function SeatsPage({
       Boolean(currentPendingBooking.bookingId) &&
       currentPendingBooking.resourceId === res.id &&
       (!currentPendingBooking.workspaceId || currentPendingBooking.workspaceId === workspaceId) &&
-      (currentPendingBooking.remainingSeconds ? Number(currentPendingBooking.remainingSeconds) > 0 : true);
+      (currentPendingBooking.remainingSeconds
+        ? Number(currentPendingBooking.remainingSeconds) > 0
+        : true);
 
     if (hasActiveHold && currentPendingBooking?.bookingId) {
       navigate({
@@ -403,9 +416,15 @@ export function SeatsPage({
       currentAvail?.isOccupiedByMe ||
       (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
     );
-    const isLockedByOthers = (currentAvail?.state === 'LOCKED' || currentAvail?.state === 'HOLDING') && !isHeldByMe;
+    const isLockedByOthers =
+      (currentAvail?.state === 'LOCKED' || currentAvail?.state === 'HOLDING') && !isHeldByMe;
 
-    if (currentAvail?.state === 'BOOKED' || isLockedByOthers || currentAvail?.state === 'MAINTENANCE') {
+    if (
+      currentAvail?.state === 'BOOKED' ||
+      isLockedByOthers ||
+      currentAvail?.state === 'MAINTENANCE' ||
+      currentAvail?.state === 'DISABLED'
+    ) {
       toast.error(
         c(
           'This seat is currently held or booked by someone else. Please select another seat.',
@@ -416,7 +435,12 @@ export function SeatsPage({
     }
 
     if (!isAuthenticated) {
-      toast.info(c('Please sign in to hold this seat and proceed', 'Vui lòng đăng nhập để giữ chỗ và tiếp tục'));
+      toast.info(
+        c(
+          'Please sign in to hold this seat and proceed',
+          'Vui lòng đăng nhập để giữ chỗ và tiếp tục'
+        )
+      );
       const redirectUrl = `/workspaces/seats?workspaceId=${workspaceId}&date=${encodeURIComponent(currentDateLabel)}&startTime=${encodeURIComponent(currentStartTime)}&endTime=${encodeURIComponent(currentEndTime)}${activeFloorId ? `&floorId=${activeFloorId}` : ''}&resourceId=${res.id}`;
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('nexspace_auth_redirect', redirectUrl);
@@ -455,7 +479,7 @@ export function SeatsPage({
         startTime: currentStartTime,
         endTime: currentEndTime,
         priceType: 'HOURLY',
-        partySize: res.capacity || 1
+        partySize: currentAvail?.capacity ?? res.capacity ?? 1
       });
 
       toast.success(
@@ -496,7 +520,11 @@ export function SeatsPage({
 
   // Specific unit rate of selected resource (with fallback to workspace base rate)
   const resourceHourlyRate = useMemo(() => {
-    if (selectedResource && typeof selectedResource.pricePerHour === 'number' && selectedResource.pricePerHour > 0) {
+    if (
+      selectedResource &&
+      typeof selectedResource.pricePerHour === 'number' &&
+      selectedResource.pricePerHour > 0
+    ) {
       return selectedResource.pricePerHour;
     }
     return workspace?.pricePerHour ?? 2.5;
@@ -504,11 +532,26 @@ export function SeatsPage({
 
   const estimatedCost = resourceHourlyRate * durationHours;
 
-  const filterTabs: { id: SpaceFilterType; label: string; icon: typeof Armchair; count: number }[] = [
+  const filterTabs: { id: SpaceFilterType; label: string; icon: typeof Chair; count: number }[] = [
     { id: 'ALL', label: c('All Spaces', 'Tất cả'), icon: Sparkles, count: categoryCounts.all },
-    { id: 'DESK', label: c('Desks', 'Bàn làm việc'), icon: Armchair, count: categoryCounts.desks },
-    { id: 'MEETING_ROOM', label: c('Meeting Rooms', 'Phòng họp'), icon: Users, count: categoryCounts.meetingRooms },
-    { id: 'PRIVATE_OFFICE', label: c('Private Offices', 'Văn phòng riêng'), icon: Building, count: categoryCounts.privateOffices }
+    {
+      id: 'DESK',
+      label: c('Desks', 'Bàn làm việc'),
+      icon: Chair,
+      count: categoryCounts.desks
+    },
+    {
+      id: 'MEETING_ROOM',
+      label: c('Meeting Rooms', 'Phòng họp'),
+      icon: Users,
+      count: categoryCounts.meetingRooms
+    },
+    {
+      id: 'PRIVATE_OFFICE',
+      label: c('Private Offices', 'Văn phòng riêng'),
+      icon: Building,
+      count: categoryCounts.privateOffices
+    }
   ];
 
   return (
@@ -537,7 +580,10 @@ export function SeatsPage({
                   <span>{c('Select Seat / Space', 'Chọn chỗ ngồi / Phòng')}</span>
                 </nav>
                 <h1 className='text-2xl font-bold tracking-tight text-foreground sm:text-3xl'>
-                  {c('Select Available Seat, Meeting Room or Office', 'Chọn Chỗ Ngồi, Phòng Họp Hoặc Văn Phòng Riêng')}
+                  {c(
+                    'Select Available Seat, Meeting Room or Office',
+                    'Chọn Chỗ Ngồi, Phòng Họp Hoặc Văn Phòng Riêng'
+                  )}
                 </h1>
                 <p className='mt-1 text-xs text-muted-foreground sm:text-sm'>
                   {c(
@@ -583,15 +629,22 @@ export function SeatsPage({
                 <ShieldAlert className='size-5 shrink-0 text-destructive' />
                 <div className='flex-1'>
                   <p className='font-bold text-sm'>
-                    {c('Booking privileges temporarily suspended', 'Tài khoản đang bị tạm khóa quyền giữ chỗ và đặt phòng/ghế')}
+                    {c(
+                      'Booking privileges temporarily suspended',
+                      'Tài khoản đang bị tạm khóa quyền giữ chỗ và đặt phòng/ghế'
+                    )}
                   </p>
                   <p className='text-xs text-destructive/90 mt-0.5'>
                     {c(
                       `You have reached the maximum of 3 hold attempts without payment. You cannot hold or book any desks or rooms${
-                        holdData?.bookingSuspendedUntil ? ` until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')}` : ' for the next 20 minutes'
+                        holdData?.bookingSuspendedUntil
+                          ? ` until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')}`
+                          : ' for the next 20 minutes'
                       }.`,
                       `Bạn đã dùng hết 3 lần giữ chỗ mà không thanh toán. Hệ thống tạm khóa quyền giữ chỗ và đặt phòng/bàn mới${
-                        holdData?.bookingSuspendedUntil ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''
+                        holdData?.bookingSuspendedUntil
+                          ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})`
+                          : ''
                       }. Vui lòng hoàn tất thanh toán hoặc thử lại sau khi hết thời gian khóa/24h.`
                     )}
                   </p>
@@ -660,26 +713,6 @@ export function SeatsPage({
                     <LayoutList className='size-3.5' />
                     <span>{c('List View', 'Xem theo List')}</span>
                   </button>
-                </div>
-
-                {/* Status Legend */}
-                <div className='hidden xl:flex flex-wrap items-center gap-3 text-xs bg-muted/40 border border-border/80 rounded-xl px-3 py-1.5'>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='size-2.5 rounded-full bg-emerald-500 ring-2 ring-emerald-500/20' />
-                    <span className='text-foreground font-medium'>{c('Available', 'Còn trống')}</span>
-                  </div>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='size-2.5 rounded-full bg-amber-500 ring-2 ring-amber-500/20' />
-                    <span className='text-amber-700 dark:text-amber-400 font-medium'>{c('Holding', 'Đang giữ chỗ')}</span>
-                  </div>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='size-2.5 rounded-full bg-rose-500 ring-2 ring-rose-500/20' />
-                    <span className='text-rose-700 dark:text-rose-400 font-medium'>{c('Booked', 'Đã có người đặt')}</span>
-                  </div>
-                  <div className='flex items-center gap-1.5'>
-                    <span className='size-2.5 rounded-full bg-muted-foreground/40' />
-                    <span className='text-muted-foreground'>{c('Maintenance', 'Bảo trì')}</span>
-                  </div>
                 </div>
               </div>
             </div>
@@ -751,7 +784,7 @@ export function SeatsPage({
                           <Users className='size-6' />
                         )
                       ) : (
-                        <Armchair className='size-6' />
+                        <Chair className='size-6' />
                       )}
                     </div>
                     <div>
@@ -777,7 +810,9 @@ export function SeatsPage({
                         <div className='flex items-center gap-1'>
                           <Users className='size-3.5 text-primary' />
                           <span>
-                            {selectedResource.capacity || (selectedResource.category === 'ROOM' ? 6 : 1)}{' '}
+                            {availabilityMap.get(selectedResource.id)?.capacity ??
+                              selectedResource.capacity ??
+                              1}{' '}
                             {c('seats capacity', 'chỗ ngồi')}
                           </span>
                         </div>
@@ -788,7 +823,9 @@ export function SeatsPage({
                         {selectedResource.zoneName && (
                           <>
                             <span>•</span>
-                            <span className='text-primary font-medium'>{selectedResource.zoneName}</span>
+                            <span className='text-primary font-medium'>
+                              {selectedResource.zoneName}
+                            </span>
                           </>
                         )}
                       </div>
@@ -823,12 +860,14 @@ export function SeatsPage({
                         onClick={() => handleProceedToReview()}
                         disabled={createBookingMutation.isPending || isHoldBlocked}
                         className={`h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm shadow-md active:scale-95 transition-all flex items-center gap-2 cursor-pointer ${
-                          isHoldBlocked ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed' : ''
+                          isHoldBlocked
+                            ? 'opacity-60 bg-muted-foreground/30 cursor-not-allowed'
+                            : ''
                         }`}
                       >
                         {createBookingMutation.isPending ? (
                           <>
-                            <Loader2 className='size-4 animate-spin' />
+                            <Loader2 className='size-4' />
                             <span>{c('Holding Seat...', 'Đang giữ chỗ...')}</span>
                           </>
                         ) : isHoldBlocked ? (

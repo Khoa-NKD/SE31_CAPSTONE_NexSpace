@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar, Building2 } from 'lucide-react';
+import { Search, Calendar, Building2 } from '@/components/ui/hugeicons';
 import { RefundStatus } from '../data/mock-refunds';
 
 interface RefundsFilterBarProps {

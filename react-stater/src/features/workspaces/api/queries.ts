@@ -220,6 +220,7 @@ export const workspaceAssetsQueryOptions = (
   params?: WorkspaceAssetFilterParams
 ) =>
   queryOptions({
+    refetchInterval: 3000,
     queryKey: workspaceId ? workspaceQueryKeys.assets(workspaceId, params) : [...workspaceQueryKeys.all, 'assets', 'none'],
     queryFn: () => (workspaceId ? workspaceService.getWorkspaceAssets(workspaceId, params) : { listObjects: [], pageNumber: 1, pageSize: 20, totalRecords: 0, totalPages: 0, hasNext: false, hasPrevious: false }),
     enabled: Boolean(workspaceId)
@@ -243,6 +244,7 @@ export const workspaceAssetDetailQueryOptions = (
   assetId: number | string | null | undefined
 ) =>
   queryOptions({
+    refetchInterval: 3000,
     queryKey:
       workspaceId && assetId
         ? workspaceQueryKeys.assetDetail(workspaceId, assetId)

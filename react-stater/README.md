@@ -1,3 +1,5 @@
+For NexSpace installation, included effects, and reproducible dependencies, see [SETUP.md](./SETUP.md).
+
 <h1 align="center">Admin Dashboard with TanStack Start & Shadcn UI</h1>
 
 <div align="center">Open source admin dashboard starter built with TanStack Start, shadcn/ui, Tailwind CSS, TypeScript</div>

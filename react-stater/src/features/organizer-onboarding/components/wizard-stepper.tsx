@@ -1,7 +1,7 @@
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React from 'react';
 import { Link } from '@tanstack/react-router';
-import { Check } from 'lucide-react';
+import { Check } from '@/components/ui/hugeicons';
 
 export interface WizardStepperProps {
   currentStep: 1 | 2 | 3 | 4 | 5 | 6;

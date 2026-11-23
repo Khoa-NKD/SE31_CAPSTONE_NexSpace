@@ -1,4 +1,4 @@
-import { ArrowUpRight, CalendarCheck, Clock3, Info, Receipt, Users, Wallet } from 'lucide-react';
+import { ArrowUpRight, CalendarCheck, Clock3, Info, Receipt, Users, Wallet } from '@/components/ui/hugeicons';
 import type { AnalyticsSummary, OrganizerEarnings } from '../api';
 import { change, money } from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';

@@ -1,17 +1,20 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useMemo } from 'react';
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, ArrowLeft, RefreshCw, AlertCircle } from 'lucide-react';
+import { FileDown, ArrowLeft, RefreshCw, AlertCircle } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import {
   WorkspaceDirectoryItem,
   WorkspaceStatus,
   mapCanonicalToDirectoryItem
 } from '@/features/admin-workspaces/data/mock-workspaces-directory';
-import { WorkspaceDirectoryFilters } from '@/features/admin-workspaces/components/workspace-directory-filters';
+import {
+  WorkspaceDirectoryFilters
+} from '@/features/admin-workspaces/components/workspace-directory-filters';
 import { WorkspaceDirectoryTable } from '@/features/admin-workspaces/components/workspace-directory-table';
 import { WorkspaceDetailsDrawer } from '@/features/admin-workspaces/components/workspace-details-drawer';
 import {
@@ -302,7 +305,7 @@ function WorkspaceDirectoryPage() {
               onClick={() => refetch()}
               className='gap-2 shadow-2xs'
             >
-              <RefreshCw className={`size-3.5 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} aria-hidden='true' />
+              {isFetching ? <Spinner className={`size-3.5 text-muted-foreground `} aria-hidden='true' /> : <RefreshCw className={`size-3.5 text-muted-foreground `} aria-hidden='true' />}
               <span>Refresh</span>
             </Button>
 
@@ -333,7 +336,7 @@ function WorkspaceDirectoryPage() {
         {/* Loading and Error States */}
         {isLoading && (
           <div className='p-12 text-center bg-card rounded-xl border border-border shadow-2xs flex flex-col items-center justify-center gap-3'>
-            <RefreshCw className='size-6 text-primary animate-spin' aria-hidden='true' />
+            <Spinner className='size-6 text-primary' aria-hidden='true' />
             <p className='text-xs text-muted-foreground'>Loading platform workspaces from centralized REST API...</p>
           </div>
         )}

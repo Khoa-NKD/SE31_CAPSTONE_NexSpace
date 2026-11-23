@@ -11,16 +11,23 @@ import {
   HelpCircle,
   CalendarCheck,
   ShieldCheck
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerPayoutSetting } from '../api/types';
 import { RequestAutoPayoutDialog } from './request-auto-payout-dialog';
 import { RequestCancelAutoDialog } from './request-cancel-auto-dialog';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface AutoPayoutSettingsCardProps {
   settings: OrganizerPayoutSetting;
 }
 
+const formatHour = (h?: number | null) => {
+  if (h === undefined || h === null) return '09:00';
+  return `${h < 10 ? `0${h}` : h}:00`;
+};
+
 export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ settings }) => {
+  const { language } = useLanguage();
   const [requestAutoOpen, setRequestAutoOpen] = useState(false);
   const [requestCancelOpen, setRequestCancelOpen] = useState(false);
 
@@ -28,11 +35,6 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
   const isPendingEnable = settings.approvalStatus === 'PENDING_ENABLE';
   const isPendingDisable = settings.approvalStatus === 'PENDING_DISABLE';
   const isRejected = settings.approvalStatus === 'REJECTED';
-
-  const formatHour = (h?: number | null) => {
-    if (h === undefined || h === null) return '09:00';
-    return `${h < 10 ? `0${h}` : h}:00`;
-  };
 
   return (
     <>
@@ -42,20 +44,24 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
             <div>
               <div className="flex items-center gap-2">
                 <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                  Chế độ Chi trả & Rút tiền
+                  {language === 'vi' ? 'Chế độ Chi trả & Rút tiền' : 'Payout & Withdrawal Mode'}
                 </CardTitle>
                 {isAutoDaily ? (
                   <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 gap-1 text-[11px] font-semibold">
-                    <Sparkles className="h-3 w-3" /> Tự động hàng ngày (Auto Daily)
+                    <Sparkles className="h-3 w-3" />{' '}
+                    {language === 'vi' ? 'Tự động hàng ngày (Auto Daily)' : 'Auto Daily'}
                   </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 gap-1 text-[11px] font-semibold">
-                    <ShieldCheck className="h-3 w-3 text-slate-500" /> Rút tiền thủ công (Manual)
+                    <ShieldCheck className="h-3 w-3 text-slate-500" />{' '}
+                    {language === 'vi' ? 'Rút tiền thủ công (Manual)' : 'Manual Withdrawal'}
                   </Badge>
                 )}
               </div>
               <CardDescription className="text-xs text-slate-500 mt-1">
-                Quản lý cách thức giải ngân doanh thu từ ví NexSpace về tài khoản ngân hàng của bạn.
+                {language === 'vi'
+                  ? 'Quản lý cách thức giải ngân doanh thu từ ví NexSpace về tài khoản ngân hàng của bạn.'
+                  : 'Manage how revenue is disbursed from your NexSpace balance to your bank account.'}
               </CardDescription>
             </div>
 
@@ -65,23 +71,32 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                 <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
                   <Clock className="h-3.5 w-3.5" />
                   {isAutoDaily
-                    ? `Chờ Admin duyệt đổi sang ${formatHour(settings.pendingAutoPayoutHour)}`
-                    : `Chờ Admin duyệt kích hoạt (${formatHour(settings.pendingAutoPayoutHour)})`}
+                    ? (language === 'vi'
+                        ? `Chờ Admin duyệt đổi sang ${formatHour(settings.pendingAutoPayoutHour)}`
+                        : `Pending Admin approval to switch to ${formatHour(settings.pendingAutoPayoutHour)}`)
+                    : (language === 'vi'
+                        ? `Chờ Admin duyệt kích hoạt (${formatHour(settings.pendingAutoPayoutHour)})`
+                        : `Pending Admin approval (${formatHour(settings.pendingAutoPayoutHour)})`)}
                 </Badge>
               )}
               {isPendingDisable && (
                 <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
-                  <Clock className="h-3.5 w-3.5" /> Chờ Admin duyệt hủy Auto
+                  <Clock className="h-3.5 w-3.5" />{' '}
+                  {language === 'vi' ? 'Chờ Admin duyệt hủy Auto' : 'Pending cancellation approval'}
                 </Badge>
               )}
               {isAutoDaily && !isPendingDisable && !isPendingEnable && (
                 <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 gap-1 text-xs py-1 px-2.5 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" /> Đang hoạt động ({formatHour(settings.autoPayoutHour)} hàng ngày)
+                  <CheckCircle2 className="h-3.5 w-3.5" />{' '}
+                  {language === 'vi'
+                    ? `Đang hoạt động (${formatHour(settings.autoPayoutHour)} hàng ngày)`
+                    : `Active (${formatHour(settings.autoPayoutHour)} daily)`}
                 </Badge>
               )}
               {isRejected && (
                 <Badge className="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-800 gap-1 text-xs py-1 px-2.5 font-medium">
-                  <XCircle className="h-3.5 w-3.5" /> Yêu cầu gần nhất bị từ chối
+                  <XCircle className="h-3.5 w-3.5" />{' '}
+                  {language === 'vi' ? 'Yêu cầu gần nhất bị từ chối' : 'Latest request rejected'}
                 </Badge>
               )}
             </div>
@@ -101,15 +116,17 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    Rút tiền thủ công (Mặc định)
+                    {language === 'vi' ? 'Rút tiền thủ công (Mặc định)' : 'Manual Withdrawal (Default)'}
                     {!isAutoDaily && (
                       <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 px-1.5 py-0.5 rounded font-bold">
-                        Đang chọn
+                        {language === 'vi' ? 'Đang chọn' : 'Selected'}
                       </span>
                     )}
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Chủ động ấn nút rút tiền bất kỳ khi nào bạn có số dư khả dụng từ 1.000 đ. Thích hợp nếu bạn muốn kiểm soát chính xác dòng tiền.
+                    {language === 'vi'
+                      ? 'Chủ động ấn nút rút tiền bất kỳ khi nào bạn có số dư khả dụng từ 1.000 đ. Thích hợp nếu bạn muốn kiểm soát chính xác dòng tiền.'
+                      : 'Manually withdraw whenever you have available funds. Best for exact cash flow management.'}
                   </p>
                 </div>
               </div>
@@ -126,19 +143,31 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
               <div className="flex items-start justify-between">
                 <div>
                   <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    Tự động hàng ngày (Auto Payout)
+                    {language === 'vi' ? 'Tự động hàng ngày (Auto Payout)' : 'Daily Auto Payout'}
                     {isAutoDaily && (
                       <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 px-1.5 py-0.5 rounded font-bold">
-                        Đang chọn
+                        {language === 'vi' ? 'Đang chọn' : 'Selected'}
                       </span>
                     )}
                   </h4>
                   <p className="text-xs text-slate-500 mt-1">
-                    Hệ thống tự động gom toàn bộ số dư khả dụng và chuyển khoản qua PayOS vào{' '}
-                    <strong className="text-indigo-600 dark:text-indigo-400">
-                      {formatHour(settings.autoPayoutHour)}
-                    </strong>{' '}
-                    hàng ngày mà không cần thao tác tay.
+                    {language === 'vi' ? (
+                      <>
+                        Hệ thống tự động gom toàn bộ số dư khả dụng và chuyển khoản qua PayOS vào{' '}
+                        <strong className="text-indigo-600 dark:text-indigo-400">
+                          {formatHour(settings.autoPayoutHour)}
+                        </strong>{' '}
+                        hàng ngày mà không cần thao tác tay.
+                      </>
+                    ) : (
+                      <>
+                        The system automatically transfers all available balance via PayOS at{' '}
+                        <strong className="text-indigo-600 dark:text-indigo-400">
+                          {formatHour(settings.autoPayoutHour)}
+                        </strong>{' '}
+                        daily without manual steps.
+                      </>
+                    )}
                   </p>
                 </div>
               </div>
@@ -150,7 +179,7 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
             <div className="p-3.5 rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/20 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2.5">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
               <div>
-                <strong>Lý do Admin từ chối yêu cầu Auto Payout:</strong> {settings.adminFeedback}
+                <strong>{language === 'vi' ? 'Lý do Admin từ chối yêu cầu Auto Payout:' : 'Admin Rejection Reason:'}</strong> {settings.adminFeedback}
               </div>
             </div>
           )}
@@ -159,7 +188,9 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
           <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
             <div className="text-xs text-slate-500 flex items-center gap-1.5">
               <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
-              Mọi thay đổi chế độ rút tiền đều cần gửi yêu cầu lên Admin để bảo đảm an toàn bảo mật.
+              {language === 'vi'
+                ? 'Mọi thay đổi chế độ rút tiền đều cần gửi yêu cầu lên Admin để bảo đảm an toàn bảo mật.'
+                : 'All payout mode changes require Admin review for security assurance.'}
             </div>
 
             <div className="flex items-center gap-2">
@@ -171,7 +202,9 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                   className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3 gap-1.5"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
-                  {isPendingEnable ? 'Yêu cầu đang chờ duyệt' : 'Đăng ký Auto Payout'}
+                  {isPendingEnable
+                    ? (language === 'vi' ? 'Yêu cầu đang chờ duyệt' : 'Request Pending')
+                    : (language === 'vi' ? 'Đăng ký Auto Payout' : 'Register Auto Payout')}
                 </Button>
               ) : (
                 <>
@@ -183,7 +216,9 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                     className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-950/30 text-xs h-8 px-3 gap-1.5"
                   >
                     <Clock className="h-3.5 w-3.5" />
-                    {isPendingEnable ? 'Đang chờ duyệt đổi giờ' : 'Đổi khung giờ Auto'}
+                    {isPendingEnable
+                      ? (language === 'vi' ? 'Đang chờ duyệt đổi giờ' : 'Pending Hour Change')
+                      : (language === 'vi' ? 'Đổi khung giờ Auto' : 'Change Auto Hour')}
                   </Button>
                   <Button
                     size="sm"
@@ -193,7 +228,9 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                     className="text-amber-700 hover:text-amber-800 border-amber-200 hover:bg-amber-50 dark:border-amber-900/50 dark:hover:bg-amber-950/30 text-xs h-8 px-3 gap-1.5"
                   >
                     <CalendarCheck className="h-3.5 w-3.5" />
-                    {isPendingDisable ? 'Yêu cầu hủy đang chờ duyệt' : 'Yêu cầu hủy Auto Payout'}
+                    {isPendingDisable
+                      ? (language === 'vi' ? 'Yêu cầu hủy đang chờ duyệt' : 'Cancellation Pending')
+                      : (language === 'vi' ? 'Yêu cầu hủy Auto Payout' : 'Cancel Auto Payout')}
                   </Button>
                 </>
               )}

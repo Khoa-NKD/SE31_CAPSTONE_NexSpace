@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Calendar, RefreshCw } from 'lucide-react';
+import { Search, Calendar, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { DisputeSeverity, DisputeStatus, DisputesSummaryKpis } from '../data/mock-disputes';
 

@@ -10,7 +10,7 @@ import {
   Lock,
   ZoomIn,
   Quote
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';

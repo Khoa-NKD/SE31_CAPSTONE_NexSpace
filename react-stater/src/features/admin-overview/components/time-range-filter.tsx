@@ -1,7 +1,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Download } from 'lucide-react';
+import { Calendar as CalendarIcon, Download } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface TimeRangeFilterProps {
   selectedRange: 'today' | '7d' | '30d';
@@ -9,12 +10,30 @@ interface TimeRangeFilterProps {
 }
 
 export function TimeRangeFilter({ selectedRange, onRangeChange }: TimeRangeFilterProps) {
+  const { language } = useLanguage();
+
   const handleExport = () => {
-    toast.success('Summary Report Exported (Simulated)', {
-      description: `Generated operational metrics digest for ${
-        selectedRange === 'today' ? 'Today' : selectedRange === '7d' ? 'Last 7 Days' : 'Last 30 Days'
-      }.`
-    });
+    toast.success(
+      language === 'vi' ? 'Đã xuất báo cáo tóm tắt (Mô phỏng)' : 'Summary Report Exported (Simulated)',
+      {
+        description:
+          language === 'vi'
+            ? `Đã tạo báo cáo tổng hợp chỉ số vận hành cho ${
+                selectedRange === 'today'
+                  ? 'Hôm nay'
+                  : selectedRange === '7d'
+                    ? '7 ngày qua'
+                    : '30 ngày qua'
+              }.`
+            : `Generated operational metrics digest for ${
+                selectedRange === 'today'
+                  ? 'Today'
+                  : selectedRange === '7d'
+                    ? 'Last 7 Days'
+                    : 'Last 30 Days'
+              }.`
+      }
+    );
   };
 
   return (
@@ -30,7 +49,7 @@ export function TimeRangeFilter({ selectedRange, onRangeChange }: TimeRangeFilte
               : 'text-muted-foreground hover:text-foreground font-medium'
           }`}
         >
-          Today
+          {language === 'vi' ? 'Hôm nay' : 'Today'}
         </button>
 
         <button
@@ -42,7 +61,7 @@ export function TimeRangeFilter({ selectedRange, onRangeChange }: TimeRangeFilte
               : 'text-muted-foreground hover:text-foreground font-medium'
           }`}
         >
-          Last 7 Days
+          {language === 'vi' ? '7 ngày qua' : 'Last 7 Days'}
         </button>
 
         <button
@@ -54,19 +73,25 @@ export function TimeRangeFilter({ selectedRange, onRangeChange }: TimeRangeFilte
               : 'text-muted-foreground hover:text-foreground font-medium'
           }`}
         >
-          Last 30 Days
+          {language === 'vi' ? '30 ngày qua' : 'Last 30 Days'}
         </button>
 
         <button
           type='button'
           onClick={() => {
-            toast.info('Custom Date Filter', {
-              description: 'Selectable date range picker is simulated in this batch.'
-            });
+            toast.info(
+              language === 'vi' ? 'Bộ lọc thời gian tùy chỉnh' : 'Custom Date Filter',
+              {
+                description:
+                  language === 'vi'
+                    ? 'Trình chọn khoảng ngày tùy chỉnh được mô phỏng trong bản này.'
+                    : 'Selectable date range picker is simulated in this batch.'
+              }
+            );
           }}
-          className='px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground rounded transition-colors flex items-center gap-1'
+          className='px-3 py-1 text-xs font-medium text-muted-foreground hover:text-foreground rounded transition-colors flex items-center gap-1 cursor-pointer'
         >
-          <span>Custom</span>
+          <span>{language === 'vi' ? 'Tùy chỉnh' : 'Custom'}</span>
           <CalendarIcon className='size-3.5' />
         </button>
       </div>
@@ -79,7 +104,7 @@ export function TimeRangeFilter({ selectedRange, onRangeChange }: TimeRangeFilte
         className='flex items-center gap-1.5 h-8 px-3 text-xs font-semibold shadow-2xs'
       >
         <Download className='size-3.5 text-muted-foreground' />
-        <span>Export Summary</span>
+        <span>{language === 'vi' ? 'Xuất báo cáo' : 'Export Summary'}</span>
       </Button>
     </div>
   );

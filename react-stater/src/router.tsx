@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import { createRouter as createTanStackRouter } from '@tanstack/react-router';
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query';
 import { getQueryClient } from '@/lib/query-client';
@@ -17,7 +18,7 @@ export function createRouter() {
     context: { queryClient },
     defaultPendingComponent: () => (
       <div className='flex min-h-[50dvh] flex-1 items-center justify-center'>
-        <div className='border-primary h-8 w-8 animate-spin rounded-full border-4 border-t-transparent' />
+        <Spinner className=' h-8 w-8 ' />
       </div>
     ),
     defaultNotFoundComponent: () => (

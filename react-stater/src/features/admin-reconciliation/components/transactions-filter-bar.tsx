@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, RotateCcw } from 'lucide-react';
+import { Search, RotateCcw } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { TransactionStatus, FinancialSummaryKpis } from '../data/mock-transactions';

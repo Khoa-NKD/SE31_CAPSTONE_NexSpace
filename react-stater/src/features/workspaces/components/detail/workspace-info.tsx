@@ -24,7 +24,7 @@ import {
   Layers,
   ArrowUpRight,
   Compass
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail, WorkspaceAmenityDto } from '../../api/types';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
@@ -443,8 +443,7 @@ export function WorkspaceInfo({
   const todayOperatingSummary = useMemo(() => {
     const hours = workspace?.operatingHours || [];
     if (hours.length === 0) return null;
-    const match =
-      hours.find((h) => normalizeToJsDay(h.dayOfWeek) === todayJsDay) || hours[0];
+    const match = hours.find((h) => normalizeToJsDay(h.dayOfWeek) === todayJsDay) || hours[0];
     return match;
   }, [workspace?.operatingHours, todayJsDay]);
 
@@ -476,9 +475,7 @@ export function WorkspaceInfo({
     workspace.rating > 0 &&
     (workspace?.reviewsCount ?? 0) > 0;
 
-  const visibleAmenities = showAllAmenities
-    ? normalizedAmenities
-    : normalizedAmenities.slice(0, 6);
+  const visibleAmenities = showAllAmenities ? normalizedAmenities : normalizedAmenities.slice(0, 6);
 
   const handlePreviewSpaceOnMap = (group: SpaceGroupSummary) => {
     onFilterCategoryChange?.(group.filterType);
@@ -705,8 +702,7 @@ export function WorkspaceInfo({
               {isHoursExpanded && (
                 <div className='mt-3 grid grid-cols-2 sm:grid-cols-4 md:grid-cols-7 gap-2'>
                   {workspace.operatingHours.map((hour, idx) => {
-                    const isToday =
-                      normalizeToJsDay(hour.dayOfWeek) === todayJsDay;
+                    const isToday = normalizeToJsDay(hour.dayOfWeek) === todayJsDay;
                     return (
                       <div
                         key={`${String(hour.dayOfWeek)}-${idx}`}
@@ -752,9 +748,7 @@ export function WorkspaceInfo({
               <div>
                 <h2 className='text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2'>
                   <Layers className='size-5 text-primary' />
-                  {language === 'vi'
-                    ? 'Các loại chỗ ngồi & phòng hiện có'
-                    : 'Available Spaces'}
+                  {language === 'vi' ? 'Các loại chỗ ngồi & phòng hiện có' : 'Available Spaces'}
                 </h2>
                 <p className='text-xs text-slate-500 dark:text-slate-400 mt-0.5'>
                   {language === 'vi'
@@ -884,9 +878,7 @@ export function WorkspaceInfo({
                         className='inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors cursor-pointer'
                       >
                         <Compass className='size-3.5 text-primary' />
-                        <span>
-                          {language === 'vi' ? 'Xem trên sơ đồ' : 'Locate on map'}
-                        </span>
+                        <span>{language === 'vi' ? 'Xem trên sơ đồ' : 'Locate on map'}</span>
                       </button>
 
                       {group.availableCount > 0 ? (
@@ -1013,8 +1005,7 @@ export function WorkspaceInfo({
           </div>
           {normalizedAmenities.length > 0 && (
             <span className='text-xs font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-1 rounded-full'>
-              {normalizedAmenities.length}{' '}
-              {language === 'vi' ? 'tiện ích' : 'amenities'}
+              {normalizedAmenities.length} {language === 'vi' ? 'tiện ích' : 'amenities'}
             </span>
           )}
         </div>
@@ -1104,9 +1095,7 @@ export function WorkspaceInfo({
           <div>
             <h2 className='text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2'>
               <MapPin className='size-5 text-primary' />
-              {language === 'vi'
-                ? 'Vị trí & Hướng dẫn check-in'
-                : 'Location & Entry Instructions'}
+              {language === 'vi' ? 'Vị trí & Hướng dẫn check-in' : 'Location & Entry Instructions'}
             </h2>
             {fullAddress && (
               <p className='text-xs sm:text-sm text-slate-600 dark:text-slate-300 mt-1 font-medium'>
@@ -1206,8 +1195,7 @@ export function WorkspaceInfo({
                 {Number(workspace?.rating).toFixed(1)}
               </span>
               <span className='text-xs text-slate-500 dark:text-slate-400'>
-                ({workspace?.reviewsCount}{' '}
-                {language === 'vi' ? 'đánh giá' : 'reviews'})
+                ({workspace?.reviewsCount} {language === 'vi' ? 'đánh giá' : 'reviews'})
               </span>
             </div>
           )}

@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
@@ -21,13 +22,13 @@ import {
 } from '@/components/ui/select';
 import { useAssetMaintenanceLogsQuery } from '@/features/workspaces/api/queries';
 import { useUpdateMaintenanceLogMutation } from '@/features/workspaces/api/mutations';
-import { MaintenanceStatusBadge, MaintenanceTypeBadge } from './asset-status-badge';
+import { MaintenanceStatusBadge } from './asset-status-badge';
 import type {
   MaintenanceLogDto,
   MaintenanceStatus,
   WorkspaceAssetDto
 } from '@/features/workspaces/api/types';
-import { History, Wrench, CheckCircle, Loader2, Calendar } from 'lucide-react';
+import { History, Wrench, CheckCircle, Calendar } from '@/components/ui/hugeicons';
 
 interface MaintenanceHistoryDialogProps {
   open: boolean;
@@ -45,7 +46,7 @@ export function MaintenanceHistoryDialog({
   onOpenNewLog
 }: MaintenanceHistoryDialogProps) {
   const c = useOrganizerCopy();
-  const { data: logs = [], isLoading } = useAssetMaintenanceLogsQuery(workspaceId, asset?.id);
+  const { data: logs = [], isLoading, error: historyError, refetch } = useAssetMaintenanceLogsQuery(workspaceId, asset?.id);
 
   const [selectedLogToUpdate, setSelectedLogToUpdate] = useState<MaintenanceLogDto | null>(null);
   const [updateStatus, setUpdateStatus] = useState<MaintenanceStatus>('COMPLETED');
@@ -116,9 +117,10 @@ export function MaintenanceHistoryDialog({
           </div>
         </DialogHeader>
 
+        {historyError && <div role='alert' className='text-sm text-destructive'>{historyError.message}<Button variant='outline' onClick={() => void refetch()}>{c('Retry', 'Thử lại')}</Button></div>}
         {isLoading ? (
           <div className='py-12 flex flex-col items-center justify-center text-muted-foreground gap-2'>
-            <Loader2 className='w-6 h-6 animate-spin text-indigo-600' />
+            <Loader2 className='w-6 h-6 text-indigo-600' />
             <p className='text-sm'>
               {c('Loading maintenance history...', 'Đang tải lịch sử bảo trì...')}
             </p>
@@ -145,7 +147,6 @@ export function MaintenanceHistoryDialog({
               >
                 <div className='flex flex-wrap items-center justify-between gap-2'>
                   <div className='flex items-center gap-2'>
-                    <MaintenanceTypeBadge type={log.maintenanceType} />
                     <MaintenanceStatusBadge status={log.status} />
                   </div>
                   <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
@@ -161,6 +162,14 @@ export function MaintenanceHistoryDialog({
                 <p className='text-sm font-medium text-foreground leading-relaxed'>
                   {log.description}
                 </p>
+                {log.plannedEndAt && <div className='space-y-2 text-xs'>
+                  <p>{formatDisplayDateTime(log.startedAt || log.scheduledAt || '')} → {formatDisplayDateTime(log.plannedEndAt)}</p>
+                  {(log.status === 'SCHEDULED' || log.status === 'IN_PROGRESS') && <Button
+                    variant='outline' size='sm' disabled={isUpdating}
+                    onClick={() => updateLogMutation.mutate({ workspaceId, assetId: log.assetId, logId: log.id, payload: { status: 'CANCELLED' } })}
+                  >{c('Remove maintenance schedule', 'Gỡ lịch bảo trì')}</Button>}
+                </div>}
+                {updateLogMutation.error && <p role='alert' className='text-sm text-destructive'>{updateLogMutation.error.message}</p>}
 
                 <div className='grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs text-muted-foreground pt-1 border-t border-border/50'>
                   <div>
@@ -293,7 +302,7 @@ export function MaintenanceHistoryDialog({
                   disabled={isUpdating}
                   className='h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white'
                 >
-                  {isUpdating && <Loader2 className='w-3 h-3 animate-spin mr-1' />}
+                  {isUpdating && <Loader2 className='w-3 h-3 mr-1' />}
 
                   {c('Save progress', 'Lưu tiến độ')}
                 </Button>

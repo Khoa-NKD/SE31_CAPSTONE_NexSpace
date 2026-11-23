@@ -11,7 +11,7 @@ import {
   Eye,
   Hand,
   AlertTriangle
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { FloorLayout, AvailabilityState } from '../api/resources';
@@ -21,13 +21,15 @@ import { createFloorRenderer } from '../utils/floor-webgl';
 const INITIAL = { yaw: -Math.PI / 5, elevation: Math.PI / 3.5, zoom: 1, panX: 0, panY: 0 };
 type Renderer = ReturnType<typeof createFloorRenderer>;
 
-/** Read-only viewer: props contain no edit, select, delete, save or drag callbacks. */
+/** Camera controls never edit geometry. Customer mode may select existing resources for booking. */
 export default function Floor3dPreview({
   layout,
   width,
   height,
   radius,
   availability,
+  selectedResourceId,
+  onResourceSelect,
   expanded,
   onFullscreen,
   stretch
@@ -37,6 +39,8 @@ export default function Floor3dPreview({
   height: number;
   radius: number;
   availability?: Record<number, AvailabilityState>;
+  selectedResourceId?: number | null;
+  onResourceSelect?: (id: number) => void;
   expanded: boolean;
   onFullscreen: () => void;
   stretch: boolean;
@@ -46,7 +50,15 @@ export default function Floor3dPreview({
   const canvas = useRef<HTMLCanvasElement>(null);
   const renderer = useRef<Renderer | null>(null);
   const camera = useRef({ ...INITIAL });
-  const drag = useRef<{ pointerId: number; x: number; y: number; pan: boolean } | null>(null);
+  const drag = useRef<{
+    pointerId: number;
+    x: number;
+    y: number;
+    pan: boolean;
+    originX: number;
+    originY: number;
+    moved: boolean;
+  } | null>(null);
   const [dragMode, setDragMode] = useState<'pan' | 'orbit'>('pan');
   const [view, setView] = useState({ ...INITIAL });
   const [walls, setWalls] = useState(true);
@@ -101,9 +113,11 @@ export default function Floor3dPreview({
     };
   }, [draw]);
   useEffect(() => {
-    renderer.current?.upload(buildFloorScene(layout, width, height, radius, walls, availability));
+    renderer.current?.upload(
+      buildFloorScene(layout, width, height, radius, walls, availability, selectedResourceId)
+    );
     draw();
-  }, [layout, width, height, radius, walls, availability, draw]);
+  }, [layout, width, height, radius, walls, availability, selectedResourceId, draw]);
   useEffect(() => {
     const element = canvas.current;
     if (!element) return;
@@ -127,7 +141,9 @@ export default function Floor3dPreview({
       <div className='flex shrink-0 flex-wrap items-center justify-between gap-3 border-b bg-card px-4 py-2.5'>
         <span className='flex items-center gap-2 text-sm font-semibold'>
           <Box className='size-4 text-primary' />
-          {c('3D floor · View only', 'Tầng 3D · Chỉ xem')}
+          {onResourceSelect
+            ? c('3D floor · Select a place', 'Tầng 3D · Chọn chỗ')
+            : c('3D floor · View only', 'Tầng 3D · Chỉ xem')}
         </span>
         <div
           className='flex flex-wrap items-center gap-1'
@@ -256,10 +272,17 @@ export default function Floor3dPreview({
               data-floor-3d='true'
               tabIndex={0}
               role='img'
-              aria-label={c(
-                'Read-only 3D floor. Choose Pan or Orbit, then drag. Shift-drag or middle-drag pans. Arrow keys follow the selected mode; plus and minus zoom; Home resets.',
-                'Sơ đồ tầng 3D chỉ xem. Chọn Kéo xem hoặc Xoay rồi kéo. Giữ Shift hoặc nút chuột giữa để kéo xem. Mũi tên theo chế độ đang chọn, cộng trừ để zoom, Home đặt lại.'
-              )}
+              aria-label={
+                onResourceSelect
+                  ? c(
+                      '3D floor: click a room or seat to select it. Drag to move the camera.',
+                      'Sơ đồ 3D: bấm phòng hoặc ghế để chọn chỗ. Kéo để di chuyển góc nhìn.'
+                    )
+                  : c(
+                      'Read-only 3D floor. Choose Pan or Orbit, then drag. Shift-drag or middle-drag pans. Arrow keys follow the selected mode; plus and minus zoom; Home resets.',
+                      'Sơ đồ tầng 3D chỉ xem. Chọn Kéo xem hoặc Xoay rồi kéo. Giữ Shift hoặc nút chuột giữa để kéo xem. Mũi tên theo chế độ đang chọn, cộng trừ để zoom, Home đặt lại.'
+                    )
+              }
               className='absolute inset-0 size-full touch-none cursor-grab outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary active:cursor-grabbing'
               onPointerDown={(event) => {
                 if ((event.button !== 0 && event.button !== 1) || drag.current) return;
@@ -269,6 +292,9 @@ export default function Floor3dPreview({
                   pointerId: event.pointerId,
                   x: event.clientX,
                   y: event.clientY,
+                  originX: event.clientX,
+                  originY: event.clientY,
+                  moved: false,
                   pan: dragMode === 'pan' || event.shiftKey || event.button === 1
                 };
                 event.currentTarget.setPointerCapture(event.pointerId);
@@ -276,6 +302,8 @@ export default function Floor3dPreview({
               onPointerMove={(event) => {
                 const start = drag.current;
                 if (!start || start.pointerId !== event.pointerId) return;
+                if (Math.hypot(event.clientX - start.originX, event.clientY - start.originY) > 5)
+                  start.moved = true;
                 if (start.pan)
                   update({
                     panX:
@@ -295,7 +323,24 @@ export default function Floor3dPreview({
                 start.x = event.clientX;
                 start.y = event.clientY;
               }}
-              onPointerUp={stop}
+              onPointerUp={(event) => {
+                const start = drag.current;
+                if (start && !start.moved && event.button === 0 && onResourceSelect) {
+                  const rect = event.currentTarget.getBoundingClientRect();
+                  const { yaw, elevation, zoom, panX, panY } = camera.current;
+                  const id = renderer.current?.pick(
+                    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                    1 - ((event.clientY - rect.top) / rect.height) * 2,
+                    yaw,
+                    elevation,
+                    zoom,
+                    panX,
+                    panY
+                  );
+                  if (id != null) onResourceSelect(id);
+                }
+                stop();
+              }}
               onPointerCancel={stop}
               onLostPointerCapture={() => {
                 drag.current = null;
@@ -369,7 +414,7 @@ export default function Floor3dPreview({
             onChange={(event) => setWalls(event.target.checked)}
             disabled={error}
           />
-          {c('Show room walls', 'Hiện tường bao phòng')}
+          {c('Show floor and room walls', 'Hiện tường bao tầng và phòng')}
         </label>
         <span className='flex items-center gap-1.5 text-muted-foreground'>
           <Eye className='size-3.5' />

@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
-import { Building2, CheckCircle2, ChevronRight, Star } from 'lucide-react';
+import { Building2, CheckCircle2, ChevronRight, Star } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { WorkspaceDirectoryItem } from '../data/mock-workspaces-directory';
 

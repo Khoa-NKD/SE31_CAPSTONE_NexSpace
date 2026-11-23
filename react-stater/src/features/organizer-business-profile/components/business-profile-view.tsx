@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { BankSelector } from './bank-selector';
 import { useRef, useState, useSyncExternalStore } from 'react';
@@ -14,9 +15,8 @@ import {
   Phone,
   Save,
   ShieldCheck,
-  UserRound,
-  LoaderCircle
-} from 'lucide-react';
+  UserRound
+} from '@/components/ui/hugeicons';
 import { ApiError } from '@/lib/api-client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
@@ -448,7 +448,7 @@ function BusinessContactForm({
             </Button>
             <Button type='submit' disabled={busy || !dirty}>
               {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
               ) : (
                 <Save className='size-4' />
               )}

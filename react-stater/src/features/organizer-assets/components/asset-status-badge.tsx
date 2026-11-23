@@ -6,7 +6,7 @@ import type {
   MaintenanceStatus,
   MaintenanceType
 } from '@/features/workspaces/api/types';
-import { CheckCircle2, AlertTriangle, Wrench, XCircle, Clock } from 'lucide-react';
+import { CheckCircle2, AlertTriangle, Wrench, XCircle, Clock } from '@/components/ui/hugeicons';
 
 export function AssetStatusBadge({ status }: { status: AssetStatus }) {
   const c = useOrganizerCopy();

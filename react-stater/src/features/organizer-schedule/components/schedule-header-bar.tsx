@@ -6,7 +6,7 @@ import {
   Plus,
   TableProperties,
   CalendarCheck
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';

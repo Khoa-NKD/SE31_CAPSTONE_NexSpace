@@ -93,23 +93,19 @@ export default function ThemeProvider({
   const setTheme = React.useCallback(
     (newTheme: 'light' | 'dark' | 'system') => {
       if (!isValidMode(newTheme)) return;
-      if (activeScope === 'admin') {
-        setAdminMode(newTheme);
-        setStoredMode('admin', newTheme);
-      } else {
-        setCustomerMode(newTheme);
-        setStoredMode('customer', newTheme);
-      }
+      setAdminMode(newTheme);
+      setCustomerMode(newTheme);
+      setStoredMode('admin', newTheme);
+      setStoredMode('customer', newTheme);
     },
-    [activeScope]
+    []
   );
 
   // Cross-tab synchronization via storage event
   React.useEffect(() => {
     const onStorage = (e: StorageEvent) => {
-      if (e.key === THEME_KEYS.admin.modeKey && e.newValue && isValidMode(e.newValue)) {
+      if ((e.key === 'theme' || e.key === 'admin_theme') && e.newValue && isValidMode(e.newValue)) {
         setAdminMode(e.newValue);
-      } else if (e.key === THEME_KEYS.customer.modeKey && e.newValue && isValidMode(e.newValue)) {
         setCustomerMode(e.newValue);
       }
     };

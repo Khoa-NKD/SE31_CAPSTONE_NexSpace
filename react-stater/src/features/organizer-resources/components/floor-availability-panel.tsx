@@ -1,8 +1,11 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import { DateInput } from '@/components/ui/date-input';
 import { useState } from 'react';
+import { maintenanceApi } from '@/features/organizer-blockout/api';
+import { maintenanceAvailability, maintenanceLocalTime } from '../utils/maintenance-availability';
 import { useQuery } from '@tanstack/react-query';
-import { RefreshCw, LoaderCircle } from 'lucide-react';
+import { RefreshCw } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import {
@@ -32,24 +35,58 @@ export function useFloorAvailability(
   const [range, setRange] = useState(() => availabilityInterval(initial.from, initial.to)!);
   const query = useQuery({
     ...floorAvailabilityOptions(actorId, workspaceId, floorId, range.from, range.to),
-    enabled: enabled && actorId > 0 && floorId > 0
+    enabled: enabled && actorId > 0 && floorId > 0,
+    refetchInterval: 3000
+  });
+  const maintenance = useQuery({
+    queryKey: [
+      'organizer-operations',
+      actorId,
+      workspaceId,
+      'floor-maintenance',
+      range.from,
+      range.to
+    ],
+    queryFn: ({ signal }) =>
+      maintenanceApi.list(
+        workspaceId,
+        maintenanceLocalTime(range.from),
+        maintenanceLocalTime(range.to),
+        signal
+      ),
+    enabled: enabled && actorId > 0 && floorId > 0,
+    refetchInterval: 3000
   });
   const states: Record<number, AvailabilityState> = Object.fromEntries(
     (query.data?.resources ?? []).map((item) => [item.id, item.state])
   );
-  for (const item of layout?.resources ?? []) {
-    if (item.category !== 'DESK' || !item.parentRoomId) continue;
-    const parentState = states[item.parentRoomId];
-    if (parentState) states[item.id] = parentState;
-    else delete states[item.id];
-  }
+  const effective = maintenanceAvailability(layout, states, maintenance.data ?? []);
   const valid = availabilityInterval(from, to);
   const apply = () => {
     if (!valid) return;
-    if (valid.from === range.from && valid.to === range.to) void query.refetch();
+    if (valid.from === range.from && valid.to === range.to)
+      void Promise.all([query.refetch(), maintenance.refetch()]);
     else setRange(valid);
   };
-  return { from, to, setFrom, setTo, query, states, valid, apply };
+  const combinedQuery = {
+    ...query,
+    isPending: query.isPending || maintenance.isPending,
+    isError: query.isError || maintenance.isError,
+    error: query.error ?? maintenance.error,
+    isFetching: query.isFetching || maintenance.isFetching,
+    refetch: () => Promise.all([query.refetch(), maintenance.refetch()])
+  };
+  return {
+    from,
+    to,
+    setFrom,
+    setTo,
+    query: combinedQuery,
+    states: effective.states,
+    decorationStates: effective.decorations,
+    valid,
+    apply
+  };
 }
 type Calendar = ReturnType<typeof useFloorAvailability>;
 type Focus = { key: string | null; sequence: number };
@@ -69,7 +106,7 @@ export function FloorAvailabilityPanel({
   if (calendar.query.isError)
     return (
       <div role='alert' className='m-auto space-y-3 p-6 text-center'>
-        <p className='text-xs text-destructive'>{calendar.query.error.message}</p>
+        <p className='text-xs text-destructive'>{calendar.query.error?.message ?? c('Could not load status.', 'Không tải được trạng thái.')}</p>
         <Button variant='outline' size='sm' onClick={() => void calendar.query.refetch()}>
           {c('Retry', 'Thử lại')}
         </Button>
@@ -78,7 +115,7 @@ export function FloorAvailabilityPanel({
   if (calendar.query.isPending)
     return (
       <div role='status' className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
-        <LoaderCircle className='size-4 animate-spin' />
+        <LoaderCircle className='size-4' />
         {c('Reading calendar…', 'Đang đọc lịch…')}
       </div>
     );
@@ -89,6 +126,7 @@ export function FloorAvailabilityPanel({
       width={layout.width ?? 1200}
       height={layout.height ?? 800}
       availability={calendar.states}
+      decorationAvailability={calendar.decorationStates}
       focus={focus}
       onFocus={onFocus}
     />
@@ -110,7 +148,11 @@ export function FloorAvailabilityInspector({
   const c = (en: string, local: string) => (vi ? local : en);
   const resource = layout.resources.find((item) => `resource:${item.id}` === focus.key);
   const object = layout.decorations?.find((item) => `decoration:${item.id}` === focus.key);
-  const state = resource && calendar.states[resource.id];
+  const state = resource
+    ? calendar.states[resource.id]
+    : object
+      ? calendar.decorationStates[object.id]
+      : undefined;
   return (
     <div className='space-y-4'>
       <div className='rounded-xl border border-border bg-muted/20 p-3'>
@@ -163,9 +205,9 @@ export function FloorAvailabilityInspector({
               type='datetime-local'
               className='h-9 min-w-0 text-xs'
               value={calendar[key]}
-              onValueChange={(dateValue) => key === 'from'
-                  ? calendar.setFrom(dateValue)
-                  : calendar.setTo(dateValue)}
+              onValueChange={(dateValue) =>
+                key === 'from' ? calendar.setFrom(dateValue) : calendar.setTo(dateValue)
+              }
             />
           </label>
         ))}
@@ -179,7 +221,7 @@ export function FloorAvailabilityInspector({
           onClick={calendar.apply}
         >
           {calendar.query.isFetching ? (
-            <LoaderCircle className='size-4 animate-spin' />
+            <LoaderCircle className='size-4' />
           ) : (
             <RefreshCw className='size-4' />
           )}

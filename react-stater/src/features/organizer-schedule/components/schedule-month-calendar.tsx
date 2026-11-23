@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar as CalendarIcon, Clock, CheckCircle2 } from 'lucide-react';
+import { Calendar as CalendarIcon, Clock, CheckCircle2 } from '@/components/ui/hugeicons';
 import { Badge } from '@/components/ui/badge';
 import { BookingDto } from '@/features/workspaces/api/booking-types';
 

@@ -1,6 +1,7 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Check, ChevronsUpDown, Landmark, LoaderCircle, RefreshCw } from 'lucide-react';
+import { Check, ChevronsUpDown, Landmark, RefreshCw } from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -84,7 +85,7 @@ export function BankSelector({
               </span>
             </span>
             {catalog.isFetching ? (
-              <LoaderCircle className='text-muted-foreground size-4 shrink-0 animate-spin' />
+              <LoaderCircle className='text-muted-foreground size-4 shrink-0' />
             ) : (
               <ChevronsUpDown className='text-muted-foreground size-4 shrink-0' />
             )}
@@ -107,7 +108,7 @@ export function BankSelector({
                 role='status'
                 className='text-muted-foreground flex items-center gap-2 p-4 text-sm'
               >
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
                 {vi ? 'Đang tải danh sách ngân hàng…' : 'Loading banks…'}
               </p>
             ) : catalog.isError && !options.length ? (

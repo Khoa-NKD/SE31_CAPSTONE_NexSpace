@@ -11,6 +11,7 @@ import { LiveSystemAlerts } from '@/features/admin-overview/components/live-syst
 import { TimeRangeFilter } from '@/features/admin-overview/components/time-range-filter';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 export const Route = createFileRoute('/dashboard/overview')({
   beforeLoad: () => {
@@ -34,6 +35,7 @@ export const Route = createFileRoute('/dashboard/overview')({
 });
 
 function AdministratorDashboardPage() {
+  const { language } = useLanguage();
   const [selectedRange, setSelectedRange] = useState<'today' | '7d' | '30d'>('7d');
   const { data, isLoading } = useQuery(adminOverviewQueryOptions(selectedRange));
 
@@ -47,16 +49,18 @@ function AdministratorDashboardPage() {
           <div>
             <div className='flex items-center gap-2'>
               <h1 className='text-2xl font-bold tracking-tight text-foreground font-heading'>
-                Administrator Dashboard
+                {language === 'vi' ? 'Bảng điều khiển Quản trị' : 'Administrator Dashboard'}
               </h1>
               {isLoading && (
                 <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 animate-pulse'>
-                  Đang đồng bộ DB...
+                  {language === 'vi' ? 'Đang đồng bộ DB...' : 'Syncing with DB...'}
                 </span>
               )}
             </div>
             <p className='text-sm text-muted-foreground mt-0.5'>
-              Real-time platform operations and priority triage.
+              {language === 'vi'
+                ? 'Vận hành nền tảng thời gian thực và phân loại ưu tiên xử lý.'
+                : 'Real-time platform operations and priority triage.'}
             </p>
           </div>
 

@@ -8,7 +8,7 @@ import {
   DialogTitle
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle } from 'lucide-react';
+import { AlertTriangle } from '@/components/ui/hugeicons';
 import { BookingItem } from '../data/mock-bookings';
 
 interface BookingCancelDialogProps {

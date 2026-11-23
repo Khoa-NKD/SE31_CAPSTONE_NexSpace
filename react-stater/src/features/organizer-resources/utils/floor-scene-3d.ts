@@ -19,6 +19,7 @@ export interface SceneMesh {
   depth: number;
   maxHeight: number;
   scale: number;
+  triangleResources?: Int32Array;
 }
 
 /** Model Y becomes world Z. All footprints rotate around the same center as the 2D SVG. */
@@ -75,15 +76,19 @@ export function buildFloorScene(
   height: number,
   radiusPx: number,
   walls: boolean,
-  states?: Record<number, AvailabilityState>
+  states?: Record<number, AvailabilityState>,
+  selectedId?: number | null
 ): SceneMesh {
   const scale =
     layout.pixelsPerMetre && Number.isFinite(layout.pixelsPerMetre) && layout.pixelsPerMetre > 0
       ? layout.pixelsPerMetre
       : MODEL_PIXELS_PER_METRE;
   const vertices: number[] = [];
+  const triangleResources: number[] = [];
+  let resourceOwner = 0;
   let maxHeight = 0;
   function triangle(a: Vec3, b: Vec3, c: Vec3, color: Vec3) {
+    triangleResources.push(resourceOwner);
     const u = b.map((v, i) => v - a[i]),
       v = c.map((n, i) => n - a[i]);
     const normal = [
@@ -178,12 +183,70 @@ export function buildFloorScene(
     0,
     '#e5e9f2'
   );
+  if (walls) {
+    const thickness = Math.min(scale * 0.08, width / 30, height / 30);
+    const segments = roomWallSegments(
+      { x: 0, y: 0, width, height, rotation: 0 },
+      layout.decorations ?? []
+    );
+    // Walls follow the saved outline, including rounded corners; doors cut only their boundary span.
+    for (let i = 0; i < outline.length; i++) {
+      const [ax, ay] = outline[i],
+        [bx, by] = outline[(i + 1) % outline.length];
+      const dx = bx - ax,
+        dy = by - ay,
+        length = Math.hypot(dx, dy);
+      if (length < 0.00001) continue;
+      const nx = (-dy / length) * thickness,
+        ny = (dx / length) * thickness;
+      const side =
+        Math.abs(ay) < 0.001 && Math.abs(by) < 0.001
+          ? 'top'
+          : Math.abs(ay - height) < 0.001 && Math.abs(by - height) < 0.001
+            ? 'bottom'
+            : Math.abs(ax) < 0.001 && Math.abs(bx) < 0.001
+              ? 'left'
+              : Math.abs(ax - width) < 0.001 && Math.abs(bx - width) < 0.001
+                ? 'right'
+                : null;
+      const horizontal = side === 'top' || side === 'bottom';
+      const cuts = side
+        ? segments
+            .filter((s) => s.side === side)
+            .map((s) => ({
+              start: Math.max(Math.min(horizontal ? ax : ay, horizontal ? bx : by), s.start),
+              end: Math.min(Math.max(horizontal ? ax : ay, horizontal ? bx : by), s.end),
+              opening: s.opening
+            }))
+            .filter((s) => s.end > s.start)
+        : [{ start: 0, end: 1, opening: false }];
+      for (const cut of cuts) {
+        const t1 = side ? (cut.start - (horizontal ? ax : ay)) / (horizontal ? dx : dy) : 0;
+        const t2 = side ? (cut.end - (horizontal ? ax : ay)) / (horizontal ? dx : dy) : 1;
+        const p1 = [ax + dx * t1, ay + dy * t1],
+          p2 = [ax + dx * t2, ay + dy * t2];
+        prism(
+          [
+            [p1[0], p1[1]],
+            [p2[0], p2[1]],
+            [p2[0] + nx, p2[1] + ny],
+            [p1[0] + nx, p1[1] + ny]
+          ].map(([x, y]) => footprintPoint(floor, x, y, 0, scale)),
+          cut.opening ? 2.12 : 0.022,
+          2.7,
+          '#e6e4e1'
+        );
+      }
+    }
+  }
   const tone = (id: number, fallback: string) => {
+    if (id === selectedId) return '#6366f1';
     const state = states?.[id];
     return state ? availabilityColors[state] : fallback;
   };
   for (const item of layout.resources) {
     if (!placed(item)) continue;
+    resourceOwner = item.id;
     if (item.category === 'ROOM') {
       const visual = validVisual3d(item.visual3d) ? item.visual3d : null;
       const color = tone(item.id, visual?.floorColor ?? '#c4bfe9');
@@ -279,6 +342,7 @@ export function buildFloorScene(
       );
     }
   }
+  resourceOwner = 0;
   function meshBuilder(item: Footprint, tint?: string): FurnishingMeshBuilder {
     const w = item.width,
       d = item.height;
@@ -311,12 +375,13 @@ export function buildFloorScene(
   }
   function decoration(item: FloorDecoration) {
     if (!placed(item)) return;
-    const mesh = meshBuilder(item);
+    const mesh = meshBuilder(item, item.color.toLowerCase() === '#a855f7' ? item.color : undefined);
     if (!renderVisual3d(item.visual3d, mesh)) furnishingModel3d(item, scale, mesh);
   }
   (layout.decorations ?? []).forEach(decoration);
   return {
     vertices: new Float32Array(vertices),
+    triangleResources: new Int32Array(triangleResources),
     width: width / scale,
     depth: height / scale,
     maxHeight,

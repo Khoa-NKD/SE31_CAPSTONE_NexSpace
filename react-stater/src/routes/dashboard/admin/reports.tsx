@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { Download, ArrowRight } from 'lucide-react';
+import { Download, ArrowRight } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { MOCK_REPORTS_KPIS } from '@/features/admin-reports/data/mock-reports-overview';
 import { ReportsKpiGrid } from '@/features/admin-reports/components/reports-kpi-grid';

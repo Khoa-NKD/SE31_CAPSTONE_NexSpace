@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import {
@@ -6,13 +7,12 @@ import {
   Layers,
   Lock,
   Zap,
-  Armchair,
+  Chair,
   Wifi,
   VolumeX,
   Calendar,
-  QrCode,
-  Loader2
-} from 'lucide-react';
+  QrCode
+} from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
 interface BookingSummaryCardProps {
@@ -41,7 +41,7 @@ export function BookingSummaryCard({
 }: BookingSummaryCardProps) {
   const amenities = [
     { icon: Zap, label: '65W USB-C PD' },
-    { icon: Armchair, label: 'Aeron Ergonomic' },
+    { icon: Chair, label: 'Aeron Ergonomic' },
     { icon: Wifi, label: '1 Gbps Ultra-Speed' },
     { icon: VolumeX, label: 'Acoustic Barrier' }
   ];
@@ -52,7 +52,7 @@ export function BookingSummaryCard({
     return (
       <section className='bg-card border-border shadow-xs flex min-h-[300px] items-center justify-center rounded-2xl border p-6'>
         <div className='flex items-center gap-3 text-sm text-muted-foreground'>
-          <Loader2 className='size-5 animate-spin text-primary' />
+          <Loader2 className='size-5 text-primary' />
           <span>Loading workspace &amp; station specifications...</span>
         </div>
       </section>
@@ -91,11 +91,7 @@ export function BookingSummaryCard({
       {/* Space Info Row */}
       <div className='flex flex-col gap-4 sm:flex-row'>
         <div className='bg-muted border-border/80 relative h-32 w-full shrink-0 overflow-hidden rounded-xl border sm:h-28 sm:w-36'>
-          <img
-            alt={workspaceName}
-            className='h-full w-full object-cover'
-            src={workspaceImage}
-          />
+          <img alt={workspaceName} className='h-full w-full object-cover' src={workspaceImage} />
           <span className='bg-background/90 text-foreground border-border/60 absolute top-2 left-2 rounded border px-1.5 py-0.5 text-[10px] font-bold backdrop-blur-xs'>
             {floorName || 'VERIFIED'}
           </span>
@@ -103,9 +99,7 @@ export function BookingSummaryCard({
 
         <div className='flex-grow space-y-1.5'>
           <div className='flex flex-wrap items-center justify-between gap-2'>
-            <h3 className='text-foreground font-sans text-base font-bold'>
-              {workspaceName}
-            </h3>
+            <h3 className='text-foreground font-sans text-base font-bold'>{workspaceName}</h3>
             <span className='inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400'>
               Instant Access
             </span>
@@ -178,7 +172,8 @@ export function BookingSummaryCard({
             <p className='text-muted-foreground flex items-center gap-1.5 text-xs'>
               <QrCode className='text-primary h-3.5 w-3.5 shrink-0' />
               <span>
-                Contactless Digital Pass generated upon booking. Check-in opens 15 minutes before reserved slot.
+                Contactless Digital Pass generated upon booking. Check-in opens 15 minutes before
+                reserved slot.
               </span>
             </p>
           </div>

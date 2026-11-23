@@ -1,3 +1,4 @@
+import { Spinner } from '@/components/ui/spinner';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,8 +18,9 @@ import {
   Building2,
   Sparkles,
   Inbox
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { OrganizerWithdrawalBatch, PageResponse } from '../api/types';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface WithdrawalHistoryTableProps {
   history?: PageResponse<OrganizerWithdrawalBatch>;
@@ -29,6 +31,7 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
   history,
   isLoading
 }) => {
+  const { language } = useLanguage();
   const items = history?.listObjects || history?.content || [];
 
   return (
@@ -37,14 +40,16 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
         <div className="flex items-center justify-between">
           <div>
             <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-              Lịch sử Rút tiền
+              {language === 'vi' ? 'Lịch sử Rút tiền' : 'Withdrawal History'}
             </CardTitle>
             <CardDescription className="text-xs text-slate-500 mt-1">
-              Danh sách các đợt rút tiền thủ công và tự động đã thực hiện về tài khoản ngân hàng.
+              {language === 'vi'
+                ? 'Danh sách các đợt rút tiền thủ công và tự động đã thực hiện về tài khoản ngân hàng.'
+                : 'List of manual and automatic payouts transferred to your bank account.'}
             </CardDescription>
           </div>
           <Badge variant="outline" className="text-xs font-semibold">
-            {history?.totalRecords || items.length} giao dịch
+            {history?.totalRecords || items.length} {language === 'vi' ? 'giao dịch' : 'transactions'}
           </Badge>
         </div>
       </CardHeader>
@@ -52,16 +57,18 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
       <CardContent className="p-0">
         {isLoading ? (
           <div className="p-8 text-center text-xs text-slate-500">
-            Đang tải lịch sử rút tiền...
+            {language === 'vi' ? 'Đang tải lịch sử rút tiền...' : 'Loading withdrawal history...'}
           </div>
         ) : items.length === 0 ? (
           <div className="p-12 text-center space-y-2">
             <Inbox className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto" />
             <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-              Chưa có giao dịch rút tiền nào
+              {language === 'vi' ? 'Chưa có giao dịch rút tiền nào' : 'No withdrawal transactions yet'}
             </div>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              Khi bạn thực hiện rút tiền thủ công hoặc hệ thống chạy Auto Payout hàng ngày, các bản ghi sẽ xuất hiện tại đây.
+              {language === 'vi'
+                ? 'Khi bạn thực hiện rút tiền thủ công hoặc hệ thống chạy Auto Payout hàng ngày, các bản ghi sẽ xuất hiện tại đây.'
+                : 'Records will appear here when you perform manual withdrawals or daily auto payouts.'}
             </p>
           </div>
         ) : (
@@ -69,13 +76,13 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
             <Table>
               <TableHeader>
                 <TableRow className="text-xs font-semibold text-slate-500 bg-slate-50/30 dark:bg-slate-900/20">
-                  <TableHead className="w-[160px]">Mã giao dịch</TableHead>
-                  <TableHead className="w-[140px]">Loại hình</TableHead>
-                  <TableHead className="text-right">Số tiền rút</TableHead>
-                  <TableHead>Tài khoản nhận</TableHead>
-                  <TableHead>Mã PayOS Ref</TableHead>
-                  <TableHead>Trạng thái</TableHead>
-                  <TableHead className="text-right">Thời gian</TableHead>
+                  <TableHead className="w-[160px]">{language === 'vi' ? 'Mã giao dịch' : 'Transaction Code'}</TableHead>
+                  <TableHead className="w-[140px]">{language === 'vi' ? 'Loại hình' : 'Type'}</TableHead>
+                  <TableHead className="text-right">{language === 'vi' ? 'Số tiền rút' : 'Amount'}</TableHead>
+                  <TableHead>{language === 'vi' ? 'Tài khoản nhận' : 'Receiving Bank'}</TableHead>
+                  <TableHead>{language === 'vi' ? 'Mã PayOS Ref' : 'PayOS Ref'}</TableHead>
+                  <TableHead>{language === 'vi' ? 'Trạng thái' : 'Status'}</TableHead>
+                  <TableHead className="text-right">{language === 'vi' ? 'Thời gian' : 'Timestamp'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -97,7 +104,8 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
                           </Badge>
                         ) : (
                           <Badge variant="outline" className="text-slate-600 text-[10px] font-semibold gap-1">
-                            <ArrowDownLeft className="h-2.5 w-2.5 text-slate-400" /> Rút tay (Manual)
+                            <ArrowDownLeft className="h-2.5 w-2.5 text-slate-400" />{' '}
+                            {language === 'vi' ? 'Rút tay (Manual)' : 'Manual'}
                           </Badge>
                         )}
                       </TableCell>
@@ -121,23 +129,23 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
                       <TableCell>
                         {isPaid && (
                           <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 text-[10px] font-semibold gap-1">
-                            <CheckCircle2 className="h-2.5 w-2.5" /> Thành công
+                            <CheckCircle2 className="h-2.5 w-2.5" /> {language === 'vi' ? 'Thành công' : 'Success'}
                           </Badge>
                         )}
                         {isProcessing && (
                           <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 text-[10px] font-semibold gap-1">
-                            <Clock className="h-2.5 w-2.5 animate-spin" /> Đang chuyển
+                            <Spinner className="h-2.5 w-2.5" /> {language === 'vi' ? 'Đang chuyển' : 'Processing'}
                           </Badge>
                         )}
                         {isFailed && (
                           <Badge className="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-800 text-[10px] font-semibold gap-1">
-                            <AlertTriangle className="h-2.5 w-2.5" /> Thất bại
+                            <AlertTriangle className="h-2.5 w-2.5" /> {language === 'vi' ? 'Thất bại' : 'Failed'}
                           </Badge>
                         )}
                       </TableCell>
                       <TableCell className="text-right text-slate-500">
                         {batch.createdAt
-                          ? new Date(batch.createdAt).toLocaleString('vi-VN', {
+                          ? new Date(batch.createdAt).toLocaleString(language === 'vi' ? 'vi-VN' : 'en-US', {
                               dateStyle: 'short',
                               timeStyle: 'short'
                             })

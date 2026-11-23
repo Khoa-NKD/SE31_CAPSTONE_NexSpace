@@ -1,6 +1,6 @@
 import { formatDateLabel } from '@/lib/format';
 import React from 'react';
-import { ArrowRight, Building, Building2, Store, Landmark, Layers } from 'lucide-react';
+import { ArrowRight, Building, Building2, Store, Landmark, Layers } from '@/components/ui/hugeicons';
 import { VerificationApplication } from '../data/mock-organizers';
 
 interface QueueRequestsTableProps {

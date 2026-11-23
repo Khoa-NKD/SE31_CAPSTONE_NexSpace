@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ChevronRight, Share2, Bookmark, Check } from 'lucide-react';
+import { ChevronRight, Share2, Bookmark, Check } from '@/components/ui/hugeicons';
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
 

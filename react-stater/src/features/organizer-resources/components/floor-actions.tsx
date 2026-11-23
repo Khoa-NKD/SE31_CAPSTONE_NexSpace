@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { BuildingAllocationFields } from './building-allocation-fields';
@@ -11,7 +12,7 @@ import {
 import { floorLayoutOptions } from '../api/resources';
 import { useState } from 'react';
 import { copyDisplayName } from '../utils/copy-names';
-import { MoreHorizontal, Pencil, Copy, LoaderCircle } from 'lucide-react';
+import { MoreHorizontal, Pencil, Copy } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -308,7 +309,7 @@ export function FloorActions({
                   (action === 'copy' && (!area || !physical || !source.data))
                 }
               >
-                {busy && <LoaderCircle className='size-4 animate-spin' />}
+                {busy && <LoaderCircle className='size-4' />}
                 {action === 'delete'
                   ? c('Remove area', 'Gỡ khu vực')
                   : action === 'copy'

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Lock } from 'lucide-react';
+import { Lock } from '@/components/ui/hugeicons';
 import { Label } from '@/components/ui/label';
 import { FLOOR_OPTIONS, ZONE_OPTIONS } from '../data/mock-create-resource';
 

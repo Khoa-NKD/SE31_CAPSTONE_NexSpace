@@ -1,5 +1,5 @@
 import { useId, useState } from 'react';
-import { ArrowUpRight, Building2, Compass, Layers3, MapPin, Minus, Plus, X } from 'lucide-react';
+import { ArrowUpRight, Building2, Compass, Layers3, MapPin, Minus, Plus, X } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { VIETNAM_CITIES } from '@/features/organizer-onboarding/data/vietnam-locations';

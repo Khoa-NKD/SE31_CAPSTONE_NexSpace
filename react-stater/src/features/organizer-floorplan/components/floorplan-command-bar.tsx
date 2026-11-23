@@ -14,7 +14,7 @@ import {
   Pencil,
   RotateCcw,
   CheckCircle2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {

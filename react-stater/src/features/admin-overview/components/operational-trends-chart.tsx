@@ -10,8 +10,9 @@ import {
   CartesianGrid,
   Tooltip
 } from 'recharts';
-import { CheckCircle2, Zap } from 'lucide-react';
+import { CheckCircle2, Zap } from '@/components/ui/hugeicons';
 import { OperationalTrendPoint } from '../data/mock-overview';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface OperationalTrendsChartProps {
   trendPoints: OperationalTrendPoint[];
@@ -25,6 +26,8 @@ interface OperationalTrendsChartProps {
 }
 
 export function OperationalTrendsChart({ trendPoints, summary }: OperationalTrendsChartProps) {
+  const { language } = useLanguage();
+
   return (
     <Card className='rounded-xl border border-border/80 p-6 shadow-xs flex flex-col justify-between bg-card'>
       <div>
@@ -32,21 +35,27 @@ export function OperationalTrendsChart({ trendPoints, summary }: OperationalTren
         <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-border/70'>
           <div>
             <h3 className='text-base font-semibold text-foreground'>
-              Recent Operational Trends
+              {language === 'vi' ? 'Xu hướng vận hành gần đây' : 'Recent Operational Trends'}
             </h3>
             <p className='text-xs text-muted-foreground mt-0.5'>
-              Daily Booking Volume vs PayOS Transactions (Last 7 Days)
+              {language === 'vi'
+                ? 'Lượng đặt chỗ hàng ngày và Giao dịch PayOS (7 ngày qua)'
+                : 'Daily Booking Volume vs PayOS Transactions (Last 7 Days)'}
             </p>
           </div>
 
           <div className='flex items-center gap-4 text-xs'>
             <div className='flex flex-col'>
-              <span className='text-muted-foreground text-[11px]'>Total Volume</span>
+              <span className='text-muted-foreground text-[11px]'>
+                {language === 'vi' ? 'Tổng khối lượng' : 'Total Volume'}
+              </span>
               <span className='font-bold text-foreground'>{summary.totalVolume}</span>
             </div>
             <div className='h-6 w-px bg-border'></div>
             <div className='flex flex-col'>
-              <span className='text-muted-foreground text-[11px]'>PayOS Success</span>
+              <span className='text-muted-foreground text-[11px]'>
+                {language === 'vi' ? 'Tỷ lệ PayOS' : 'PayOS Success'}
+              </span>
               <span className='font-bold text-emerald-600 dark:text-emerald-400'>
                 {summary.slaSuccessRate}
               </span>
@@ -59,11 +68,11 @@ export function OperationalTrendsChart({ trendPoints, summary }: OperationalTren
           <div className='flex items-center gap-4 text-xs font-medium text-muted-foreground'>
             <div className='flex items-center gap-1.5'>
               <span className='w-3 h-3 rounded-xs bg-indigo-600'></span>
-              <span>Booking Volume</span>
+              <span>{language === 'vi' ? 'Lượng đặt chỗ' : 'Booking Volume'}</span>
             </div>
             <div className='flex items-center gap-1.5'>
               <span className='w-3 h-3 rounded-xs bg-sky-400'></span>
-              <span>PayOS Settlements</span>
+              <span>{language === 'vi' ? 'Quyết toán PayOS' : 'PayOS Settlements'}</span>
             </div>
           </div>
 

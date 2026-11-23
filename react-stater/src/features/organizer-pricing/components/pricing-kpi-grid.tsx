@@ -5,7 +5,7 @@ import {
   Percent,
   TrendingUp,
   BarChart3
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Card, CardContent } from '@/components/ui/card';
 import { PricingKpiSummary } from '../types';
 

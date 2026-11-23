@@ -7,7 +7,7 @@ import {
   MoreVertical,
   Wrench,
   Trash2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
   DropdownMenu,

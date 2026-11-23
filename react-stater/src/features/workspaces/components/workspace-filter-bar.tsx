@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState, useMemo } from 'react';
 import {
   MapPin,
@@ -10,14 +11,13 @@ import {
   ChevronDown,
   LocateFixed,
   Navigation,
-  Loader2,
   Building2,
   Coffee,
   Palette,
   Briefcase,
   Check,
   Bookmark
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -340,7 +340,7 @@ export function WorkspaceFilterBar({
             >
               {isLocating ? (
                 <>
-                  <Loader2 className="h-3.5 w-3.5 animate-spin shrink-0" />
+                  <Loader2 className="h-3.5 w-3.5 shrink-0" />
                   <span className="hidden sm:inline">GPS...</span>
                 </>
               ) : isNearMeActive ? (

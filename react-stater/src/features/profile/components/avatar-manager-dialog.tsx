@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState, useRef } from 'react';
 import {
   Dialog,
@@ -21,9 +22,13 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { UploadCloud, Link2, Trash2, Camera, AlertCircle, Check, Crop, Sparkles, Loader2 } from 'lucide-react';
+import { UploadCloud, Link2, Trash2, Camera, AlertCircle, Check, Crop, Sparkles } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
-import { useUploadAvatarFileMutation, useUpdateAvatarUrlMutation, useDeleteAvatarMutation } from '../api/mutations';
+import {
+  useUploadAvatarFileMutation,
+  useUpdateAvatarUrlMutation,
+  useDeleteAvatarMutation
+} from '../api/mutations';
 import { ApiError, getApiBaseUrl } from '@/lib/api-client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import type { UserDto } from '../api/types';
@@ -471,7 +476,7 @@ export function AvatarManagerDialog({ open, onOpenChange, user }: AvatarManagerD
                     >
                       {isFetchingOnlineImage ? (
                         <>
-                          <Loader2 className='w-3.5 h-3.5 animate-spin' />
+                          <Loader2 className='w-3.5 h-3.5' />
                           <span>Đang tải...</span>
                         </>
                       ) : (
@@ -528,7 +533,7 @@ export function AvatarManagerDialog({ open, onOpenChange, user }: AvatarManagerD
                 className='bg-indigo-600 hover:bg-indigo-700 text-white text-xs flex items-center gap-1.5 shadow-sm cursor-pointer'
               >
                 {isPending ? (
-                  <div className='w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin' />
+                  <Spinner className='w-3.5 h-3.5 ' />
                 ) : (
                   <>
                     <Check className='w-3.5 h-3.5' />

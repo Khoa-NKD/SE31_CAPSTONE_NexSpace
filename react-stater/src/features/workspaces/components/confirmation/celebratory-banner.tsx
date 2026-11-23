@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { CheckCircle2, Copy, Check, Clock } from 'lucide-react';
+import { CheckCircle2, Copy, Check, Clock } from '@/components/ui/hugeicons';
 
 interface CelebratoryBannerProps {
   orderRef?: string;

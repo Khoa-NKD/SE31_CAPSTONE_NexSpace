@@ -9,7 +9,7 @@ import {
   ShoppingBag,
   Sparkles,
   BarChart3
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { PARTNER_LOGOS } from '../api/data';
 
 const ICONS_MAP: Record<string, React.ComponentType<{ className?: string }>> = {

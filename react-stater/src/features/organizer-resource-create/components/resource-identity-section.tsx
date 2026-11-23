@@ -6,15 +6,15 @@ import {
   Users,
   Building2,
   Sparkles,
-  LucideIcon
-} from 'lucide-react';
+  AppIcon
+} from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RESOURCE_TYPE_CONFIGS } from '../data/mock-create-resource';
 import { CreateResourceType } from '../types';
 import { cn } from '@/lib/utils';
 
-const ICON_MAP: Record<string, LucideIcon> = {
+const ICON_MAP: Record<string, AppIcon> = {
   Laptop,
   Armchair,
   Mic,

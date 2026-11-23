@@ -1,9 +1,10 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { workspaceSiteOptions } from '../api/buildings';
 import { useNavigate } from '@tanstack/react-router';
 import { FloorActions } from './floor-actions';
 import { useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -66,7 +67,7 @@ export function FloorSetupView({
         role='status'
         className='flex min-h-[60vh] items-center justify-center gap-3 text-sm text-muted-foreground'
       >
-        <LoaderCircle className='size-5 animate-spin text-primary' />
+        <LoaderCircle className='size-5 text-primary' />
         {c('Opening Floor Studio…', 'Đang mở trình thiết kế tầng…')}
       </div>
     );

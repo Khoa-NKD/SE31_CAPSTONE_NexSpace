@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, AlertTriangle, ArrowRight, Building2, Sparkles } from 'lucide-react';
+import { Users, AlertTriangle, ArrowRight, Building2, Sparkles } from '@/components/ui/hugeicons';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';

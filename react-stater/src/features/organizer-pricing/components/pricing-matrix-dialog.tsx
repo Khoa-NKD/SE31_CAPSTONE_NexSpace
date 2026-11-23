@@ -11,7 +11,7 @@ import {
   Calculator,
   RefreshCw,
   CheckCircle2
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import {
   Dialog,
   DialogContent,

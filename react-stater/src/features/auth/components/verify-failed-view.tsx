@@ -1,7 +1,17 @@
+import { Spinner } from '@/components/ui/spinner';
 import React, { useState, useEffect, useTransition } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { NexSpaceLogo } from '@/components/brand/logo';
-import { ChevronDown, Check, ArrowLeft, XCircle, ShieldAlert, ArrowRight, RotateCw, Mail } from 'lucide-react';
+import {
+  ChevronDown,
+  Check,
+  ArrowLeft,
+  XCircle,
+  ShieldAlert,
+  ArrowRight,
+  RotateCw,
+  Mail
+} from '@/components/ui/hugeicons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -259,7 +269,7 @@ export default function VerifyFailedViewPage() {
                 )}
               >
                 {isResending ? (
-                  <RotateCw className='w-4 h-4 animate-spin' />
+                  <Spinner className='w-4 h-4' />
                 ) : (
                   <ArrowRight className='w-4 h-4 stroke-[2.5]' />
                 )}

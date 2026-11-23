@@ -14,7 +14,7 @@ import {
   ZoomIn,
   Check,
   Ban
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { VerificationApplication, VerificationDocument } from '../data/mock-organizers';
 import { DocumentScanDialog } from './document-scan-dialog';
 import { ApprovalConfirmDialog } from './approval-confirm-dialog';

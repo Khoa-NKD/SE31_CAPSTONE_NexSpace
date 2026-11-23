@@ -12,7 +12,7 @@ import {
   CalendarOff,
   DoorOpen,
   Armchair
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';

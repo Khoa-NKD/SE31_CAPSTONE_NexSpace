@@ -1,17 +1,17 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { useApplicationNotice } from '@/features/organizer-application/hooks/use-application-notice';
 import { useEffect, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   Layers3,
-  LoaderCircle,
   Check,
   Pencil,
   AlertCircle,
   Focus,
-  Armchair,
+  Chair,
   DoorOpen,
   Plus
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useLanguage } from '@/features/landing/context/language-context';
 import {
   Dialog,
@@ -360,7 +360,7 @@ export function ResourceFloorManager({
                                 {item.category === 'ROOM' ? (
                                   <DoorOpen className='size-4 shrink-0 text-muted-foreground' />
                                 ) : (
-                                  <Armchair className='size-4 shrink-0 text-primary' />
+                                  <Chair className='size-4 shrink-0 text-primary' />
                                 )}
                                 {item.code}
                               </p>
@@ -448,11 +448,7 @@ export function ResourceFloorManager({
                 }
                 onClick={() => void publish()}
               >
-                {busy ? (
-                  <LoaderCircle className='size-4 animate-spin' />
-                ) : (
-                  <Check className='size-4' />
-                )}
+                {busy ? <LoaderCircle className='size-4' /> : <Check className='size-4' />}
                 {c('Validate & publish floor', 'Kiểm tra & publish tầng')}
               </Button>
             </div>

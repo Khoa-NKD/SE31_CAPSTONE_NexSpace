@@ -1,5 +1,5 @@
 import React from 'react';
-import { Gavel, ShieldCheck } from 'lucide-react';
+import { Gavel, ShieldCheck } from '@/components/ui/hugeicons';
 import { Badge } from '@/components/ui/badge';
 
 export function CommissionImmutabilityBanner() {

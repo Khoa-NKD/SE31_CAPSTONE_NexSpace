@@ -19,9 +19,9 @@ import {
   Minimize2,
   Hand,
   Layers3,
-  Armchair,
+  Chair,
   DoorOpen
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -85,6 +85,7 @@ export function FloorLayoutPreview({
   onFocus,
   presentation = 'card',
   availability,
+  decorationAvailability,
   previewChanges,
   collisionKeys,
   onObjectDrag,
@@ -106,6 +107,7 @@ export function FloorLayoutPreview({
   onFocus: (key: string | null) => void;
   presentation?: 'card' | 'workspace';
   availability?: Record<number, AvailabilityState>;
+  decorationAvailability?: Record<string, AvailabilityState>;
   previewChanges?: Record<string, 'ADD' | 'UPDATE'>;
   collisionKeys?: ReadonlySet<string>;
   actions?: ReactNode;
@@ -206,7 +208,11 @@ export function FloorLayoutPreview({
       item.posX !== null && item.posY !== null && !!item.width && !!item.height
   );
   const resources = originalResources;
-  const decorations = layout.decorations ?? [];
+  const decorations = (layout.decorations ?? []).map((item) =>
+    decorationAvailability?.[item.id] === 'MAINTENANCE'
+      ? { ...item, color: availabilityColors.MAINTENANCE }
+      : item
+  );
   const objects = [
     ...resources.map((item) => ({
       key: `resource:${item.id}`,
@@ -463,7 +469,7 @@ export function FloorLayoutPreview({
         >
           <Floor3dPreview
             key={layout.floor.id}
-            layout={layout}
+            layout={decorationAvailability ? { ...layout, decorations } : layout}
             width={width}
             height={height}
             radius={cornerRadius}
@@ -778,11 +784,14 @@ export function FloorLayoutPreview({
                         ? '#10b981'
                         : previewChanges?.[`decoration:${item.id}`] === 'UPDATE'
                           ? '#f59e0b'
-                          : undefined
+                          : decorationAvailability?.[item.id]
+                            ? availabilityColors[decorationAvailability[item.id]]
+                            : undefined
                   }
                   strokeWidth={
                     collisionKeys?.has(`decoration:${item.id}`) ||
-                    previewChanges?.[`decoration:${item.id}`]
+                    previewChanges?.[`decoration:${item.id}`] ||
+                    decorationAvailability?.[item.id]
                       ? 2
                       : undefined
                   }
@@ -828,7 +837,7 @@ export function FloorLayoutPreview({
                 {c('Room', 'Phòng')}
               </span>
               <span className='flex items-center gap-1.5'>
-                <Armchair className='size-3.5 text-primary' />
+                <Chair className='size-3.5 text-primary' />
                 {c('Seat', 'Ghế')}
               </span>
               <span>

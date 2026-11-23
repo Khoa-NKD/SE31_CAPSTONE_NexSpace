@@ -11,7 +11,7 @@ import {
   X,
   Users,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
@@ -213,7 +213,7 @@ export function WorkspaceBookingCard({
                     {selectedResource.typeName && <span>{selectedResource.typeName}</span>}
                     {selectedResource.capacity ? (
                       <span className='inline-flex items-center gap-0.5'>
-                        • <Users className='size-3' /> {selectedResource.capacity}
+                        • <Users className='size-3' /> {availabilityMap?.get(selectedResource.id)?.capacity ?? selectedResource.capacity}
                       </span>
                     ) : null}
                   </div>

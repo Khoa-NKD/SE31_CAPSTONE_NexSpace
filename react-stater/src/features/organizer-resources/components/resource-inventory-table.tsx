@@ -1,4 +1,4 @@
-import { Armchair, DoorOpen, Pencil, Trash2 } from 'lucide-react';
+import { Chair, DoorOpen, Pencil, Trash2 } from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';
@@ -8,6 +8,8 @@ import { resourceMoney } from '../api/resources';
 import type { ResourceDetail, ResourceOptions, ResourcePage } from '../api/resources';
 export function ResourceInventoryTable({
   data,
+  maintainedIds,
+  maintenanceUnavailable,
   options,
   workspaceId,
   workspaceStatus,
@@ -18,6 +20,8 @@ export function ResourceInventoryTable({
   onStatus
 }: {
   data: ResourcePage;
+  maintainedIds: Set<number>;
+  maintenanceUnavailable: boolean;
   options?: ResourceOptions;
   workspaceId: number;
   workspaceStatus: string;
@@ -32,9 +36,10 @@ export function ResourceInventoryTable({
   const c = (en: string, vn: string) => (vi ? vn : en);
   const statusLabel = (status: string) =>
     ({
+      MAINTENANCE: c('Under maintenance', 'Đang bảo trì'),
       DRAFT: c('Not activated', 'Chưa kích hoạt'),
       ACTIVE: c('Active', 'Đang bật'),
-      DISABLED: c('Disabled', 'Đã tắt'),
+      DISABLED: c('Not accepting bookings', 'Ngừng nhận đặt'),
       ARCHIVED: c('Archived', 'Lưu trữ')
     })[status] ?? status;
   return (
@@ -62,7 +67,16 @@ export function ResourceInventoryTable({
             const type = options?.types.find((t) => t.id === resource.resourceTypeId);
             const archived = resource.status === 'ARCHIVED';
             const room = options?.rooms?.find((item) => item.id === resource.parentRoomId);
-            const displayStatus = archived ? resource.status : (room?.status ?? resource.status);
+            const maintenance =
+              maintainedIds.has(resource.id) ||
+              (resource.parentRoomId != null && maintainedIds.has(resource.parentRoomId));
+            const displayStatus = maintenance
+              ? 'MAINTENANCE'
+              : archived
+                ? resource.status
+                : resource.parentRoomId != null && room?.status !== 'ACTIVE'
+                  ? 'DISABLED'
+                  : resource.status;
             const hasPrice = [
               resource.pricePerHour,
               type?.pricePerHour,
@@ -89,7 +103,7 @@ export function ResourceInventoryTable({
                   <div className='flex items-start gap-3'>
                     <span className='bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg'>
                       {resource.category === 'DESK' ? (
-                        <Armchair className='size-4' />
+                        <Chair className='size-4' />
                       ) : (
                         <DoorOpen className='size-4' />
                       )}
@@ -106,7 +120,9 @@ export function ResourceInventoryTable({
                   </div>
                 </td>
                 <td className='px-5 py-4'>
-                  <p>{c('Floor', 'Tầng')} {floor?.floorNumber ?? '—'}</p>
+                  <p>
+                    {c('Floor', 'Tầng')} {floor?.floorNumber ?? '—'}
+                  </p>
                   <p className='text-muted-foreground mt-1 text-xs'>{resource.resourceTypeName}</p>
                   {resource.category === 'DESK' && (
                     <Badge variant='outline' className='mt-2 text-[11px]'>
@@ -138,20 +154,30 @@ export function ResourceInventoryTable({
                 </td>
                 <td className='px-5 py-4'>
                   <div className='flex items-center gap-2'>
-                    {resource.parentRoomId != null ? null : resource.status === 'DRAFT' ? (
+                    {resource.status === 'DRAFT' ? (
                       <Button
                         size='sm'
                         variant='outline'
                         aria-label={`${c('Activate', 'Kích hoạt')} ${resource.code}`}
-                        disabled={busy || !writable || !canActivate}
+                        disabled={
+                          busy ||
+                          !writable ||
+                          !canActivate ||
+                          maintenance ||
+                          maintenanceUnavailable ||
+                          (resource.parentRoomId != null && room?.status !== 'ACTIVE')
+                        }
                         onClick={() => onStatus(resource, 'ACTIVE')}
                       >
                         {c('Activate', 'Kích hoạt')}
                       </Button>
                     ) : (
                       <Switch
-                        checked={resource.status === 'ACTIVE'}
+                        checked={!maintenance && displayStatus === 'ACTIVE'}
                         disabled={
+                          maintenance ||
+                          (resource.parentRoomId != null && room?.status !== 'ACTIVE') ||
+                          maintenanceUnavailable ||
                           busy ||
                           !writable ||
                           archived ||
@@ -163,13 +189,33 @@ export function ResourceInventoryTable({
                         }
                       />
                     )}
-                    <Badge variant={displayStatus === 'ACTIVE' ? 'default' : 'secondary'}>
+                    <Badge
+                      variant={displayStatus === 'ACTIVE' ? 'default' : 'secondary'}
+                      className={
+                        maintenance
+                          ? 'border-purple-500/30 bg-purple-500/15 text-purple-600 dark:text-purple-300'
+                          : undefined
+                      }
+                    >
                       {statusLabel(displayStatus)}
                     </Badge>
                   </div>
-                  {resource.parentRoomId != null && !archived && (
+                  {maintenance && (
                     <p className='text-muted-foreground mt-2 text-xs'>
-                      {c('Controlled by the room', 'Bật/tắt theo phòng')}
+                      {c('Controlled by maintenance schedule', 'Điều khiển tại Lịch bảo trì')}
+                    </p>
+                  )}
+                  {resource.parentRoomId != null && !archived && !maintenance && (
+                    <p className='text-muted-foreground mt-2 text-xs'>
+                      {room?.status === 'ACTIVE'
+                        ? c(
+                            'Independent seat control; room changes apply to every seat.',
+                            'Bật/tắt riêng; đổi trạng thái phòng áp dụng cho tất cả ghế.'
+                          )
+                        : c(
+                            'Enable the room before controlling this seat.',
+                            'Bật phòng trước để bật/tắt riêng ghế.'
+                          )}
                     </p>
                   )}
                   {resource.parentRoomId == null &&

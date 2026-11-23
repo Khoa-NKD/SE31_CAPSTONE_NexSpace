@@ -1,0 +1,23 @@
+/* Paint the frame on the dialog border itself, so it never scrolls with content. */
+:where([role='dialog'], [role='alertdialog'], .ns-modal-shine) {
+  border: 1.5px solid transparent;
+  background-image:
+    linear-gradient(var(--background, #0b101b), var(--background, #0b101b)),
+    linear-gradient(125deg, #8b5cf6, #c4b5fd, #67e8f9, #8b5cf6);
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-size: 100% 100%, 300% 300%;
+  animation: ns-modal-frame-shine 9s linear infinite;
+}
+:where([role='dialog'], [role='alertdialog'], .ns-modal-shine)::before {
+  content: none;
+}
+@media (forced-colors: active) {
+  :where([role='dialog'], [role='alertdialog'], .ns-modal-shine) {
+    border-color: CanvasText;
+    background-image: none;
+  }
+}
+
+@keyframes ns-modal-frame-shine { 0%,100% {background-position:0% 0%,0% 0%} 50% {background-position:0% 0%,100% 100%} }
+@media (prefers-reduced-motion: reduce) { :where([role="dialog"], [role="alertdialog"], .ns-modal-shine) {animation:none} }

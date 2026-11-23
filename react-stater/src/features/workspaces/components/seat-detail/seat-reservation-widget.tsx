@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
 import React, { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -9,9 +10,8 @@ import {
   ShieldCheck,
   CalendarCheck,
   QrCode,
-  Loader2,
   ShieldAlert
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useCalculatePriceQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import { formatBookingMoney } from '../../utils/booking-money';
@@ -410,7 +410,7 @@ export function SeatReservationWidget({
         >
           {isSubmitting || createBookingMutation.isPending ? (
             <>
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4' />
               <span>{isVi ? 'Đang giữ chỗ...' : 'Holding Seat...'}</span>
             </>
           ) : isHoldBlocked ? (

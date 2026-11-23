@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo } from 'react';
@@ -47,13 +48,12 @@ import {
   CheckCircle2,
   AlertTriangle,
   RotateCcw,
-  Loader2,
   ChevronLeft,
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
   FilterX
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 interface WorkspaceAssetsManagerProps {
   workspaceId: number | string;
@@ -282,9 +282,11 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
             className='h-9 text-xs'
             title={c('Refresh server data', 'Làm mới dữ liệu từ máy chủ')}
           >
-            <RotateCcw
-              className={`w-3.5 h-3.5 mr-1 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`}
-            />
+            {isFetching ? <Spinner
+              className={`w-3.5 h-3.5 mr-1 text-muted-foreground `}
+            /> : <RotateCcw
+              className={`w-3.5 h-3.5 mr-1 text-muted-foreground `}
+            />}
 
             {c('Reload', 'Tải lại')}
           </Button>
@@ -305,7 +307,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
       <div className='bg-card rounded-xl border border-border shadow-2xs overflow-hidden'>
         {isLoading ? (
           <div className='py-20 flex flex-col items-center justify-center text-muted-foreground gap-3'>
-            <Loader2 className='w-8 h-8 animate-spin text-indigo-600' />
+            <Loader2 className='w-8 h-8 text-indigo-600' />
             <p className='text-sm font-medium'>
               {c('Loading equipment...', 'Đang tải danh sách cơ sở vật chất...')}
             </p>
@@ -690,7 +692,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
               disabled={deleteMutation.isPending}
               className='bg-rose-600 hover:bg-rose-700 text-white'
             >
-              {deleteMutation.isPending && <Loader2 className='w-4 h-4 animate-spin mr-1' />}
+              {deleteMutation.isPending && <Loader2 className='w-4 h-4 mr-1' />}
 
               {c('Confirm Delete', 'Xác nhận xóa')}
             </AlertDialogAction>

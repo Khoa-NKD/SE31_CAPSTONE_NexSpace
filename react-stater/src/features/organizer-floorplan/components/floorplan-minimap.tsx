@@ -1,5 +1,5 @@
 import React from 'react';
-import { Minus, MapPin } from 'lucide-react';
+import { Minus, MapPin } from '@/components/ui/hugeicons';
 import { FloorplanNode, ZoneBoundary } from '../types';
 
 interface FloorplanMinimapProps {

@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import { Sparkles } from '@/components/ui/hugeicons';
 
 interface QuickSuggestionsProps {
   suggestions?: string[];

@@ -1,13 +1,13 @@
 import React from 'react';
 import {
-  Armchair,
+  Chair,
   Zap,
   Gauge,
   ArrowUpDown,
   SunMedium,
   Monitor,
   Check
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 
 interface SeatSpecsGridProps {
   monitorAddonSelected?: boolean;
@@ -20,7 +20,7 @@ export function SeatSpecsGrid({
 }: SeatSpecsGridProps) {
   const specs = [
     {
-      icon: Armchair,
+      icon: Chair,
       title: 'Ergonomic Task Chair',
       description:
         'Herman Miller Aeron (Size B, PostureFit SL lumbar support, fully adjustable 3D armrests & forward tilt lock).'
@@ -81,12 +81,8 @@ export function SeatSpecsGrid({
                 <Icon className='h-5 w-5' />
               </div>
               <div className='space-y-1'>
-                <h3 className='text-foreground text-xs font-bold sm:text-sm'>
-                  {spec.title}
-                </h3>
-                <p className='text-muted-foreground text-xs leading-relaxed'>
-                  {spec.description}
-                </p>
+                <h3 className='text-foreground text-xs font-bold sm:text-sm'>{spec.title}</h3>
+                <p className='text-muted-foreground text-xs leading-relaxed'>{spec.description}</p>
               </div>
             </div>
           );
@@ -120,7 +116,8 @@ export function SeatSpecsGrid({
               <span className='text-primary text-xs font-bold'>+$1.50/hr</span>
             </div>
             <p className='text-muted-foreground text-xs leading-relaxed'>
-              UltraSharp U2723QE with single-cable 90W USB-C hub connectivity &amp; ergonomic monitor arm.
+              UltraSharp U2723QE with single-cable 90W USB-C hub connectivity &amp; ergonomic
+              monitor arm.
             </p>
             <div className='flex items-center gap-1.5 pt-1 text-[11px] font-semibold text-primary'>
               <div

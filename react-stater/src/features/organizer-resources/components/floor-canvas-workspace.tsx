@@ -1,3 +1,4 @@
+import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import {
   expandCanvasSelection,
   pasteCanvasSelection,
@@ -27,7 +28,7 @@ import { Link, useBlocker } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import {
-  Armchair,
+  Chair,
   DoorOpen,
   Layers3,
   Plus,
@@ -42,12 +43,11 @@ import {
   LockKeyhole,
   Trash2,
   CheckCircle2,
-  LoaderCircle,
   X,
   ChevronLeft,
   AlertTriangle,
   Sparkles
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -248,7 +248,10 @@ export function FloorCanvasWorkspace({
   const [availabilityMode, setAvailabilityMode] = useState(false);
   const [calendarFocus, setCalendarFocus] = useState({ key: null as string | null, sequence: 0 });
   const calendar = useFloorAvailability(actorId, workspaceId, floorId, availabilityMode, layout);
-  const calendarState = (key: string) => calendar.states[Number(key.slice('resource:'.length))];
+  const calendarState = (key: string) =>
+    key.startsWith('decoration:')
+      ? calendar.decorationStates[key.slice('decoration:'.length)]
+      : calendar.states[Number(key.slice('resource:'.length))];
   const availabilityStatus = (key: string) => {
     const state = calendarState(key);
     const resource = layout?.resources.find((item) => `resource:${item.id}` === key);
@@ -275,7 +278,7 @@ export function FloorCanvasWorkspace({
         </span>
         {room && (
           <span className='block truncate text-[10px] text-muted-foreground' title={room.name}>
-            {c('Follows room', 'Theo phòng')}: {room.name}
+            {c('Inside room', 'Trong phòng')}: {room.name}
           </span>
         )}
       </span>
@@ -1386,7 +1389,7 @@ export function FloorCanvasWorkspace({
               {resources.filter((item) => item.category === 'ROOM').length} {c('rooms', 'phòng')}
             </span>
             <span className='flex items-center gap-1.5'>
-              <Armchair className='size-3.5 text-primary' />
+              <Chair className='size-3.5 text-primary' />
               {resources.filter((item) => item.category !== 'ROOM').length} {c('seats', 'ghế')}
             </span>
             <span>
@@ -1487,7 +1490,7 @@ export function FloorCanvasWorkspace({
                   ) : entry.category === 'ROOM' ? (
                     <DoorOpen className='size-4' />
                   ) : (
-                    <Armchair className='size-4' />
+                    <Chair className='size-4' />
                   )}
                 </span>
                 <span className='min-w-0'>
@@ -1495,7 +1498,9 @@ export function FloorCanvasWorkspace({
                   <span className='block truncate text-[10px] text-muted-foreground'>
                     {entry.sub}
                   </span>
-                  {availabilityMode && !entry.object && availabilityStatus(entry.key)}
+                  {availabilityMode &&
+                    (!entry.object || calendarState(entry.key)) &&
+                    availabilityStatus(entry.key)}
                 </span>
               </button>
             ))}
@@ -1624,7 +1629,7 @@ export function FloorCanvasWorkspace({
               role='status'
               className='absolute inset-0 z-20 flex items-center justify-center bg-background/50 backdrop-blur-sm'
             >
-              <LoaderCircle className='size-6 animate-spin text-primary' />
+              <LoaderCircle className='size-6 text-primary' />
             </div>
           )}
           <div
@@ -1643,7 +1648,7 @@ export function FloorCanvasWorkspace({
               </div>
             ) : query.isPending ? (
               <div className='m-auto flex items-center gap-2 text-sm text-muted-foreground'>
-                <LoaderCircle className='size-4 animate-spin' />
+                <LoaderCircle className='size-4' />
                 {c('Loading floor…', 'Đang tải sơ đồ…')}
               </div>
             ) : query.isError ? (
@@ -2221,11 +2226,7 @@ export function FloorCanvasWorkspace({
                           disabled={busy || !editable || !dirtyDimensions}
                           onClick={() => void saveCanvas()}
                         >
-                          {busy ? (
-                            <LoaderCircle className='size-4 animate-spin' />
-                          ) : (
-                            <Save className='size-4' />
-                          )}
+                          {busy ? <LoaderCircle className='size-4' /> : <Save className='size-4' />}
                           {c('Save canvas draft', 'Lưu canvas nháp')}
                         </Button>
                       </>
@@ -2354,11 +2355,7 @@ export function FloorCanvasWorkspace({
                         }
                         onClick={() => void save()}
                       >
-                        {busy ? (
-                          <LoaderCircle className='size-4 animate-spin' />
-                        ) : (
-                          <Save className='size-4' />
-                        )}
+                        {busy ? <LoaderCircle className='size-4' /> : <Save className='size-4' />}
                         {c('Save all changes', 'Lưu tất cả thay đổi')}
                       </Button>
                       <Button
@@ -2468,13 +2465,15 @@ export function FloorCanvasWorkspace({
                   ) : entry.category === 'ROOM' ? (
                     <DoorOpen className='size-5' />
                   ) : (
-                    <Armchair className='size-5' />
+                    <Chair className='size-5' />
                   )}
                 </span>
                 <span className='min-w-0 flex-1'>
                   <span className='block truncate text-sm font-semibold'>{entry.label}</span>
                   <span className='block truncate text-xs text-muted-foreground'>{entry.sub}</span>
-                  {availabilityMode && !entry.object && availabilityStatus(entry.key)}
+                  {availabilityMode &&
+                    (!entry.object || calendarState(entry.key)) &&
+                    availabilityStatus(entry.key)}
                 </span>
                 <MousePointer2 className='size-4 shrink-0 text-muted-foreground' />
               </button>
@@ -2581,7 +2580,7 @@ export function FloorCanvasWorkspace({
               disabled={busy}
               onClick={() => void (selection?.resource ? removeResource() : removeObject())}
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Delete', 'Xóa')}
             </Button>
           </div>
@@ -2636,11 +2635,7 @@ export function FloorCanvasWorkspace({
               {c('Cancel', 'Hủy')}
             </Button>
             <Button disabled={!confirmed || busy || dirty} onClick={() => void publish()}>
-              {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
-              ) : (
-                <Upload className='size-4' />
-              )}
+              {busy ? <LoaderCircle className='size-4' /> : <Upload className='size-4' />}
               {c('Publish floor', 'Xuất bản tầng')}
             </Button>
           </div>

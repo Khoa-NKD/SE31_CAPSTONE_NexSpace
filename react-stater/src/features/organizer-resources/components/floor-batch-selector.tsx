@@ -1,7 +1,7 @@
 import { PhysicalFloorMeasurements } from './physical-floor-measurements';
 import { geometryDisplay, geometryInput } from '../utils/metric-units';
 import { AreaPlacementEditor } from './area-placement-editor';
-import { Building2, Layers3, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Building2, Layers3, CheckCircle2, AlertCircle } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useLanguage } from '@/features/landing/context/language-context';

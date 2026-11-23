@@ -1,3 +1,6 @@
+import { maintenanceApi } from '@/features/organizer-blockout/api';
+import { maintainedResourceIds, maintenanceLocalTime } from '../utils/maintenance-availability';
+import { Spinner, Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import { useNavigate } from '@tanstack/react-router';
 import { resourceUsageKinds } from '../utils/resource-usage-kinds';
@@ -7,7 +10,7 @@ import { getResource } from '../api/resources';
 import { useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  Armchair,
+  Chair,
   Building2,
   Layers3,
   Plus,
@@ -16,11 +19,10 @@ import {
   Pencil,
   Trash2,
   Settings2,
-  LoaderCircle,
   ChevronLeft,
   ChevronRight,
   LockKeyhole
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { getUserRole } from '@/features/auth/utils/role-guard';
 import { useLanguage } from '@/features/landing/context/language-context';
@@ -124,6 +126,21 @@ export function ResourceManagementView({
     ...resourcesOptions(actorId, selectedId, filters),
     enabled: allowed && selectedId > 0
   });
+  const maintenance = useQuery({
+    queryKey: ['organizer-operations', actorId, selectedId, 'current-maintenance'],
+    queryFn: ({ signal }) => {
+      const now = new Date();
+      return maintenanceApi.list(
+        selectedId,
+        maintenanceLocalTime(now),
+        maintenanceLocalTime(new Date(now.getTime() + 1000)),
+        signal
+      );
+    },
+    enabled: allowed && selectedId > 0,
+    refetchInterval: 3000
+  });
+  const maintainedIds = maintainedResourceIds(maintenance.data ?? []);
   // A deletion may remove the last page. Retry this render with a valid page before showing controls.
   const lastPage = Math.max(query.data?.totalPages ?? filters.page, 1);
   if (query.data && filters.page > lastPage) {
@@ -138,7 +155,10 @@ export function ResourceManagementView({
   };
   const openSetup = (value: { kind: 'floor' | 'type'; current?: TypeOption }) => {
     if (value.kind === 'floor' && selectedWorkspace) {
-      void navigate({ to: '/dashboard/organizer/workspaces/create/location', search: { id: String(selectedWorkspace.id), studio: true } });
+      void navigate({
+        to: '/dashboard/organizer/workspaces/create/location',
+        search: { id: String(selectedWorkspace.id), studio: true }
+      });
       return;
     }
     setNotice({ success: '', error: '' });
@@ -249,7 +269,12 @@ export function ResourceManagementView({
     let changed = 0;
     const failures: string[] = [];
     for (const resource of rows.values()) {
-      if (resource.status === 'ARCHIVED' || resource.parentRoomId != null) continue;
+      if (
+        resource.status === 'ARCHIVED' ||
+        resource.parentRoomId != null ||
+        maintainedIds.has(resource.id)
+      )
+        continue;
       if (
         resource.category !== 'ROOM' &&
         (resource.status === status || (status === 'DISABLED' && resource.status !== 'ACTIVE'))
@@ -289,7 +314,7 @@ export function ResourceManagementView({
   if (!mounted)
     return (
       <p role='status' className='text-muted-foreground flex items-center gap-2 p-6'>
-        <LoaderCircle className='size-4 animate-spin' />
+        <LoaderCircle className='size-4' />
         {c('Loading your resources…', 'Đang tải ghế/phòng của bạn…')}
       </p>
     );
@@ -327,7 +352,7 @@ export function ResourceManagementView({
           'Manage seats, rooms and booking availability.',
           'Quản lý ghế, phòng và trạng thái nhận đặt.'
         )}
-        icon={<Armchair aria-hidden='true' />}
+        icon={<Chair aria-hidden='true' />}
       >
         <Button
           size='sm'
@@ -427,7 +452,11 @@ export function ResourceManagementView({
                 disabled={query.isFetching || options.isFetching}
                 onClick={() => void invalidateResources(client, actorId)}
               >
-                <RefreshCw className={`size-4 ${query.isFetching ? 'animate-spin' : ''}`} />
+                {query.isFetching ? (
+                  <Spinner className={`size-4 `} />
+                ) : (
+                  <RefreshCw className={`size-4 `} />
+                )}
               </Button>
             </div>
           </div>
@@ -547,6 +576,17 @@ export function ResourceManagementView({
                 {c('Reset filters', 'Xóa bộ lọc')}
               </Button>
             </div>
+            {maintenance.isError && (
+              <div role='alert' className='px-5 py-3 text-sm text-destructive'>
+                {c(
+                  'Could not load maintenance. Status controls are temporarily locked.',
+                  'Không tải được lịch bảo trì. Tạm khóa thao tác bật/tắt.'
+                )}
+                <Button variant='outline' onClick={() => void maintenance.refetch()}>
+                  {c('Retry', 'Thử lại')}
+                </Button>
+              </div>
+            )}
             {query.isPending ? (
               <p role='status' className='text-muted-foreground p-8 text-center'>
                 {c('Loading inventory…', 'Đang tải danh sách…')}
@@ -560,7 +600,7 @@ export function ResourceManagementView({
               </div>
             ) : !query.data?.listObjects.length ? (
               <div className='text-muted-foreground flex min-h-48 flex-col items-center justify-center gap-3 px-4 text-center'>
-                <Armchair className='size-9' />
+                <Chair className='size-9' />
                 <p>
                   {c('No resources match your filters.', 'Chưa có ghế/phòng phù hợp với bộ lọc.')}
                 </p>
@@ -571,6 +611,8 @@ export function ResourceManagementView({
               </div>
             ) : (
               <ResourceInventoryTable
+                maintainedIds={maintainedIds}
+                maintenanceUnavailable={maintenance.isPending || maintenance.isError}
                 data={query.data}
                 options={options.data}
                 workspaceId={selectedId}
@@ -804,11 +846,7 @@ export function ResourceManagementView({
               disabled={busy || !writable}
               onClick={() => void confirmTypeDeletion()}
             >
-              {busy ? (
-                <LoaderCircle className='size-4 animate-spin' />
-              ) : (
-                <Trash2 className='size-4' />
-              )}
+              {busy ? <LoaderCircle className='size-4' /> : <Trash2 className='size-4' />}
               {c('Delete type', 'Xóa loại chỗ')}
             </Button>
           </div>
@@ -857,7 +895,7 @@ export function ResourceManagementView({
                   );
               }}
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Confirm', 'Xác nhận')}
             </Button>
           </div>
@@ -894,7 +932,7 @@ export function ResourceManagementView({
                 void act(() => deleteResource(remove), c('Resource deleted.', 'Đã xóa ghế/phòng.'))
               }
             >
-              {busy && <LoaderCircle className='size-4 animate-spin' />}
+              {busy && <LoaderCircle className='size-4' />}
               {c('Delete', 'Xóa')}
             </Button>
           </div>

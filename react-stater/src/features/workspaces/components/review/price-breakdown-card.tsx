@@ -1,14 +1,6 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from 'react';
-import {
-  Info,
-  Wallet,
-  Lock,
-  FileText,
-  CheckCircle2,
-  Loader2,
-  AlertCircle,
-  AlertTriangle
-} from 'lucide-react';
+import { Info, Wallet, Lock, FileText, CheckCircle2, AlertCircle, AlertTriangle, Ban } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -307,7 +299,7 @@ export function PriceBreakdownCard({
             </span>
             <span className='font-medium font-mono'>
               {isCalculating ? (
-                <Loader2 className='size-3.5 animate-spin inline' />
+                <Loader2 className='size-3.5 inline' />
               ) : (
                 formatPrice(baseRate)
               )}
@@ -346,7 +338,7 @@ export function PriceBreakdownCard({
             <div className='text-right'>
               <span className='text-primary font-sans text-2xl font-bold tracking-tight sm:text-3xl font-mono'>
                 {isCalculating ? (
-                  <Loader2 className='size-6 animate-spin inline text-primary' />
+                  <Loader2 className='size-6 inline text-primary' />
                 ) : (
                   formatPrice(totalAmount)
                 )}
@@ -358,6 +350,7 @@ export function PriceBreakdownCard({
           </div>
         </div>
 
+        {/* Primary Action Button */}
         {/* Primary Action Button */}
         {(() => {
           const isBookingExpired =

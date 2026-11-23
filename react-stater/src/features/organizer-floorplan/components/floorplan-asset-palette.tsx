@@ -10,7 +10,7 @@ import {
   DoorOpen,
   GripVertical,
   Info
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { ASSET_TEMPLATES } from '../data/mock-floorplan';
 import { AssetCategory, AssetTemplate } from '../types';
 

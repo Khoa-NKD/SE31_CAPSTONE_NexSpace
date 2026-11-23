@@ -1,6 +1,7 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { Calendar, Download, ArrowLeft, Check, Loader2, MessageSquare } from 'lucide-react';
+import { Calendar, Download, ArrowLeft, Check, MessageSquare } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { paymentService } from '@/features/payments/api/service';
 import { toast } from 'sonner';
@@ -63,7 +64,7 @@ export function ConfirmationActions({
         >
           {downloading ? (
             <>
-              <Loader2 className='h-4 w-4 animate-spin' />
+              <Loader2 className='h-4 w-4' />
               <span>{isVi ? 'Đang tạo PDF...' : 'Generating PDF...'}</span>
             </>
           ) : downloaded ? (

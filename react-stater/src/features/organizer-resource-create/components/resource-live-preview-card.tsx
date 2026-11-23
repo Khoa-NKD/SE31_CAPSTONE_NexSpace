@@ -11,7 +11,7 @@ import {
   Monitor,
   Coffee,
   Zap
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { ResourcePhoto } from '../types';
 import { cn } from '@/lib/utils';

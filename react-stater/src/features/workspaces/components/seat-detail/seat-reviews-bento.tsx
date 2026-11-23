@@ -1,11 +1,5 @@
 import { useState } from 'react';
-import {
-  Star,
-  PenLine,
-  ThumbsUp,
-  BadgeCheck,
-  ChevronDown
-} from 'lucide-react';
+import { Star, PenLine, ThumbsUp, BadgeCheck, ChevronDown } from '@/components/ui/hugeicons';
 
 export function SeatReviewsBento() {
   const [activeFilter, setActiveFilter] = useState<'all' | 'tech' | 'remote' | 'photos'>('all');
@@ -206,9 +200,7 @@ export function SeatReviewsBento() {
                 </div>
                 <div>
                   <div className='flex items-center gap-2'>
-                    <h4 className='text-foreground text-xs font-bold sm:text-sm'>
-                      {review.name}
-                    </h4>
+                    <h4 className='text-foreground text-xs font-bold sm:text-sm'>{review.name}</h4>
                     <span className='inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/20 dark:text-emerald-400'>
                       <BadgeCheck className='h-3 w-3' />
                       {review.tag}
@@ -261,4 +253,3 @@ export function SeatReviewsBento() {
     </div>
   );
 }
-

@@ -1,3 +1,4 @@
+import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from 'react';
 import {
   X,
@@ -11,11 +12,10 @@ import {
   Timer,
   ArrowLeft,
   RefreshCw,
-  Loader2,
   FileText,
   AlertTriangle,
   Ban
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { QRCodeSVG } from 'qrcode.react';
 import { NexSpaceLogo, NexSpaceMark } from '@/components/brand/logo';
 import {
@@ -290,7 +290,7 @@ export function PayOSCheckoutDialog({
         <div className='flex-1 overflow-y-auto px-5 py-3.5 space-y-3'>
           {isLoading ? (
             <div className='py-16 text-center space-y-3'>
-              <Loader2 className='h-8 w-8 animate-spin mx-auto text-primary' />
+              <Loader2 className='h-8 w-8 mx-auto text-primary' />
               <div className='text-sm font-semibold text-foreground'>
                 Đang khởi tạo mã VietQR từ cổng PayOS...
               </div>
@@ -325,7 +325,7 @@ export function PayOSCheckoutDialog({
                   className='w-1/2 cursor-pointer h-10 text-xs font-medium border-border'
                 >
                   {isDownloadingInvoice ? (
-                    <Loader2 className='mr-1.5 h-3.5 w-3.5 animate-spin text-primary' />
+                    <Loader2 className='mr-1.5 h-3.5 w-3.5 text-primary' />
                   ) : (
                     <FileText className='mr-1.5 h-3.5 w-3.5 text-primary' />
                   )}
@@ -396,7 +396,7 @@ export function PayOSCheckoutDialog({
                           : 'bg-destructive/10 text-destructive border-destructive/20'
                       }`}
                     >
-                      <Timer className='h-3 w-3 animate-spin [animation-duration:3s]' />
+                      <Spinner className='h-3 w-3 [animation-duration:3s]' />
                       <span>
                         {secondsRemaining > 0 ? `Giữ chỗ: ${timeFormatted}` : 'Hết hạn giữ chỗ'}
                       </span>
@@ -454,7 +454,7 @@ export function PayOSCheckoutDialog({
                       </div>
                     ) : (
                       <div className='flex flex-col items-center justify-center gap-2 text-muted-foreground text-xs'>
-                        <RefreshCw className='h-6 w-6 animate-spin text-primary' />
+                        <Spinner className='h-6 w-6 text-primary' />
                         <span>Đang nạp mã QR...</span>
                       </div>
                     )}

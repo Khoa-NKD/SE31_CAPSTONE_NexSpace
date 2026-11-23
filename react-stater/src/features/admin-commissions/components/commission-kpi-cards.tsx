@@ -1,5 +1,5 @@
 import React from 'react';
-import { Store, Building, QrCode, ArrowRightLeft } from 'lucide-react';
+import { Store, Building, QrCode, ArrowRightLeft } from '@/components/ui/hugeicons';
 import { MOCK_ACTIVE_FEE_TILES } from '../data/mock-commissions';
 
 export function CommissionKpiCards() {

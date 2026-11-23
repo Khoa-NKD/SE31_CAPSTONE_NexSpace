@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState } from 'react';
 import {
@@ -25,20 +26,19 @@ import {
   Cast,
   Monitor,
   Printer,
-  Armchair,
-  MoveVertical,
+  Chair,
+  Desk,
   Lock,
   ShowerHead,
   Bike,
-  Presentation,
+  MeetingRoom,
   Coffee,
   Droplets,
   Utensils,
-  Heart,
-  Sparkles,
-  Zap,
-  Loader2
-} from 'lucide-react';
+  Bed,
+  LayoutGrid,
+  Zap
+} from '@/components/ui/hugeicons';
 import type { AmenityDto, AmenityCategory } from '../api/types';
 import {
   useCreateAmenityMutation,
@@ -60,18 +60,18 @@ const getAvailableIcons = (c: (en: string, vi: string) => string) => [
   { name: 'Cast', label: c('Screen Cast', 'Trình chiếu màn hình'), icon: Cast },
   { name: 'Monitor', label: c('Dual Monitors', 'Hai màn hình'), icon: Monitor },
   { name: 'Printer', label: c('Printer / Scanner', 'Máy in / Máy quét'), icon: Printer },
-  { name: 'Armchair', label: c('Ergonomic Chair', 'Ghế công thái học'), icon: Armchair },
-  { name: 'MoveVertical', label: c('Standing Desk', 'Bàn đứng'), icon: MoveVertical },
+  { name: 'Armchair', label: c('Ergonomic Chair', 'Ghế công thái học'), icon: Chair },
+  { name: 'MoveVertical', label: c('Standing Desk', 'Bàn đứng'), icon: Desk },
   { name: 'Lock', label: c('Personal Locker', 'Tủ đồ cá nhân'), icon: Lock },
   { name: 'ShowerHead', label: c('Shower Suite', 'Phòng tắm'), icon: ShowerHead },
   { name: 'Bike', label: c('Bicycle Rack', 'Chỗ để xe đạp'), icon: Bike },
-  { name: 'Presentation', label: c('Meeting / Boardroom', 'Phòng họp'), icon: Presentation },
+  { name: 'Presentation', label: c('Meeting / Boardroom', 'Phòng họp'), icon: MeetingRoom },
   { name: 'Coffee', label: c('Espresso Bar', 'Quầy cà phê'), icon: Coffee },
   { name: 'Droplets', label: c('Filtered Water (RO)', 'Nước lọc (RO)'), icon: Droplets },
   { name: 'Utensils', label: c('Pantry & Kitchen', 'Khu bếp'), icon: Utensils },
-  { name: 'Heart', label: c('Wellness & Nap Pod', 'Khu nghỉ ngơi'), icon: Heart },
+  { name: 'Heart', label: c('Wellness & Nap Pod', 'Khu nghỉ ngơi'), icon: Bed },
   { name: 'Zap', label: c('EV / Power Station', 'Trạm sạc / Nguồn điện'), icon: Zap },
-  { name: 'Sparkles', label: c('Other Amenity', 'Tiện ích khác'), icon: Sparkles }
+  { name: 'Sparkles', label: c('Other Amenity', 'Tiện ích khác'), icon: LayoutGrid }
 ];
 
 interface AmenityFormContentProps {
@@ -242,7 +242,7 @@ function AmenityFormContent({ amenity, onClose, isOrganizer }: AmenityFormConten
           {c('Cancel', 'Hủy')}
         </Button>
         <Button type='submit' disabled={isSubmitting} className='gap-2'>
-          {isSubmitting && <Loader2 className='size-4 animate-spin' />}
+          {isSubmitting && <Loader2 className='size-4' />}
           {isEditing ? c('Save Changes', 'Lưu thay đổi') : c('Create Amenity', 'Tạo tiện ích')}
         </Button>
       </DialogFooter>

@@ -63,6 +63,7 @@ export function SeatDetailPage({
   // 2. Fetch Floor Maps & Resources
   const { data: floors } = useQuery<CustomerFloor[]>({
     queryKey: ['public-floor-maps', workspaceId],
+    refetchInterval: 3000,
     enabled: Number.isSafeInteger(workspaceId) && Number(workspaceId) > 0,
     queryFn: ({ signal }) =>
       backendRequest<CustomerFloor[]>(

@@ -1,6 +1,6 @@
 import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
-import { Search, Calendar, Filter, ChevronDown, RotateCcw, Building2 } from 'lucide-react';
+import { Search, Calendar, Filter, ChevronDown, RotateCcw, Building2 } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,

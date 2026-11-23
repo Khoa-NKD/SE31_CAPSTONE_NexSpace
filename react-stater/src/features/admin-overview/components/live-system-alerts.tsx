@@ -3,14 +3,16 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, CheckCircle, Clock } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock } from '@/components/ui/hugeicons';
 import { LiveSystemAlert } from '../data/mock-overview';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface LiveSystemAlertsProps {
   initialAlerts: LiveSystemAlert[];
 }
 
 export function LiveSystemAlerts({ initialAlerts }: LiveSystemAlertsProps) {
+  const { language } = useLanguage();
   const [alerts, setAlerts] = useState<LiveSystemAlert[]>(initialAlerts);
 
   const toggleAcknowledge = (id: string) => {
@@ -35,14 +37,14 @@ export function LiveSystemAlerts({ initialAlerts }: LiveSystemAlertsProps) {
               <span className='relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500'></span>
             </span>
             <h3 className='text-base font-semibold text-foreground'>
-              Live System Alerts
+              {language === 'vi' ? 'Cảnh báo hệ thống trực tiếp' : 'Live System Alerts'}
             </h3>
           </div>
           <Badge
             variant='outline'
             className='px-2 py-0.5 text-[11px] font-bold bg-red-50 text-red-700 border-red-200 dark:bg-red-950/40 dark:text-red-300'
           >
-            {activeCount} active
+            {language === 'vi' ? `${activeCount} hoạt động` : `${activeCount} active`}
           </Badge>
         </div>
 

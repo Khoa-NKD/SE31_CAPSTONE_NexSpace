@@ -1,22 +1,26 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState } from 'react';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
 import { BookingHistoryCard } from './booking-history-card';
-import { useMyBookingsQuery, useCancelBookingMutation, useCancellationPreviewQuery } from '../../api/booking-queries';
+import {
+  useMyBookingsQuery,
+  useCancelBookingMutation,
+  useCancellationPreviewQuery
+} from '../../api/booking-queries';
 import type { BookingDto } from '../../api/booking-types';
 import { Button } from '@/components/ui/button';
 import {
   CheckCircle2,
   Clock,
   Inbox,
-  Loader2,
   Search,
   Ticket,
   AlertTriangle,
   ChevronLeft,
   ChevronRight,
   ArrowRight
-} from 'lucide-react';
+} from '@/components/ui/hugeicons';
 import { Link } from '@tanstack/react-router';
 
 type StatusFilterTab = 'ALL' | 'CONFIRMED' | 'PENDING_PAYMENT' | 'COMPLETED' | 'CANCELLED';
@@ -229,7 +233,7 @@ export function BookingHistoryPage() {
         <div className="mt-6 space-y-4">
           {isLoading && (
             <div className="flex min-h-[300px] flex-col items-center justify-center gap-3 text-center">
-              <Loader2 className="size-8 animate-spin text-primary" />
+              <Loader2 className="size-8 text-primary" />
               <p className="text-sm text-muted-foreground">Đang tải danh sách lịch sử đặt chỗ...</p>
             </div>
           )}
@@ -324,7 +328,7 @@ export function BookingHistoryPage() {
       {/* Cancel Confirmation Dialog Modal */}
       {bookingToCancel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-4">
+          <div className="ns-modal-shine w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 text-red-600">
                 <AlertTriangle className="size-5" />
@@ -347,7 +351,7 @@ export function BookingHistoryPage() {
               <>
                 {isPreviewLoading ? (
                   <div className="flex items-center gap-2 p-3 rounded-xl bg-muted/40 text-xs text-muted-foreground">
-                    <Loader2 className="size-4 animate-spin text-primary" />
+                    <Loader2 className="size-4 text-primary" />
                     <span>Đang kiểm tra chính sách hoàn tiền...</span>
                   </div>
                 ) : cancelPreview ? (
@@ -466,7 +470,7 @@ export function BookingHistoryPage() {
                 disabled={cancelMutation.isPending}
                 className="bg-red-600 text-white hover:bg-red-700 cursor-pointer gap-2"
               >
-                {cancelMutation.isPending && <Loader2 className="size-3.5 animate-spin" />}
+                {cancelMutation.isPending && <Loader2 className="size-3.5" />}
                 <span>{bookingToCancel.status === 'CONFIRMED' ? 'Xác nhận hủy đặt chỗ' : 'Xác nhận hủy chỗ'}</span>
               </Button>
             </div>

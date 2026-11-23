@@ -1,3 +1,4 @@
+import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React, { useState } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
@@ -8,9 +9,8 @@ import {
   Navigation,
   Sliders,
   CheckCircle2,
-  AlertCircle,
-  Loader2
-} from 'lucide-react';
+  AlertCircle
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -462,7 +462,7 @@ export function StepLocationView() {
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <Save className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>{isSaving ? 'Saving...' : 'Save Draft'}</span>
           </Button>
 
@@ -473,7 +473,7 @@ export function StepLocationView() {
             className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
           >
             <span>Continue to Operating Hours</span>
-            {isSaving ? <Loader2 className='size-4 animate-spin' /> : <ArrowRight className='size-4' />}
+            {isSaving ? <Loader2 className='size-4' /> : <ArrowRight className='size-4' />}
           </Button>
         </div>
       </footer>
