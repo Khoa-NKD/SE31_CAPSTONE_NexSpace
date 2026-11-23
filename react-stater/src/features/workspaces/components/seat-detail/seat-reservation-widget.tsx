@@ -96,6 +96,8 @@ export function SeatReservationWidget({
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const createBookingMutation = useCreateBookingMutation();
   const { data: currentPendingBooking } = useCurrentPendingBooking();
+  const maxHoldAttempts = currentPendingBooking?.maxHoldAttempts ?? 3;
+  const penaltyBlockMinutes = currentPendingBooking?.penaltyBlockMinutes ?? 20;
   const isHoldBlocked = Boolean(
     currentPendingBooking?.isBookingSuspended ||
       (currentPendingBooking?.remainingHoldAttempts !== undefined && currentPendingBooking.remainingHoldAttempts <= 0)
@@ -152,11 +154,11 @@ export function SeatReservationWidget({
     if (isHoldBlocked) {
       toast.error(
         isVi
-          ? 'Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (3 lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.'
+          ? `Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (${maxHoldAttempts} lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.`
           : 'Your booking privileges are temporarily suspended or you have reached the maximum hold attempts.',
         {
           description: currentPendingBooking?.bookingSuspendedUntil
-            ? `Tạm khóa đến ${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng 20 phút).`
+            ? `Tạm khóa đến ${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng ${penaltyBlockMinutes} phút).`
             : undefined
         }
       );
@@ -377,7 +379,7 @@ export function SeatReservationWidget({
                 : 'Chọn ghế/phòng và thời gian để xem giá.'}
           </p>
         )}
-        {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá 3 lần hold không thanh toán hoặc còn 0 lượt */}
+        {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá số lần hold cho phép không thanh toán hoặc còn 0 lượt */}
         {isHoldBlocked && (
           <div className='rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-xs text-destructive flex items-center gap-2.5 shadow-2xs animate-in fade-in'>
             <ShieldAlert className='size-4 shrink-0 text-destructive' />
@@ -387,8 +389,8 @@ export function SeatReservationWidget({
               </p>
               <p className='text-[11px] text-destructive/90 mt-0.5'>
                 {isVi
-                  ? `Bạn đã dùng hết 3 lần giữ chỗ mà không hoàn tất thanh toán. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc thử lại sau${currentPendingBooking?.bookingSuspendedUntil ? ` (${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''}.`
-                  : 'You have reached the maximum 3 hold attempts. Please complete payment or try again later.'}
+                  ? `Bạn đã dùng hết ${maxHoldAttempts} lần giữ chỗ mà không hoàn tất thanh toán. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc thử lại sau${currentPendingBooking?.bookingSuspendedUntil ? ` (${new Date(currentPendingBooking.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})` : ''}.`
+                  : `You have reached the maximum ${maxHoldAttempts} hold attempts. Please complete payment or try again later.`}
               </p>
             </div>
           </div>

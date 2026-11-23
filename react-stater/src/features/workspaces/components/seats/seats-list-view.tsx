@@ -24,6 +24,7 @@ import { useCurrency } from '@/features/landing/context/currency-context';
 import type { MapResource, CustomerFloor, SpaceFilterType } from '../detail/public-floor-map';
 import { isResourceOffice, matchesSpaceCategory } from '../../utils/seat-room-utils';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 
 export interface SeatsListViewProps {
   resources: MapResource[];
@@ -88,6 +89,7 @@ export function SeatsListView({
 }: SeatsListViewProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
+  const { data: holdData } = useCurrentPendingBooking();
   const c = (en: string, vi: string) => (language === 'vi' ? vi : en);
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -181,7 +183,10 @@ export function SeatsListView({
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5'>
           {filteredResources.map((res) => {
             const avail = availabilityMap?.get(res.id);
-            const isHeldByMe = Boolean(avail?.isOccupiedByMe);
+            const isHeldByMe = Boolean(
+              avail?.isOccupiedByMe ||
+              (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
+            );
             const status = customerResourceStatus(res, avail, isHeldByMe);
             const isBooked = status.booked,
               isLocked = status.locked,

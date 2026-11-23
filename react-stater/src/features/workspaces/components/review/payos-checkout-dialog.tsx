@@ -621,26 +621,19 @@ export function PayOSCheckoutDialog({
               {/* Expired Action Control Buttons */}
               {isExpired && (
                 <div className='space-y-2 pt-1'>
-                  {onRetry && (
-                    <Button
-                      type='button'
-                      onClick={() => {
-                        handleOpenChange(false);
-                        onRetry();
-                      }}
-                      className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-primary text-primary-foreground hover:bg-primary/90 flex items-center justify-center gap-2'
-                    >
-                      <RefreshCw className='h-3.5 w-3.5' />
-                      <span>Tạo phiên mới &amp; Giữ lại chỗ</span>
-                    </Button>
-                  )}
                   <Button
                     type='button'
-                    variant='outline'
-                    onClick={() => handleOpenChange(false)}
-                    className='w-full cursor-pointer h-9 text-xs font-medium border-border'
+                    onClick={() => {
+                      handleOpenChange(false);
+                      if (onCancelCheckoutSuccess) {
+                        onCancelCheckoutSuccess();
+                      } else {
+                        window.history.back();
+                      }
+                    }}
+                    className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center gap-2'
                   >
-                    Đóng cửa sổ
+                    <span>Quay lại trang chi tiết không gian</span>
                   </Button>
                 </div>
               )}
@@ -658,28 +651,10 @@ export function PayOSCheckoutDialog({
         </div>
 
         {/* Modal Bottom Strip: Compliance & Dismiss */}
-        <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2 text-center'>
+        <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2.5 text-center'>
           <div className='text-muted-foreground flex items-center justify-center gap-1 text-[10px]'>
             <Shield className='h-3 w-3' />
             <span>Được bảo vệ bởi PayOS &amp; Napas 24/7 • Đạt chứng nhận SOC-2 Type II</span>
-          </div>
-          <div>
-            {!isExpired ? (
-              <button
-                type='button'
-                onClick={handleCancelCheckout}
-                disabled={cancelMutation.isPending}
-                className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
-              >
-                {cancelMutation.isPending
-                  ? 'Đang hủy phiên...'
-                  : 'Hủy giao dịch và giải phóng giữ chỗ'}
-              </button>
-            ) : (
-              <span className='text-[10px] text-muted-foreground'>
-                Đơn đặt chỗ đã được hệ thống giải phóng tự động
-              </span>
-            )}
           </div>
         </div>
       </DialogContent>

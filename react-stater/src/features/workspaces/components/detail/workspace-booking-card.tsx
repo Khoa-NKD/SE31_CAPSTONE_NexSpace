@@ -21,6 +21,7 @@ import {
 } from './date-time-picker-modal';
 import type { CustomerFloor, MapResource } from './public-floor-map';
 import type { ResourceAvailabilityItem } from '@/features/workspaces/api/booking-types';
+import { useCurrentPendingBooking } from '@/features/payments/api';
 import { cn } from '@/lib/utils';
 
 interface WorkspaceBookingCardProps {
@@ -32,6 +33,8 @@ interface WorkspaceBookingCardProps {
   schedule: ScheduleSelection | null;
   onScheduleChange: (schedule: ScheduleSelection) => void;
   availabilityMap?: Map<number, ResourceAvailabilityItem>;
+  isDatePickerOpen?: boolean;
+  onDatePickerOpenChange?: (open: boolean) => void;
 }
 
 export function WorkspaceBookingCard({
@@ -42,18 +45,34 @@ export function WorkspaceBookingCard({
   activeFloorId,
   schedule,
   onScheduleChange,
-  availabilityMap
+  availabilityMap,
+  isDatePickerOpen,
+  onDatePickerOpenChange
 }: WorkspaceBookingCardProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
 
+  const { data: holdData } = useCurrentPendingBooking();
+
+  const isSelectedHeldByMe = Boolean(
+    selectedResource && (
+      availabilityMap?.get(selectedResource.id)?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
+    )
+  );
+
   const isSelectedResourceAvailable = useMemo(() => {
     if (!selectedResource) return true;
     const avail = availabilityMap?.get(selectedResource.id);
-    const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
-    const isMaintenance = avail?.state === 'MAINTENANCE' || !selectedResource.selectable;
-    return (!avail || avail.state === 'AVAILABLE') && !isBooked && !isMaintenance;
-  }, [selectedResource, availabilityMap]);
+    const isHeldByMe = Boolean(
+      avail?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
+    );
+    const isBooked = avail?.state === 'BOOKED';
+    const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+    const isMaintenance = avail?.state === 'MAINTENANCE' || (!selectedResource.selectable && !isHeldByMe);
+    return (!avail || avail.state === 'AVAILABLE' || isHeldByMe) && !isBooked && !isLocked && !isMaintenance;
+  }, [selectedResource, availabilityMap, holdData]);
 
   // Compute lowest starting hourly price from floor resources if workspace.pricePerHour is not present
   const floorStartingHourlyPrice = useMemo(() => {
@@ -252,17 +271,42 @@ export function WorkspaceBookingCard({
             initialStartTime={schedule?.startTime}
             initialEndTime={schedule?.endTime}
             onConfirm={onScheduleChange}
+            open={isDatePickerOpen}
+            onOpenChange={onDatePickerOpenChange}
           >
             <div
               role='button'
               tabIndex={0}
-              className='p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-primary/60 transition-colors cursor-pointer bg-slate-50/70 dark:bg-slate-800/50 group'
+              className={cn(
+                'p-3.5 rounded-xl border transition-all cursor-pointer group',
+                schedule
+                  ? 'border-slate-200 dark:border-slate-700 hover:border-primary/60 bg-slate-50/70 dark:bg-slate-800/50'
+                  : 'border-2 border-primary/60 dark:border-primary/50 bg-primary/5 dark:bg-primary/10 hover:border-primary shadow-sm shadow-primary/10 ring-2 ring-primary/20'
+              )}
             >
+              {!schedule && (
+                <div className='flex items-center gap-1.5 mb-2'>
+                  <span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-primary/15 text-primary border border-primary/25 animate-pulse'>
+                    <Sparkles className='size-3' />
+                    {language === 'vi' ? 'Bước 1: Chọn ngày & giờ' : 'Step 1: Select Time'}
+                  </span>
+                </div>
+              )}
               <div className='flex items-center justify-between mb-1'>
-                <span className='text-[10px] font-bold uppercase tracking-wider text-slate-400 group-hover:text-primary transition-colors'>
+                <span
+                  className={cn(
+                    'text-[10px] font-bold uppercase tracking-wider transition-colors',
+                    schedule ? 'text-slate-400 group-hover:text-primary' : 'text-primary'
+                  )}
+                >
                   {language === 'vi' ? 'Ngày & Khung giờ' : 'Date & Time Slot'}
                 </span>
-                <Calendar className='size-3.5 text-slate-400 group-hover:text-primary transition-colors' />
+                <Calendar
+                  className={cn(
+                    'size-4 transition-colors',
+                    schedule ? 'text-slate-400 group-hover:text-primary' : 'text-primary'
+                  )}
+                />
               </div>
 
               {schedule ? (
@@ -288,12 +332,17 @@ export function WorkspaceBookingCard({
                   </div>
                 </div>
               ) : (
-                <div className='flex items-center justify-between'>
-                  <span className='text-sm font-semibold text-slate-700 dark:text-slate-200'>
-                    {language === 'vi' ? 'Chọn ngày & giờ đặt chỗ' : 'Select date & time'}
-                  </span>
-                  <span className='text-xs font-bold text-primary'>
-                    {language === 'vi' ? 'Thay đổi' : 'Choose'}
+                <div className='flex items-center justify-between py-1'>
+                  <div>
+                    <span className='text-xs sm:text-sm font-bold text-primary block'>
+                      {language === 'vi' ? 'Chưa chọn ngày & giờ đặt chỗ' : 'Select date & time'}
+                    </span>
+                    <span className='text-[11px] text-slate-500 dark:text-slate-400'>
+                      {language === 'vi' ? 'Bấm vào đây để chọn lịch' : 'Click to pick schedule'}
+                    </span>
+                  </div>
+                  <span className='px-2.5 py-1 rounded-lg text-xs font-bold bg-primary text-primary-foreground shadow-2xs group-hover:bg-primary/90 transition-colors'>
+                    {language === 'vi' ? 'Chọn ngay' : 'Choose'}
                   </span>
                 </div>
               )}
@@ -348,6 +397,20 @@ export function WorkspaceBookingCard({
                   : `${selectedResource.code} is unavailable`}
               </span>
             </button>
+          ) : !schedule ? (
+            <button
+              type='button'
+              onClick={() => onDatePickerOpenChange?.(true)}
+              className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.99]'
+            >
+              <Calendar className='size-4' />
+              <span>
+                {language === 'vi'
+                  ? 'Chọn ngày & giờ để tiếp tục'
+                  : 'Select Date & Time to Continue'}
+              </span>
+              <ArrowRight className='size-4 group-hover:translate-x-0.5 transition-transform' />
+            </button>
           ) : (
             <Link
               to='/workspaces/seats'
@@ -356,9 +419,13 @@ export function WorkspaceBookingCard({
             >
               <span>
                 {selectedResource
-                  ? language === 'vi'
-                    ? `Tiếp tục đặt ${selectedResource.code}`
-                    : `Continue with ${selectedResource.code}`
+                  ? isSelectedHeldByMe
+                    ? language === 'vi'
+                      ? `Tiếp tục thanh toán ${selectedResource.code}`
+                      : `Proceed to checkout for ${selectedResource.code}`
+                    : language === 'vi'
+                      ? `Tiếp tục đặt ${selectedResource.code}`
+                      : `Continue with ${selectedResource.code}`
                   : language === 'vi'
                     ? 'Chọn chỗ ngồi & Đặt ngay'
                     : 'Select Seats & Book'}
@@ -420,6 +487,8 @@ export function WorkspaceBookingCard({
               initialStartTime={schedule?.startTime}
               initialEndTime={schedule?.endTime}
               onConfirm={onScheduleChange}
+              open={isDatePickerOpen}
+              onOpenChange={onDatePickerOpenChange}
             >
               <button
                 type='button'
@@ -445,6 +514,15 @@ export function WorkspaceBookingCard({
             >
               <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
             </button>
+          ) : !schedule ? (
+            <button
+              type='button'
+              onClick={() => onDatePickerOpenChange?.(true)}
+              className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer'
+            >
+              <Calendar className='size-3.5' />
+              <span>{language === 'vi' ? 'Chọn lịch đặt' : 'Select Schedule'}</span>
+            </button>
           ) : (
             <Link
               to='/workspaces/seats'
@@ -453,9 +531,13 @@ export function WorkspaceBookingCard({
             >
               <span>
                 {selectedResource
-                  ? language === 'vi'
-                    ? `Đặt ${selectedResource.code}`
-                    : `Book ${selectedResource.code}`
+                  ? isSelectedHeldByMe
+                    ? language === 'vi'
+                      ? `Thanh toán ${selectedResource.code}`
+                      : `Checkout ${selectedResource.code}`
+                    : language === 'vi'
+                      ? `Đặt ${selectedResource.code}`
+                      : `Book ${selectedResource.code}`
                   : language === 'vi'
                     ? 'Chọn chỗ & Đặt'
                     : 'Select Space'}

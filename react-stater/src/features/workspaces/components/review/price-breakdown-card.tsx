@@ -1,6 +1,6 @@
 import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from 'react';
-import { Info, Wallet, Lock, FileText, CheckCircle2, AlertCircle, AlertTriangle } from '@/components/ui/hugeicons';
+import { Info, Wallet, Lock, FileText, CheckCircle2, AlertCircle, AlertTriangle, Ban } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -46,6 +46,7 @@ interface PriceBreakdownCardProps {
   onBookingCreated?: (booking: BookingDto | null) => void;
   autoOpen?: boolean;
   secondsRemaining?: number;
+  onExpired?: () => void;
 }
 
 export function PriceBreakdownCard({
@@ -59,7 +60,8 @@ export function PriceBreakdownCard({
   activeBooking,
   onBookingCreated,
   autoOpen,
-  secondsRemaining
+  secondsRemaining,
+  onExpired
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
@@ -349,70 +351,105 @@ export function PriceBreakdownCard({
         </div>
 
         {/* Primary Action Button */}
-        <div className='space-y-2'>
-          <Button
-            onClick={handleConfirmBooking}
-            disabled={
-              createBookingMutation.isPending ||
-              createPaymentMutation.isPending ||
-              (!effectiveBooking && isCalculating) ||
-              !priceSource ||
-              !sourceCurrency
-            }
-            className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
-          >
-            {createBookingMutation.isPending || createPaymentMutation.isPending ? (
-              <>
-                <Loader2 className='size-4' />
-                <span>Đang xử lý xác nhận...</span>
-              </>
-            ) : (
-              <>
-                <CheckCircle2 className='size-4' />
-                <span>
-                  {effectiveBooking ? `Xác nhận (${effectiveBooking.bookingCode})` : 'Xác nhận'}
-                </span>
-              </>
-            )}
-          </Button>
+        {/* Primary Action Button */}
+        {(() => {
+          const isBookingExpired =
+            effectiveBooking?.status === 'EXPIRED' ||
+            (secondsRemaining !== undefined && secondsRemaining <= 0);
 
-          {effectiveBooking && (
-            <Button
-              onClick={() =>
-                navigate({
-                  to: '/workspaces/confirmation',
-                  search: {
-                    bookingCode: effectiveBooking.bookingCode,
-                    bookingId: effectiveBooking.id
+          if (isBookingExpired) {
+            return (
+              <div className='space-y-2'>
+                <Button
+                  type='button'
+                  onClick={() => {
+                    if (onExpired) {
+                      onExpired();
+                    } else if (workspaceId) {
+                      navigate({
+                        to: '/workspaces/$workspaceId',
+                        params: { workspaceId: String(workspaceId) }
+                      });
+                    } else {
+                      navigate({ to: '/workspaces' });
+                    }
+                  }}
+                  className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-destructive hover:bg-destructive/90 text-destructive-foreground flex items-center justify-center gap-2'
+                >
+                  <Ban className='size-4' />
+                  <span>Phiên giữ chỗ đã hết hạn - Quay lại chọn chỗ</span>
+                </Button>
+              </div>
+            );
+          }
+
+          return (
+            <div className='space-y-2'>
+              <Button
+                onClick={handleConfirmBooking}
+                disabled={
+                  createBookingMutation.isPending ||
+                  createPaymentMutation.isPending ||
+                  (!effectiveBooking && isCalculating) ||
+                  !priceSource ||
+                  !sourceCurrency
+                }
+                className='h-12 w-full cursor-pointer rounded-xl text-sm font-semibold shadow-md bg-indigo-600 hover:bg-indigo-500 text-white flex items-center justify-center gap-2'
+              >
+                {createBookingMutation.isPending || createPaymentMutation.isPending ? (
+                  <>
+                    <Loader2 className='size-4 animate-spin' />
+                    <span>Đang xử lý xác nhận...</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 className='size-4' />
+                    <span>
+                      {effectiveBooking ? `Xác nhận (${effectiveBooking.bookingCode})` : 'Xác nhận'}
+                    </span>
+                  </>
+                )}
+              </Button>
+
+              {effectiveBooking && (
+                <Button
+                  onClick={() =>
+                    navigate({
+                      to: '/workspaces/confirmation',
+                      search: {
+                        bookingCode: effectiveBooking.bookingCode,
+                        bookingId: effectiveBooking.id
+                      }
+                    })
                   }
-                })
-              }
-              variant='secondary'
-              className='h-10 w-full text-xs font-semibold'
-            >
-              <CheckCircle2 className='size-3.5 mr-1.5' />
-              <span>Xem vé điện tử ({effectiveBooking.bookingCode})</span>
-            </Button>
-          )}
-
-          {effectiveBooking && (
-            <Button
-              variant='outline'
-              onClick={() => setIsCancelDialogOpen(true)}
-              disabled={cancelBookingMutation.isPending}
-              className='h-9 w-full text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 border-border/80 cursor-pointer'
-            >
-              {cancelBookingMutation.isPending ? (
-                <>
-                  <Loader2 className='size-3.5 mr-1.5' />
-                  <span>Đang hủy giữ chỗ...</span>
-                </>
-              ) : (
-                <span>Hủy giữ chỗ &amp; chọn vị trí khác</span>
+                  variant='secondary'
+                  className='h-10 w-full text-xs font-semibold'
+                >
+                  <CheckCircle2 className='size-3.5 mr-1.5' />
+                  <span>Xem vé điện tử ({effectiveBooking.bookingCode})</span>
+                </Button>
               )}
-            </Button>
-          )}
-        </div>
+
+              {effectiveBooking && (
+                <Button
+                  variant='outline'
+                  onClick={() => setIsCancelDialogOpen(true)}
+                  disabled={cancelBookingMutation.isPending}
+                  className='h-9 w-full text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10 border-border/80 cursor-pointer'
+                >
+                  {cancelBookingMutation.isPending ? (
+                    <>
+                      <Loader2 className='size-3.5 animate-spin mr-1.5' />
+                      <span>Đang hủy giữ chỗ...</span>
+                    </>
+                  ) : (
+                    <span>Hủy giữ chỗ &amp; chọn vị trí khác</span>
+                  )}
+                </Button>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Payment Security & Trust Badges */}
         <div className='border-border/60 space-y-2.5 border-t pt-4 text-xs text-muted-foreground'>
@@ -482,7 +519,7 @@ export function PriceBreakdownCard({
                 </p>
                 {remainingAttempts <= 1 ? (
                   <div className='mt-2 rounded-md bg-destructive/15 border border-destructive/30 p-2 text-xs font-semibold text-destructive'>
-                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết 3 lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyMinutes} phút.
+                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết {maxAttempts} lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyMinutes} phút.
                   </div>
                 ) : (
                   <p className='mt-1 text-xs text-amber-800 dark:text-amber-300'>
