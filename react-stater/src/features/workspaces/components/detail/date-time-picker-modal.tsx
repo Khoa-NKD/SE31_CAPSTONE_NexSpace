@@ -45,6 +45,8 @@ export interface DateTimePickerModalProps {
   initialStartTime?: string;
   initialEndTime?: string;
   onConfirm?: (schedule: ScheduleSelection) => void;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 // Default operating hours (08:00 - 22:00 every day) if workspace does not specify
@@ -135,9 +137,13 @@ export function DateTimePickerModal({
   initialDay,
   initialStartTime,
   initialEndTime,
-  onConfirm
+  onConfirm,
+  open: openProp,
+  onOpenChange: onOpenChangeProp
 }: DateTimePickerModalProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = openProp !== undefined ? openProp : internalOpen;
+  const setOpen = onOpenChangeProp || setInternalOpen;
 
   // Fallback query if operatingHours are not passed via props but workspaceId is present
   const { data: queriedHours } = usePublicOperatingHoursQuery(
