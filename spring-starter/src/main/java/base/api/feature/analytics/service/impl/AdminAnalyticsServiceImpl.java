@@ -87,7 +87,8 @@ public class AdminAnalyticsServiceImpl implements IAdminAnalyticsService {
 
         long totalWorkspaces = workspaceRepository.count();
         long activeWorkspaces = workspaceRepository.countByStatus(WorkspaceStatus.ACTIVE);
-        long pendingWorkspaces = workspaceRepository.countByStatus(WorkspaceStatus.PENDING);
+        long pendingWorkspaces = workspaceRepository.countByStatus(WorkspaceStatus.PENDING)
+                + workspaceRepository.countByStatus(WorkspaceStatus.PENDING_REVIEW);
 
         long rangeBookings = bookingRepository.countByCreatedAtAfter(since);
         long completedBookings = bookingRepository.countByStatusInAndCreatedAtAfter(
