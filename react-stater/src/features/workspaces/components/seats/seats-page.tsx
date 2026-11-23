@@ -114,6 +114,8 @@ export function SeatsPage({
   const c = useCallback((en: string, vi: string) => (language === 'vi' ? vi : en), [language]);
 
   const { data: holdData } = useCurrentPendingBooking();
+  const maxHoldAttempts = holdData?.maxHoldAttempts ?? 3;
+  const penaltyBlockMinutes = holdData?.penaltyBlockMinutes ?? 20;
   const isHoldBlocked = Boolean(
     holdData?.isBookingSuspended ||
     (holdData?.remainingHoldAttempts !== undefined && holdData.remainingHoldAttempts <= 0)
@@ -373,11 +375,11 @@ export function SeatsPage({
       toast.error(
         c(
           'Your account is temporarily suspended from holding or booking spaces.',
-          'Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (3 lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.'
+          `Tài khoản của bạn đã dùng hết số lần giữ chỗ cho phép (${maxHoldAttempts} lần) hoặc đang bị tạm khóa. Vui lòng hoàn tất thanh toán đơn hiện tại hoặc chờ hết thời gian khóa.`
         ),
         {
           description: holdData?.bookingSuspendedUntil
-            ? `Tạm khóa đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng 20 phút).`
+            ? `Tạm khóa đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')} (trong vòng ${penaltyBlockMinutes} phút).`
             : undefined
         }
       );
@@ -623,7 +625,7 @@ export function SeatsPage({
               </div>
             </div>
 
-            {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá 3 lần hold không thanh toán */}
+            {/* Banner Cảnh báo khi người dùng bị khóa đặt chỗ do quá số lần hold cho phép không thanh toán */}
             {isHoldBlocked && (
               <div className='rounded-2xl border border-destructive/40 bg-destructive/10 p-4 text-xs text-destructive flex items-center gap-3 shadow-xs animate-in fade-in'>
                 <ShieldAlert className='size-5 shrink-0 text-destructive' />
@@ -636,12 +638,12 @@ export function SeatsPage({
                   </p>
                   <p className='text-xs text-destructive/90 mt-0.5'>
                     {c(
-                      `You have reached the maximum of 3 hold attempts without payment. You cannot hold or book any desks or rooms${
+                      `You have reached the maximum of ${maxHoldAttempts} hold attempts without payment. You cannot hold or book any desks or rooms${
                         holdData?.bookingSuspendedUntil
                           ? ` until ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')}`
-                          : ' for the next 20 minutes'
+                          : ` for the next ${penaltyBlockMinutes} minutes`
                       }.`,
-                      `Bạn đã dùng hết 3 lần giữ chỗ mà không thanh toán. Hệ thống tạm khóa quyền giữ chỗ và đặt phòng/bàn mới${
+                      `Bạn đã dùng hết ${maxHoldAttempts} lần giữ chỗ mà không thanh toán. Hệ thống tạm khóa quyền giữ chỗ và đặt phòng/bàn mới${
                         holdData?.bookingSuspendedUntil
                           ? ` (đến ${new Date(holdData.bookingSuspendedUntil).toLocaleTimeString('vi-VN')})`
                           : ''

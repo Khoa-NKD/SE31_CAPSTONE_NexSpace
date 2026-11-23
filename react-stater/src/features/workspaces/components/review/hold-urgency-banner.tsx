@@ -313,7 +313,7 @@ export function HoldUrgencyBanner({
                 </p>
                 {remainingHoldAttempts <= 1 ? (
                   <div className='mt-2 rounded-md bg-destructive/15 border border-destructive/30 p-2 text-xs font-semibold text-destructive'>
-                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết 3 lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyBlockMinutes} phút.
+                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết {maxHoldAttempts} lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyBlockMinutes} phút.
                   </div>
                 ) : (
                   <p className='mt-1 text-xs text-amber-800 dark:text-amber-300'>
