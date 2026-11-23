@@ -147,7 +147,9 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                 <th scope='col' className='py-2.5 px-4 text-right'>Bookings</th>
                 <th scope='col' className='py-2.5 px-4'>Handler</th>
                 <th scope='col' className='py-2.5 px-4 text-right'>Timestamp</th>
-                <th scope='col' className='py-2.5 px-4 text-right'>Audit Trail</th>
+                <th scope='col' className='py-2.5 px-4 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+                  Audit Trail
+                </th>
               </tr>
             </thead>
             <tbody className='divide-y divide-border text-xs'>
@@ -173,7 +175,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                 filteredRecords.map((rec) => (
                   <tr
                     key={rec.id}
-                    className={`transition-colors ${
+                    className={`transition-colors group ${
                       rec.actionStatus === 'suspended'
                         ? 'hover:bg-rose-50/30 dark:hover:bg-rose-950/20 bg-rose-50/10'
                         : 'hover:bg-muted/40'
@@ -244,7 +246,7 @@ export function ModeratedWorkspacesTable({ records }: ModeratedWorkspacesTablePr
                     <td className='py-3.5 px-4 text-right font-mono text-muted-foreground'>
                       {formatDateLabel(rec.timestamp)}
                     </td>
-                    <td className='py-3.5 px-4 text-right'>
+                    <td className='py-3.5 px-4 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                       <button
                         type='button'
                         onClick={() => setSelectedRecord(rec)}

@@ -189,7 +189,7 @@ export function ResourceTableRow({
       </td>
 
       {/* 9. Actions Column */}
-      <td className='px-4 sm:px-5 py-3.5 text-right'>
+      <td className='w-28 px-4 sm:px-5 py-3.5 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
         <div className='flex items-center justify-end gap-1 text-muted-foreground'>
           {/* Quick Edit */}
           <button

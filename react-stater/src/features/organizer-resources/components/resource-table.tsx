@@ -74,7 +74,7 @@ export function ResourceTable({
               <th className='px-4 py-3' scope='col'>Hourly / Daily Rate</th>
               <th className='px-4 py-3' scope='col'>Amenities &amp; Hardware</th>
               <th className='px-4 py-3' scope='col'>Status (Bookable)</th>
-              <th className='w-28 px-4 sm:px-5 py-3 text-right' scope='col'>Actions</th>
+              <th className='w-28 px-4 sm:px-5 py-3 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]' scope='col'>Actions</th>
             </tr>
           </thead>
 

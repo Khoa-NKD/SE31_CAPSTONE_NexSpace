@@ -393,12 +393,14 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                   <TableHead className='w-32 font-bold text-xs text-right'>
                     {c('Purchase price', 'Giá mua')}
                   </TableHead>
-                  <TableHead className='w-44 font-bold text-xs text-right'>Hành động</TableHead>
+                  <TableHead className='w-44 font-bold text-xs text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+                    {c('Actions', 'Hành động')}
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {currentAssets.map((asset) => (
-                  <TableRow key={asset.id} className='hover:bg-muted/20 transition-colors'>
+                  <TableRow key={asset.id} className='hover:bg-muted/20 transition-colors group'>
                     <TableCell className='font-mono font-bold text-xs text-indigo-600 dark:text-indigo-400'>
                       {asset.assetCode}
                     </TableCell>
@@ -448,7 +450,7 @@ export function WorkspaceAssetsManager({ workspaceId }: WorkspaceAssetsManagerPr
                         : '—'}
                     </TableCell>
 
-                    <TableCell className='text-right'>
+                    <TableCell className='text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                       <div className='flex items-center justify-end gap-1'>
                         <Button
                           type='button'

@@ -1,82 +1,82 @@
 import React from 'react';
-import { RefundSummaryKpis } from '../data/mock-refunds';
+import { RefundSummaryKpis, formatVnd } from '../data/mock-refunds';
 
 interface RefundsKpiGridProps {
   kpis: RefundSummaryKpis;
+  language?: 'vi' | 'en';
 }
 
-export function RefundsKpiGrid({ kpis }: RefundsKpiGridProps) {
+export function RefundsKpiGrid({ kpis, language = 'vi' }: RefundsKpiGridProps) {
+  const isVi = language === 'vi';
+
   return (
-    <div className='grid grid-cols-1 md:grid-cols-3 gap-5 mb-6'>
+    <div className='grid grid-cols-1 gap-4 sm:grid-cols-3 mb-5'>
       {/* Card 1: Pending Review */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-all relative overflow-hidden'>
-        <div className='absolute top-0 left-0 h-1 w-full bg-amber-500' />
-        <div className='flex items-start justify-between'>
+      <div className='relative overflow-hidden rounded-xl border bg-card p-4.5 shadow-2xs transition-all hover:border-amber-500/40'>
+        <div className='flex items-center justify-between'>
           <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
-            In Triage Worklist
+            {isVi ? 'Yêu cầu chờ xét duyệt' : 'In Triage Worklist'}
           </span>
-          <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30'>
-            <span className='w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse' />
-            Action Required
+          <span className='inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-400'>
+            <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
+            {isVi ? 'Cần xử lý' : 'Action Required'}
           </span>
         </div>
-        <div className='mt-3 flex items-baseline gap-2'>
-          <div className='text-[28px] font-bold text-foreground tracking-tight'>
-            {kpis.pendingCount} Requests
+        <div className='mt-2.5 flex items-baseline gap-2'>
+          <div className='text-2xl font-bold tracking-tight text-foreground'>
+            {kpis.pendingCount} <span className='text-sm font-medium text-muted-foreground'>{isVi ? 'yêu cầu' : 'Requests'}</span>
           </div>
         </div>
-        <div className='mt-1 flex items-center gap-1 text-xs text-muted-foreground font-medium'>
-          <span className='text-amber-600 dark:text-amber-400 font-semibold'>
-            ${kpis.pendingVolumeUsd.toFixed(2)}
+        <div className='mt-1 flex items-center gap-1.5 text-xs text-muted-foreground'>
+          <span className='font-semibold text-amber-600 dark:text-amber-400'>
+            {formatVnd(kpis.pendingVolumeVnd)}
           </span>
-          <span>total refundable volume pending adjudication</span>
+          <span>{isVi ? 'tổng tiền hoàn đang chờ duyệt' : 'pending adjudication'}</span>
         </div>
       </div>
 
       {/* Card 2: Approved & Processed */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-all relative overflow-hidden'>
-        <div className='absolute top-0 left-0 h-1 w-full bg-emerald-500' />
-        <div className='flex items-start justify-between'>
+      <div className='relative overflow-hidden rounded-xl border bg-card p-4.5 shadow-2xs transition-all hover:border-emerald-500/40'>
+        <div className='flex items-center justify-between'>
           <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
-            Disbursed Volume
+            {isVi ? 'Đã chi trả hoàn tiền' : 'Disbursed Volume'}
           </span>
-          <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30'>
-            <span className='w-1.5 h-1.5 rounded-full bg-emerald-500' />
-            Processed (30d)
+          <span className='inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400'>
+            <span className='size-1.5 rounded-full bg-emerald-500' />
+            {isVi ? 'Đã chi qua PayOS' : 'Processed (PayOS)'}
           </span>
         </div>
-        <div className='mt-3 flex items-baseline gap-2'>
-          <div className='text-[28px] font-bold text-foreground tracking-tight'>
-            {kpis.processedCount} Refunds
+        <div className='mt-2.5 flex items-baseline gap-2'>
+          <div className='text-2xl font-bold tracking-tight text-foreground'>
+            {kpis.processedCount} <span className='text-sm font-medium text-muted-foreground'>{isVi ? 'lượt hoàn' : 'Refunds'}</span>
           </div>
         </div>
-        <div className='mt-1 flex items-center gap-1 text-xs text-muted-foreground font-medium'>
-          <span className='text-emerald-600 dark:text-emerald-400 font-semibold'>
-            ${kpis.processedVolumeUsd.toFixed(2)}
+        <div className='mt-1 flex items-center gap-1.5 text-xs text-muted-foreground'>
+          <span className='font-semibold text-emerald-600 dark:text-emerald-400'>
+            {formatVnd(kpis.processedVolumeVnd)}
           </span>
-          <span>disbursed via PayOS Escrow</span>
+          <span>{isVi ? 'đã giải ngân qua cổng PayOS' : 'disbursed via PayOS'}</span>
         </div>
       </div>
 
       {/* Card 3: Rejected Claims */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-slate-400 dark:hover:border-slate-600 transition-all relative overflow-hidden'>
-        <div className='absolute top-0 left-0 h-1 w-full bg-red-500' />
-        <div className='flex items-start justify-between'>
+      <div className='relative overflow-hidden rounded-xl border bg-card p-4.5 shadow-2xs transition-all hover:border-rose-500/40'>
+        <div className='flex items-center justify-between'>
           <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
-            Dispute Exceptions
+            {isVi ? 'Khiếu nại bị từ chối' : 'Dispute Exceptions'}
           </span>
-          <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-500/10 text-red-700 dark:text-red-400 border border-red-500/30'>
-            <span className='w-1.5 h-1.5 rounded-full bg-red-500' />
-            Denied
+          <span className='inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2 py-0.5 text-[11px] font-semibold text-rose-700 dark:text-rose-400'>
+            <span className='size-1.5 rounded-full bg-rose-500' />
+            {isVi ? 'Từ chối' : 'Denied'}
           </span>
         </div>
-        <div className='mt-3 flex items-baseline gap-2'>
-          <div className='text-[28px] font-bold text-foreground tracking-tight'>
-            {kpis.rejectedCount} Claims
+        <div className='mt-2.5 flex items-baseline gap-2'>
+          <div className='text-2xl font-bold tracking-tight text-foreground'>
+            {kpis.rejectedCount} <span className='text-sm font-medium text-muted-foreground'>{isVi ? 'khiếu nại' : 'Claims'}</span>
           </div>
         </div>
-        <div className='mt-1 flex items-center gap-1 text-xs text-muted-foreground font-medium'>
-          <span>Policy breach or invalid evidence verification</span>
+        <div className='mt-1 text-xs text-muted-foreground'>
+          <span>{isVi ? 'Vi phạm chính sách hủy hoặc sai lệch minh chứng' : 'Policy breach or invalid evidence'}</span>
         </div>
       </div>
     </div>

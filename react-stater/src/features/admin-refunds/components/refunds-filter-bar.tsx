@@ -1,5 +1,8 @@
 import React from 'react';
-import { Search, Calendar, Building2 } from '@/components/ui/hugeicons';
+import { Search, X, RotateCcw, RefreshCw } from '@/components/ui/hugeicons';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { RefundStatus } from '../data/mock-refunds';
 
 interface RefundsFilterBarProps {
@@ -7,16 +10,16 @@ interface RefundsFilterBarProps {
   onSearchChange: (value: string) => void;
   statusFilter: 'all' | RefundStatus;
   onStatusChange: (status: 'all' | RefundStatus) => void;
-  timeRange: string;
-  onTimeRangeChange: (range: string) => void;
-  selectedHub: string;
-  onHubChange: (hub: string) => void;
   counts: {
     all: number;
     pending: number;
     processed: number;
     rejected: number;
   };
+  onReset?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
+  language?: 'vi' | 'en';
 }
 
 export function RefundsFilterBar({
@@ -24,114 +27,150 @@ export function RefundsFilterBar({
   onSearchChange,
   statusFilter,
   onStatusChange,
-  timeRange,
-  onTimeRangeChange,
-  selectedHub,
-  onHubChange,
-  counts
+  counts,
+  onReset,
+  onRefresh,
+  isRefreshing = false,
+  language = 'vi'
 }: RefundsFilterBarProps) {
+  const isVi = language === 'vi';
+  const isFiltered = Boolean(searchQuery) || statusFilter !== 'all';
+
+  const STATUS_TABS: Array<{
+    id: 'all' | RefundStatus;
+    labelVi: string;
+    labelEn: string;
+    count: number;
+    dotColor?: string;
+  }> = [
+    { id: 'all', labelVi: 'Tất cả', labelEn: 'All', count: counts.all },
+    {
+      id: 'pending',
+      labelVi: 'Chờ xét duyệt',
+      labelEn: 'Pending Review',
+      count: counts.pending,
+      dotColor: 'bg-amber-500'
+    },
+    {
+      id: 'processed',
+      labelVi: 'Đã hoàn tiền',
+      labelEn: 'Processed',
+      count: counts.processed,
+      dotColor: 'bg-emerald-500'
+    },
+    {
+      id: 'rejected',
+      labelVi: 'Đã từ chối',
+      labelEn: 'Rejected',
+      count: counts.rejected,
+      dotColor: 'bg-rose-500'
+    }
+  ];
+
   return (
-    <div className='bg-card text-card-foreground border border-border rounded-xl p-3.5 mb-5 shadow-sm flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4'>
-      {/* Left Filter Stack */}
-      <div className='flex flex-wrap items-center gap-3 flex-1'>
-        {/* Compact Search */}
-        <div className='relative w-full sm:w-64'>
-          <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground' />
-          <input
-            type='text'
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder='Filter current list...'
-            className='w-full h-8 pl-8 pr-3 text-xs bg-muted/60 border border-input rounded-md placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary focus:bg-background transition-colors'
-          />
-        </div>
-
-        <div className='hidden sm:block h-5 w-[1px] bg-border' />
-
-        {/* Status Filter Tabs */}
-        <div className='flex flex-wrap items-center gap-1 text-xs'>
-          <button
-            type='button'
-            onClick={() => onStatusChange('all')}
-            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${
-              statusFilter === 'all'
-                ? 'bg-primary text-primary-foreground font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-            }`}
-          >
-            All <span className='opacity-80 font-normal'>({counts.all})</span>
-          </button>
-
-          <button
-            type='button'
-            onClick={() => onStatusChange('pending')}
-            className={`px-2.5 py-1 rounded-md flex items-center gap-1.5 transition-colors ${
-              statusFilter === 'pending'
-                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40 font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted font-medium'
-            }`}
-          >
-            <span className='w-1.5 h-1.5 rounded-full bg-amber-500' />
-            Pending Review <span className='font-bold'>({counts.pending})</span>
-          </button>
-
-          <button
-            type='button'
-            onClick={() => onStatusChange('processed')}
-            className={`px-2.5 py-1 rounded-md transition-colors ${
-              statusFilter === 'processed'
-                ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40 font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted font-medium'
-            }`}
-          >
-            Processed <span className='opacity-80 font-normal'>({counts.processed})</span>
-          </button>
-
-          <button
-            type='button'
-            onClick={() => onStatusChange('rejected')}
-            className={`px-2.5 py-1 rounded-md transition-colors ${
-              statusFilter === 'rejected'
-                ? 'bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/40 font-semibold shadow-xs'
-                : 'text-muted-foreground hover:text-foreground hover:bg-muted font-medium'
-            }`}
-          >
-            Rejected <span className='opacity-80 font-normal'>({counts.rejected})</span>
-          </button>
-        </div>
+    <div className='min-w-0 space-y-3.5 mb-4'>
+      {/* ── 1. Segmented Status Tabs ── */}
+      <div className='flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/60 p-1.5 shadow-2xs backdrop-blur-xs'>
+        {STATUS_TABS.map((tab) => {
+          const isActive = statusFilter === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type='button'
+              onClick={() => onStatusChange(tab.id)}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-2xs font-semibold'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+              }`}
+            >
+              {tab.dotColor && (
+                <span
+                  className={`size-1.5 rounded-full ${
+                    isActive ? 'bg-primary-foreground' : tab.dotColor
+                  }`}
+                  aria-hidden='true'
+                />
+              )}
+              <span>{isVi ? tab.labelVi : tab.labelEn}</span>
+              <span className={`text-[11px] opacity-80 ${isActive ? 'font-bold' : ''}`}>
+                ({tab.count})
+              </span>
+            </button>
+          );
+        })}
       </div>
 
-      {/* Right Quick Dropdowns */}
-      <div className='flex items-center gap-2.5 self-end lg:self-auto'>
-        <div className='relative flex items-center'>
-          <Calendar className='absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none' />
-          <select
-            value={timeRange}
-            onChange={(e) => onTimeRangeChange(e.target.value)}
-            aria-label='Filter by time range'
-            className='h-8 pl-8 pr-6 text-xs bg-background border border-input rounded-md text-foreground font-medium focus:ring-1 focus:ring-primary appearance-none cursor-pointer'
-          >
-            <option value='30d'>Last 30 Days</option>
-            <option value='7d'>Last 7 Days</option>
-            <option value='90d'>Last 90 Days</option>
-            <option value='all'>All Time</option>
-          </select>
+      {/* ── 2. Compact Search & Action Controls Toolbar ── */}
+      <div className='flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between'>
+        {/* Search Input */}
+        <div className='relative w-full sm:max-w-xs md:max-w-sm'>
+          <Search
+            className='pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground/60'
+            aria-hidden='true'
+          />
+          <Input
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            maxLength={255}
+            placeholder={
+              isVi
+                ? 'Tìm theo mã yêu cầu, mã booking, khách hàng...'
+                : 'Search claim ID, booking ref, customer...'
+            }
+            className='h-9 rounded-lg bg-card pl-8.5 pr-8 text-xs shadow-2xs transition-all focus-visible:ring-1'
+          />
+          {searchQuery && (
+            <button
+              type='button'
+              onClick={() => onSearchChange('')}
+              className='absolute top-2.5 right-2.5 text-muted-foreground/60 hover:text-foreground'
+              aria-label={isVi ? 'Xóa từ khóa' : 'Clear search'}
+            >
+              <X className='size-3.5' />
+            </button>
+          )}
         </div>
 
-        <div className='relative flex items-center'>
-          <Building2 className='absolute left-2.5 size-3.5 text-muted-foreground pointer-events-none' />
-          <select
-            value={selectedHub}
-            onChange={(e) => onHubChange(e.target.value)}
-            aria-label='Filter by workspace hub'
-            className='h-8 pl-8 pr-6 text-xs bg-background border border-input rounded-md text-foreground font-medium focus:ring-1 focus:ring-primary appearance-none cursor-pointer'
+        {/* Action Controls & Total Count */}
+        <div className='flex flex-wrap items-center gap-2'>
+          <Badge
+            variant='secondary'
+            className='h-8 rounded-lg px-2.5 text-xs font-normal text-muted-foreground'
           >
-            <option value='all'>All Hubs</option>
-            <option value='Landmark'>Landmark Tower</option>
-            <option value='Saigon Prime'>Saigon Prime</option>
-            <option value='SeaView'>SeaView Hub</option>
-            <option value='Westlake'>Westlake Suites</option>
-          </select>
+            {isVi ? `${counts.all} yêu cầu` : `${counts.all} claims`}
+          </Badge>
+
+          {isFiltered && onReset && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              className='h-8 gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground'
+              onClick={onReset}
+            >
+              <RotateCcw className='size-3.5' aria-hidden='true' />
+              <span>{isVi ? 'Đặt lại' : 'Reset'}</span>
+            </Button>
+          )}
+
+          {onRefresh && (
+            <Button
+              type='button'
+              variant='outline'
+              size='sm'
+              disabled={isRefreshing}
+              className='h-8 gap-1 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground'
+              onClick={onRefresh}
+              aria-label={isVi ? 'Làm mới' : 'Refresh'}
+            >
+              <RefreshCw
+                className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`}
+                aria-hidden='true'
+              />
+              <span className='hidden sm:inline'>{isVi ? 'Làm mới' : 'Refresh'}</span>
+            </Button>
+          )}
         </div>
       </div>
     </div>

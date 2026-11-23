@@ -94,7 +94,7 @@ export const PendingRequestsTable: React.FC<PendingRequestsTableProps> = ({
                     <TableHead>{language === 'vi' ? 'Tài khoản nhận' : 'Bank Account'}</TableHead>
                     <TableHead>{language === 'vi' ? 'Ghi chú' : 'Notes'}</TableHead>
                     <TableHead>{language === 'vi' ? 'Thời gian gửi' : 'Requested At'}</TableHead>
-                    <TableHead className="text-right">{language === 'vi' ? 'Hành động' : 'Actions'}</TableHead>
+                    <TableHead className="text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">{language === 'vi' ? 'Hành động' : 'Actions'}</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -103,7 +103,7 @@ export const PendingRequestsTable: React.FC<PendingRequestsTableProps> = ({
                     const isChangeHour = isEnable && req.payoutMode === 'AUTO_DAILY';
 
                     return (
-                      <TableRow key={req.id} className="text-xs border-border hover:bg-muted/40 transition-colors">
+                      <TableRow key={req.id} className="text-xs border-border hover:bg-muted/40 transition-colors group">
                         <TableCell>
                           <div className="font-semibold text-foreground">
                             {req.organizerName || req.organizerEmail || `ID #${req.organizerId}`}
@@ -160,7 +160,7 @@ export const PendingRequestsTable: React.FC<PendingRequestsTableProps> = ({
                               })
                             : '—'}
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">
                           <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
