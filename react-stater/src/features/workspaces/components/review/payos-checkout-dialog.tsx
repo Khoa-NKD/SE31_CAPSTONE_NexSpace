@@ -651,28 +651,10 @@ export function PayOSCheckoutDialog({
         </div>
 
         {/* Modal Bottom Strip: Compliance & Dismiss */}
-        <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2 text-center'>
+        <div className='bg-muted/40 border-border/60 shrink-0 space-y-1 border-t px-4 py-2.5 text-center'>
           <div className='text-muted-foreground flex items-center justify-center gap-1 text-[10px]'>
             <Shield className='h-3 w-3' />
             <span>Được bảo vệ bởi PayOS &amp; Napas 24/7 • Đạt chứng nhận SOC-2 Type II</span>
-          </div>
-          <div>
-            {!isExpired ? (
-              <button
-                type='button'
-                onClick={handleCancelCheckout}
-                disabled={cancelMutation.isPending}
-                className='hover:text-destructive text-muted-foreground cursor-pointer text-[10px] underline underline-offset-2 transition-colors'
-              >
-                {cancelMutation.isPending
-                  ? 'Đang hủy phiên...'
-                  : 'Hủy giao dịch và giải phóng giữ chỗ'}
-              </button>
-            ) : (
-              <span className='text-[10px] text-muted-foreground'>
-                Đơn đặt chỗ đã được hệ thống giải phóng tự động
-              </span>
-            )}
           </div>
         </div>
       </DialogContent>
