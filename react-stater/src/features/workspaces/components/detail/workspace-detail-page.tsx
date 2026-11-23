@@ -6,12 +6,8 @@ import { Footer } from '@/features/landing/components/footer';
 import { WorkspaceGallery } from './workspace-gallery';
 import { WorkspaceInfo } from './workspace-info';
 import { WorkspaceBookingCard } from './workspace-booking-card';
-import {
-  usePublicWorkspaceDetailQuery,
-  useWorkspaceMediaQuery,
-  useWorkspaceAmenitiesQuery
-} from '../../api/queries';
-import { useWorkspaceAvailabilityQuery } from '../../api/booking-queries';
+import { usePublicWorkspaceDetailQuery, useWorkspaceMediaQuery, useWorkspaceAmenitiesQuery } from '../../api/queries';
+import { useWorkspaceAvailabilityQuery, bookingKeys } from '../../api/booking-queries';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 import { useLanguage } from '@/features/landing/context/language-context';
 import type { ScheduleSelection } from './date-time-picker-modal';
@@ -22,6 +18,11 @@ import type {
 } from './public-floor-map';
 import { AlertCircle, ArrowLeft } from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
+import { useQueryClient, useQuery } from '@tanstack/react-query';
+import { backendRequest } from '@/features/auth/api/session';
+import { toast } from 'sonner';
+import { useCurrentPendingBooking } from '@/features/payments/api';
+import { useRealtimeResourceStatus } from '@/features/resource-availability';
 
 interface WorkspaceDetailPageProps {
   workspaceId?: string;
@@ -42,12 +43,34 @@ const SECTION_IDS: SectionId[] = [
   'reviews'
 ];
 
+function getDefaultSchedule(): ScheduleSelection {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const monthNum = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  const day = String(tomorrow.getDate()).padStart(2, '0');
+  const isoDate = `${year}-${monthNum}-${day}`;
+  const dayOfWeek = tomorrow.getDay();
+  return {
+    date: `${day}/${monthNum}/${year}`,
+    day: dayOfWeek,
+    startTime: '09:00',
+    endTime: '13:00',
+    durationHours: 4,
+    isoDate,
+    isoStartTime: `${isoDate}T09:00:00`,
+    isoEndTime: `${isoDate}T13:00:00`
+  };
+}
+
 export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceDetailPageProps = {}) {
   const params = useParams({ strict: false }) as { workspaceId?: string };
   const workspaceId = propWorkspaceId || params.workspaceId || '1';
 
   const { language } = useLanguage();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { data: holdData } = useCurrentPendingBooking();
 
   const {
     data: workspace,
@@ -59,6 +82,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
   const { data: amenitiesList = [] } = useWorkspaceAmenitiesQuery(workspaceId);
 
   const [schedule, setSchedule] = useState<ScheduleSelection | null>(null);
+  const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [loadedFloors, setLoadedFloors] = useState<CustomerFloor[]>([]);
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>();
   const [selectedResource, setSelectedResource] = useState<MapResource | null>(null);
@@ -67,13 +91,56 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
 
   const numericWorkspaceId = Number(workspaceId) || 1;
 
-  // Fetch real-time resource availability when date/time is chosen
+  // Nạp danh sách tầng trực tiếp từ cache React Query dùng chung
+  const { data: directFloors } = useQuery({
+    queryKey: ['public-floor-maps', numericWorkspaceId],
+    enabled: Number.isSafeInteger(numericWorkspaceId) && numericWorkspaceId > 0,
+    queryFn: ({ signal }) =>
+      backendRequest<CustomerFloor[]>(
+        `/public/workspaces/${numericWorkspaceId}/floor-maps`,
+        'GET',
+        undefined,
+        false,
+        signal
+      ),
+    refetchInterval: 3000,
+    refetchOnWindowFocus: false
+  });
+
+  const floors = useMemo(() => {
+    if (directFloors && directFloors.length > 0) return directFloors;
+    return loadedFloors;
+  }, [directFloors, loadedFloors]);
+
+  useEffect(() => {
+    if (floors.length > 0 && activeFloorId === undefined) {
+      setActiveFloorId(floors[0].id);
+    }
+  }, [floors, activeFloorId]);
+
+  // Fetch real-time resource availability for the whole workspace (all floors) when date/time is chosen
   const { data: availabilityList } = useWorkspaceAvailabilityQuery(
     numericWorkspaceId,
     schedule?.isoStartTime,
-    schedule?.isoEndTime,
-    activeFloorId
+    schedule?.isoEndTime
   );
+
+  // Hook kết nối SSE để tự động cập nhật khả dụng tức thời khi có người giữ chỗ hoặc trả chỗ
+  useRealtimeResourceStatus(numericWorkspaceId, {
+    enabled: Boolean(numericWorkspaceId),
+    onResourceChange: () => {
+      queryClient.invalidateQueries({
+        queryKey: bookingKeys.availability(
+          numericWorkspaceId,
+          schedule?.isoStartTime ?? '',
+          schedule?.isoEndTime ?? ''
+        )
+      });
+      queryClient.invalidateQueries({
+        queryKey: ['public-floor-maps', numericWorkspaceId]
+      });
+    }
+  });
 
   const availabilityMap = useMemo(() => {
     const map = new Map<number, ResourceAvailabilityItem>();
@@ -94,10 +161,10 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
 
   // Handle floor list loaded from PublicFloorMap
   const handleFloorListLoaded = useCallback(
-    (floors: CustomerFloor[]) => {
-      setLoadedFloors(floors);
-      if (floors.length > 0 && activeFloorId === undefined) {
-        setActiveFloorId(floors[0].id);
+    (incomingFloors: CustomerFloor[]) => {
+      setLoadedFloors(incomingFloors);
+      if (incomingFloors.length > 0 && activeFloorId === undefined) {
+        setActiveFloorId(incomingFloors[0].id);
       }
     },
     [activeFloorId]
@@ -141,6 +208,52 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
 
   const handleContinueWithResource = useCallback(
     (resource: MapResource, floorId?: number) => {
+      if (!schedule) {
+        toast.warning(
+          language === 'vi'
+            ? 'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí!'
+            : 'Please select a date and time slot before choosing a space!'
+        );
+        setIsDatePickerOpen(true);
+        return;
+      }
+
+      const avail = availabilityMap?.get(resource.id);
+      const isHeldByMe = Boolean(
+        avail?.isOccupiedByMe ||
+        (holdData?.resourceId && Number(holdData.resourceId) === Number(resource.id))
+      );
+      const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+      const isBooked = avail?.state === 'BOOKED';
+      const isMaintenance = avail?.state === 'MAINTENANCE';
+
+      if (isLocked) {
+        toast.warning(
+          language === 'vi'
+            ? `Vị trí ${resource.name || resource.code} đang được người khác giữ chỗ trong khung giờ này.`
+            : `Space ${resource.name || resource.code} is currently held by someone else in this timeframe.`
+        );
+        return;
+      }
+
+      if (isBooked) {
+        toast.warning(
+          language === 'vi'
+            ? `Vị trí ${resource.name || resource.code} đã có người đặt trong khung giờ này.`
+            : `Space ${resource.name || resource.code} is already booked in this timeframe.`
+        );
+        return;
+      }
+
+      if (isMaintenance) {
+        toast.warning(
+          language === 'vi'
+            ? `Vị trí ${resource.name || resource.code} hiện đang bảo trì trong khung giờ này.`
+            : `Space ${resource.name || resource.code} is currently under maintenance in this timeframe.`
+        );
+        return;
+      }
+
       setSelectedResource(resource);
       navigate({
         to: '/workspaces/seats',
@@ -154,7 +267,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
         }
       });
     },
-    [navigate, numericWorkspaceId, schedule, activeFloorId]
+    [navigate, numericWorkspaceId, schedule, activeFloorId, availabilityMap, holdData, language]
   );
 
   const navItems: Array<{ id: SectionId; label: string }> = [
@@ -282,9 +395,20 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                 workspace={workspace}
                 workspaceId={numericWorkspaceId}
                 amenitiesList={amenitiesList}
-                floors={loadedFloors}
+                floors={floors}
                 selectedResource={selectedResource}
-                onSelectResource={setSelectedResource}
+                onSelectResource={(res) => {
+                  if (!schedule) {
+                    toast.warning(
+                      language === 'vi'
+                        ? 'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí!'
+                        : 'Please select a date and time slot before choosing a space!'
+                    );
+                    setIsDatePickerOpen(true);
+                    return;
+                  }
+                  setSelectedResource(res);
+                }}
                 activeFloorId={activeFloorId}
                 onFloorChange={setActiveFloorId}
                 availabilityMap={availabilityMap}
@@ -293,17 +417,20 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                 onFloorListLoaded={handleFloorListLoaded}
                 onContinueWithResource={handleContinueWithResource}
                 hasScheduleSelected={!!schedule}
+                onRequestSelectSchedule={() => setIsDatePickerOpen(true)}
               />
 
               <WorkspaceBookingCard
                 workspace={workspace}
-                floors={loadedFloors}
+                floors={floors}
                 selectedResource={selectedResource}
                 onClearSelectedResource={() => setSelectedResource(null)}
                 activeFloorId={activeFloorId}
                 schedule={schedule}
                 onScheduleChange={setSchedule}
                 availabilityMap={availabilityMap}
+                isDatePickerOpen={isDatePickerOpen}
+                onDatePickerOpenChange={setIsDatePickerOpen}
               />
             </div>
           </div>

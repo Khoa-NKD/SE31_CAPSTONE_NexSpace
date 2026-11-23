@@ -23,8 +23,10 @@ import {
   Star,
   Layers,
   ArrowUpRight,
-  Compass
+  Compass,
+  Calendar
 } from '@/components/ui/hugeicons';
+import { toast } from 'sonner';
 import type { PublicWorkspaceDetail, WorkspaceAmenityDto } from '../../api/types';
 import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
@@ -59,6 +61,7 @@ interface WorkspaceInfoProps {
   onFloorListLoaded?: (floors: CustomerFloor[]) => void;
   onContinueWithResource?: (resource: MapResource, floorId?: number) => void;
   hasScheduleSelected?: boolean;
+  onRequestSelectSchedule?: () => void;
 }
 
 const getAmenityIcon = (codeOrName: string) => {
@@ -227,7 +230,8 @@ export function WorkspaceInfo({
   onFilterCategoryChange,
   onFloorListLoaded,
   onContinueWithResource,
-  hasScheduleSelected = false
+  hasScheduleSelected = false,
+  onRequestSelectSchedule
 }: WorkspaceInfoProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
@@ -300,32 +304,68 @@ export function WorkspaceInfo({
   }, [floors, workspace?.capacityDesks, workspace?.meetingRooms]);
 
   // Group available spaces by type from actual floor resources
+  // Đồng bộ theo tầng đang xem (activeFloorId) để phản ánh chính xác tình trạng phòng/chỗ của tầng đó
+  const activeFloor = useMemo(() => {
+    return activeFloorId ? floors.find((f) => f.id === activeFloorId) : floors[0];
+  }, [floors, activeFloorId]);
+
+  const targetFloors = useMemo(() => {
+    if (activeFloor) return [activeFloor];
+    if (floors && floors.length > 0) return [floors[0]];
+    return [];
+  }, [activeFloor, floors]);
+
   const spaceGroups = useMemo<SpaceGroupSummary[]>(() => {
     const groupMap = new Map<string, SpaceGroupSummary>();
+    if (targetFloors.length === 0) return [];
 
-    for (const floor of floors) {
+    for (const floor of targetFloors) {
       for (const res of floor.resources || []) {
         if (res.category !== 'DESK' && res.category !== 'ROOM') continue;
+
+        // Bỏ qua các bàn trang trí nội thất bên trong phòng họp không thể đặt lẻ
+        if (res.category === 'DESK' && !res.selectable) continue;
 
         const isOffice = isResourceOffice(res);
         const filterType: SpaceFilterType =
           res.category === 'ROOM' ? (isOffice ? 'PRIVATE_OFFICE' : 'MEETING_ROOM') : 'DESK';
 
-        const label =
-          res.typeName?.trim() ||
-          (res.category === 'ROOM'
-            ? isOffice
+        let label: string;
+        let key: string;
+
+        if (res.category === 'ROOM') {
+          // Đối với phòng: Mỗi phòng là một không gian riêng biệt, hiển thị đầy đủ từng phòng của tầng
+          const cleanName = res.name?.trim();
+          const cleanCode = res.code?.trim();
+          const cleanTypeName = res.typeName?.trim();
+
+          if (cleanName && cleanName !== cleanCode) {
+            label = cleanTypeName ? `${cleanName} (${cleanTypeName})` : cleanName;
+          } else if (cleanTypeName) {
+            label = cleanCode ? `${cleanTypeName} (${cleanCode})` : cleanTypeName;
+          } else if (cleanName) {
+            label = cleanName;
+          } else {
+            label = isOffice
               ? language === 'vi'
                 ? 'Văn phòng riêng'
                 : 'Private Office'
               : language === 'vi'
                 ? 'Phòng họp tiêu chuẩn'
-                : 'Meeting Room'
-            : language === 'vi'
-              ? 'Bàn làm việc linh hoạt'
-              : 'Flexible Work Desk');
+                : 'Meeting Room';
+            if (cleanCode) label += ` (${cleanCode})`;
+          }
 
-        const key = `${res.category}:${label.toLowerCase()}`;
+          // Khóa key theo ID phòng để mỗi phòng trên tầng đều có ticket riêng biệt
+          key = `ROOM:${res.id}`;
+        } else {
+          // Đối với bàn làm việc: gom các bàn cùng loại của tầng đó thành một nhóm ticket
+          label =
+            res.typeName?.trim() ||
+            (language === 'vi' ? 'Bàn làm việc linh hoạt' : 'Flexible Work Desk');
+          key = `DESK:${label.toLowerCase()}`;
+        }
+
         const availItem = availabilityMap?.get(res.id);
         const isHeldByMe = Boolean(
           availItem?.isOccupiedByMe ||
@@ -391,7 +431,7 @@ export function WorkspaceInfo({
       if (a.category !== b.category) return a.category === 'DESK' ? -1 : 1;
       return a.minPricePerHour - b.minPricePerHour;
     });
-  }, [floors, availabilityMap, holdData, language]);
+  }, [targetFloors, availabilityMap, holdData, language]);
 
   // Normalize amenities from API endpoint + workspace.amenities string[] fallback
   const normalizedAmenities = useMemo(() => {
@@ -742,37 +782,81 @@ export function WorkspaceInfo({
       ===================================================================== */}
       <section id='spaces-floor-map' className='scroll-mt-32 space-y-5'>
         {/* 2A. Available Space Types Summary Cards */}
-        {spaceGroups.length > 0 && (
+        {floors && floors.length > 0 && (
           <div className='rounded-2xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-5 sm:p-6 shadow-xs'>
-            <div className='flex flex-wrap items-center justify-between gap-2 mb-4'>
+            <div className='flex flex-wrap items-center justify-between gap-3 mb-4 pb-3 border-b border-slate-100 dark:border-slate-800/80'>
               <div>
                 <h2 className='text-lg font-bold text-slate-900 dark:text-white tracking-tight flex items-center gap-2'>
                   <Layers className='size-5 text-primary' />
-                  {language === 'vi' ? 'Các loại chỗ ngồi & phòng hiện có' : 'Available Spaces'}
+                  <span>
+                    {language === 'vi' ? 'Các loại chỗ ngồi & phòng hiện có' : 'Available Spaces'}
+                  </span>
+                  {activeFloor?.name && (
+                    <span className='text-xs font-semibold px-2.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20'>
+                      {activeFloor.name}
+                    </span>
+                  )}
                 </h2>
                 <p className='text-xs text-slate-500 dark:text-slate-400 mt-0.5'>
                   {language === 'vi'
-                    ? 'Tổng hợp trực tiếp từ sơ đồ mặt bằng. Nhấn vào từng loại để lọc và định vị trên bản đồ.'
-                    : 'Grouped directly from live floor plans. Select a space type to highlight it on the floor map.'}
+                    ? `Danh sách vé đặt chỗ theo ${activeFloor?.name ? activeFloor.name : 'mặt bằng'}. Chuyển tầng để xem và đặt toàn bộ phòng và chỗ ngồi của tầng đó.`
+                    : `Ticket booking list for ${activeFloor?.name || 'selected floor'}. Switch floors to view corresponding spaces.`}
                 </p>
               </div>
-              {filterCategory !== 'ALL' && (
-                <button
-                  type='button'
-                  onClick={() => onFilterCategoryChange?.('ALL')}
-                  className='text-xs font-semibold text-primary hover:underline cursor-pointer'
-                >
-                  {language === 'vi' ? 'Hiện tất cả loại chỗ' : 'Show all space types'}
-                </button>
-              )}
+
+              <div className='flex flex-wrap items-center gap-2'>
+                {/* Nút chuyển đổi tầng trực tiếp trên khu vực Ticket */}
+                {floors.length > 1 && (
+                  <div className='flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60'>
+                    {floors.map((fl) => {
+                      const isCurrent = fl.id === (activeFloor?.id ?? activeFloorId);
+                      return (
+                        <button
+                          key={fl.id}
+                          type='button'
+                          onClick={() => onFloorChange?.(fl.id)}
+                          className={cn(
+                            'px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer',
+                            isCurrent
+                              ? 'bg-white dark:bg-slate-900 text-primary shadow-xs border border-slate-200/60 dark:border-slate-700'
+                              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                          )}
+                        >
+                          <Building2 className='size-3.5' />
+                          <span>{fl.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {filterCategory !== 'ALL' && (
+                  <button
+                    type='button'
+                    onClick={() => onFilterCategoryChange?.('ALL')}
+                    className='text-xs font-semibold text-primary hover:underline cursor-pointer'
+                  >
+                    {language === 'vi' ? 'Hiện tất cả loại chỗ' : 'Show all space types'}
+                  </button>
+                )}
+              </div>
             </div>
 
-            <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-              {spaceGroups.map((group) => {
-                const isSelectedGroup =
-                  selectedResource &&
-                  selectedResource.category === group.category &&
-                  (selectedResource.typeName || '') === (group.sampleResource.typeName || '');
+            {spaceGroups.length === 0 ? (
+              <div className='py-8 text-center text-sm text-slate-500 dark:text-slate-400'>
+                {language === 'vi'
+                  ? 'Tầng này hiện chưa có vị trí khả dụng để đặt vé.'
+                  : 'No available ticket spaces on this floor.'}
+              </div>
+            ) : (
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
+                {spaceGroups.map((group) => {
+                  const isSelectedGroup =
+                    selectedResource &&
+                    (group.category === 'ROOM'
+                      ? selectedResource.id === group.sampleResource.id
+                      : selectedResource.category === group.category &&
+                        (selectedResource.typeName || '') === (group.sampleResource.typeName || ''));
 
                 return (
                   <div
@@ -883,14 +967,44 @@ export function WorkspaceInfo({
 
                       {group.availableCount > 0 ? (
                         (() => {
+                          const sampleAvail = availabilityMap?.get(group.sampleResource.id);
                           const isGroupHeldByMe = Boolean(
-                            availabilityMap?.get(group.sampleResource.id)?.isOccupiedByMe ||
+                            sampleAvail?.isOccupiedByMe ||
                             (holdData?.resourceId && Number(holdData.resourceId) === Number(group.sampleResource.id))
                           );
+                          const isSampleLocked = (sampleAvail?.state === 'LOCKED' || sampleAvail?.state === 'HOLDING') && !isGroupHeldByMe;
+                          const isSampleBooked = sampleAvail?.state === 'BOOKED';
+
+                          if (isSampleLocked || isSampleBooked) {
+                            return (
+                              <button
+                                type='button'
+                                disabled
+                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
+                                title={
+                                  language === 'vi'
+                                    ? 'Vị trí này đang được người khác giữ hoặc đã kín chỗ trong khung giờ đã chọn'
+                                    : 'This space is held or booked in this time slot'
+                                }
+                              >
+                                <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+                              </button>
+                            );
+                          }
+
                           return (
                             <button
                               type='button'
                               onClick={() => {
+                                if (!hasScheduleSelected) {
+                                  toast.warning(
+                                    language === 'vi'
+                                      ? 'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí!'
+                                      : 'Please select a date and time slot before choosing a space!'
+                                  );
+                                  onRequestSelectSchedule?.();
+                                  return;
+                                }
                                 if (group.floorId && group.floorId !== activeFloorId) {
                                   onFloorChange?.(group.floorId);
                                 }
@@ -932,6 +1046,7 @@ export function WorkspaceInfo({
                 );
               })}
             </div>
+            )}
           </div>
         )}
 
@@ -965,6 +1080,35 @@ export function WorkspaceInfo({
             </div>
           </div>
 
+          {!hasScheduleSelected && (
+            <div className='mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-primary/5 dark:bg-primary/10 border-2 border-primary/30 text-slate-800 dark:text-slate-200'>
+              <div className='flex items-center gap-2.5 min-w-0'>
+                <div className='size-8 rounded-lg bg-primary/15 text-primary flex items-center justify-center shrink-0'>
+                  <Calendar className='size-4' />
+                </div>
+                <div>
+                  <div className='text-xs font-bold text-slate-900 dark:text-white'>
+                    {language === 'vi'
+                      ? 'Chưa chọn thời gian đặt chỗ'
+                      : 'No date & time slot selected'}
+                  </div>
+                  <div className='text-[11px] text-slate-500 dark:text-slate-400'>
+                    {language === 'vi'
+                      ? 'Vui lòng chọn ngày & khung giờ trước để xem trạng thái chỗ trống chính xác theo thời gian thực.'
+                      : 'Please select your schedule first to see real-time space availability.'}
+                  </div>
+                </div>
+              </div>
+              <button
+                type='button'
+                onClick={onRequestSelectSchedule}
+                className='shrink-0 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-bold hover:bg-primary/90 transition-all cursor-pointer shadow-xs active:scale-95'
+              >
+                {language === 'vi' ? 'Chọn ngày & giờ ngay' : 'Select Schedule'}
+              </button>
+            </div>
+          )}
+
           <PublicFloorMap
             workspaceId={workspaceId}
             selectedResourceId={selectedResource?.id}
@@ -979,6 +1123,7 @@ export function WorkspaceInfo({
             onFloorListLoaded={onFloorListLoaded}
             onContinueWithResource={onContinueWithResource}
             hasScheduleSelected={hasScheduleSelected}
+            onRequestSelectSchedule={onRequestSelectSchedule}
             embedded
           />
         </div>

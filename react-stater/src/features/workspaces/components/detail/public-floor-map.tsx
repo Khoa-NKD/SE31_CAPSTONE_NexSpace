@@ -81,6 +81,7 @@ export interface PublicFloorMapProps {
   onFloorListLoaded?: (floors: CustomerFloor[]) => void;
   onContinueWithResource?: (resource: MapResource, floorId: number) => void;
   hasScheduleSelected?: boolean;
+  onRequestSelectSchedule?: () => void;
   embedded?: boolean;
   showResourceInspector?: boolean;
   onViewDetail?: (resource: MapResource) => void;
@@ -200,6 +201,7 @@ export function PublicFloorMap({
   onFloorListLoaded,
   onContinueWithResource,
   hasScheduleSelected = false,
+  onRequestSelectSchedule,
   embedded = false,
   showResourceInspector = true,
   onViewDetail
@@ -453,6 +455,17 @@ export function PublicFloorMap({
 
     const handleResourceClick = () => {
       if (!matchesCurrentFilter) return;
+
+      if (!hasScheduleSelected) {
+        toast.warning(
+          c(
+            'Please select a date and time slot before choosing a seat or room.',
+            'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí trên sơ đồ!'
+          )
+        );
+        onRequestSelectSchedule?.();
+        return;
+      }
 
       if (isBooked) {
         toast.warning(
@@ -967,24 +980,56 @@ export function PublicFloorMap({
                 selectedId={activeSelectedId}
                 filterCategory={activeFilter}
                 onSelect={(resource) => {
-                  const status = customerResourceStatus(
-                    resource,
-                    availabilityMap?.get(resource.id),
-                    Boolean(
-                      availabilityMap?.get(resource.id)?.isOccupiedByMe ||
-                      holdData?.resourceId === resource.id
-                    )
-                  );
-                  if (!status.available) {
+                  if (!hasScheduleSelected) {
                     toast.warning(
-                      status.maintenance
-                        ? c('Under maintenance', 'Đang bảo trì')
-                        : status.disabled
-                          ? c('Not accepting bookings', 'Ngừng nhận đặt')
-                          : c('This place is unavailable.', 'Chỗ này hiện không khả dụng.')
+                      c(
+                        'Please select a date and time slot before choosing a seat or room.',
+                        'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí trên sơ đồ!'
+                      )
+                    );
+                    onRequestSelectSchedule?.();
+                    return;
+                  }
+
+                  const avail = availabilityMap?.get(resource.id);
+                  const isHeldByMe = Boolean(
+                    avail?.isOccupiedByMe ||
+                    (holdData?.resourceId && Number(holdData.resourceId) === Number(resource.id))
+                  );
+                  const isBooked = avail?.state === 'BOOKED';
+                  const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
+                  const isMaintenance = avail?.state === 'MAINTENANCE' || (!resource.selectable && !isHeldByMe);
+
+                  if (isBooked) {
+                    toast.warning(
+                      c(
+                        `Seat ${resource.name || resource.code} is already booked in this timeframe.`,
+                        `Vị trí ${resource.name || resource.code} đã có người đặt trong khung giờ này.`
+                      )
                     );
                     return;
                   }
+
+                  if (isLocked) {
+                    toast.warning(
+                      c(
+                        `Seat ${resource.name || resource.code} is currently held by someone else.`,
+                        `Vị trí ${resource.name || resource.code} đang được người khác giữ chỗ trong khung giờ này.`
+                      )
+                    );
+                    return;
+                  }
+
+                  if (isMaintenance) {
+                    toast.warning(
+                      c(
+                        `Seat ${resource.name || resource.code} is currently under maintenance.`,
+                        `Vị trí ${resource.name || resource.code} hiện đang bảo trì trong khung giờ này.`
+                      )
+                    );
+                    return;
+                  }
+
                   setInternalSelectedId(resource.id);
                   onSelect?.(resource);
                   onSelectResource?.(resource);
@@ -1180,7 +1225,48 @@ export function PublicFloorMap({
                       <Button
                         type='button'
                         size='sm'
-                        onClick={() => onContinueWithResource(selected, floor.id)}
+                        disabled={
+                          Boolean(selected && (
+                            (availabilityMap?.get(selected.id)?.state === 'LOCKED' || availabilityMap?.get(selected.id)?.state === 'HOLDING') &&
+                            !isSelectedHeldByMe
+                          )) ||
+                          Boolean(selected && availabilityMap?.get(selected.id)?.state === 'BOOKED')
+                        }
+                        onClick={() => {
+                          if (!hasScheduleSelected) {
+                            toast.warning(
+                              c(
+                                'Please select a date and time slot before continuing.',
+                                'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi tiếp tục!'
+                              )
+                            );
+                            onRequestSelectSchedule?.();
+                            return;
+                          }
+
+                          const avail = selected ? availabilityMap?.get(selected.id) : undefined;
+                          const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isSelectedHeldByMe;
+                          const isBooked = avail?.state === 'BOOKED';
+                          if (isLocked) {
+                            toast.warning(
+                              c(
+                                `Seat ${selected.name || selected.code} is currently held by someone else.`,
+                                `Vị trí ${selected.name || selected.code} đang được người khác giữ chỗ trong khung giờ này.`
+                              )
+                            );
+                            return;
+                          }
+                          if (isBooked) {
+                            toast.warning(
+                              c(
+                                `Seat ${selected.name || selected.code} is already booked in this timeframe.`,
+                                `Vị trí ${selected.name || selected.code} đã có người đặt trong khung giờ này.`
+                              )
+                            );
+                            return;
+                          }
+                          onContinueWithResource(selected, floor.id);
+                        }}
                         className='shrink-0 gap-1.5 rounded-xl font-semibold shadow-xs cursor-pointer'
                       >
                         <span>

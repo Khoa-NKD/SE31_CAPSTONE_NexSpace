@@ -83,17 +83,34 @@ export default function CustomerFloor3d({
       >
         {floor.resources
           .filter((r) => matchesSpaceCategory(r, filterCategory))
-          .map((r) => (
-            <button
-              key={r.id}
-              type='button'
-              aria-pressed={selectedId === r.id}
-              className='rounded-md border px-2 py-1 text-xs hover:bg-muted'
-              onClick={() => onSelect(r)}
-            >
-              {r.name}
-            </button>
-          ))}
+          .map((r) => {
+            const avail = availabilityMap?.get(r.id);
+            const isHeldByMe = Boolean(avail?.isOccupiedByMe);
+            const status = customerResourceStatus(r, avail, isHeldByMe);
+            const isUnavailable = !status.available && !isHeldByMe;
+
+            return (
+              <button
+                key={r.id}
+                type='button'
+                disabled={isUnavailable}
+                aria-pressed={selectedId === r.id}
+                className={`rounded-md border px-2 py-1 text-xs transition-colors ${
+                  isUnavailable
+                    ? 'cursor-not-allowed opacity-50 bg-muted text-muted-foreground'
+                    : selectedId === r.id
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'hover:bg-muted cursor-pointer'
+                }`}
+                onClick={() => {
+                  if (isUnavailable) return;
+                  onSelect(r);
+                }}
+              >
+                {r.name}
+              </button>
+            );
+          })}
       </div>
     </div>
   );
