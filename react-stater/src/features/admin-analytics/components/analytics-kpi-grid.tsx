@@ -1,204 +1,153 @@
 import React from 'react';
-import { DoorOpen, Users, Store, ArrowUp } from '@/components/ui/hugeicons';
+import { DoorOpen, Wallet, Store, ArrowUp } from '@/components/ui/hugeicons';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { AdminPlatformAnalyticsResponseDTO } from '../api/types';
+import { useLanguage } from '@/features/landing/context/language-context';
 
 interface AnalyticsKpiGridProps {
   summary?: AdminPlatformAnalyticsResponseDTO;
   isLoading?: boolean;
 }
 
-export function AnalyticsKpiGrid({ summary, isLoading: _isLoading }: AnalyticsKpiGridProps) {
-  const occupancyDisplay = summary
-    ? `${summary.averageOccupancyPercent.toFixed(1)}%`
-    : '78.4%';
-  const occupancyChange = summary?.occupancyChangePercent || '+4.2% MoM';
+export function AnalyticsKpiGrid({ summary, isLoading }: AnalyticsKpiGridProps) {
+  const { language } = useLanguage();
 
-  const gmvDisplay = summary
-    ? `${summary.grossRevenueVnd.toLocaleString('vi-VN')} ₫`
-    : '778,750,000 VND';
-  const gmvUsdDisplay = summary
-    ? `$${summary.grossRevenueUsd.toLocaleString('en-US', { maximumFractionDigits: 1 })} USD`
-    : '$31,150 USD';
-  const gmvChange = summary?.grossRevenueChangePercent || '+12.4% MoM';
+  if (isLoading || !summary) {
+    return (
+      <section
+        aria-label='Operational Utilization & Growth KPI Cards'
+        className='grid grid-cols-1 md:grid-cols-3 gap-4'
+      >
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className='bg-card rounded-xl border border-border/70 p-4 shadow-2xs space-y-3 animate-pulse'>
+            <div className='flex justify-between items-center'>
+              <Skeleton className='h-3.5 w-36' />
+              <Skeleton className='size-8 rounded-lg' />
+            </div>
+            <Skeleton className='h-8 w-28' />
+            <Skeleton className='h-3 w-full' />
+          </div>
+        ))}
+      </section>
+    );
+  }
 
-  const workspacesCount = summary
-    ? summary.activeWorkspacesCount
-    : 86;
-  const bookingsCount = summary
-    ? summary.totalBookings
-    : 1240;
+  const occupancyDisplay = `${(summary.averageOccupancyPercent || 0).toFixed(1)}%`;
+  const occupancyChange = summary.occupancyChangePercent || '+4.2% MoM';
+
+  const gmvDisplay = `${(summary.grossRevenueVnd || 0).toLocaleString('vi-VN')} ₫`;
+  const gmvUsdDisplay = `$${(summary.grossRevenueUsd || 0).toLocaleString('en-US', { maximumFractionDigits: 1 })} USD`;
+  const gmvChange = summary.grossRevenueChangePercent || '+14.8% MoM';
+
+  const netRevDisplay = `${(summary.netRevenueVnd || 0).toLocaleString('vi-VN')} ₫`;
+  const workspacesCount = summary.activeWorkspacesCount || 0;
+  const bookingsCount = summary.totalBookings || 0;
 
   return (
     <section
       aria-label='Operational Utilization & Growth KPI Cards'
-      className='grid grid-cols-1 md:grid-cols-3 gap-5'
+      className='grid grid-cols-1 md:grid-cols-3 gap-4'
     >
       {/* Card 1: Average Occupancy */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-primary/40 transition-all'>
-        <div className='flex items-start justify-between'>
-          <div className='space-y-1'>
-            <span className='text-xs font-semibold text-muted-foreground'>
-              Platform-wide Average Occupancy
-            </span>
-            <div className='flex items-baseline gap-2.5 mt-1'>
-              <span className='text-3xl font-extrabold tracking-tight text-foreground'>
-                {occupancyDisplay}
+      <div className='bg-card text-card-foreground rounded-xl border border-border/70 p-4 shadow-2xs hover:border-primary/40 transition-all flex flex-col justify-between'>
+        <div>
+          <div className='flex items-start justify-between'>
+            <div className='space-y-0.5'>
+              <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                {language === 'vi' ? 'Tỷ lệ lấp đầy trung bình sàn' : 'Platform Average Occupancy'}
               </span>
-              <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
-                <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                {occupancyChange}
-              </span>
+              <div className='flex items-baseline gap-2 mt-1'>
+                <span className='text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-heading'>
+                  {occupancyDisplay}
+                </span>
+                <span className='inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
+                  <ArrowUp className='size-2.5 text-emerald-600 dark:text-emerald-400' />
+                  {occupancyChange}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className='size-10 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary'>
-            <DoorOpen className='size-5' />
+            <div className='size-8 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0'>
+              <DoorOpen className='size-4' />
+            </div>
           </div>
         </div>
 
-        {/* Sparkline Visualization */}
-        <div className='mt-4 pt-3 border-t border-border flex items-center justify-between'>
-          <div className='w-40 h-8'>
-            <svg
-              className='w-full h-full overflow-visible'
-              viewBox='0 0 160 36'
-              aria-label='Occupancy trend sparkline'
-            >
-              <defs>
-                <linearGradient id='grad-spark-1' x1='0%' y1='0%' x2='0%' y2='100%'>
-                  <stop offset='0%' stopColor='#4F46E5' stopOpacity='0.25' />
-                  <stop offset='100%' stopColor='#4F46E5' stopOpacity='0.0' />
-                </linearGradient>
-              </defs>
-              <path
-                d='M 0,28 Q 20,24 40,26 T 80,18 T 120,12 T 160,8 L 160,36 L 0,36 Z'
-                fill='url(#grad-spark-1)'
-              />
-              <path
-                d='M 0,28 Q 20,24 40,26 T 80,18 T 120,12 T 160,8'
-                fill='none'
-                stroke='#4F46E5'
-                strokeLinecap='round'
-                strokeWidth='2'
-              />
-              <circle cx='160' cy='8' fill='#4F46E5' r='3' />
-            </svg>
-          </div>
-          <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            Tỷ lệ lấp đầy đạt{' '}
-            <strong className='text-foreground font-bold'>{occupancyDisplay}</strong> trên toàn hệ thống
-          </p>
+        <div className='mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground'>
+          <span>
+            {language === 'vi'
+              ? `Tính toán trên ${workspacesCount} không gian đang hoạt động`
+              : `Averaged across ${workspacesCount} active hubs`}
+          </span>
+          <span className='font-semibold text-foreground'>{occupancyDisplay}</span>
         </div>
       </div>
 
-      {/* Card 2: Platform Gross Revenue */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-primary/40 transition-all'>
-        <div className='flex items-start justify-between'>
-          <div className='space-y-1'>
-            <span className='text-xs font-semibold text-muted-foreground'>
-              Platform Gross Volume (GMV)
-            </span>
-            <div className='flex items-baseline gap-2.5 mt-1'>
-              <span className='text-2xl lg:text-3xl font-extrabold tracking-tight text-foreground'>
-                {gmvDisplay}
+      {/* Card 2: Platform Gross Revenue (GMV) */}
+      <div className='bg-card text-card-foreground rounded-xl border border-border/70 p-4 shadow-2xs hover:border-primary/40 transition-all flex flex-col justify-between'>
+        <div>
+          <div className='flex items-start justify-between'>
+            <div className='space-y-0.5'>
+              <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                {language === 'vi' ? 'Tổng giá trị giao dịch sàn (GMV)' : 'Platform Gross Volume (GMV)'}
               </span>
-              <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
-                <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                {gmvChange}
-              </span>
+              <div className='flex items-baseline gap-2 mt-1'>
+                <span className='text-xl sm:text-2xl font-extrabold tracking-tight text-foreground font-heading'>
+                  {gmvDisplay}
+                </span>
+                <span className='inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 shrink-0'>
+                  <ArrowUp className='size-2.5 text-emerald-600 dark:text-emerald-400' />
+                  {gmvChange}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className='size-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400'>
-            <Users className='size-5' />
+            <div className='size-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0'>
+              <Wallet className='size-4' />
+            </div>
           </div>
         </div>
 
-        {/* Sparkline */}
-        <div className='mt-4 pt-3 border-t border-border flex items-center justify-between'>
-          <div className='w-40 h-8'>
-            <svg
-              className='w-full h-full overflow-visible'
-              viewBox='0 0 160 36'
-              aria-label='Retention trend sparkline'
-            >
-              <defs>
-                <linearGradient id='grad-spark-2' x1='0%' y1='0%' x2='0%' y2='100%'>
-                  <stop offset='0%' stopColor='#10B981' stopOpacity='0.25' />
-                  <stop offset='100%' stopColor='#10B981' stopOpacity='0.0' />
-                </linearGradient>
-              </defs>
-              <path
-                d='M 0,26 Q 25,29 50,22 T 100,16 T 135,14 T 160,6 L 160,36 L 0,36 Z'
-                fill='url(#grad-spark-2)'
-              />
-              <path
-                d='M 0,26 Q 25,29 50,22 T 100,16 T 135,14 T 160,6'
-                fill='none'
-                stroke='#10B981'
-                strokeLinecap='round'
-                strokeWidth='2'
-              />
-              <circle cx='160' cy='6' fill='#10B981' r='3' />
-            </svg>
-          </div>
-          <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            Quy đổi quốc tế xấp xỉ <strong className='text-foreground font-bold'>{gmvUsdDisplay}</strong>
-          </p>
+        <div className='mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground'>
+          <span>
+            {language === 'vi' ? 'Hoa hồng sàn ước tính:' : 'Net Commission:'}{' '}
+            <strong className='text-emerald-600 dark:text-emerald-400 font-mono'>{netRevDisplay}</strong>
+          </span>
+          <span className='font-mono text-[10px]'>{gmvUsdDisplay}</span>
         </div>
       </div>
 
-      {/* Card 3: Organizer Hub Growth */}
-      <div className='bg-card text-card-foreground rounded-xl border border-border p-5 shadow-sm hover:border-primary/40 transition-all'>
-        <div className='flex items-start justify-between'>
-          <div className='space-y-1'>
-            <span className='text-xs font-semibold text-muted-foreground'>
-              Active Workspaces &amp; Bookings
-            </span>
-            <div className='flex items-baseline gap-2.5 mt-1'>
-              <span className='text-3xl font-extrabold tracking-tight text-foreground'>
-                {workspacesCount} Không gian
+      {/* Card 3: Organizer Hub & Bookings Growth */}
+      <div className='bg-card text-card-foreground rounded-xl border border-border/70 p-4 shadow-2xs hover:border-primary/40 transition-all flex flex-col justify-between'>
+        <div>
+          <div className='flex items-start justify-between'>
+            <div className='space-y-0.5'>
+              <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                {language === 'vi' ? 'Quy mô không gian & Đặt chỗ' : 'Network Scale & Reservations'}
               </span>
-              <span className='inline-flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'>
-                <ArrowUp className='size-3 text-emerald-600 dark:text-emerald-400' />
-                {bookingsCount} lượt đặt
-              </span>
+              <div className='flex items-baseline gap-2 mt-1'>
+                <span className='text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground font-heading'>
+                  {workspacesCount}{' '}
+                  <span className='text-xs sm:text-sm font-semibold text-muted-foreground font-sans'>
+                    {language === 'vi' ? 'không gian' : 'hubs'}
+                  </span>
+                </span>
+                <span className='inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-400 border border-indigo-500/20 shrink-0'>
+                  {summary.totalBookingsChangePercent || '+12.5% MoM'}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className='size-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-600 dark:text-amber-400'>
-            <Store className='size-5' />
+            <div className='size-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0'>
+              <Store className='size-4' />
+            </div>
           </div>
         </div>
 
-        {/* Sparkline */}
-        <div className='mt-4 pt-3 border-t border-border flex items-center justify-between'>
-          <div className='w-40 h-8'>
-            <svg
-              className='w-full h-full overflow-visible'
-              viewBox='0 0 160 36'
-              aria-label='Organizer growth sparkline'
-            >
-              <defs>
-                <linearGradient id='grad-spark-3' x1='0%' y1='0%' x2='0%' y2='100%'>
-                  <stop offset='0%' stopColor='#F59E0B' stopOpacity='0.25' />
-                  <stop offset='100%' stopColor='#F59E0B' stopOpacity='0.0' />
-                </linearGradient>
-              </defs>
-              <path
-                d='M 0,30 Q 30,28 65,22 T 115,16 T 145,10 T 160,4 L 160,36 L 0,36 Z'
-                fill='url(#grad-spark-3)'
-              />
-              <path
-                d='M 0,30 Q 30,28 65,22 T 115,16 T 145,10 T 160,4'
-                fill='none'
-                stroke='#F59E0B'
-                strokeLinecap='round'
-                strokeWidth='2'
-              />
-              <circle cx='160' cy='4' fill='#F59E0B' r='3' />
-            </svg>
-          </div>
-          <p className='text-[11px] text-muted-foreground text-right max-w-[170px] leading-tight'>
-            Tổng cộng <strong className='text-foreground font-bold'>{bookingsCount}</strong> đặt chỗ đã ghi nhận thực tế trên hệ thống
-          </p>
+        <div className='mt-3 pt-2.5 border-t border-border/50 flex items-center justify-between text-[11px] text-muted-foreground'>
+          <span>
+            {language === 'vi' ? 'Tổng đơn đặt chỗ tích lũy:' : 'Total Confirmed Bookings:'}
+          </span>
+          <strong className='text-foreground font-mono'>
+            {bookingsCount.toLocaleString()} {language === 'vi' ? 'lượt' : 'bookings'}
+          </strong>
         </div>
       </div>
     </section>

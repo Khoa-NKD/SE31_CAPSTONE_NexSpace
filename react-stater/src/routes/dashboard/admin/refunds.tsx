@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
+import { useLanguage } from '@/features/landing/context/language-context';
 import { Button } from '@/components/ui/button';
 import { Download, SlidersHorizontal } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
@@ -13,7 +14,8 @@ import {
   RefundRecord,
   RefundStatus,
   RefundSummaryKpis,
-  fromDtoToRecord
+  fromDtoToRecord,
+  formatVnd
 } from '@/features/admin-refunds/data/mock-refunds';
 import { adminRefundQueries } from '@/features/admin-refunds/api/queries';
 import {
@@ -36,7 +38,7 @@ const refundsSearchSchema = z.object({
 export const Route = createFileRoute('/dashboard/admin/refunds')({
   head: () => ({
     meta: [
-      { title: 'A10 — Refund Management & Claims | NexSpace Console' },
+      { title: 'Hoàn tiền & Khiếu nại | NexSpace Admin Console' },
       {
         name: 'description',
         content:
@@ -48,34 +50,21 @@ export const Route = createFileRoute('/dashboard/admin/refunds')({
   component: RefundManagementPage
 });
 
-function handleExportClaimsLog() {
-  toast.success('Claims Log Exported (CSV)', {
-    description: 'Exported 32 claim records with PayOS escrow verification tokens.'
-  });
-}
-
-function handleAutomatedRules() {
-  toast.info('Automated Refund Rules', {
-    description:
-      'Active policy matrix: Clause 2.1 (100% Host Cancel), Clause 4.2 (80% Facility Defect), Clause 5.4 (0% No Show).'
-  });
-}
-
 function RefundManagementPage() {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
 
   const [page, setPage] = useState(1);
-  const pageSize = 8;
+  const pageSize = 10;
 
   // Filter state
   const searchQuery = searchParams.search || '';
   const statusFilter = searchParams.status || 'all';
-  const selectedHub = searchParams.hub || 'all';
-  const timeRange = searchParams.timeRange || '30d';
 
   // Backend queries & mutations
-  const { data: refundsPage } = useQuery(
+  const refundsQuery = useQuery(
     adminRefundQueries.list({
       status: statusFilter,
       search: searchQuery,
@@ -83,8 +72,10 @@ function RefundManagementPage() {
       size: pageSize
     })
   );
+  const refundsPage = refundsQuery.data;
 
-  const { data: kpisData } = useQuery(adminRefundQueries.kpis());
+  const kpisQuery = useQuery(adminRefundQueries.kpis());
+  const kpisData = kpisQuery.data;
 
   const approveMutation = useApproveRefundMutation();
   const rejectMutation = useRejectRefundMutation();
@@ -122,7 +113,7 @@ function RefundManagementPage() {
 
   // Handlers for URL search sync
   const handleSearchChange = (value: string) => {
-    navigate({
+    void navigate({
       search: (prev) => ({ ...prev, search: value || undefined }),
       replace: true
     });
@@ -130,32 +121,25 @@ function RefundManagementPage() {
   };
 
   const handleStatusChange = (status: 'all' | RefundStatus) => {
-    navigate({
+    void navigate({
       search: (prev) => ({ ...prev, status }),
       replace: true
     });
     setPage(1);
   };
 
-  const handleHubChange = (hub: string) => {
-    navigate({
-      search: (prev) => ({ ...prev, hub }),
+  const handleResetFilters = () => {
+    void navigate({
+      search: (prev) => ({ ...prev, search: undefined, status: 'all' }),
       replace: true
     });
     setPage(1);
   };
 
-  const handleTimeRangeChange = (range: string) => {
-    navigate({
-      search: (prev) => ({ ...prev, timeRange: range }),
-      replace: true
-    });
-  };
-
   const handleSelectRefund = (refund: RefundRecord) => {
     setSelectedRefundId(refund.id.replace('#', ''));
     setIsDrawerOpen(true);
-    navigate({
+    void navigate({
       search: (prev) => ({ ...prev, refundId: refund.id.replace('#', '') }),
       replace: true,
       resetScroll: false
@@ -165,37 +149,12 @@ function RefundManagementPage() {
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
     setSelectedRefundId(null);
-    navigate({
+    void navigate({
       search: (prev) => ({ ...prev, refundId: undefined }),
       replace: true,
       resetScroll: false
     });
   };
-
-  // Filtered dataset
-  const filteredRefunds = useMemo(() => {
-    return refunds.filter((r) => {
-      // Status filter
-      if (statusFilter !== 'all' && r.status !== statusFilter) {
-        return false;
-      }
-      // Hub filter
-      if (selectedHub !== 'all' && !r.workspaceHub.toLowerCase().includes(selectedHub.toLowerCase())) {
-        return false;
-      }
-      // Search query
-      if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
-        const matchesId = r.id.toLowerCase().includes(query);
-        const matchesBooking = r.bookingRef.toLowerCase().includes(query);
-        const matchesCustomer = r.customerName.toLowerCase().includes(query) || r.customerEmail.toLowerCase().includes(query);
-        const matchesHub = r.workspaceHub.toLowerCase().includes(query);
-        const matchesReason = r.claimReason.toLowerCase().includes(query);
-        return matchesId || matchesBooking || matchesCustomer || matchesHub || matchesReason;
-      }
-      return true;
-    });
-  }, [refunds, statusFilter, selectedHub, searchQuery]);
 
   // Counts for tabs
   const counts = useMemo(() => {
@@ -217,14 +176,13 @@ function RefundManagementPage() {
 
   const kpis: RefundSummaryKpis = useMemo(() => {
     if (kpisData) {
-      const usdRate = 25450;
       return {
         pendingCount: kpisData.pendingCount,
-        pendingVolumeUsd: (kpisData.pendingVolume || 0) / usdRate,
+        pendingVolumeVnd: kpisData.pendingVolume || 0,
         processedCount: kpisData.processedCount,
-        processedVolumeUsd: (kpisData.processedVolume || 0) / usdRate,
+        processedVolumeVnd: kpisData.processedVolume || 0,
         rejectedCount: kpisData.rejectedCount,
-        rejectedVolumeUsd: (kpisData.rejectedVolume || 0) / usdRate
+        rejectedVolumeVnd: kpisData.rejectedVolume || 0
       };
     }
     return MOCK_REFUND_KPIS;
@@ -241,9 +199,16 @@ function RefundManagementPage() {
         }
       });
     } else {
-      toast.success(`Refund Claim ${targetRefund.id} Approved (Simulated)`, {
-        description: `Disbursed $${targetRefund.calculatedRefundUsd.toFixed(2)} (${targetRefund.calculatedRefundVnd.toLocaleString()} VND) via PayOS Escrow Reserve #${targetRefund.escrowReserveCode}.`
-      });
+      toast.success(
+        isVi
+          ? `Đã duyệt hoàn tiền ${targetRefund.id}`
+          : `Refund Claim ${targetRefund.id} Approved`,
+        {
+          description: isVi
+            ? `Đã chi ${formatVnd(targetRefund.calculatedRefundVnd)} qua cổng PayOS Escrow #${targetRefund.escrowReserveCode}.`
+            : `Disbursed ${formatVnd(targetRefund.calculatedRefundVnd)} via PayOS Escrow.`
+        }
+      );
     }
   };
 
@@ -252,68 +217,114 @@ function RefundManagementPage() {
     if (numericId && targetRefund.numericId) {
       rejectMutation.mutate({
         id: numericId,
-        data: { reason: note || 'Không đủ điều kiện hoàn tiền' }
+        data: {
+          reason: note
+        }
       });
     } else {
-      toast.error(`Refund Claim ${targetRefund.id} Denied (Simulated)`);
+      toast.error(
+        isVi
+          ? `Đã từ chối khiếu nại hoàn tiền ${targetRefund.id}`
+          : `Refund Claim ${targetRefund.id} Rejected`,
+        {
+          description: isVi
+            ? `Lý do từ chối: "${note}". Đã thông báo cho khách hàng.`
+            : `Rejection notice dispatched to customer.`
+        }
+      );
     }
   };
 
+  function handleExportClaimsLog() {
+    toast.success(
+      isVi ? 'Đã xuất lịch sử khiếu nại (CSV)' : 'Claims Log Exported (CSV)',
+      {
+        description: isVi
+          ? 'Đã tải xuống danh sách chi tiết các lệnh chi tiền hoàn PayOS.'
+          : 'Exported claim records with PayOS escrow verification tokens.'
+      }
+    );
+  }
+
+  function handleAutomatedRules() {
+    toast.info(
+      isVi ? 'Chính sách hoàn tiền tự động' : 'Automated Refund Rules',
+      {
+        description: isVi
+          ? 'Ma trận chính sách đang áp dụng: Điều 2.1 (100% Host hủy), Điều 4.2 (80% lỗi mặt bằng), Điều 5.4 (0% No-show).'
+          : 'Active policy matrix: Clause 2.1 (100% Host Cancel), Clause 4.2 (80% Facility Defect), Clause 5.4 (0% No Show).'
+      }
+    );
+  }
+
+  const headerActions = (
+    <div className='flex items-center gap-2'>
+      <Button
+        type='button'
+        variant='outline'
+        size='sm'
+        onClick={handleExportClaimsLog}
+        className='h-8.5 gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground'
+      >
+        <Download className='size-3.5' />
+        <span className='hidden sm:inline'>{isVi ? 'Xuất danh sách' : 'Export Log'}</span>
+      </Button>
+      <Button
+        type='button'
+        variant='outline'
+        size='sm'
+        onClick={handleAutomatedRules}
+        className='h-8.5 gap-1.5 rounded-lg px-2.5 text-xs font-medium text-muted-foreground hover:text-foreground'
+      >
+        <SlidersHorizontal className='size-3.5' />
+        <span className='hidden sm:inline'>{isVi ? 'Quy tắc hoàn tiền' : 'Refund Rules'}</span>
+      </Button>
+    </div>
+  );
+
   return (
     <PageContainer
-      pageTitle='Refund Requests & Claims'
-      pageDescription='Review customer cancellation refund requests, dispute settlements, and automated policy calculations.'
+      pageTitle={isVi ? 'Hoàn tiền & Khiếu nại' : 'Refund Requests & Claims'}
+      pageDescription={
+        isVi
+          ? 'Xét duyệt yêu cầu hoàn tiền của khách hàng, giải quyết khiếu nại hủy chỗ và chi trả tự động qua cổng PayOS.'
+          : 'Review customer cancellation refund requests, dispute settlements, and automated policy calculations across hubs.'
+      }
+      pageHeaderAction={headerActions}
     >
-      {/* Header Action Buttons */}
-      <div className='flex items-center justify-end gap-3 mb-6 -mt-12 sm:mt-0'>
-        <Button
-          type='button'
-          variant='outline'
-          size='sm'
-          onClick={handleExportClaimsLog}
-          className='flex items-center gap-2 h-9 text-xs font-semibold'
-        >
-          <Download className='size-3.5' />
-          <span>Export Claims Log</span>
-        </Button>
-        <Button
-          type='button'
-          size='sm'
-          onClick={handleAutomatedRules}
-          className='flex items-center gap-2 h-9 text-xs font-semibold bg-primary hover:bg-primary/90 text-primary-foreground shadow-xs'
-        >
-          <SlidersHorizontal className='size-3.5' />
-          <span>Automated Refund Rules</span>
-        </Button>
-      </div>
+      {/* ── KPI Cards Row ── */}
+      <RefundsKpiGrid kpis={kpis} language={language} />
 
-      {/* KPI Cards Row */}
-      <RefundsKpiGrid kpis={kpis} />
-
-      {/* Filter Bar */}
+      {/* ── Segmented Tabs & Search Controls Toolbar ── */}
       <RefundsFilterBar
         searchQuery={searchQuery}
         onSearchChange={handleSearchChange}
         statusFilter={statusFilter}
         onStatusChange={handleStatusChange}
-        timeRange={timeRange}
-        onTimeRangeChange={handleTimeRangeChange}
-        selectedHub={selectedHub}
-        onHubChange={handleHubChange}
         counts={counts}
+        onReset={handleResetFilters}
+        onRefresh={() => {
+          void refundsQuery.refetch();
+          void kpisQuery.refetch();
+        }}
+        isRefreshing={refundsQuery.isFetching || kpisQuery.isFetching}
+        language={language}
       />
 
-      {/* Main Table */}
+      {/* ── Main Structured Table ── */}
       <RefundsLedgerTable
-        refunds={filteredRefunds}
+        refunds={refunds}
         selectedRefundId={isDrawerOpen ? selectedRefund?.id : undefined}
         onSelectRefund={handleSelectRefund}
         page={page}
         onPageChange={setPage}
         pageSize={pageSize}
+        totalPages={refundsPage?.totalPages}
+        totalRecords={refundsPage?.totalElements}
+        language={language}
       />
 
-      {/* 600px Detail Drawer */}
+      {/* ── Detail Drawer ── */}
       <RefundDetailsDrawer
         key={selectedRefund?.id}
         refund={selectedRefund}
@@ -321,6 +332,7 @@ function RefundManagementPage() {
         onClose={handleCloseDrawer}
         onApprove={handleApproveRefund}
         onReject={handleRejectRefund}
+        language={language}
       />
     </PageContainer>
   );

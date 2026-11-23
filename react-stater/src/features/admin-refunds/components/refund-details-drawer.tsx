@@ -14,7 +14,7 @@ import {
 import { Link } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
-import { RefundRecord } from '../data/mock-refunds';
+import { RefundRecord, formatVnd } from '../data/mock-refunds';
 import { RefundActionDialog } from './refund-action-dialog';
 
 interface RefundDetailsDrawerProps {
@@ -23,6 +23,7 @@ interface RefundDetailsDrawerProps {
   onClose: () => void;
   onApprove: (refund: RefundRecord, note: string) => void;
   onReject: (refund: RefundRecord, note: string) => void;
+  language?: 'vi' | 'en';
 }
 
 export function RefundDetailsDrawer({
@@ -30,11 +31,15 @@ export function RefundDetailsDrawer({
   isOpen,
   onClose,
   onApprove,
-  onReject
+  onReject,
+  language = 'vi'
 }: RefundDetailsDrawerProps) {
+  const isVi = language === 'vi';
   const [adminNote, setAdminNote] = useState<string>(
     refund?.adminResolutionNote ||
-      'Approved under Clause 4.2 (Facility defect confirmed by building operations log #LOG-442).'
+      (isVi
+        ? 'Phê duyệt hoàn tiền theo chính sách hủy đơn hợp lệ của NexSpace.'
+        : 'Approved under cancellation policy rules.')
   );
   const [actionModalType, setActionModalType] = useState<'approve' | 'reject' | null>(null);
   const [photoZoomOpen, setPhotoZoomOpen] = useState(false);
@@ -68,7 +73,7 @@ export function RefundDetailsDrawer({
     <>
       {/* Backdrop */}
       <div
-        className='fixed inset-0 bg-slate-950/40 backdrop-blur-[2px] z-50 transition-opacity'
+        className='fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-50 transition-opacity'
         onClick={onClose}
         aria-hidden='true'
       />
@@ -78,10 +83,10 @@ export function RefundDetailsDrawer({
         role='dialog'
         aria-label={`Refund Claim Details for ${refund.id}`}
         aria-modal='true'
-        className='fixed top-0 right-0 w-full max-w-[600px] h-screen bg-card border-l border-border shadow-2xl z-50 flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-200'
+        className='fixed top-0 right-0 w-full max-w-[560px] h-screen bg-card border-l border-border shadow-2xl z-50 flex flex-col justify-between overflow-hidden animate-in slide-in-from-right duration-200'
       >
         {/* Top Header */}
-        <div className='border-b border-border bg-card p-6 select-none shrink-0'>
+        <div className='border-b border-border bg-card p-5 select-none shrink-0'>
           <div className='flex items-center justify-between mb-2'>
             <div className='flex items-center gap-2.5'>
               <span className='font-mono text-base font-bold text-foreground'>
@@ -91,19 +96,19 @@ export function RefundDetailsDrawer({
               {refund.status === 'pending' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40'>
                   <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
-                  Pending Adjudication
+                  {isVi ? 'Chờ thẩm định' : 'Pending Adjudication'}
                 </span>
               )}
               {refund.status === 'processed' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40'>
                   <span className='size-1.5 rounded-full bg-emerald-500' />
-                  Processed & Disbursed
+                  {isVi ? 'Đã chi tiền PayOS' : 'Processed & Disbursed'}
                 </span>
               )}
               {refund.status === 'rejected' && (
-                <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/40'>
-                  <span className='size-1.5 rounded-full bg-red-500' />
-                  Claim Rejected
+                <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/15 text-rose-700 dark:text-rose-400 border border-rose-500/40'>
+                  <span className='size-1.5 rounded-full bg-rose-500' />
+                  {isVi ? 'Đã từ chối' : 'Claim Rejected'}
                 </span>
               )}
             </div>
@@ -111,10 +116,10 @@ export function RefundDetailsDrawer({
             <button
               type='button'
               onClick={onClose}
-              className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md transition-colors'
-              title='Close Drawer (Esc)'
+              className='p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-colors'
+              title={isVi ? 'Đóng (Esc)' : 'Close Drawer (Esc)'}
             >
-              <X className='size-5' />
+              <X className='size-4.5' />
             </button>
           </div>
 
@@ -129,34 +134,38 @@ export function RefundDetailsDrawer({
         </div>
 
         {/* Scrollable Content */}
-        <div className='flex-1 overflow-y-auto p-6 space-y-6'>
+        <div className='flex-1 overflow-y-auto p-5 space-y-5'>
           {/* Section 1: Booking & Context Summary */}
-          <div className='space-y-3'>
+          <div className='space-y-2.5'>
             <div className='flex items-center justify-between'>
-              <span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-                Booking & Context Summary
+              <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+                {isVi ? 'Thông tin đơn đặt chỗ gốc' : 'Booking & Context Summary'}
               </span>
               <Link
                 to='/dashboard/admin/bookings'
                 search={{ bookingId: refund.bookingRef.replace('#', '') }}
                 className='text-[11px] text-primary hover:underline font-semibold flex items-center gap-1'
               >
-                <span>View Original Booking ({refund.bookingRef})</span>
+                <span>{isVi ? `Xem đặt chỗ (${refund.bookingRef})` : `View Booking (${refund.bookingRef})`}</span>
                 <ExternalLink className='size-3' />
               </Link>
             </div>
 
-            <div className='bg-muted/50 border border-border rounded-lg p-3.5 space-y-2.5 text-xs'>
+            <div className='bg-muted/40 border border-border rounded-xl p-3.5 space-y-2.5 text-xs'>
               <div className='grid grid-cols-2 gap-2'>
                 <div>
-                  <span className='text-muted-foreground block text-[11px]'>Customer & Account</span>
+                  <span className='text-muted-foreground block text-[11px]'>
+                    {isVi ? 'Khách hàng' : 'Customer'}
+                  </span>
                   <span className='font-semibold text-foreground'>{refund.customerName}</span>
-                  <span className='text-[11px] text-muted-foreground block'>
+                  <span className='text-[11px] text-muted-foreground block truncate'>
                     {refund.customerCompany || refund.customerEmail}
                   </span>
                 </div>
                 <div>
-                  <span className='text-muted-foreground block text-[11px]'>Reserved Space</span>
+                  <span className='text-muted-foreground block text-[11px]'>
+                    {isVi ? 'Không gian đặt chỗ' : 'Reserved Space'}
+                  </span>
                   <span className='font-semibold text-foreground'>{refund.workspaceHub}</span>
                   <span className='text-[11px] text-muted-foreground block'>{refund.spaceDetails}</span>
                 </div>
@@ -164,14 +173,17 @@ export function RefundDetailsDrawer({
 
               <div className='border-t border-border pt-2 grid grid-cols-2 gap-2'>
                 <div>
-                  <span className='text-muted-foreground block text-[11px]'>Timeline Context</span>
-                  <div className='text-foreground font-medium'>Slot: Today, Scheduled</div>
-                  <div className='text-amber-600 dark:text-amber-400 font-medium text-[11px]'>
-                    Claim: {formatDateLabel(refund.triggeredAt)}
+                  <span className='text-muted-foreground block text-[11px]'>
+                    {isVi ? 'Thời gian ghi nhận' : 'Timeline Context'}
+                  </span>
+                  <div className='text-foreground font-medium'>
+                    {formatDateLabel(refund.triggeredAt)}
                   </div>
                 </div>
                 <div>
-                  <span className='text-muted-foreground block text-[11px]'>Applicable Refund Policy</span>
+                  <span className='text-muted-foreground block text-[11px]'>
+                    {isVi ? 'Chính sách áp dụng' : 'Applicable Policy'}
+                  </span>
                   <span className='inline-block font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded text-[11px] mt-0.5'>
                     {refund.policyClause}
                   </span>
@@ -180,33 +192,32 @@ export function RefundDetailsDrawer({
             </div>
           </div>
 
-          {/* Section 2: Customer Claim Reason & Attached Evidence */}
-          <div className='space-y-3'>
-            <span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              Customer Claim Reason & Verification
+          {/* Section 2: Customer Claim Reason */}
+          <div className='space-y-2'>
+            <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+              {isVi ? 'Lý do khiếu nại của khách hàng' : 'Customer Claim Reason'}
             </span>
 
-            {/* Customer Statement Block */}
-            <div className='p-3.5 rounded-lg border border-border bg-card text-xs leading-relaxed space-y-1.5'>
+            <div className='p-3.5 rounded-xl border border-border bg-card text-xs leading-relaxed space-y-1.5'>
               <div className='flex items-center gap-1.5 text-muted-foreground font-semibold text-[11px]'>
-                <Quote className='size-3.5' />
-                Customer Incident Statement
+                <Quote className='size-3.5 text-muted-foreground/70' />
+                <span>{isVi ? 'Nội dung yêu cầu từ khách hàng' : 'Customer Incident Statement'}</span>
               </div>
-              <p className='italic text-foreground bg-muted/40 p-2.5 rounded border border-border'>
-                "{refund.customerStatement}"
+              <p className='text-foreground bg-muted/40 p-2.5 rounded-lg border border-border italic'>
+                "{refund.customerStatement || refund.claimReason}"
               </p>
             </div>
 
             {/* Evidence Preview Card */}
             {refund.evidence && (
-              <div className='border border-border rounded-lg p-3 bg-card'>
+              <div className='border border-border rounded-xl p-3 bg-card'>
                 <div className='flex items-start gap-3'>
                   {refund.evidence.thumbnailUrl ? (
                     <button
                       type='button'
                       onClick={() => setPhotoZoomOpen(true)}
                       aria-label='Zoom incident photograph'
-                      className='relative size-24 rounded-md overflow-hidden bg-muted border border-border shrink-0 group cursor-pointer text-left p-0'
+                      className='relative size-20 rounded-lg overflow-hidden bg-muted border border-border shrink-0 group cursor-pointer text-left p-0'
                       title='Click to zoom photograph'
                     >
                       <img
@@ -247,129 +258,124 @@ export function RefundDetailsDrawer({
             )}
           </div>
 
-          {/* Section 3: Financial Settlement Calculation */}
+          {/* Section 3: Financial Settlement Calculation in VND */}
           <div className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground'>
-              Automated Refund Settlement Calculation
+            <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
+              {isVi ? 'Bảng tính toán số tiền hoàn trả' : 'Automated Refund Settlement Calculation'}
             </span>
 
-            <div className='bg-muted/50 border border-border rounded-xl p-4 text-xs space-y-2.5'>
+            <div className='bg-muted/40 border border-border rounded-xl p-3.5 text-xs space-y-2.5'>
               <div className='flex items-center justify-between text-muted-foreground'>
-                <span>Original Customer Reservation Amount:</span>
+                <span>{isVi ? 'Tổng tiền khách đã thanh toán:' : 'Original Customer Reservation Amount:'}</span>
                 <span className='font-mono font-semibold text-foreground'>
-                  ${refund.originalPaidUsd.toFixed(2)}{' '}
-                  <span className='text-[10px] text-muted-foreground'>
-                    ({(refund.originalPaidVnd / 1000).toLocaleString()}k VND)
-                  </span>
+                  {formatVnd(refund.originalPaidVnd)}
                 </span>
               </div>
 
               <div className='flex items-center justify-between text-muted-foreground'>
-                <span>Gateway & Platform Fee Adjustment:</span>
-                <span className='font-mono text-red-500 font-medium'>
-                  -${refund.gatewayFeeDeductionUsd.toFixed(2)}{' '}
-                  <span className='text-[10px] text-muted-foreground'>
-                    ({(refund.gatewayFeeDeductionVnd / 1000).toLocaleString()}k VND)
-                  </span>
+                <span>{isVi ? 'Khấu trừ phí nền tảng & xử lý:' : 'Gateway & Platform Fee Adjustment:'}</span>
+                <span className='font-mono text-rose-500 font-medium'>
+                  -{formatVnd(refund.gatewayFeeDeductionVnd)}
                 </span>
               </div>
 
               <div className='border-t border-border pt-2.5 flex items-center justify-between'>
                 <div>
-                  <div className='font-bold text-foreground text-sm'>Net Refund to Customer</div>
+                  <div className='font-bold text-foreground text-sm'>
+                    {isVi ? 'Thực nhận hoàn tiền của khách' : 'Net Refund to Customer'}
+                  </div>
                   <div className='text-[10px] text-muted-foreground'>
-                    Direct reversal to original payment method
+                    {isVi ? 'Chi trả tự động qua tài khoản PayOS' : 'Direct reversal to original payment method'}
                   </div>
                 </div>
                 <div className='text-right'>
                   <div className='font-mono font-bold text-lg text-primary leading-none'>
-                    ${refund.calculatedRefundUsd.toFixed(2)}
+                    {formatVnd(refund.calculatedRefundVnd)}
                   </div>
-                  <div className='font-mono text-[11px] text-muted-foreground mt-0.5'>
-                    {refund.calculatedRefundVnd.toLocaleString()} VND
+                  <div className='text-[10px] text-muted-foreground mt-0.5'>
+                    {refund.policyTierLabel}
                   </div>
                 </div>
               </div>
 
               {/* Escrow Status Callout */}
-              <div className='mt-2 pt-2 border-t border-dashed border-border flex items-center gap-2 text-[11px] text-muted-foreground bg-card p-2 rounded border border-border'>
+              <div className='mt-2 pt-2 border-t border-dashed border-border flex items-center gap-2 text-[11px] text-muted-foreground bg-card p-2 rounded-lg border border-border'>
                 <ShieldCheck className='size-4 text-emerald-600 shrink-0' />
                 <span>
-                  PayOS Payout Gateway:{' '}
-                  <strong className='text-foreground'>{refund.escrowReserveCode}</strong>. Tự động chuyển khoản Napas 24/7 khi phê duyệt.
+                  {isVi ? 'Cổng thanh toán PayOS:' : 'PayOS Payout Gateway:'}{' '}
+                  <strong className='text-foreground'>{refund.escrowReserveCode}</strong>. {isVi ? 'Chuyển khoản liên ngân hàng 24/7 khi phê duyệt.' : 'Napas 24/7 automated transfer upon approval.'}
                 </span>
               </div>
             </div>
           </div>
 
-          {/* Section: Customer Payout Bank Account Details */}
+          {/* Section 4: Customer Payout Bank Account Details */}
           <div className='space-y-2'>
-            <span className='text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between'>
-              <span>Tài khoản ngân hàng thụ hưởng (PayOS Payout)</span>
+            <span className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between'>
+              <span>{isVi ? 'Tài khoản ngân hàng thụ hưởng (PayOS Payout)' : 'Beneficiary Bank Account'}</span>
               {refund.bankAccountNumber ? (
                 <span className='text-[10px] text-emerald-600 font-medium flex items-center gap-1'>
-                  <CheckCircle2 className='size-3' /> Sẵn sàng chi tiền
+                  <CheckCircle2 className='size-3' /> {isVi ? 'Sẵn sàng chi tiền' : 'Ready for Payout'}
                 </span>
               ) : (
                 <span className='text-[10px] text-amber-500 font-medium'>
-                  Chưa có thông tin tài khoản
+                  {isVi ? 'Chưa có thông tin tài khoản' : 'No account details'}
                 </span>
               )}
             </span>
 
-            <div className='p-3 rounded-lg border border-border bg-card text-xs space-y-2'>
+            <div className='p-3.5 rounded-xl border border-border bg-card text-xs space-y-2'>
               {refund.bankAccountNumber ? (
                 <>
                   <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>Ngân hàng:</span>
+                    <span className='text-muted-foreground'>{isVi ? 'Ngân hàng:' : 'Bank:'}</span>
                     <span className='font-semibold text-foreground'>
                       {refund.bankName || 'Ngân hàng nội địa'} {refund.bankBin ? `(BIN: ${refund.bankBin})` : ''}
                     </span>
                   </div>
                   <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>Số tài khoản:</span>
+                    <span className='text-muted-foreground'>{isVi ? 'Số tài khoản:' : 'Account Number:'}</span>
                     <span className='font-mono font-bold text-foreground'>{refund.bankAccountNumber}</span>
                   </div>
                   <div className='flex items-center justify-between'>
-                    <span className='text-muted-foreground'>Chủ tài khoản:</span>
+                    <span className='text-muted-foreground'>{isVi ? 'Chủ tài khoản:' : 'Account Name:'}</span>
                     <span className='font-semibold text-foreground uppercase'>{refund.bankAccountName || refund.customerName}</span>
                   </div>
                   {refund.refundReference && (
                     <div className='flex items-center justify-between border-t border-border pt-1.5 text-[11px]'>
-                      <span className='text-muted-foreground'>Mã Payout PayOS:</span>
+                      <span className='text-muted-foreground'>{isVi ? 'Mã Payout PayOS:' : 'PayOS Reference:'}</span>
                       <span className='font-mono font-medium text-emerald-600'>{refund.refundReference}</span>
                     </div>
                   )}
                 </>
               ) : (
                 <p className='text-amber-600 dark:text-amber-400 text-[11px] italic'>
-                  Khách hàng chưa cung cấp thông tin tài khoản ngân hàng để nhận hoàn tiền. Vui lòng liên hệ khách hàng hoặc chờ khách cập nhật trước khi phê duyệt chi tiền.
+                  {isVi
+                    ? 'Khách hàng chưa cung cấp thông tin tài khoản ngân hàng. Tiền hoàn sẽ tạm giữ cho đến khi khách cập nhật.'
+                    : 'Customer has not provided bank details yet.'}
                 </p>
               )}
             </div>
           </div>
 
-          {/* Section 4: Mandatory Admin Resolution Note Input */}
+          {/* Section 5: Mandatory Admin Resolution Note */}
           <div className='space-y-1.5'>
             <label
               htmlFor='refund-admin-note'
-              className='text-xs font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between'
+              className='text-[11px] font-semibold uppercase tracking-wider text-muted-foreground flex items-center justify-between'
             >
-              <span>Mandatory Admin Resolution Note (Audit Trail)</span>
-              <span className='text-[10px] text-muted-foreground'>SOC-2 Compliant</span>
+              <span>{isVi ? 'Ghi chú thẩm định của Quản trị viên' : 'Admin Resolution Note'}</span>
+              <span className='text-[10px] text-muted-foreground'>Audit Trail</span>
             </label>
             <textarea
               id='refund-admin-note'
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
               disabled={refund.status !== 'pending'}
-              className='w-full text-xs p-3 bg-card border border-input rounded-lg placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed disabled:opacity-60 resize-none'
+              className='w-full text-xs p-3 bg-card border border-input rounded-xl placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed disabled:opacity-60 resize-none'
               rows={3}
-              placeholder='Enter reason for approval or rejection. This message will be sent to customer and operator...'
+              placeholder={isVi ? 'Nhập ghi chú hoặc lý do phê duyệt / từ chối...' : 'Enter reason for approval or rejection...'}
             />
-            <div className='text-[10px] text-muted-foreground'>
-              Note will be dispatched via customer webhook and appended to Hub Operator invoice cycle.
-            </div>
           </div>
         </div>
 
@@ -381,32 +387,31 @@ export function RefundDetailsDrawer({
                 type='button'
                 variant='outline'
                 onClick={() => setActionModalType('reject')}
-                className='border-red-500/40 hover:bg-red-500/10 text-red-600 dark:text-red-400 text-xs h-9 font-semibold flex items-center gap-1.5'
+                className='border-rose-500/40 hover:bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs h-9 font-semibold flex items-center gap-1.5'
               >
                 <Ban className='size-4' />
-                Từ chối
+                <span>{isVi ? 'Từ chối' : 'Reject'}</span>
               </Button>
 
               <Button
                 type='button'
                 onClick={() => setActionModalType('approve')}
-                disabled={!refund.bankAccountNumber}
-                title={!refund.bankAccountNumber ? 'Cần thông tin tài khoản ngân hàng để chi tiền' : undefined}
-                className='flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-semibold flex items-center justify-center gap-2 shadow-xs disabled:opacity-50'
+                className='flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs h-9 font-semibold flex items-center justify-center gap-2 shadow-2xs'
               >
                 <CheckCircle2 className='size-4' />
-                Phê duyệt & Chi tiền PayOS ({refund.calculatedRefundVnd.toLocaleString()} đ)
+                <span>{isVi ? `Phê duyệt & Chi PayOS (${formatVnd(refund.calculatedRefundVnd)})` : `Approve & PayOS (${formatVnd(refund.calculatedRefundVnd)})`}</span>
               </Button>
             </div>
           ) : (
-            <div className='p-2 rounded bg-muted/60 border border-border text-center text-xs text-muted-foreground'>
-              This refund record is marked as <strong className='text-foreground'>{refund.statusBadge}</strong> and is locked under SOC-2 compliance.
+            <div className='p-2.5 rounded-xl bg-muted/50 border border-border text-center text-xs text-muted-foreground'>
+              {isVi ? 'Yêu cầu hoàn tiền này đã ở trạng thái ' : 'This refund record is marked as '}
+              <strong className='text-foreground'>{refund.statusBadge}</strong>.
             </div>
           )}
 
           <div className='text-center text-[10px] text-muted-foreground flex items-center justify-center gap-1'>
             <Lock className='size-3 text-emerald-600' />
-            <span>Reversals cryptographically authorized via PayOS Escrow Webhook. Immutable SOC-2 Log.</span>
+            <span>{isVi ? 'Lệnh chi tiền được xác thực bảo mật và lưu vết kiểm toán bất biến.' : 'Authorized via PayOS Escrow Webhook. Immutable audit log.'}</span>
           </div>
         </div>
       </aside>
@@ -431,7 +436,7 @@ export function RefundDetailsDrawer({
       {refund.evidence?.thumbnailUrl && (
         <Dialog open={photoZoomOpen} onOpenChange={setPhotoZoomOpen}>
           <DialogContent className='sm:max-w-2xl p-2'>
-            <div className='rounded-lg overflow-hidden'>
+            <div className='rounded-xl overflow-hidden'>
               <img
                 src={refund.evidence.thumbnailUrl}
                 alt='High resolution evidence inspect'

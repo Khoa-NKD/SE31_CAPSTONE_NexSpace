@@ -302,7 +302,7 @@ export function AdminAmenitiesView() {
               <TableHead className='w-[200px]'>Category</TableHead>
               <TableHead>Description</TableHead>
               <TableHead className='w-[150px] text-center'>Status</TableHead>
-              <TableHead className='w-[110px] text-right'>Actions</TableHead>
+              <TableHead className='w-[110px] text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -328,7 +328,7 @@ export function AdminAmenitiesView() {
               </TableRow>
             ) : (
               amenities.map((item) => (
-                <TableRow key={item.id} className='hover:bg-muted/30 transition-colors'>
+                <TableRow key={item.id} className='hover:bg-muted/30 transition-colors group'>
                   {/* Icon */}
                   <TableCell className='text-center'>
                     <div className='size-8 rounded-lg bg-muted flex items-center justify-center mx-auto text-muted-foreground'>
@@ -375,7 +375,7 @@ export function AdminAmenitiesView() {
                   </TableCell>
 
                   {/* Actions */}
-                  <TableCell className='text-right'>
+                  <TableCell className='text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                     <div className='flex items-center justify-end gap-1'>
                       <Button
                         variant='ghost'

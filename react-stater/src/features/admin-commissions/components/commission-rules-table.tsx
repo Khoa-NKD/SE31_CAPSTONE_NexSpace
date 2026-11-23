@@ -114,7 +114,7 @@ export function CommissionRulesTable({
               <th scope='col' className='py-3 px-5 text-center'>
                 Status
               </th>
-              <th scope='col' className='py-3 px-5 text-right'>
+              <th scope='col' className='py-3 px-5 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                 Action
               </th>
             </tr>
@@ -127,7 +127,7 @@ export function CommissionRulesTable({
                 <tr
                   key={rule.id}
                   onClick={() => isConfigurationMode && onSelectRule?.(rule)}
-                  className={`transition-colors cursor-pointer ${
+                  className={`transition-colors cursor-pointer group ${
                     isSelected
                       ? 'bg-primary/10 border-l-4 border-primary'
                       : 'hover:bg-muted/30'
@@ -184,7 +184,7 @@ export function CommissionRulesTable({
                   </td>
 
                   {/* Action */}
-                  <td className='py-3.5 px-5 text-right'>
+                  <td className='py-3.5 px-5 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                     {isConfigurationMode ? (
                       <Button
                         size='sm'

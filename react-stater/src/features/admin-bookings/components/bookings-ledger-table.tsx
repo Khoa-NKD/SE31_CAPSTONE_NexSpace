@@ -78,7 +78,7 @@ export function BookingsLedgerTable({
               <th scope='col' className='px-4 py-3.5'>Time Slot</th>
               <th scope='col' className='px-4 py-3.5'>Gross Amount</th>
               <th scope='col' className='px-4 py-3.5'>Status</th>
-              <th scope='col' className='px-4 py-3.5 text-right'>Action</th>
+              <th scope='col' className='px-4 py-3.5 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>Action</th>
             </tr>
           </thead>
           <tbody className='divide-y divide-border'>
@@ -156,7 +156,7 @@ export function BookingsLedgerTable({
                   </td>
 
                   {/* Action */}
-                  <td className='px-4 py-4 text-right'>
+                  <td className='px-4 py-4 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                     <Button
                       type='button'
                       variant='outline'

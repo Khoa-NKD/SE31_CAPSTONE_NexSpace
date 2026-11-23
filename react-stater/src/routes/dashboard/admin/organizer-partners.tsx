@@ -13,12 +13,14 @@ import {
   PlayCircle,
   Search,
   ShieldCheck,
-  X
+  X,
+  RotateCcw,
+  RefreshCw
 } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import {
   Dialog,
   DialogContent,
@@ -30,277 +32,996 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import PageContainer from '@/components/layout/page-container';
+import { useLanguage } from '@/features/landing/context/language-context';
 import { backendRequest } from '@/features/auth/api/session';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { validApplicationId } from '@/features/admin-organizers/api/application-details';
 import {
   organizerPartnersEndpoint,
   organizerOperationalStatusKey,
+  type OrganizerPartner,
   type OrganizerPartnerDetail,
   type OrganizerPartnerPage
 } from '@/features/admin-organizers/api/partners';
 
 const path = '/dashboard/admin/organizer-partners';
-const statusFilters = [
-  { value: '', label: 'Tất cả' },
-  { value: 'false', label: 'Đang hoạt động' },
-  { value: 'true', label: 'Tạm ngưng' }
-];
 
 export const Route = createFileRoute('/dashboard/admin/organizer-partners')({
   validateSearch: (search: Record<string, unknown>): { organizerId?: string } => {
     const organizerId = String(search.organizerId ?? '');
     return validApplicationId(organizerId) ? { organizerId } : {};
   },
-  head: () => ({ meta: [{ title: 'Quản lý đối tác | NexSpace' }] }),
+  head: () => ({
+    meta: [
+      { title: 'Quản lý đối tác | NexSpace Admin Console' },
+      { name: 'robots', content: 'noindex, nofollow' }
+    ]
+  }),
   component: OrganizerPartners
 });
 
+function getInitials(name?: string | null): string {
+  if (!name) return 'DN';
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'DN';
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+
 function OrganizerPartners() {
   const { organizerId } = Route.useSearch();
-  const actorId = useAuthStore((state) => state.user?.id);
+  const actor = useAuthStore((state) => state.user);
+  const { language } = useLanguage();
+
+  const allowed = actor?.role === 'ADMIN';
 
   return (
-    <main className='mx-auto w-full max-w-7xl space-y-5 p-4 sm:p-8'>
-      <header className='relative isolate overflow-hidden rounded-3xl border bg-card px-5 py-6 shadow-sm sm:px-8 sm:py-8'>
-        <div aria-hidden='true' className='pointer-events-none absolute inset-0 -z-10 bg-linear-to-br from-indigo-500/15 via-primary/5 to-transparent dark:from-indigo-400/15' />
-        <Building2 aria-hidden='true' className='pointer-events-none absolute -right-6 -top-10 -z-10 hidden size-60 rotate-12 text-indigo-500/10 sm:block dark:text-indigo-300/10' strokeWidth={0.7} />
-        <div className='flex items-center gap-4'>
-          <span className='grid size-12 shrink-0 place-items-center rounded-2xl border border-indigo-500/20 bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 sm:size-14'>
-            <Building2 className='size-6' aria-hidden='true' />
-          </span>
-          <div>
-            <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>Quản lý đối tác</h1>
-            <p className='mt-1 text-sm text-muted-foreground'>Theo dõi quyền hoạt động của Organizer đã được duyệt.</p>
-          </div>
+    <PageContainer
+      pageTitle={language === 'vi' ? 'Quản lý đối tác' : 'Organizer Partners'}
+      pageDescription={
+        language === 'vi'
+          ? 'Theo dõi quyền hoạt động, trạng thái vận hành và quản lý đối tác không gian đã được phê duyệt.'
+          : 'Monitor operational status and manage approved workspace partners across the platform.'
+      }
+    >
+      {!actor ? (
+        <div className='flex items-center justify-center p-12 text-xs text-muted-foreground'>
+          <Loader2 className='mr-2 size-4' />
+          {language === 'vi' ? 'Đang tải thông tin xác thực...' : 'Loading credentials…'}
         </div>
-      </header>
-      {actorId != null && (organizerId
-        ? <PartnerDetail key={organizerId} actorId={actorId} id={organizerId} />
-        : <PartnerDirectory actorId={actorId} />)}
-    </main>
+      ) : !allowed ? (
+        <div
+          role='alert'
+          className='rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive'
+        >
+          {language === 'vi'
+            ? 'Quyền Quản trị viên (ADMIN) là bắt buộc để quản lý đối tác vận hành.'
+            : 'Administrator access is required to manage partner operations.'}
+        </div>
+      ) : organizerId ? (
+        <PartnerDetail key={organizerId} actorId={actor.id} id={organizerId} />
+      ) : (
+        <PartnerDirectory actorId={actor.id} />
+      )}
+    </PageContainer>
   );
 }
 
-function PartnerBadge({ suspended }: { suspended: boolean }) {
+function PartnerBadge({
+  suspended,
+  language
+}: {
+  suspended: boolean;
+  language: 'vi' | 'en';
+}) {
   return (
-    <Badge variant='outline' className={`gap-1.5 rounded-full px-2.5 py-1 ${suspended
-      ? 'border-amber-500/25 bg-amber-500/10 text-amber-800 dark:text-amber-300'
-      : 'border-emerald-500/25 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300'}`}>
-      <span className='size-1.5 rounded-full bg-current' aria-hidden='true' />
-      {suspended ? 'Tạm ngưng' : 'Đang hoạt động'}
+    <Badge
+      variant='outline'
+      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+        suspended
+          ? 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+          : 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+      }`}
+    >
+      <span
+        className={`size-1.5 rounded-full ${suspended ? 'bg-amber-500' : 'bg-emerald-500'}`}
+        aria-hidden='true'
+      />
+      <span>
+        {suspended
+          ? language === 'vi'
+            ? 'Tạm ngưng'
+            : 'Suspended'
+          : language === 'vi'
+            ? 'Đang hoạt động'
+            : 'Active'}
+      </span>
     </Badge>
   );
 }
 
 function PartnerDirectory({ actorId }: { actorId: number }) {
+  const { language } = useLanguage();
   const [keyword, setKeyword] = useState('');
   const [search, setSearch] = useState('');
-  const [status, setStatus] = useState('');
+  const [status, setStatus] = useState<'all' | 'false' | 'true'>('all');
   const [page, setPage] = useState(1);
+
   const partners = useQuery({
     queryKey: ['organizer-partners', actorId, 'list', page, search, status],
     queryFn: ({ signal }) => {
       const params = new URLSearchParams({ page: String(page), search });
-      if (status) params.set('suspended', status);
-      return backendRequest<OrganizerPartnerPage>(`${organizerPartnersEndpoint}?${params}`, 'GET', undefined, true, signal);
+      if (status !== 'all') {
+        params.set('suspended', status);
+      }
+      return backendRequest<OrganizerPartnerPage>(
+        `${organizerPartnersEndpoint}?${params}`,
+        'GET',
+        undefined,
+        true,
+        signal
+      );
     },
     retry: false
   });
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSearch(keyword.trim());
     setPage(1);
   }
 
+  function handleResetFilters() {
+    setKeyword('');
+    setSearch('');
+    setStatus('all');
+    setPage(1);
+  }
+
+  const isFiltered = Boolean(search) || status !== 'all';
+
+  const STATUS_TABS: Array<{
+    id: 'all' | 'false' | 'true';
+    labelVi: string;
+    labelEn: string;
+    dotColor?: string;
+  }> = [
+    { id: 'all', labelVi: 'Tất cả', labelEn: 'All' },
+    {
+      id: 'false',
+      labelVi: 'Đang hoạt động',
+      labelEn: 'Active',
+      dotColor: 'bg-emerald-500'
+    },
+    {
+      id: 'true',
+      labelVi: 'Tạm ngưng',
+      labelEn: 'Suspended',
+      dotColor: 'bg-amber-500'
+    }
+  ];
+
   return (
-    <Card className='gap-0 overflow-hidden rounded-2xl py-0 shadow-sm'>
-      <CardHeader className='gap-4 border-b p-4 sm:p-6'>
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <CardTitle>Danh sách đối tác</CardTitle>
-          {partners.data && <Badge variant='secondary' aria-live='polite'>{partners.data.totalRecords} kết quả</Badge>}
-        </div>
-        <form onSubmit={submit} className='flex gap-2'>
-          <div className='relative min-w-0 flex-1'>
-            <Search aria-hidden='true' className='pointer-events-none absolute inset-y-0 left-3 my-auto size-4 text-muted-foreground' />
-            <Input aria-label='Tìm đối tác' className='h-10 rounded-xl px-9' placeholder='Tên doanh nghiệp, tài khoản hoặc email' value={keyword} onChange={(event) => setKeyword(event.target.value)} />
-            {(keyword || search) && <Button type='button' size='icon' variant='ghost' aria-label='Xóa từ khóa' className='absolute top-1 right-1 size-8' onClick={() => { setKeyword(''); setSearch(''); setPage(1); }}><X className='size-4' /></Button>}
-          </div>
-          <Button type='submit' className='h-10 rounded-xl px-5'>Tìm</Button>
+    <div className='min-w-0 space-y-4'>
+      {/* ── 1. Status Filter Pills (Segmented Tabs) ── */}
+      <div className='flex flex-wrap items-center gap-1.5 rounded-xl border bg-card/60 p-1.5 shadow-2xs backdrop-blur-xs'>
+        {STATUS_TABS.map((tab) => {
+          const isActive = status === tab.id;
+          return (
+            <button
+              key={tab.id}
+              type='button'
+              onClick={() => {
+                setStatus(tab.id);
+                setPage(1);
+              }}
+              className={`inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                isActive
+                  ? 'bg-primary text-primary-foreground shadow-2xs font-semibold'
+                  : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+              }`}
+            >
+              {tab.dotColor && (
+                <span
+                  className={`size-1.5 rounded-full ${
+                    isActive ? 'bg-primary-foreground' : tab.dotColor
+                  }`}
+                  aria-hidden='true'
+                />
+              )}
+              <span>{language === 'vi' ? tab.labelVi : tab.labelEn}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── 2. Compact Search & Controls Toolbar ── */}
+      <div className='flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between'>
+        {/* Search Input */}
+        <form
+          onSubmit={submitSearch}
+          className='relative w-full sm:max-w-xs md:max-w-sm'
+        >
+          <Search
+            className='pointer-events-none absolute top-2.5 left-2.5 size-4 text-muted-foreground/60'
+            aria-hidden='true'
+          />
+          <Input
+            value={keyword}
+            onChange={(e) => setKeyword(e.target.value)}
+            maxLength={255}
+            placeholder={
+              language === 'vi'
+                ? 'Tìm theo tên DN, tài khoản, email...'
+                : 'Search business, username, email...'
+            }
+            className='h-9 rounded-lg bg-card pl-8.5 pr-8 text-xs shadow-2xs transition-all focus-visible:ring-1'
+          />
+          {(keyword || search) && (
+            <button
+              type='button'
+              onClick={() => {
+                setKeyword('');
+                setSearch('');
+                setPage(1);
+              }}
+              className='absolute top-2.5 right-2.5 text-muted-foreground/60 hover:text-foreground'
+              aria-label={language === 'vi' ? 'Xóa từ khóa' : 'Clear search'}
+            >
+              <X className='size-3.5' />
+            </button>
+          )}
         </form>
-        <div role='group' aria-label='Lọc trạng thái hoạt động' className='flex flex-wrap gap-1.5'>
-          {statusFilters.map((filter) => (
-            <Button key={filter.value} type='button' size='sm'
-              variant={filter.value === status ? 'secondary' : 'ghost'} aria-pressed={filter.value === status}
-              className='rounded-full px-3.5' onClick={() => { setStatus(filter.value); setPage(1); }}>
-              {filter.label}
+
+        {/* Action Controls & Total Count */}
+        <div className='flex flex-wrap items-center gap-2'>
+          {partners.data && (
+            <Badge
+              variant='secondary'
+              className='h-8 rounded-lg px-2.5 text-xs font-normal text-muted-foreground'
+            >
+              {language === 'vi'
+                ? `${partners.data.totalRecords} đối tác`
+                : `${partners.data.totalRecords} partners`}
+            </Badge>
+          )}
+
+          {isFiltered && (
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
+              className='h-8 gap-1 rounded-lg px-2 text-xs text-muted-foreground hover:text-foreground'
+              onClick={handleResetFilters}
+            >
+              <RotateCcw className='size-3.5' aria-hidden='true' />
+              <span>{language === 'vi' ? 'Đặt lại' : 'Reset'}</span>
             </Button>
-          ))}
+          )}
+
+          <Button
+            type='button'
+            variant='outline'
+            size='sm'
+            disabled={partners.isFetching}
+            className='h-8 gap-1 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground'
+            onClick={() => void partners.refetch()}
+            aria-label={language === 'vi' ? 'Làm mới' : 'Refresh'}
+          >
+            <RefreshCw
+              className={`size-3.5 ${partners.isFetching ? 'animate-spin' : ''}`}
+              aria-hidden='true'
+            />
+            <span className='hidden sm:inline'>
+              {language === 'vi' ? 'Làm mới' : 'Refresh'}
+            </span>
+          </Button>
         </div>
-      </CardHeader>
-      <CardContent className='p-0'>
-        {partners.isPending && <p role='status' className='flex items-center justify-center gap-2 p-12 text-sm text-muted-foreground'><Loader2 className='size-4' /> Đang tải đối tác…</p>}
-        {partners.isError && <div role='alert' className='flex flex-wrap items-center gap-3 p-5 text-sm'>{partners.error.message} <Button variant='outline' onClick={() => void partners.refetch()}>Thử lại</Button></div>}
-        {partners.data && (
+      </div>
+
+      {/* ── 3. High-Density Structured Table ── */}
+      <div className='overflow-hidden rounded-xl border bg-card shadow-2xs'>
+        {partners.isPending ? (
+          <div className='flex items-center justify-center p-12 text-xs text-muted-foreground'>
+            <Loader2 className='mr-2 size-4' />
+            {language === 'vi'
+              ? 'Đang tải danh sách đối tác...'
+              : 'Loading partners list…'}
+          </div>
+        ) : partners.isError ? (
+          <div
+            role='alert'
+            className='flex flex-wrap items-center justify-between gap-3 p-5 text-xs text-destructive'
+          >
+            <span>{partners.error.message}</span>
+            <Button
+              variant='outline'
+              size='sm'
+              className='h-7 rounded-lg text-xs'
+              onClick={() => void partners.refetch()}
+            >
+              {language === 'vi' ? 'Thử lại' : 'Retry'}
+            </Button>
+          </div>
+        ) : partners.data && partners.data.listObjects.length === 0 ? (
+          <div className='grid justify-items-center gap-2 p-12 text-center'>
+            <div className='grid size-12 place-items-center rounded-2xl bg-muted/50 text-muted-foreground'>
+              <Building2 className='size-6' aria-hidden='true' />
+            </div>
+            <p className='text-sm font-semibold text-foreground'>
+              {language === 'vi'
+                ? 'Không tìm thấy đối tác phù hợp'
+                : 'No partners found'}
+            </p>
+            <p className='max-w-sm text-xs text-muted-foreground'>
+              {language === 'vi'
+                ? 'Thử thay đổi từ khóa tìm kiếm hoặc đặt lại các bộ lọc trạng thái.'
+                : 'Try adjusting your search query or reset the active status filters.'}
+            </p>
+            {isFiltered && (
+              <Button
+                variant='outline'
+                size='sm'
+                className='mt-2 h-8 rounded-lg text-xs'
+                onClick={handleResetFilters}
+              >
+                <RotateCcw className='mr-1.5 size-3.5' />
+                {language === 'vi' ? 'Xóa bộ lọc' : 'Clear filters'}
+              </Button>
+            )}
+          </div>
+        ) : (
           <>
-            {partners.data.listObjects.length === 0 ? (
-              <div className='grid justify-items-center gap-2 px-5 py-12 text-center'>
-                <Search className='mb-1 size-6 text-muted-foreground' aria-hidden='true' />
-                <p className='font-medium'>Chưa có đối tác phù hợp</p>
-                {(search || status) && <Button variant='outline' size='sm' onClick={() => { setKeyword(''); setSearch(''); setStatus(''); setPage(1); }}>Xóa bộ lọc</Button>}
+            <Table className='min-w-[800px]'>
+              <TableHeader>
+                <TableRow className='bg-muted/40 hover:bg-muted/40'>
+                  <TableHead className='w-[100px] text-xs font-semibold'>
+                    {language === 'vi' ? 'Mã ĐT' : 'Partner ID'}
+                  </TableHead>
+                  <TableHead className='min-w-[240px] text-xs font-semibold'>
+                    {language === 'vi' ? 'Doanh nghiệp đối tác' : 'Partner Business'}
+                  </TableHead>
+                  <TableHead className='min-w-[200px] text-xs font-semibold'>
+                    {language === 'vi' ? 'Liên hệ & Email' : 'Contact & Email'}
+                  </TableHead>
+                  <TableHead className='w-[150px] text-xs font-semibold'>
+                    {language === 'vi' ? 'Trạng thái vận hành' : 'Status'}
+                  </TableHead>
+                  <TableHead className='w-[120px] min-w-[120px] text-right text-xs font-semibold sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+                    {language === 'vi' ? 'Thao tác' : 'Action'}
+                  </TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {partners.data?.listObjects.map((partner: OrganizerPartner) => (
+                  <TableRow
+                    key={partner.organizerId}
+                    className='group transition-colors hover:bg-muted/40'
+                  >
+                    {/* Partner ID */}
+                    <TableCell className='py-3 font-mono text-xs font-medium'>
+                      <div className='flex flex-col gap-0.5'>
+                        <span className='font-semibold text-foreground'>
+                          #{partner.organizerId}
+                        </span>
+                        <span className='text-[10px] text-muted-foreground'>
+                          HS #{partner.applicationId}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Partner Business Name & Account */}
+                    <TableCell className='py-3'>
+                      <div className='flex items-center gap-3'>
+                        <span className='grid size-9 shrink-0 place-items-center rounded-xl border border-primary/20 bg-primary/10 text-xs font-bold text-primary'>
+                          {getInitials(partner.legalName || partner.username)}
+                        </span>
+                        <div className='min-w-0 max-w-[320px]'>
+                          <span className='block truncate text-xs font-semibold text-foreground'>
+                            {partner.legalName || partner.username}
+                          </span>
+                          <span className='block truncate text-[11px] text-muted-foreground'>
+                            @{partner.username}
+                          </span>
+                        </div>
+                      </div>
+                    </TableCell>
+
+                    {/* Email / Contact */}
+                    <TableCell className='py-3'>
+                      <div className='flex items-center gap-1.5 text-xs text-muted-foreground'>
+                        <Mail
+                          className='size-3.5 shrink-0 text-muted-foreground/60'
+                          aria-hidden='true'
+                        />
+                        <span className='max-w-[220px] truncate'>
+                          {partner.email}
+                        </span>
+                      </div>
+                    </TableCell>
+
+                    {/* Operational Status */}
+                    <TableCell className='py-3'>
+                      <PartnerBadge
+                        suspended={partner.suspended}
+                        language={language}
+                      />
+                    </TableCell>
+
+                    {/* Action */}
+                    <TableCell className='py-3 w-[120px] min-w-[120px] text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+                      <Button
+                        asChild
+                        variant='outline'
+                        size='sm'
+                        className='h-8 gap-1.5 rounded-lg px-2.5 text-xs font-medium transition-all hover:border-primary/40 hover:bg-primary/5 hover:text-primary'
+                      >
+                        <Link
+                          to={path}
+                          search={{ organizerId: String(partner.organizerId) }}
+                        >
+                          <span>{language === 'vi' ? 'Quản lý' : 'Manage'}</span>
+                          <ArrowUpRight className='size-3.5' aria-hidden='true' />
+                        </Link>
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+
+            {/* Pagination Controls */}
+            {partners.data && partners.data.totalPages > 1 && (
+              <div className='flex flex-wrap items-center justify-between gap-3 border-t bg-card/60 px-4 py-3 sm:px-6'>
+                <span className='text-xs text-muted-foreground'>
+                  {language === 'vi'
+                    ? `Trang ${page} / ${partners.data.totalPages} (${partners.data.totalRecords} đối tác)`
+                    : `Page ${page} of ${partners.data.totalPages} (${partners.data.totalRecords} partners)`}
+                </span>
+                <div className='flex items-center gap-2'>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={!partners.data.hasPrevious}
+                    onClick={() => setPage(page - 1)}
+                    className='h-8 rounded-lg px-3 text-xs'
+                  >
+                    {language === 'vi' ? 'Trước' : 'Previous'}
+                  </Button>
+                  <Button
+                    size='sm'
+                    variant='outline'
+                    disabled={!partners.data.hasNext}
+                    onClick={() => setPage(page + 1)}
+                    className='h-8 rounded-lg px-3 text-xs'
+                  >
+                    {language === 'vi' ? 'Tiếp' : 'Next'}
+                  </Button>
+                </div>
               </div>
-            ) : <ul className='divide-y'>
-              {partners.data.listObjects.map((partner) => (
-                <li key={partner.organizerId}>
-                  <Link to={path} search={{ organizerId: String(partner.organizerId) }} className='group flex flex-wrap items-center gap-x-4 gap-y-3 p-4 transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring sm:px-6 sm:py-4'>
-                    <span className='flex min-w-0 grow basis-48 items-center gap-3'>
-                      <span className='grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary'><Building2 className='size-4' aria-hidden='true' /></span>
-                      <span className='min-w-0'>
-                        <span className='block font-semibold wrap-break-word'>{partner.legalName || partner.username}</span>
-                        <span className='block text-sm text-muted-foreground wrap-break-word'>{partner.email}</span>
-                      </span>
-                    </span>
-                    <span className='ml-auto flex items-center gap-3'>
-                      <PartnerBadge suspended={partner.suspended} />
-                      <span className='grid size-8 place-items-center rounded-lg border bg-background text-muted-foreground transition-colors group-hover:border-primary/25 group-hover:text-primary'>
-                        <ArrowUpRight className='size-4' aria-hidden='true' />
-                      </span>
-                    </span>
-                  </Link>
-                </li>
-              ))}
-            </ul>}
-            {(partners.data.hasPrevious || partners.data.hasNext) && <div className='flex items-center justify-end gap-2 border-t p-4 sm:px-6'>
-              <Button size='sm' variant='outline' disabled={!partners.data.hasPrevious} onClick={() => setPage(page - 1)}>Trước</Button>
-              <span className='px-2 text-sm tabular-nums'>Trang {page} / {partners.data.totalPages}</span>
-              <Button size='sm' variant='outline' disabled={!partners.data.hasNext} onClick={() => setPage(page + 1)}>Tiếp</Button>
-            </div>}
+            )}
           </>
         )}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
 function PartnerDetail({ actorId, id }: { actorId: number; id: string }) {
+  const { language } = useLanguage();
   const client = useQueryClient();
   const [confirmation, setConfirmation] = useState<OrganizerPartnerDetail>();
   const [reason, setReason] = useState('');
+
   const key = ['organizer-partners', actorId, 'detail', id] as const;
   const endpoint = `${organizerPartnersEndpoint}/${id}`;
+
   const detail = useQuery({
     queryKey: key,
-    queryFn: ({ signal }) => backendRequest<OrganizerPartnerDetail>(endpoint, 'GET', undefined, true, signal),
+    queryFn: ({ signal }) =>
+      backendRequest<OrganizerPartnerDetail>(endpoint, 'GET', undefined, true, signal),
     retry: false
   });
+
   const change = useMutation({
-    mutationFn: (target: OrganizerPartnerDetail) => backendRequest<OrganizerPartnerDetail>(
-      `${endpoint}/${target.partner.suspended ? 'restore' : 'suspend'}`, 'POST', { revision: target.revision, reason: reason.trim() }
-    ),
+    mutationFn: (target: OrganizerPartnerDetail) =>
+      backendRequest<OrganizerPartnerDetail>(
+        `${endpoint}/${target.partner.suspended ? 'restore' : 'suspend'}`,
+        'POST',
+        { revision: target.revision, reason: reason.trim() }
+      ),
     onSuccess: (result) => {
       client.setQueryData(key, result);
-      void client.invalidateQueries({ queryKey: ['organizer-partners', actorId, 'list'] });
-      void client.invalidateQueries({ queryKey: organizerOperationalStatusKey(result.partner.organizerId) });
+      void client.invalidateQueries({
+        queryKey: ['organizer-partners', actorId, 'list']
+      });
+      void client.invalidateQueries({
+        queryKey: organizerOperationalStatusKey(result.partner.organizerId)
+      });
       setConfirmation(undefined);
-      toast.success(result.partner.suspended ? 'Đã tạm ngưng đối tác' : 'Đã khôi phục đối tác');
+      toast.success(
+        result.partner.suspended
+          ? language === 'vi'
+            ? 'Đã tạm ngưng đối tác thành công'
+            : 'Partner suspended successfully'
+          : language === 'vi'
+            ? 'Đã khôi phục hoạt động đối tác thành công'
+            : 'Partner restored successfully'
+      );
     },
-    onError: () => { void detail.refetch(); }
+    onError: () => {
+      void detail.refetch();
+    }
   });
+
   const data = detail.data;
   const suspended = data?.partner.suspended ?? false;
 
   return (
     <div className='space-y-4'>
-      <Button asChild variant='ghost' className='-ml-2'><Link to={path} search={{}}><ArrowLeft className='size-4' /> Danh sách đối tác</Link></Button>
-      {detail.isPending && <p role='status' className='flex items-center gap-2 rounded-2xl border p-6 text-sm text-muted-foreground'><Loader2 className='size-4' /> Đang tải thông tin đối tác…</p>}
-      {detail.isError && <div role='alert' className='flex items-center gap-3 text-sm'>{detail.error.message} <Button variant='outline' onClick={() => void detail.refetch()}>Tải lại</Button></div>}
-      {data && <>
-        <Card className='rounded-2xl bg-linear-to-br from-primary/5 via-card to-card shadow-sm'>
-          <CardHeader className='flex flex-row flex-wrap items-center justify-between gap-4'>
-            <div className='flex min-w-0 items-center gap-3'>
-              <span className='grid size-12 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary'><Building2 aria-hidden='true' className='size-5' /></span>
-              <div className='min-w-0 space-y-1.5'>
-                <CardTitle className='text-xl wrap-break-word'>{data.partner.legalName || data.partner.username}</CardTitle>
-                <p className='flex items-center gap-1.5 text-sm text-muted-foreground wrap-break-word'><Mail className='size-3.5 shrink-0' aria-hidden='true' /><span className='min-w-0 wrap-break-word'>{data.partner.email}</span></p>
+      {/* ── Top Back Button ── */}
+      <div>
+        <Button
+          asChild
+          variant='ghost'
+          size='sm'
+          className='-ml-2 h-8 gap-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground'
+        >
+          <Link to={path} search={{}}>
+            <ArrowLeft className='size-3.5' />
+            <span>
+              {language === 'vi'
+                ? 'Quay lại danh sách đối tác'
+                : 'Back to partner directory'}
+            </span>
+          </Link>
+        </Button>
+      </div>
+
+      {detail.isPending && (
+        <div className='flex items-center gap-2 rounded-xl border bg-card p-6 text-xs text-muted-foreground shadow-2xs'>
+          <Loader2 className='size-4' />
+          {language === 'vi'
+            ? 'Đang tải thông tin chi tiết đối tác…'
+            : 'Loading partner details…'}
+        </div>
+      )}
+
+      {detail.isError && (
+        <div
+          role='alert'
+          className='flex flex-wrap items-center justify-between gap-3 rounded-xl border border-destructive/20 bg-destructive/10 p-4 text-xs text-destructive'
+        >
+          <span>{detail.error.message}</span>
+          <Button
+            variant='outline'
+            size='sm'
+            className='h-7 rounded-lg text-xs'
+            onClick={() => void detail.refetch()}
+          >
+            {language === 'vi' ? 'Tải lại' : 'Retry'}
+          </Button>
+        </div>
+      )}
+
+      {data && (
+        <>
+          {/* ── Partner Profile Hero Card ── */}
+          <Card className='rounded-xl border bg-card shadow-2xs'>
+            <CardHeader className='flex flex-col gap-4 border-b p-5 sm:flex-row sm:items-center sm:justify-between'>
+              <div className='flex min-w-0 items-center gap-3.5'>
+                <span className='grid size-12 shrink-0 place-items-center rounded-2xl border border-primary/20 bg-primary/10 text-base font-bold text-primary'>
+                  {getInitials(data.partner.legalName || data.partner.username)}
+                </span>
+                <div className='min-w-0 space-y-1'>
+                  <div className='flex flex-wrap items-center gap-2'>
+                    <CardTitle className='truncate text-base font-semibold sm:text-lg'>
+                      {data.partner.legalName || data.partner.username}
+                    </CardTitle>
+                    <PartnerBadge suspended={suspended} language={language} />
+                  </div>
+                  <div className='flex flex-wrap items-center gap-3 text-xs text-muted-foreground'>
+                    <span className='font-mono'>
+                      @{data.partner.username}
+                    </span>
+                    <span>•</span>
+                    <span className='flex items-center gap-1.5'>
+                      <Mail className='size-3.5 text-muted-foreground/60' />
+                      {data.partner.email}
+                    </span>
+                    <span>•</span>
+                    <span className='font-mono text-[11px]'>
+                      Mã ĐT: #{data.partner.organizerId} (HS #{data.partner.applicationId})
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-            <div className='flex flex-wrap items-center gap-2'>
-              <PartnerBadge suspended={suspended} />
-              <Button variant={suspended ? 'default' : 'outline'} className='rounded-xl' onClick={() => { change.reset(); setReason(''); setConfirmation(data); }}>
-                {suspended ? <PlayCircle className='size-4' /> : <PauseCircle className='size-4' />}
-                {suspended ? 'Khôi phục đối tác' : 'Tạm ngưng đối tác'}
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className='space-y-4'>
-            {data.reason && <div className='flex gap-3 rounded-xl border border-amber-500/20 bg-amber-500/10 p-4 text-sm'>
-              <CircleAlert className='mt-0.5 size-4 shrink-0 text-amber-700 dark:text-amber-300' aria-hidden='true' />
-              <p className='min-w-0 whitespace-pre-wrap wrap-break-word'><strong className='mb-1 block'>Lý do tạm ngưng</strong>{data.reason}</p>
-            </div>}
-            <Impact detail={data} />
-          </CardContent>
-        </Card>
-        <Card className='rounded-2xl shadow-sm'>
-          <CardHeader><CardTitle>Workspace của đối tác</CardTitle></CardHeader>
-          <CardContent>
-            {data.workspaces.length === 0 ? <p className='text-sm text-muted-foreground'>Chưa có workspace.</p> :
-              <ul className='divide-y rounded-xl border'>{data.workspaces.map((workspace) =>
-                <li key={workspace.id} className='flex items-center justify-between gap-3 p-3 text-sm'>
-                  <span className='min-w-0 wrap-break-word'>{workspace.name}</span><Badge variant='outline'>{workspace.status}</Badge>
-                </li>
-              )}</ul>}
-          </CardContent>
-        </Card>
-      </>}
-      <Dialog open={confirmation != null} onOpenChange={(open) => { if (!open && !change.isPending) setConfirmation(undefined); }}>
-        <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-2xl'>
-          {confirmation && <form className='space-y-5' onSubmit={(event) => {
-            event.preventDefault();
-            if (reason.trim() && !change.isPending && data?.revision === confirmation.revision) change.mutate(confirmation);
-          }}>
-            <DialogHeader>
-              <span className={`mb-1 grid size-11 place-items-center self-start rounded-xl ${confirmation.partner.suspended ? 'bg-primary/10 text-primary' : 'bg-destructive/10 text-destructive'}`}>
-                {confirmation.partner.suspended ? <ShieldCheck className='size-5' aria-hidden='true' /> : <PauseCircle className='size-5' aria-hidden='true' />}
-              </span>
-              <DialogTitle>{confirmation.partner.suspended ? 'Khôi phục đối tác' : 'Tạm ngưng đối tác'}</DialogTitle>
-              <DialogDescription>{confirmation.partner.suspended
-                ? 'Đối tác có thể quản lý workspace và các chỗ đủ điều kiện sẽ nhận đặt mới.'
-                : 'Đối tác vẫn đăng nhập và xử lý booking hiện có. Hệ thống chặn giữ chỗ mới và thao tác quản lý workspace.'}</DialogDescription>
-            </DialogHeader>
-            <Impact detail={confirmation} />
-            <div className='space-y-2'>
-              <Label htmlFor='partner-reason'>Lý do (bắt buộc)</Label>
-              <Textarea id='partner-reason' className='min-h-24 rounded-xl' placeholder='Nhập lý do để ghi nhận và thông báo cho đối tác' value={reason} maxLength={500} required disabled={change.isPending} onChange={(event) => setReason(event.target.value)} />
-              <p className='text-right text-xs tabular-nums text-muted-foreground'>{reason.length}/500</p>
-            </div>
-            {change.isError && <p role='alert' className='text-sm text-destructive'>{change.error.message}</p>}
-            <DialogFooter>
-              <Button type='button' variant='outline' disabled={change.isPending} onClick={() => setConfirmation(undefined)}>Hủy</Button>
-              <Button type='submit' variant={confirmation.partner.suspended ? 'default' : 'destructive'}
-                disabled={!reason.trim() || change.isPending || data?.revision !== confirmation.revision}>
-                {change.isPending && <Loader2 className='size-4' />}
-                {confirmation.partner.suspended ? 'Xác nhận khôi phục' : 'Xác nhận tạm ngưng'}
-              </Button>
-            </DialogFooter>
-          </form>}
+
+              {/* Action Button */}
+              <div className='flex shrink-0 items-center gap-2'>
+                <Button
+                  variant={suspended ? 'default' : 'outline'}
+                  size='sm'
+                  className={`h-9 gap-1.5 rounded-lg px-3.5 text-xs font-medium transition-all ${
+                    suspended
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'border-amber-500/40 text-amber-700 hover:bg-amber-500/10 dark:text-amber-300'
+                  }`}
+                  onClick={() => {
+                    change.reset();
+                    setReason('');
+                    setConfirmation(data);
+                  }}
+                >
+                  {suspended ? (
+                    <PlayCircle className='size-4' />
+                  ) : (
+                    <PauseCircle className='size-4' />
+                  )}
+                  <span>
+                    {suspended
+                      ? language === 'vi'
+                        ? 'Khôi phục hoạt động'
+                        : 'Restore partner'
+                      : language === 'vi'
+                        ? 'Tạm ngưng đối tác'
+                        : 'Suspend partner'}
+                  </span>
+                </Button>
+              </div>
+            </CardHeader>
+
+            <CardContent className='space-y-4 p-5'>
+              {/* Suspension Reason Warning Banner */}
+              {data.reason && (
+                <div className='flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-4 text-xs text-amber-900 dark:text-amber-200'>
+                  <CircleAlert
+                    className='mt-0.5 size-4.5 shrink-0 text-amber-600 dark:text-amber-400'
+                    aria-hidden='true'
+                  />
+                  <div className='min-w-0 space-y-1'>
+                    <strong className='block font-semibold'>
+                      {language === 'vi'
+                        ? 'Lý do tạm ngưng vận hành đối tác'
+                        : 'Operational suspension reason'}
+                    </strong>
+                    <p className='whitespace-pre-wrap leading-relaxed'>
+                      {data.reason}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Impact Metric Tiles */}
+              <Impact detail={data} language={language} />
+            </CardContent>
+          </Card>
+
+          {/* ── Partner Workspaces Card ── */}
+          <Card className='overflow-hidden rounded-xl border bg-card shadow-2xs'>
+            <CardHeader className='border-b p-4 sm:p-5'>
+              <div className='flex items-center justify-between gap-3'>
+                <div>
+                  <CardTitle className='text-sm font-semibold'>
+                    {language === 'vi'
+                      ? 'Danh sách không gian làm việc'
+                      : 'Managed Workspaces'}
+                  </CardTitle>
+                  <CardDescription className='text-xs'>
+                    {language === 'vi'
+                      ? 'Các địa điểm không gian trực thuộc quyền quản lý của đối tác này.'
+                      : 'Workspaces under the operational authority of this partner.'}
+                  </CardDescription>
+                </div>
+                <Badge variant='secondary' className='h-6 rounded-md px-2 text-xs'>
+                  {data.workspaces.length}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className='p-0'>
+              {data.workspaces.length === 0 ? (
+                <div className='p-8 text-center text-xs text-muted-foreground'>
+                  {language === 'vi'
+                    ? 'Đối tác hiện chưa đăng ký không gian làm việc nào.'
+                    : 'This partner has not registered any workspaces yet.'}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow className='bg-muted/40 hover:bg-muted/40'>
+                      <TableHead className='w-[100px] text-xs font-semibold'>
+                        ID
+                      </TableHead>
+                      <TableHead className='text-xs font-semibold'>
+                        {language === 'vi' ? 'Tên không gian' : 'Workspace Name'}
+                      </TableHead>
+                      <TableHead className='w-[160px] text-right text-xs font-semibold'>
+                        {language === 'vi' ? 'Trạng thái không gian' : 'Workspace Status'}
+                      </TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.workspaces.map((workspace) => (
+                      <TableRow key={workspace.id} className='hover:bg-muted/40'>
+                        <TableCell className='py-2.5 font-mono text-xs font-medium text-muted-foreground'>
+                          #{workspace.id}
+                        </TableCell>
+                        <TableCell className='py-2.5 font-medium text-xs text-foreground'>
+                          <span className='truncate'>{workspace.name}</span>
+                        </TableCell>
+                        <TableCell className='py-2.5 text-right'>
+                          <Badge
+                            variant='outline'
+                            className='rounded-md px-2 py-0.5 text-[11px] font-medium'
+                          >
+                            {workspace.status}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </CardContent>
+          </Card>
+        </>
+      )}
+
+      {/* ── Suspend / Restore Confirmation Modal Dialog ── */}
+      <Dialog
+        open={confirmation != null}
+        onOpenChange={(open) => {
+          if (!open && !change.isPending) setConfirmation(undefined);
+        }}
+      >
+        <DialogContent className='max-h-[calc(100dvh-2rem)] overflow-y-auto rounded-xl sm:max-w-lg'>
+          {confirmation && (
+            <form
+              className='space-y-4'
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (
+                  reason.trim() &&
+                  !change.isPending &&
+                  data?.revision === confirmation.revision
+                ) {
+                  change.mutate(confirmation);
+                }
+              }}
+            >
+              <DialogHeader>
+                <div className='flex items-center gap-3'>
+                  <span
+                    className={`grid size-10 place-items-center rounded-xl ${
+                      confirmation.partner.suspended
+                        ? 'bg-primary/10 text-primary'
+                        : 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                    }`}
+                  >
+                    {confirmation.partner.suspended ? (
+                      <ShieldCheck className='size-5' aria-hidden='true' />
+                    ) : (
+                      <PauseCircle className='size-5' aria-hidden='true' />
+                    )}
+                  </span>
+                  <div>
+                    <DialogTitle className='text-base font-semibold'>
+                      {confirmation.partner.suspended
+                        ? language === 'vi'
+                          ? 'Xác nhận khôi phục hoạt động'
+                          : 'Confirm Partner Restoration'
+                        : language === 'vi'
+                          ? 'Xác nhận tạm ngưng đối tác'
+                          : 'Confirm Partner Suspension'}
+                    </DialogTitle>
+                    <DialogDescription className='mt-0.5 text-xs'>
+                      {confirmation.partner.suspended
+                        ? language === 'vi'
+                          ? 'Đối tác sẽ được mở lại toàn quyền quản lý workspace và các chỗ đủ điều kiện sẽ nhận đặt mới.'
+                          : 'Partner will regain workspace management rights and new bookings will be unblocked.'
+                        : language === 'vi'
+                          ? 'Đối tác vẫn có thể đăng nhập để xử lý booking hiện có. Hệ thống sẽ chặn giữ chỗ mới và khóa chỉnh sửa workspace.'
+                          : 'Partner can still handle existing bookings. New reservations and workspace changes will be blocked.'}
+                    </DialogDescription>
+                  </div>
+                </div>
+              </DialogHeader>
+
+              {/* Compact impact check */}
+              <div className='rounded-xl border bg-muted/30 p-3'>
+                <Impact detail={confirmation} language={language} compact />
+              </div>
+
+              {/* Reason Input */}
+              <div className='space-y-1.5'>
+                <Label htmlFor='partner-reason' className='text-xs font-semibold'>
+                  {language === 'vi' ? 'Lý do xử lý (bắt buộc)' : 'Action Reason (required)'}
+                </Label>
+                <Textarea
+                  id='partner-reason'
+                  className='min-h-20 rounded-lg text-xs'
+                  placeholder={
+                    language === 'vi'
+                      ? 'Nhập lý do cụ thể để lưu vết hệ thống và thông báo cho đối tác...'
+                      : 'Provide an audit reason for the operational log and partner notice...'
+                  }
+                  value={reason}
+                  maxLength={500}
+                  required
+                  disabled={change.isPending}
+                  onChange={(event) => setReason(event.target.value)}
+                />
+                <div className='flex items-center justify-between text-[11px] text-muted-foreground'>
+                  <span>
+                    {language === 'vi'
+                      ? 'Nội dung sẽ được ghi vào nhật ký kiểm toán (Audit Log).'
+                      : 'This note will be recorded in the immutable audit log.'}
+                  </span>
+                  <span className='tabular-nums'>{reason.length}/500</span>
+                </div>
+              </div>
+
+              {change.isError && (
+                <p role='alert' className='text-xs text-destructive'>
+                  {change.error.message}
+                </p>
+              )}
+
+              <DialogFooter className='gap-2 sm:gap-0'>
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  className='h-8 rounded-lg text-xs'
+                  disabled={change.isPending}
+                  onClick={() => setConfirmation(undefined)}
+                >
+                  {language === 'vi' ? 'Hủy' : 'Cancel'}
+                </Button>
+                <Button
+                  type='submit'
+                  size='sm'
+                  variant={confirmation.partner.suspended ? 'default' : 'destructive'}
+                  className='h-8 rounded-lg text-xs'
+                  disabled={
+                    !reason.trim() ||
+                    change.isPending ||
+                    data?.revision !== confirmation.revision
+                  }
+                >
+                  {change.isPending && <Loader2 className='mr-1.5 size-3.5' />}
+                  <span>
+                    {confirmation.partner.suspended
+                      ? language === 'vi'
+                        ? 'Xác nhận khôi phục'
+                        : 'Confirm Restore'
+                      : language === 'vi'
+                        ? 'Xác nhận tạm ngưng'
+                        : 'Confirm Suspension'}
+                  </span>
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>
   );
 }
 
-function Impact({ detail }: { detail: OrganizerPartnerDetail }) {
+function Impact({
+  detail,
+  language,
+  compact = false
+}: {
+  detail: OrganizerPartnerDetail;
+  language: 'vi' | 'en';
+  compact?: boolean;
+}) {
+  const isSuspended = detail.partner.suspended;
+
+  if (compact) {
+    return (
+      <div className='grid grid-cols-2 gap-3 text-xs'>
+        <div className='flex items-center gap-2'>
+          <Building2 className='size-4 text-primary shrink-0' />
+          <div>
+            <span className='text-muted-foreground block text-[10px]'>
+              {language === 'vi' ? 'Không gian quản lý' : 'Workspaces'}
+            </span>
+            <span className='font-semibold text-foreground'>
+              {detail.workspaces.length}
+            </span>
+          </div>
+        </div>
+        <div className='flex items-center gap-2'>
+          <CalendarDays className='size-4 text-primary shrink-0' />
+          <div>
+            <span className='text-muted-foreground block text-[10px]'>
+              {language === 'vi' ? 'Booking đang xử lý' : 'Active Bookings'}
+            </span>
+            <span className='font-semibold text-foreground'>
+              {detail.upcomingBookings}
+            </span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <dl className='grid gap-2 sm:grid-cols-2 sm:gap-3'>
-      <div className='grid gap-1 rounded-xl border bg-background/60 p-3'>
-        <dt className='flex items-center gap-2 text-sm text-muted-foreground'><Building2 className='size-4 shrink-0 text-primary' aria-hidden='true' /> Workspace</dt>
-        <dd className='text-2xl font-semibold tabular-nums'>{detail.workspaces.length}</dd>
+    <div className='grid gap-3 sm:grid-cols-3'>
+      {/* Tile 1: Workspaces */}
+      <div className='flex items-center gap-3 rounded-xl border bg-card p-3.5 shadow-2xs'>
+        <span className='grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary'>
+          <Building2 className='size-5' aria-hidden='true' />
+        </span>
+        <div className='min-w-0'>
+          <span className='block text-xs text-muted-foreground'>
+            {language === 'vi' ? 'Không gian làm việc' : 'Workspaces'}
+          </span>
+          <span className='text-lg font-bold tabular-nums text-foreground'>
+            {detail.workspaces.length}
+          </span>
+        </div>
       </div>
-      <div className='grid gap-1 rounded-xl border bg-background/60 p-3'>
-        <dt className='flex items-center gap-2 text-sm text-muted-foreground'><CalendarDays className='size-4 shrink-0 text-primary' aria-hidden='true' /> Booking đã xác nhận hoặc đang diễn ra</dt>
-        <dd className='text-2xl font-semibold tabular-nums'>{detail.upcomingBookings}</dd>
+
+      {/* Tile 2: Bookings */}
+      <div className='flex items-center gap-3 rounded-xl border bg-card p-3.5 shadow-2xs'>
+        <span className='grid size-10 shrink-0 place-items-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'>
+          <CalendarDays className='size-5' aria-hidden='true' />
+        </span>
+        <div className='min-w-0'>
+          <span className='block text-xs text-muted-foreground'>
+            {language === 'vi' ? 'Booking đang xử lý' : 'Active Bookings'}
+          </span>
+          <span className='text-lg font-bold tabular-nums text-foreground'>
+            {detail.upcomingBookings}
+          </span>
+        </div>
       </div>
-    </dl>
+
+      {/* Tile 3: Operational Rights */}
+      <div className='flex items-center gap-3 rounded-xl border bg-card p-3.5 shadow-2xs'>
+        <span
+          className={`grid size-10 shrink-0 place-items-center rounded-xl ${
+            isSuspended
+              ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+              : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+          }`}
+        >
+          <ShieldCheck className='size-5' aria-hidden='true' />
+        </span>
+        <div className='min-w-0'>
+          <span className='block text-xs text-muted-foreground'>
+            {language === 'vi' ? 'Quyền nhận đặt chỗ' : 'Booking Acceptance'}
+          </span>
+          <span
+            className={`text-xs font-semibold ${
+              isSuspended
+                ? 'text-amber-700 dark:text-amber-300'
+                : 'text-emerald-700 dark:text-emerald-300'
+            }`}
+          >
+            {isSuspended
+              ? language === 'vi'
+                ? 'Bị tạm dừng'
+                : 'Suspended'
+              : language === 'vi'
+                ? 'Bình thường'
+                : 'Active'}
+          </span>
+        </div>
+      </div>
+    </div>
   );
 }

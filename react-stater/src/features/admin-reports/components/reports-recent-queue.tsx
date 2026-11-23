@@ -90,12 +90,12 @@ export function ReportsRecentQueue() {
               <th scope='col' className='py-2.5 px-4'>SEVERITY</th>
               <th scope='col' className='py-2.5 px-4'>LOGGED</th>
               <th scope='col' className='py-2.5 px-4'>TRIAGE STATUS</th>
-              <th scope='col' className='py-2.5 px-4 text-right'>ACTION</th>
+              <th scope='col' className='py-2.5 px-4 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>ACTION</th>
             </tr>
           </thead>
           <tbody className='divide-y border-border text-xs'>
             {filteredItems.map((item) => (
-              <tr key={item.id} className='hover:bg-muted/40 transition-colors'>
+              <tr key={item.id} className='hover:bg-muted/40 transition-colors group'>
                 {/* Case ID */}
                 <td className='py-3.5 px-4'>
                   <div className='flex items-center gap-1.5'>
@@ -189,7 +189,7 @@ export function ReportsRecentQueue() {
                 </td>
 
                 {/* Action Link to A12 */}
-                <td className='py-3.5 px-4 text-right'>
+                <td className='py-3.5 px-4 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                   <Link
                     to='/dashboard/admin/disputes'
                     search={{ caseId: item.caseCode }}

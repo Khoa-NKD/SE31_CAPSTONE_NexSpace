@@ -54,8 +54,15 @@ export function ResourceInventoryTable({
               c('Base price', 'Giá cơ bản'),
               c('Status', 'Trạng thái'),
               c('Actions', 'Thao tác')
-            ].map((label) => (
-              <th key={label} className='px-5 py-3 font-medium'>
+            ].map((label, idx) => (
+              <th
+                key={label}
+                className={
+                  idx === 5
+                    ? 'px-5 py-3 font-medium text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'
+                    : 'px-5 py-3 font-medium'
+                }
+              >
                 {label}
               </th>
             ))}
@@ -98,7 +105,7 @@ export function ResourceInventoryTable({
                       : null;
             const canActivate = !activationIssue;
             return (
-              <tr key={resource.id} className='hover:bg-muted/20 transition-colors'>
+              <tr key={resource.id} className='hover:bg-muted/20 transition-colors group'>
                 <td className='px-5 py-4' aria-label={resource.name}>
                   <div className='flex items-start gap-3'>
                     <span className='bg-primary/10 text-primary flex size-9 shrink-0 items-center justify-center rounded-lg'>
@@ -236,8 +243,8 @@ export function ResourceInventoryTable({
                       </p>
                     )}
                 </td>
-                <td className='px-5 py-4'>
-                  <div className='flex gap-1'>
+                <td className='px-5 py-4 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+                  <div className='flex items-center justify-end gap-1'>
                     <Button
                       size='icon'
                       variant='ghost'
