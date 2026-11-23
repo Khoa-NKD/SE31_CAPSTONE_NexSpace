@@ -46,7 +46,7 @@ export function QueueRequestsTable({
               <th scope='col' className='py-2.5 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider'>
                 Status
               </th>
-              <th scope='col' className='py-2.5 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-right'>
+              <th scope='col' className='py-2.5 px-4 text-[11px] font-semibold text-muted-foreground uppercase tracking-wider text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                 Action
               </th>
             </tr>
@@ -73,7 +73,7 @@ export function QueueRequestsTable({
                         onSelectApplication(app);
                       }
                     }}
-                    className={`cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary ${
+                    className={`cursor-pointer transition-colors focus-visible:outline-hidden focus-visible:ring-1 focus-visible:ring-primary group ${
                       isSelected
                         ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-l-4 border-l-primary'
                         : 'hover:bg-muted/40 border-l-4 border-l-transparent'
@@ -159,7 +159,7 @@ export function QueueRequestsTable({
                     </td>
 
                     {/* Action */}
-                    <td className='py-3 px-4 text-right'>
+                    <td className='py-3 px-4 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                       <button
                         type='button'
                         onClick={(e) => {

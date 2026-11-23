@@ -101,7 +101,7 @@ export function PricingMatrixTable({
               <TableHead className="text-right">Monthly Pass</TableHead>
               <TableHead>Applied Rule</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead className="text-right pr-4">Actions</TableHead>
+              <TableHead className="text-right pr-4 sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="text-xs">
@@ -113,7 +113,7 @@ export function PricingMatrixTable({
               </TableRow>
             ) : (
               filtered.map((row) => (
-                <TableRow key={row.id} className="hover:bg-muted/30 transition-colors">
+                <TableRow key={row.id} className="hover:bg-muted/30 transition-colors group">
                   {/* Code */}
                   <TableCell className="font-mono font-bold text-foreground">
                     {row.code}
@@ -174,7 +174,7 @@ export function PricingMatrixTable({
                   </TableCell>
 
                   {/* Actions */}
-                  <TableCell className="text-right pr-4">
+                  <TableCell className="text-right pr-4 sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">
                     <div className="flex items-center justify-end gap-1.5">
                       {row.hasCustomOverwrite && (
                         <Button

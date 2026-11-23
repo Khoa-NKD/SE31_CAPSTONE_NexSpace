@@ -112,7 +112,7 @@ export const GlobalPayoutLedgerTable: React.FC<GlobalPayoutLedgerTableProps> = (
                   <TableHead>{language === 'vi' ? 'Mã PayOS Ref' : 'PayOS Ref'}</TableHead>
                   <TableHead>{language === 'vi' ? 'Trạng thái' : 'Status'}</TableHead>
                   <TableHead>{language === 'vi' ? 'Thời gian' : 'Timestamp'}</TableHead>
-                  <TableHead className="text-right">{language === 'vi' ? 'Hành động' : 'Actions'}</TableHead>
+                  <TableHead className="text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">{language === 'vi' ? 'Hành động' : 'Actions'}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -123,7 +123,7 @@ export const GlobalPayoutLedgerTable: React.FC<GlobalPayoutLedgerTableProps> = (
                   const isFailed = batch.status === 'FAILED';
 
                   return (
-                    <TableRow key={batch.id} className="text-xs border-border hover:bg-muted/40 transition-colors">
+                    <TableRow key={batch.id} className="text-xs border-border hover:bg-muted/40 transition-colors group">
                       <TableCell className="font-mono font-medium text-foreground">
                         {batch.batchCode}
                       </TableCell>
@@ -190,7 +190,7 @@ export const GlobalPayoutLedgerTable: React.FC<GlobalPayoutLedgerTableProps> = (
                             })
                           : '—'}
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]">
                         {isFailed && (
                           <Button
                             size="sm"

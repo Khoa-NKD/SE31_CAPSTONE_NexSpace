@@ -127,14 +127,14 @@ export function PricingLiveView() {
                         {t}
                       </th>
                     ))}
-                    <th className='p-3'>
+                    <th className='p-3 text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                       <span className='sr-only'>{c('Actions', 'Thao tác')}</span>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {config.types.map((t) => (
-                    <tr key={t.id} className='border-t'>
+                    <tr key={t.id} className='border-t transition-colors hover:bg-muted/30 group'>
                       <td className='p-3 font-medium'>
                         {t.name}
                         <p className='text-xs text-muted-foreground'>
@@ -148,7 +148,7 @@ export function PricingLiveView() {
                           {operationMoney(p, t.currency)}
                         </td>
                       ))}
-                      <td className='p-3 text-right'>
+                      <td className='p-3 text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                         <Button
                           variant='outline'
                           size='sm'

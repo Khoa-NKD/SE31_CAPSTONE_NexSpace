@@ -1,7 +1,17 @@
-import React from 'react';
-import { Copy, ChevronRight, Check } from '@/components/ui/hugeicons';
+import React, { useState } from 'react';
+import { Copy, Check, ArrowUpRight } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
-import { RefundRecord } from '../data/mock-refunds';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow
+} from '@/components/ui/table';
+import { RefundRecord, formatVnd } from '../data/mock-refunds';
 
 interface RefundsLedgerTableProps {
   refunds: RefundRecord[];
@@ -10,6 +20,9 @@ interface RefundsLedgerTableProps {
   page: number;
   onPageChange: (page: number) => void;
   pageSize: number;
+  totalRecords?: number;
+  totalPages?: number;
+  language?: 'vi' | 'en';
 }
 
 export function RefundsLedgerTable({
@@ -18,240 +31,276 @@ export function RefundsLedgerTable({
   onSelectRefund,
   page,
   onPageChange,
-  pageSize
+  pageSize,
+  totalRecords,
+  totalPages: propTotalPages,
+  language = 'vi'
 }: RefundsLedgerTableProps) {
-  const [copiedRef, setCopiedRef] = React.useState<string | null>(null);
+  const isVi = language === 'vi';
+  const [copiedRef, setCopiedRef] = useState<string | null>(null);
 
   const handleCopy = (text: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text);
     setCopiedRef(text);
-    toast.success(`Copied ${text} to clipboard`);
+    toast.success(isVi ? `Đã sao chép ${text}` : `Copied ${text}`);
     setTimeout(() => setCopiedRef(null), 2000);
   };
 
-  const totalPages = Math.max(1, Math.ceil(refunds.length / pageSize));
-  const pagedRefunds = refunds.slice((page - 1) * pageSize, page * pageSize);
+  const calculatedTotalPages = Math.max(1, Math.ceil(refunds.length / pageSize));
+  const finalTotalPages = propTotalPages ?? calculatedTotalPages;
+  const finalTotalRecords = totalRecords ?? refunds.length;
+
+  // If using client-side slice:
+  const pagedRefunds =
+    propTotalPages != null
+      ? refunds
+      : refunds.slice((page - 1) * pageSize, page * pageSize);
 
   return (
-    <div className='bg-card text-card-foreground rounded-xl border border-border shadow-sm overflow-hidden'>
-      <div className='overflow-x-auto'>
-        <table className='w-full text-left border-collapse' aria-label='Refund requests and claims ledger table'>
-          <thead>
-            <tr className='bg-muted/60 border-b border-border text-[11px] font-semibold uppercase tracking-wider text-muted-foreground'>
-              <th scope='col' className='py-3 px-4'>Refund ID</th>
-              <th scope='col' className='py-3 px-3'>Booking Ref</th>
-              <th scope='col' className='py-3 px-3'>Customer</th>
-              <th scope='col' className='py-3 px-3'>Workspace Hub</th>
-              <th scope='col' className='py-3 px-3 text-right'>Original Paid</th>
-              <th scope='col' className='py-3 px-3 text-right'>Calculated Refund</th>
-              <th scope='col' className='py-3 px-4'>Claim Reason</th>
-              <th scope='col' className='py-3 px-3'>Status</th>
-              <th scope='col' className='py-3 px-4 text-center'>Action</th>
-            </tr>
-          </thead>
-          <tbody className='divide-y divide-border text-xs'>
-            {pagedRefunds.length === 0 ? (
-              <tr>
-                <td colSpan={9} className='py-8 text-center text-muted-foreground'>
-                  No refund claims match your filter criteria.
-                </td>
-              </tr>
-            ) : (
-              pagedRefunds.map((refund) => {
-                const isSelected = selectedRefundId === refund.id;
+    <div className='overflow-hidden rounded-xl border bg-card shadow-2xs'>
+      <Table className='min-w-[1100px]'>
+        <TableHeader>
+          <TableRow className='bg-muted/40 hover:bg-muted/40'>
+            <TableHead className='w-[100px] text-xs font-semibold'>
+              {isVi ? 'Mã hoàn' : 'Refund ID'}
+            </TableHead>
+            <TableHead className='w-[140px] text-xs font-semibold'>
+              {isVi ? 'Mã booking' : 'Booking Ref'}
+            </TableHead>
+            <TableHead className='min-w-[200px] text-xs font-semibold'>
+              {isVi ? 'Khách hàng' : 'Customer'}
+            </TableHead>
+            <TableHead className='min-w-[180px] text-xs font-semibold'>
+              {isVi ? 'Không gian làm việc' : 'Workspace Hub'}
+            </TableHead>
+            <TableHead className='w-[120px] text-right text-xs font-semibold'>
+              {isVi ? 'Số tiền gốc' : 'Original Paid'}
+            </TableHead>
+            <TableHead className='w-[130px] text-right text-xs font-semibold'>
+              {isVi ? 'Tiền hoàn duyệt' : 'Calculated Refund'}
+            </TableHead>
+            <TableHead className='min-w-[180px] max-w-[240px] text-xs font-semibold'>
+              {isVi ? 'Lý do yêu cầu' : 'Claim Reason'}
+            </TableHead>
+            <TableHead className='w-[130px] text-xs font-semibold'>
+              {isVi ? 'Trạng thái' : 'Status'}
+            </TableHead>
+            <TableHead className='w-[130px] min-w-[130px] text-right text-xs font-semibold sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
+              {isVi ? 'Thao tác' : 'Action'}
+            </TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {pagedRefunds.length === 0 ? (
+            <TableRow>
+              <TableCell
+                colSpan={9}
+                className='py-12 text-center text-xs text-muted-foreground'
+              >
+                {isVi
+                  ? 'Không tìm thấy yêu cầu hoàn tiền nào phù hợp bộ lọc.'
+                  : 'No refund claims match your filter criteria.'}
+              </TableCell>
+            </TableRow>
+          ) : (
+            pagedRefunds.map((refund) => {
+              const isSelected = selectedRefundId === refund.id;
 
-                return (
-                  <tr
-                    key={refund.id}
-                    onClick={() => onSelectRefund(refund)}
-                    className={`transition-colors cursor-pointer group ${
-                      isSelected
-                        ? 'bg-primary/10 border-l-4 border-l-primary'
-                        : 'hover:bg-muted/50'
-                    }`}
-                  >
-                    {/* Refund ID */}
-                    <td className='py-3.5 px-4 font-mono font-bold text-foreground'>
-                      <div className='flex items-center gap-1.5'>
-                        {isSelected && (
-                          <span className='size-1.5 rounded-full bg-primary shrink-0' />
+              return (
+                <TableRow
+                  key={refund.id}
+                  onClick={() => onSelectRefund(refund)}
+                  className={`cursor-pointer transition-colors hover:bg-muted/40 group ${
+                    isSelected ? 'bg-primary/5 font-medium' : ''
+                  }`}
+                >
+                  {/* Refund ID */}
+                  <TableCell className='py-3 font-mono text-xs font-semibold text-foreground'>
+                    <div className='flex items-center gap-1.5'>
+                      {isSelected && (
+                        <span className='size-1.5 rounded-full bg-primary shrink-0' />
+                      )}
+                      <span>{refund.id}</span>
+                    </div>
+                  </TableCell>
+
+                  {/* Booking Ref */}
+                  <TableCell className='py-3 font-mono text-xs font-medium text-foreground'>
+                    <div className='flex items-center gap-1'>
+                      <span className='text-primary hover:underline'>
+                        {refund.bookingRef}
+                      </span>
+                      <button
+                        type='button'
+                        onClick={(e) => handleCopy(refund.bookingRef, e)}
+                        className='rounded p-0.5 text-muted-foreground/60 hover:text-foreground'
+                        title={isVi ? 'Sao chép mã đặt chỗ' : 'Copy Booking Reference'}
+                        aria-label={`Copy booking reference ${refund.bookingRef}`}
+                      >
+                        {copiedRef === refund.bookingRef ? (
+                          <Check className='size-3 text-emerald-500' />
+                        ) : (
+                          <Copy className='size-3' />
                         )}
-                        <span>{refund.id}</span>
-                      </div>
-                    </td>
+                      </button>
+                    </div>
+                  </TableCell>
 
-                    {/* Booking Ref */}
-                    <td className='py-3.5 px-3 font-mono font-medium text-foreground'>
-                      <div className='flex items-center gap-1'>
-                        <span className='text-primary hover:underline'>{refund.bookingRef}</span>
-                        <button
-                          type='button'
-                          onClick={(e) => handleCopy(refund.bookingRef, e)}
-                          aria-label={`Copy booking reference ${refund.bookingRef}`}
-                          className='text-muted-foreground hover:text-foreground p-0.5 rounded'
-                          title='Copy Booking Reference'
-                        >
-                          {copiedRef === refund.bookingRef ? (
-                            <Check className='size-3 text-emerald-500' />
-                          ) : (
-                            <Copy className='size-3' />
-                          )}
-                        </button>
+                  {/* Customer */}
+                  <TableCell className='py-3'>
+                    <div className='flex items-center gap-2.5'>
+                      <span className='grid size-7 shrink-0 place-items-center rounded-full bg-primary/10 text-[10px] font-bold text-primary'>
+                        {refund.avatarInitials}
+                      </span>
+                      <div className='min-w-0 max-w-[200px]'>
+                        <span className='block truncate text-xs font-semibold text-foreground'>
+                          {refund.customerName}
+                        </span>
+                        <span className='block truncate text-[11px] text-muted-foreground'>
+                          {refund.customerEmail}
+                        </span>
                       </div>
-                    </td>
+                    </div>
+                  </TableCell>
 
-                    {/* Customer */}
-                    <td className='py-3.5 px-3' aria-label={refund.customerName}>
-                      <div className='flex items-center gap-2'>
-                        <div className='size-6 rounded-full bg-primary/20 text-primary font-bold text-[10px] flex items-center justify-center shrink-0'>
-                          {refund.avatarInitials}
-                        </div>
-                        <div className='min-w-0'>
-                          <div className='font-semibold text-foreground truncate'>
-                            {refund.customerName}
-                          </div>
-                          <div className='text-[10px] text-muted-foreground truncate'>
-                            {refund.customerEmail}
-                          </div>
-                        </div>
-                      </div>
-                    </td>
+                  {/* Workspace Hub */}
+                  <TableCell className='py-3 text-xs'>
+                    <div className='min-w-0 max-w-[200px]'>
+                      <span className='block truncate font-medium text-foreground'>
+                        {refund.workspaceHub}
+                      </span>
+                      <span className='block truncate text-[11px] text-muted-foreground'>
+                        {refund.spaceDetails}
+                      </span>
+                    </div>
+                  </TableCell>
 
-                    {/* Workspace Hub */}
-                    <td className='py-3.5 px-3 text-foreground'>
-                      <div className='font-medium'>{refund.workspaceHub}</div>
-                      <div className='text-[10px] text-muted-foreground'>{refund.spaceDetails}</div>
-                    </td>
+                  {/* Original Paid */}
+                  <TableCell className='py-3 text-right font-mono text-xs font-medium text-muted-foreground'>
+                    {formatVnd(refund.originalPaidVnd)}
+                  </TableCell>
 
-                    {/* Original Paid */}
-                    <td className='py-3.5 px-3 text-right font-medium text-foreground'>
-                      <div>${refund.originalPaidUsd.toFixed(2)}</div>
-                      <div className='text-[10px] text-muted-foreground'>
-                        {(refund.originalPaidVnd / 1000).toLocaleString()}k VND
-                      </div>
-                    </td>
+                  {/* Calculated Refund */}
+                  <TableCell className='py-3 text-right'>
+                    <div className='inline-block rounded-md border border-primary/25 bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold text-primary'>
+                      {formatVnd(refund.calculatedRefundVnd)}
+                    </div>
+                    <div className='mt-0.5 text-[10px] text-muted-foreground'>
+                      {refund.policyTierLabel}
+                    </div>
+                  </TableCell>
 
-                    {/* Calculated Refund */}
-                    <td className='py-3.5 px-3 text-right'>
-                      <div className='inline-block bg-primary/10 border border-primary/30 text-primary font-bold px-2 py-0.5 rounded text-xs'>
-                        ${refund.calculatedRefundUsd.toFixed(2)}
-                      </div>
-                      <div className='text-[10px] text-muted-foreground mt-0.5'>
-                        {refund.policyTierLabel}
-                      </div>
-                    </td>
-
-                    {/* Claim Reason */}
-                    <td
-                      className='py-3.5 px-4 max-w-[200px] truncate text-foreground font-medium'
-                      title={refund.claimReason}
-                    >
+                  {/* Claim Reason */}
+                  <TableCell
+                    className='py-3 text-xs max-w-[220px]'
+                    title={refund.claimReason}
+                  >
+                    <span className='line-clamp-2 text-foreground font-normal leading-snug'>
                       {refund.claimReason}
-                    </td>
+                    </span>
+                  </TableCell>
 
-                    {/* Status */}
-                    <td className='py-3.5 px-3'>
-                      {refund.status === 'pending' && (
-                        <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-400 border border-amber-500/40'>
-                          <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
-                          Pending Review
-                        </span>
-                      )}
-                      {refund.status === 'processed' && (
-                        <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/40'>
-                          <span className='size-1.5 rounded-full bg-emerald-500' />
-                          Processed
-                        </span>
-                      )}
-                      {refund.status === 'rejected' && (
-                        <span className='inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/15 text-red-700 dark:text-red-400 border border-red-500/40'>
-                          <span className='size-1.5 rounded-full bg-red-500' />
-                          Rejected
-                        </span>
-                      )}
-                    </td>
+                  {/* Status */}
+                  <TableCell className='py-3'>
+                    {refund.status === 'pending' && (
+                      <Badge
+                        variant='outline'
+                        className='inline-flex items-center gap-1.5 rounded-full border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-300'
+                      >
+                        <span className='size-1.5 rounded-full bg-amber-500 animate-pulse' />
+                        <span>{isVi ? 'Chờ duyệt' : 'Pending Review'}</span>
+                      </Badge>
+                    )}
+                    {refund.status === 'processed' && (
+                      <Badge
+                        variant='outline'
+                        className='inline-flex items-center gap-1.5 rounded-full border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-300'
+                      >
+                        <span className='size-1.5 rounded-full bg-emerald-500' />
+                        <span>{isVi ? 'Đã chi PayOS' : 'Processed'}</span>
+                      </Badge>
+                    )}
+                    {refund.status === 'rejected' && (
+                      <Badge
+                        variant='outline'
+                        className='inline-flex items-center gap-1.5 rounded-full border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-medium text-rose-700 dark:text-rose-300'
+                      >
+                        <span className='size-1.5 rounded-full bg-rose-500' />
+                        <span>{isVi ? 'Đã từ chối' : 'Rejected'}</span>
+                      </Badge>
+                    )}
+                  </TableCell>
 
-                    {/* Action */}
-                    <td className='py-3.5 px-4 text-center'>
-                      {refund.status === 'pending' ? (
-                        <button
-                          type='button'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectRefund(refund);
-                          }}
-                          className='inline-flex items-center gap-1 px-2.5 py-1 bg-primary text-primary-foreground font-semibold text-[11px] rounded hover:bg-primary/90 transition-colors shadow-xs'
-                        >
-                          <span>Review Claim</span>
-                          <ChevronRight className='size-3.5' />
-                        </button>
-                      ) : (
-                        <button
-                          type='button'
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            onSelectRefund(refund);
-                          }}
-                          className='text-muted-foreground hover:text-foreground text-xs font-medium px-2 py-1 rounded hover:bg-muted transition-colors'
-                        >
-                          Details
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            )}
-          </tbody>
-        </table>
-      </div>
+                  {/* Action */}
+                  <TableCell className={`py-3 w-[130px] min-w-[130px] text-right sticky right-0 z-10 border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)] transition-colors ${
+                    isSelected ? 'bg-primary/5 group-hover:bg-muted/50' : 'bg-card group-hover:bg-muted/50'
+                  }`}>
+                    {refund.status === 'pending' ? (
+                      <Button
+                        type='button'
+                        size='sm'
+                        className='h-7.5 gap-1 rounded-lg px-2.5 text-xs font-medium'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectRefund(refund);
+                        }}
+                      >
+                        <span>{isVi ? 'Xét duyệt' : 'Review'}</span>
+                        <ArrowUpRight className='size-3.5' />
+                      </Button>
+                    ) : (
+                      <Button
+                        type='button'
+                        variant='outline'
+                        size='sm'
+                        className='h-7.5 rounded-lg px-2.5 text-xs text-muted-foreground hover:text-foreground'
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onSelectRefund(refund);
+                        }}
+                      >
+                        <span>{isVi ? 'Chi tiết' : 'Details'}</span>
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              );
+            })
+          )}
+        </TableBody>
+      </Table>
 
-      {/* Table Pagination Footer */}
-      <div className='p-3 bg-card border-t border-border flex items-center justify-between text-xs text-muted-foreground'>
-        <div>
-          Showing <span className='font-semibold text-foreground'>{refunds.length === 0 ? 0 : (page - 1) * pageSize + 1}</span> -{' '}
-          <span className='font-semibold text-foreground'>
-            {Math.min(page * pageSize, refunds.length)}
-          </span>{' '}
-          of <span className='font-semibold text-foreground'>{refunds.length}</span> claims
-        </div>
-
-        <div className='flex items-center gap-1'>
-          <button
-            type='button'
-            onClick={() => onPageChange(page - 1)}
-            disabled={page <= 1}
-            className='px-2.5 py-1 rounded border border-input bg-background hover:bg-muted disabled:opacity-50 transition-colors'
-          >
-            Previous
-          </button>
-
-          {Array.from({ length: totalPages }, (_, i) => i + 1).map((p) => (
-            <button
-              key={p}
-              type='button'
-              onClick={() => onPageChange(p)}
-              className={`px-2.5 py-1 rounded border text-xs font-medium transition-colors ${
-                p === page
-                  ? 'border-primary bg-primary text-primary-foreground font-bold'
-                  : 'border-input bg-background hover:bg-muted text-foreground'
-              }`}
+      {/* Pagination Footer */}
+      {finalTotalPages > 1 && (
+        <div className='flex flex-wrap items-center justify-between gap-3 border-t bg-card/60 px-4 py-3 sm:px-6'>
+          <span className='text-xs text-muted-foreground'>
+            {isVi
+              ? `Trang ${page} / ${finalTotalPages} (${finalTotalRecords} yêu cầu)`
+              : `Page ${page} of ${finalTotalPages} (${finalTotalRecords} claims)`}
+          </span>
+          <div className='flex items-center gap-2'>
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={page <= 1}
+              onClick={() => onPageChange(page - 1)}
+              className='h-8 rounded-lg px-3 text-xs'
             >
-              {p}
-            </button>
-          ))}
-
-          <button
-            type='button'
-            onClick={() => onPageChange(page + 1)}
-            disabled={page >= totalPages}
-            className='px-2.5 py-1 rounded border border-input bg-background hover:bg-muted disabled:opacity-50 transition-colors'
-          >
-            Next
-          </button>
+              {isVi ? 'Trước' : 'Previous'}
+            </Button>
+            <Button
+              size='sm'
+              variant='outline'
+              disabled={page >= finalTotalPages}
+              onClick={() => onPageChange(page + 1)}
+              className='h-8 rounded-lg px-3 text-xs'
+            >
+              {isVi ? 'Tiếp' : 'Next'}
+            </Button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

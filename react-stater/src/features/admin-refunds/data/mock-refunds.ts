@@ -108,22 +108,37 @@ export function fromDtoToRecord(dto: import('../api/types').RefundRequestRespons
   };
 }
 
+export function formatVnd(amount?: number | null): string {
+  if (amount == null || Number.isNaN(amount)) return '0 ₫';
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
 export interface RefundSummaryKpis {
   pendingCount: number;
-  pendingVolumeUsd: number;
+  pendingVolumeVnd: number;
   processedCount: number;
-  processedVolumeUsd: number;
+  processedVolumeVnd: number;
   rejectedCount: number;
-  rejectedVolumeUsd: number;
+  rejectedVolumeVnd: number;
+  pendingVolumeUsd?: number;
+  processedVolumeUsd?: number;
+  rejectedVolumeUsd?: number;
 }
 
 export const MOCK_REFUND_KPIS: RefundSummaryKpis = {
-  pendingCount: 3,
-  pendingVolumeUsd: 48.0,
-  processedCount: 24,
-  processedVolumeUsd: 340.0,
-  rejectedCount: 5,
-  rejectedVolumeUsd: 110.0
+  pendingCount: 5,
+  pendingVolumeVnd: 216000,
+  processedCount: 5,
+  processedVolumeVnd: 216000,
+  rejectedCount: 0,
+  rejectedVolumeVnd: 0,
+  pendingVolumeUsd: 8.5,
+  processedVolumeUsd: 8.5,
+  rejectedVolumeUsd: 0
 };
 
 export const INITIAL_REFUNDS_DATA: RefundRecord[] = [

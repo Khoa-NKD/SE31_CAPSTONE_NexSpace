@@ -260,7 +260,7 @@ export function ApplicationDetailsView({
                 <TableHead>Verification status</TableHead>
                 <TableHead>Version</TableHead>
                 <TableHead>Document feedback</TableHead>
-                <TableHead>File actions</TableHead>
+                <TableHead className='text-right sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>File actions</TableHead>
               </TableRow>
             </TableHeader>
             {Array.from(new Set(application.documents.map((document) => document.documentType))).map((groupType) => {
@@ -274,7 +274,7 @@ export function ApplicationDetailsView({
                 </TableCell>
               </TableRow>
               {group.map((document) => (
-                <TableRow key={document.id}>
+                <TableRow key={document.id} className='group hover:bg-muted/30 transition-colors'>
                   <TableCell>#{document.id}</TableCell>
                   <TableCell>
                     {document.documentType === 'WORKSPACE_OVERVIEW'
@@ -300,7 +300,7 @@ export function ApplicationDetailsView({
                   <TableCell className='max-w-72 whitespace-pre-wrap break-words [overflow-wrap:anywhere]'>
                     {document.adminFeedback?.trim() || 'No document feedback recorded.'}
                   </TableCell>
-                  <TableCell>
+                  <TableCell className='text-right sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                     {document.status === 'REPLACED' ? (
                       <span className='text-xs text-muted-foreground'>
                         Historical record · file removed

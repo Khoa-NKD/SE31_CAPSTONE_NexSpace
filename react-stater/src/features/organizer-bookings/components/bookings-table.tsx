@@ -110,7 +110,7 @@ export function BookingsTable({
               <TableHead>{c('Amount & Gateway', 'Số tiền và cổng thanh toán')}</TableHead>
               <TableHead>{c('Status', 'Trạng thái')}</TableHead>
               <TableHead>{c('Check-in State', 'Trạng thái nhận chỗ')}</TableHead>
-              <TableHead className='text-right pr-6'>{c('Actions', 'Thao tác')}</TableHead>
+              <TableHead className='text-right pr-6 sticky right-0 z-20 bg-muted/95 backdrop-blur-xs border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>{c('Actions', 'Thao tác')}</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className='text-xs'>
@@ -130,7 +130,7 @@ export function BookingsTable({
                 return (
                   <TableRow
                     key={row.id}
-                    className={`hover:bg-muted/30 transition-colors ${
+                    className={`hover:bg-muted/30 transition-colors group ${
                       isSelected ? 'bg-primary/[0.03]' : ''
                     }`}
                   >
@@ -323,7 +323,7 @@ export function BookingsTable({
                     </TableCell>
 
                     {/* Actions */}
-                    <TableCell className='text-right pr-6'>
+                    <TableCell className='text-right pr-6 sticky right-0 z-10 bg-card group-hover:bg-muted/50 transition-colors border-l border-border after:pointer-events-none after:absolute after:inset-y-0 after:left-0 after:w-px after:bg-border shadow-[-6px_0_12px_-2px_rgba(0,0,0,0.08)] dark:shadow-[-8px_0_16px_-2px_rgba(0,0,0,0.45)]'>
                       <div className='flex items-center justify-end gap-1.5'>
                         {row.status === 'PENDING_APPROVAL' && (
                           <>
