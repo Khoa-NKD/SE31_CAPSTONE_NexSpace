@@ -5,7 +5,7 @@ import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.service.IResourceLockService;
-import base.api.shared.entity.booking.BookingModel;
+import base.api.feature.resource.service.ResourceMaintenance;
 import base.api.shared.entity.resource.BookableResourceModel;
 import base.api.shared.entity.resource.ResourceBlockedSlotModel;
 import base.api.shared.enums.BookableResourceStatus;
@@ -135,7 +135,7 @@ public class ResourceLockServiceImpl implements IResourceLockService {
             BookableResourceModel locked = bookableResourceRepository.findByIdForUpdate(id)
                     .orElseThrow(() -> new NotFoundException("Không tìm thấy tài nguyên với ID: " + id));
 
-            if (locked.getStatus() == BookableResourceStatus.ARCHIVED || locked.getStatus() == BookableResourceStatus.DISABLED) {
+            if (locked.getStatus() == BookableResourceStatus.ARCHIVED || targetResource != null && locked.getStatus() == BookableResourceStatus.DISABLED) {
                 if (targetResource != null && locked.getId().equals(targetResource.getId())) {
                     throw new ConflictException("Chỗ ngồi/phòng hiện không ở trạng thái sẵn sàng nhận đặt chỗ (Trạng thái: " + locked.getStatus() + ")");
                 } else {
@@ -156,7 +156,14 @@ public class ResourceLockServiceImpl implements IResourceLockService {
         // Kiểm tra Xung đột Nguyên tử với Khóa Đọc Hiện tại (Locking Read / Current Read chống Phantom Read)
         LocalDateTime now = LocalDateTime.now();
 
-        List<BookingModel> overlappingBookings = bookingRepository.findOverlappingBookingsForUpdate(
+        // Bulk locks are used by maintenance. A live checkout countdown is protected even
+        // when the customer's reserved usage starts on another day.
+        if (targetResource == null && bookingRepository.existsOverlappingActiveHoldWindow(
+                sortedIds, now, startTime, endTime)) {
+            throw new ConflictException("Chỗ này đang trong thời hạn giữ chỗ chờ thanh toán. Chỉ tạo bảo trì sau khi lượt giữ chỗ hết hạn hoặc được hủy.");
+        }
+
+        boolean hasBookingOverlap = bookingRepository.existsOverlappingBooking(
                 sortedIds,
                 CONFIRMED_BOOKING_STATUSES,
                 BookingStatus.PENDING_PAYMENT,
@@ -166,7 +173,7 @@ public class ResourceLockServiceImpl implements IResourceLockService {
                 excludeBookingId
         );
 
-        if (!overlappingBookings.isEmpty()) {
+        if (hasBookingOverlap) {
             if (isRoom) {
                 throw new ConflictException("Phòng hoặc bàn làm việc bên trong phòng đã có người đặt hoặc đang giữ chỗ trong khung thời gian này");
             } else {
@@ -181,12 +188,21 @@ public class ResourceLockServiceImpl implements IResourceLockService {
                 endTime
         );
 
-        if (!conflictingBlockedSlots.isEmpty()) {
+        boolean blocked = targetResource == null ? conflictingBlockedSlots.stream()
+                .anyMatch(slot -> slot.getBlockType() != base.api.shared.enums.ResourceBlockType.MAINTENANCE)
+                : conflictingBlockedSlots.stream().anyMatch(slot -> ResourceMaintenance.preventsBooking(targetResource, slot));
+        if (blocked) {
             throw new ConflictException("Chỗ ngồi hoặc phòng đang bị khoá tạm thời (bảo trì hoặc sự kiện riêng)");
+        }
+        if (isRoom && ResourceMaintenance.capacity(resolvedTarget, lockedResources,
+                ResourceMaintenance.maintenanceIds(conflictingBlockedSlots)) == 0) {
+            throw new ConflictException("Phòng không còn ghế khả dụng trong thời gian bảo trì.");
         }
 
         return LockedResourceContext.builder()
                 .targetResource(resolvedTarget)
+                .availableCapacity(ResourceMaintenance.capacity(resolvedTarget, lockedResources,
+                        ResourceMaintenance.maintenanceIds(conflictingBlockedSlots)))
                 .lockedResources(lockedResources)
                 .lockedResourceIds(sortedIds)
                 .startTime(startTime)

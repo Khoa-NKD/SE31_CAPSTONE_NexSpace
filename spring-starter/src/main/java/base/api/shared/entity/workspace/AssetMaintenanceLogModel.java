@@ -82,6 +82,10 @@ public class AssetMaintenanceLogModel extends BaseModel {
     @Column(name = "scheduled_at")
     private LocalDateTime scheduledAt;
 
+    /** Planned release time; separate from the actual completion audit timestamp. */
+    @Column(name = "planned_end_at")
+    private LocalDateTime plannedEndAt;
+
     @Column(name = "started_at")
     private LocalDateTime startedAt;
 

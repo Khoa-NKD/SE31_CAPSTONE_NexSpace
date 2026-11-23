@@ -90,5 +90,9 @@ PAYOS_PAYOUT_CLIENT_ID=your-payos-payout-client-id
 PAYOS_PAYOUT_API_KEY=your-payos-payout-api-key
 PAYOS_PAYOUT_CHECKSUM_KEY=your-payos-payout-checksum-key
 
+# ── Booking Chat AI Assistant (Gemini) ──────────────────────────────────────
+nexspace.chat-ai.gemini-api-key=${CHATBOT_GEMINI_API_KEY:}
+nexspace.chat-ai.model=gemini-3.5-flash-lite
+
 
 

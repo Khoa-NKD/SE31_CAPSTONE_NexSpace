@@ -101,7 +101,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private int spamHoldWindowHours = 24;
 
     @Override
-    @Transactional
+    @Transactional(isolation = org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
     public HoldResourceResponseDto holdResource(Long customerId, HoldResourceRequestDto dto) {
         if (customerId == null) {
             throw new BadRequestException("Mã khách hàng không được để trống");
@@ -194,6 +194,8 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         // 6. Khóa bi quan có thứ tự (ORDER BY id ASC) và kiểm tra xung đột hai chiều ROOM - DESK qua IResourceLockService
         LockedResourceContext lockContext = resourceLockService.acquireResourceLock(dto.getResourceId(), startTime, endTime);
         BookableResourceModel resource = lockContext.getTargetResource();
+        if (lockContext.getAvailableCapacity() != null && dto.getPartySize() > lockContext.getAvailableCapacity())
+            throw new ConflictException("Số người vượt số ghế khả dụng sau khi trừ ghế đang bảo trì.");
 
         if (resource.getStatus() != BookableResourceStatus.ACTIVE) {
             throw new BadRequestException("Chỗ ngồi/phòng hiện không ở trạng thái hoạt động");

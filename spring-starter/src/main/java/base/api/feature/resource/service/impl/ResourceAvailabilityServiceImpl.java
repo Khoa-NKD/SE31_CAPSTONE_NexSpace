@@ -8,6 +8,7 @@ import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
 import base.api.feature.resource.service.IResourceAvailabilityService;
 import base.api.feature.resource.service.ResourceStateResolver;
+import base.api.feature.resource.service.ResourceMaintenance;
 import base.api.feature.workspace.repository.IWorkspaceOperatingHourRepository;
 import base.api.feature.workspace.repository.IWorkspaceRepository;
 import base.api.shared.entity.booking.BookingModel;
@@ -148,8 +149,8 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
 
             List<ResourceBlockedSlotModel> parentRoomBlockedSlots = blockedSlotRepository.findActiveBlockedSlotsByResourceIds(
                     parentRoomIds,
-                    roomBufferStartTime,
-                    roomBufferEndTime
+                    startTime,
+                    endTime
             );
 
             Map<Long, List<ResourceBlockedSlotModel>> parentBlockedSlotsMap = parentRoomBlockedSlots.stream()
@@ -251,11 +252,11 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
                 .filter(b -> b.getResource() != null)
                 .collect(Collectors.groupingBy(b -> b.getResource().getId()));
 
-        // 7. Truy vấn các slot bị chặn của phòng (có tính buffer dọn dẹp)
+        // Maintenance ends exactly at its boundary; cleaning buffers apply only to bookings.
         List<ResourceBlockedSlotModel> roomBlockedSlots = blockedSlotRepository.findActiveBlockedSlotsByResourceIds(
                 roomIds,
-                roomBufferStartTime,
-                roomBufferEndTime
+                startTime,
+                endTime
         );
 
         Map<Long, List<ResourceBlockedSlotModel>> roomBlockedSlotsMap = roomBlockedSlots.stream()
@@ -321,6 +322,7 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
                         now,
                         currentUserId
                 ))
+                .filter(room -> minCapacity == null || room.getCapacity() >= minCapacity)
                 .toList();
     }
 
@@ -411,7 +413,8 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
 
             if (parentResolution != null && parentResolution.status() != ResourceOccupancyStatus.AVAILABLE) {
                 if (finalStatus == ResourceOccupancyStatus.AVAILABLE) {
-                    finalStatus = ResourceOccupancyStatus.BOOKED;
+                    finalStatus = parentResolution.status() == ResourceOccupancyStatus.BLOCKED
+                            ? ResourceOccupancyStatus.BLOCKED : ResourceOccupancyStatus.BOOKED;
                     if (parentResolution.isOccupiedByMe()) {
                         isOccupiedByMe = true;
                     }
@@ -447,8 +450,11 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
                 currentUserId
         );
 
-        // 2. Chiều Phòng -> Ghế con: Kiểm tra tình trạng của các bàn làm việc con bên trong phòng
+        // Child maintenance reduces capacity; child reservations still exclude a whole-room booking.
         int occupiedChildDeskCount = 0;
+        var maintenanceIds = new java.util.HashSet<>(ResourceMaintenance.maintenanceIds(childBlockedSlotsMap.values().stream()
+                .flatMap(List::stream).toList()));
+        maintenanceIds.addAll(ResourceMaintenance.maintenanceIds(roomBlockedSlots));
         for (BookableResourceModel childDesk : childDesks) {
             ResourceStateResolver.ResourceResolutionResult childResolution = ResourceStateResolver.resolve(
                     childDesk,
@@ -460,7 +466,8 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
 
             if (childResolution.status() == ResourceOccupancyStatus.BOOKED
                     || childResolution.status() == ResourceOccupancyStatus.HOLDING
-                    || childResolution.status() == ResourceOccupancyStatus.BLOCKED) {
+                    || childResolution.status() == ResourceOccupancyStatus.BLOCKED
+                        && !maintenanceIds.contains(childDesk.getId())) {
                 occupiedChildDeskCount++;
             }
         }
@@ -474,6 +481,9 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
         if (finalStatus == ResourceOccupancyStatus.AVAILABLE && hasConflictingDesks) {
             finalStatus = ResourceOccupancyStatus.BOOKED;
         }
+        int availableCapacity = ResourceMaintenance.capacity(room, childDesks, maintenanceIds);
+        if (availableCapacity == 0 && finalStatus == ResourceOccupancyStatus.AVAILABLE)
+            finalStatus = ResourceOccupancyStatus.BLOCKED;
 
         // 4. Tính toán thời gian đệm dọn dẹp vệ sinh (Turnaround Cleaning Buffer)
         // Kiểm tra xem phòng có đang trong khoảng đệm 15 phút sau một ca sử dụng trước đó không
@@ -502,7 +512,7 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
                 isCleaningInProgress,
                 nextAvailableAt,
                 ROOM_CLEANING_BUFFER_MINUTES
-        );
+        ).toBuilder().capacity(availableCapacity).build();
     }
 
     private String getDayOfWeekVietnamese(DayOfWeek day) {

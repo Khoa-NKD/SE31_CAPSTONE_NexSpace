@@ -829,9 +829,29 @@ class OrganizerResourceDatabaseTest {
                         service.availability(
                                         owner.getId(), workspace.getId(), floor.getId(), from, to)
                                 .resources())
-                .allMatch(item -> item.state() == FloorManagement.AvailabilityState.MAINTENANCE);
+                .extracting(FloorManagement.AvailabilityItem::id, FloorManagement.AvailabilityItem::state)
+                .containsExactlyInAnyOrder(
+                        tuple(room.id(), FloorManagement.AvailabilityState.DISABLED),
+                        tuple(desk.id(), FloorManagement.AvailabilityState.MAINTENANCE));
         assertThat(service.detail(owner.getId(), desk.id()).status())
                 .isEqualTo(BookableResourceStatus.DRAFT);
+    }
+
+    @Test
+    void activeMaintenanceRejectsManualActivationWithoutChangingBaseStatus() {
+        var room = room();
+        var slot = new ResourceBlockedSlotModel();
+        slot.setResource(em.find(BookableResourceModel.class, room.id()));
+        slot.setCreatedBy(owner);
+        slot.setBlockType(ResourceBlockType.MAINTENANCE);
+        slot.setStartTime(LocalDateTime.now().minusHours(1));
+        slot.setEndTime(LocalDateTime.now().plusHours(1));
+        em.persist(slot);
+        em.flush();
+        assertThatThrownBy(() -> service.status(owner.getId(), room.id(),
+                new Status(BookableResourceStatus.ACTIVE, room.revision())))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("Đang bảo trì");
+        assertThat(service.detail(owner.getId(), room.id()).status()).isEqualTo(BookableResourceStatus.DRAFT);
     }
 
     @TestConfiguration
@@ -1443,7 +1463,7 @@ class OrganizerResourceDatabaseTest {
     }
 
     @Test
-    void roomControlsSeatStatusAndOnlyWholeRoomIsSelectable() {
+    void activeRoomAllowsIndependentSeatControlAndRoomToggleStillCascades() {
         var room = room();
         var desk =
                 service.create(
@@ -1468,19 +1488,27 @@ class OrganizerResourceDatabaseTest {
                 .filteredOn(PublicFloorMapService.ObjectView::selectable)
                 .extracting(PublicFloorMapService.ObjectView::id)
                 .containsExactly(room.id());
-        assertThatThrownBy(
-                        () ->
-                                statusAfterPublishingFixture(
-                                        owner.getId(),
-                                        desk.id(),
-                                        new Status(
-                                                BookableResourceStatus.DISABLED,
-                                                activeDesk.revision())))
-                .isInstanceOf(ConflictException.class);
-        statusAfterPublishingFixture(owner.getId(), room.id(),
-                new Status(BookableResourceStatus.DISABLED, activeRoom.revision()));
-        assertThat(service.detail(owner.getId(), desk.id()).status())
-                .isEqualTo(BookableResourceStatus.DISABLED);
+        var disabledDesk = service.status(owner.getId(), desk.id(),
+                new Status(BookableResourceStatus.DISABLED, activeDesk.revision()));
+        assertThat(disabledDesk.status()).isEqualTo(BookableResourceStatus.DISABLED);
+        assertThat(service.detail(owner.getId(), room.id()).status()).isEqualTo(BookableResourceStatus.ACTIVE);
+        var enabledDesk = service.status(owner.getId(), desk.id(),
+                new Status(BookableResourceStatus.ACTIVE, disabledDesk.revision()));
+        assertThat(enabledDesk.status()).isEqualTo(BookableResourceStatus.ACTIVE);
+        service.status(owner.getId(), room.id(), new Status(BookableResourceStatus.DISABLED,
+                service.detail(owner.getId(), room.id()).revision()));
+        var childOff = service.detail(owner.getId(), desk.id());
+        assertThat(childOff.status()).isEqualTo(BookableResourceStatus.DISABLED);
+        assertThatThrownBy(() -> service.status(owner.getId(), desk.id(),
+                new Status(BookableResourceStatus.ACTIVE, childOff.revision())))
+                .isInstanceOf(ConflictException.class).hasMessageContaining("Bật phòng");
+        service.status(owner.getId(), room.id(), new Status(BookableResourceStatus.ACTIVE,
+                service.detail(owner.getId(), room.id()).revision()));
+        assertThat(service.detail(owner.getId(), desk.id()).status()).isEqualTo(BookableResourceStatus.ACTIVE);
+        var offAgain = service.status(owner.getId(), desk.id(), new Status(BookableResourceStatus.DISABLED,
+                service.detail(owner.getId(), desk.id()).revision()));
+        service.update(owner.getId(), desk.id(), deskIn(room.id(), "SEAT-01", offAgain.revision()));
+        assertThat(service.detail(owner.getId(), desk.id()).status()).isEqualTo(BookableResourceStatus.DISABLED);
     }
 
     @Test

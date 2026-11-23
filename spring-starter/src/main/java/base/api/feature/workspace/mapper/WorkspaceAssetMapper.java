@@ -38,19 +38,30 @@ public final class WorkspaceAssetMapper {
         if (model == null) {
             return null;
         }
+        var status = model.getStatus();
+        if (model.getPlannedEndAt() != null
+                && (status == base.api.shared.enums.MaintenanceStatus.SCHEDULED
+                    || status == base.api.shared.enums.MaintenanceStatus.IN_PROGRESS)) {
+            var now = java.time.LocalDateTime.now();
+            var start = model.getStartedAt() != null ? model.getStartedAt() : model.getScheduledAt();
+            status = !model.getPlannedEndAt().isAfter(now) ? base.api.shared.enums.MaintenanceStatus.COMPLETED
+                    : start != null && !start.isAfter(now) ? base.api.shared.enums.MaintenanceStatus.IN_PROGRESS
+                    : base.api.shared.enums.MaintenanceStatus.SCHEDULED;
+        }
         return MaintenanceLogResponseDto.builder()
                 .id(model.getId())
                 .assetId(model.getAsset() != null ? model.getAsset().getId() : null)
                 .assetCode(model.getAsset() != null ? model.getAsset().getAssetCode() : null)
                 .assetName(model.getAsset() != null ? model.getAsset().getName() : null)
                 .maintenanceType(model.getMaintenanceType())
-                .status(model.getStatus())
+                .status(status)
                 .description(model.getDescription())
                 .reportedById(model.getReportedBy() != null ? model.getReportedBy().getId() : null)
                 .reportedByName(model.getReportedBy() != null ? model.getReportedBy().getFullName() : null)
                 .performedBy(model.getPerformedBy())
                 .cost(model.getCost())
                 .scheduledAt(model.getScheduledAt())
+                .plannedEndAt(model.getPlannedEndAt())
                 .startedAt(model.getStartedAt())
                 .completedAt(model.getCompletedAt())
                 .resultNote(model.getResultNote())

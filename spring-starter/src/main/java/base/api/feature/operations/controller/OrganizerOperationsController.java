@@ -46,7 +46,7 @@ public class OrganizerOperationsController extends BaseAPIController {
     }
     @PostMapping("/blocked-slots")
     public ResponseEntity<ApiResponse<List<Block>>> createBlocks(@PathVariable @Positive Long workspaceId, @Valid @RequestBody BlockInput input) {
-        return created(service.createBlocks(getCurrentUserId(), workspaceId, input), "Đã ngừng nhận đặt trong khung giờ đã chọn.");
+        return created(service.createBlocks(getCurrentUserId(), workspaceId, input), "Đã lưu lịch bảo trì trong khung giờ đã chọn.");
     }
     @DeleteMapping("/blocked-slots/{id}")
     public ResponseEntity<ApiResponse<Void>> deleteBlock(@PathVariable @Positive Long workspaceId, @PathVariable @Positive Long id) {

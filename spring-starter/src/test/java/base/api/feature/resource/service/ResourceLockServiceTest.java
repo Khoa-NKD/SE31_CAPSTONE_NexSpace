@@ -1,7 +1,6 @@
 package base.api.feature.resource.service;
 
 import base.api.feature.booking.repository.IBookingRepository;
-import base.api.shared.entity.booking.BookingModel;
 import base.api.feature.resource.dto.LockedResourceContext;
 import base.api.feature.resource.repository.IBookableResourceRepository;
 import base.api.feature.resource.repository.IResourceBlockedSlotRepository;
@@ -113,8 +112,8 @@ class ResourceLockServiceTest {
             when(bookableResourceRepository.findByIdForUpdate(deskId)).thenReturn(Optional.of(desk));
             when(bookableResourceRepository.findByIdForUpdate(parentRoomId)).thenReturn(Optional.of(parentRoom));
 
-            when(bookingRepository.findOverlappingBookingsForUpdate(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
-                    .thenReturn(Collections.emptyList());
+            when(bookingRepository.existsOverlappingBooking(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
+                    .thenReturn(false);
             when(blockedSlotRepository.findActiveBlockedSlotsByResourceIds(anyList(), eq(startTime), eq(endTime)))
                     .thenReturn(Collections.emptyList());
 
@@ -149,8 +148,8 @@ class ResourceLockServiceTest {
             when(bookableResourceRepository.findByIdForUpdate(parentRoomId)).thenReturn(Optional.of(parentRoom));
             when(bookableResourceRepository.findByIdForUpdate(deskId)).thenReturn(Optional.of(desk));
 
-            when(bookingRepository.findOverlappingBookingsForUpdate(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
-                    .thenReturn(Collections.emptyList());
+            when(bookingRepository.existsOverlappingBooking(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
+                    .thenReturn(false);
             when(blockedSlotRepository.findActiveBlockedSlotsByResourceIds(anyList(), eq(startTime), eq(endTime)))
                     .thenReturn(Collections.emptyList());
 
@@ -198,8 +197,8 @@ class ResourceLockServiceTest {
             when(bookableResourceRepository.findByIdForUpdate(10L)).thenReturn(Optional.of(room));
             when(bookableResourceRepository.findByIdForUpdate(15L)).thenReturn(Optional.of(childDesk2));
 
-            when(bookingRepository.findOverlappingBookingsForUpdate(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
-                    .thenReturn(Collections.emptyList());
+            when(bookingRepository.existsOverlappingBooking(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
+                    .thenReturn(false);
             when(blockedSlotRepository.findActiveBlockedSlotsByResourceIds(anyList(), eq(startTime), eq(endTime)))
                     .thenReturn(Collections.emptyList());
 
@@ -232,8 +231,8 @@ class ResourceLockServiceTest {
             when(bookableResourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
             when(bookableResourceRepository.findByIdForUpdate(resourceId)).thenReturn(Optional.of(resource));
 
-            when(bookingRepository.findOverlappingBookingsForUpdate(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
-                    .thenReturn(List.of(new BookingModel()));
+            when(bookingRepository.existsOverlappingBooking(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
+                    .thenReturn(true);
 
             assertThatThrownBy(() -> resourceLockService.acquireResourceLock(resourceId, startTime, endTime))
                     .isInstanceOf(ConflictException.class)
@@ -251,8 +250,8 @@ class ResourceLockServiceTest {
             when(bookableResourceRepository.findById(resourceId)).thenReturn(Optional.of(resource));
             when(bookableResourceRepository.findByIdForUpdate(resourceId)).thenReturn(Optional.of(resource));
 
-            when(bookingRepository.findOverlappingBookingsForUpdate(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
-                    .thenReturn(Collections.emptyList());
+            when(bookingRepository.existsOverlappingBooking(anyList(), anyCollection(), any(), any(), eq(startTime), eq(endTime), any()))
+                    .thenReturn(false);
 
             ResourceBlockedSlotModel blockedSlot = new ResourceBlockedSlotModel();
             blockedSlot.setId(99L);
