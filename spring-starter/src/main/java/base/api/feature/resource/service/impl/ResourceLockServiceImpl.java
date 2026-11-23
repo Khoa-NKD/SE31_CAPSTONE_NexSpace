@@ -153,7 +153,7 @@ public class ResourceLockServiceImpl implements IResourceLockService {
             resolvedTarget = lockedResources.get(0);
         }
 
-        // Kiểm tra Xung đột Nguyên tử (Atomic Overlap Check)
+        // Kiểm tra Xung đột Nguyên tử với Khóa Đọc Hiện tại (Locking Read / Current Read chống Phantom Read)
         LocalDateTime now = LocalDateTime.now();
 
         // Bulk locks are used by maintenance. A live checkout countdown is protected even

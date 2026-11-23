@@ -113,6 +113,9 @@ class BookingServiceTest {
     @Mock
     private INotificationService notificationService;
 
+    @Mock
+    private base.api.feature.resource.service.IResourceLockService resourceLockService;
+
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
@@ -177,6 +180,15 @@ class BookingServiceTest {
                 .with(TemporalAdjusters.next(DayOfWeek.MONDAY))
                 .withHour(9).withMinute(0).withSecond(0).withNano(0);
         futureMondayEnd = futureMondayStart.plusHours(4);
+
+        org.mockito.Mockito.lenient().when(resourceLockService.acquireResourceLock(any(), any(), any()))
+                .thenAnswer(inv -> base.api.feature.resource.dto.LockedResourceContext.builder()
+                        .targetResource(mockResource)
+                        .lockedResources(List.of(mockResource))
+                        .lockedResourceIds(List.of(mockResource.getId()))
+                        .startTime(inv.getArgument(1))
+                        .endTime(inv.getArgument(2))
+                        .build());
     }
 
     @Test

@@ -132,6 +132,22 @@ public class PaymentServiceImpl implements IPaymentService {
             throw new ConflictException("Đơn đặt chỗ đã hết thời hạn giữ chỗ 10 phút. Vui lòng tạo đặt chỗ mới.");
         }
 
+        // Phòng vệ đa tầng: Kiểm tra xem tài nguyên này có bị đơn khác CONFIRMED trong cùng khung giờ chưa
+        if (booking.getResource() != null) {
+            List<BookingModel> confirmedOverlaps = bookingRepository.findOverlappingBookingsForUpdate(
+                    List.of(booking.getResource().getId()),
+                    List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN),
+                    BookingStatus.CONFIRMED,
+                    now,
+                    booking.getStartTime(),
+                    booking.getEndTime(),
+                    booking.getId()
+            );
+            if (!confirmedOverlaps.isEmpty()) {
+                throw new ConflictException("Vị trí này đã được khách hàng khác hoàn tất thanh toán trước đó. Vui lòng chọn vị trí khác.");
+            }
+        }
+
         // Calculate amount in VND
         BigDecimal finalPrice = booking.getFinalPrice();
         if (finalPrice == null || finalPrice.compareTo(BigDecimal.ZERO) <= 0) {
@@ -415,12 +431,6 @@ public class PaymentServiceImpl implements IPaymentService {
                 .filter(b -> b.getHoldExpiresAt() == null || b.getHoldExpiresAt().isAfter(now))
                 .findFirst()
                 .orElse(null);
-
-        if (booking != null && (booking.getHoldExpiresAt() == null || booking.getHoldExpiresAt().isBefore(now.plusMinutes(2)))) {
-            requireOrganizerAcceptingHolds(booking.getWorkspace());
-            booking.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-            booking = bookingRepository.save(booking);
-        }
 
         LocalDateTime holdExpiresAt = booking != null ? booking.getHoldExpiresAt() : null;
         long remainingSeconds = holdExpiresAt != null

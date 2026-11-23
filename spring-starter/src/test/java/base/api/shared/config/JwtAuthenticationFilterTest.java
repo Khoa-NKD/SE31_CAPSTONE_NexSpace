@@ -52,10 +52,48 @@ class JwtAuthenticationFilterTest {
     }
 
     @Test
-    @DisplayName("shouldNotFilter trả về false cho GET /api/amenities để cho phép trích xuất token người dùng nếu có")
-    void shouldNotFilter_GetAmenities_ReturnsFalse() {
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/amenities");
+    @DisplayName("shouldNotFilter trả về false cho GET /api/v1/public/workspaces/1/availability để cho phép trích xuất token người dùng nếu có")
+    void shouldNotFilter_GetWorkspaceAvailability_ReturnsFalse() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/public/workspaces/1/availability");
         assertThat(filter.shouldNotFilter(request)).isFalse();
+    }
+
+    @Test
+    @DisplayName("doFilterInternal: Public Availability endpoint với valid token sẽ trích xuất và lưu Authentication vào SecurityContext")
+    void doFilterInternal_PublicAvailability_ValidToken_SetsAuthentication() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/public/workspaces/1/availability");
+        request.addHeader("Authorization", "Bearer valid.jwt.token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        when(jwtUtil.extractUserId("valid.jwt.token")).thenReturn(10L);
+        when(tokenRevocationService.isRevoked("valid.jwt.token")).thenReturn(false);
+
+        AuthUser authUser = mock(AuthUser.class);
+        when(authUser.isEnabled()).thenReturn(true);
+        when(authUser.getAuthorities()).thenReturn(Collections.emptyList());
+        when(userDetailsService.loadUserById(10L)).thenReturn(authUser);
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
+        assertThat(SecurityContextHolder.getContext().getAuthentication().getPrincipal()).isEqualTo(authUser);
+    }
+
+    @Test
+    @DisplayName("doFilterInternal: Public Availability endpoint với expired token vẫn cho phép qua FilterChain mà không trả về 401")
+    void doFilterInternal_PublicAvailability_ExpiredToken_PassesThrough() throws ServletException, IOException {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/v1/public/workspaces/1/availability");
+        request.addHeader("Authorization", "Bearer expired.jwt.token");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        when(jwtUtil.extractUserId("expired.jwt.token")).thenThrow(new ExpiredJwtException(null, null, "Expired"));
+
+        filter.doFilterInternal(request, response, filterChain);
+
+        verify(filterChain).doFilter(request, response);
+        assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+        assertThat(response.getStatus()).isEqualTo(HttpServletResponse.SC_OK);
     }
 
     @Test

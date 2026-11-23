@@ -34,6 +34,7 @@ import vn.payos.model.webhooks.WebhookData;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -260,6 +261,49 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
 
             if (booking != null) {
                 if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                    // Phòng vệ đa tầng cuối cùng (Last-mile Defense): Kiểm tra xem vị trí này đã bị đơn khác CONFIRMED trong cùng khung giờ chưa
+                    boolean alreadyBooked = false;
+                    if (booking.getResource() != null) {
+                        alreadyBooked = !bookingRepository.findOverlappingBookingsForUpdate(
+                                List.of(booking.getResource().getId()),
+                                List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN),
+                                BookingStatus.CONFIRMED,
+                                LocalDateTime.now(),
+                                booking.getStartTime(),
+                                booking.getEndTime(),
+                                booking.getId()
+                        ).isEmpty();
+                    }
+
+                    if (alreadyBooked) {
+                        log.error("CRITICAL: Double booking detected on webhook confirmation for bookingId={}, code={}. Resource already booked by another confirmed booking!",
+                                booking.getId(), booking.getBookingCode());
+                        booking.setStatus(BookingStatus.CANCELLED);
+                        booking.setCancelReason("Hệ thống phát hiện xung đột thanh toán đồng thời (Đã có khách hàng thanh toán thành công trước đó). Yêu cầu hoàn tiền tự động 100%.");
+                        booking.setCancelledAt(LocalDateTime.now());
+                        booking.setHoldExpiresAt(null);
+                        bookingRepository.save(booking);
+
+                        auditService.log(
+                                booking.getCustomer(),
+                                AuditActorType.PAYMENT_WEBHOOK,
+                                "PAYMENT",
+                                "DOUBLE_BOOKING_PREVENTED",
+                                "Booking",
+                                booking.getId(),
+                                null,
+                                null,
+                                "Ngăn chặn thành công xung đột thanh toán trùng chỗ. Đơn được chuyển sang diện hoàn tiền 100%.",
+                                null
+                        );
+
+                        return WebhookProcessResultDTO.builder()
+                                .orderCode(orderCode)
+                                .status("DOUBLE_BOOKING_PREVENTED")
+                                .message("Phát hiện xung đột đặt trùng chỗ. Đơn hàng đã được đánh dấu hủy để hoàn tiền 100%.")
+                                .build();
+                    }
+
                     booking.setStatus(BookingStatus.CONFIRMED);
                     booking.setHoldExpiresAt(null);
 

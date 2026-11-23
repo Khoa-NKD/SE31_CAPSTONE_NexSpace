@@ -186,10 +186,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             if (base.api.feature.pricing.service.BookingBaseRates.supported(reused.getPriceType())
                     != base.api.feature.pricing.service.BookingBaseRates.supported(dto.getPriceType()))
                 throw new ConflictException("Bạn đang giữ chỗ này bằng loại giá khác. Vui lòng hủy lượt giữ chỗ cũ trước khi đổi loại giá.");
-            if (reused.getHoldExpiresAt() != null && reused.getHoldExpiresAt().isBefore(now.plusMinutes(2))) {
-                reused.setHoldExpiresAt(now.plusMinutes(getEffectiveHoldMinutes()));
-                reused = bookingRepository.save(reused);
-            }
             log.info("Idempotent hold reuse in createBooking: code={}, customerId={}", reused.getBookingCode(), customerId);
             return BookingMapper.toDto(reused);
         }
@@ -223,7 +219,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             throw new ConflictException("Phòng không còn ghế khả dụng trong thời gian bảo trì.");
         if (dto.getPartySize() > availableCapacity)
             throw new ConflictException("Số người vượt số ghế khả dụng sau khi trừ ghế đang bảo trì.");
-
         // 8. Calculate Pricing & Tariffs
         PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType());
 
