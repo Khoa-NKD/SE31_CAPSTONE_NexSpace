@@ -1,15 +1,15 @@
-import { Spinner } from '@/components/ui/spinner';
-import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import React, { useState, useMemo } from 'react';
 import { createFileRoute, useNavigate } from '@tanstack/react-router';
 import { z } from 'zod';
 import { zodValidator } from '@tanstack/zod-adapter';
 import PageContainer from '@/components/layout/page-container';
 import { Button } from '@/components/ui/button';
-import { FileDown, Radio, RefreshCw } from '@/components/ui/hugeicons';
+import { Spinner } from '@/components/ui/spinner';
+import { FileDown, RefreshCw } from '@/components/ui/hugeicons';
 import { toast } from 'sonner';
+import { useLanguage } from '@/features/landing/context/language-context';
+import { formatDate as formatDisplayDate, formatDateTime as formatDisplayDateTime } from '@/lib/format';
 import {
-  MOCK_BOOKING_KPIS,
   BookingItem,
   BookingStatus
 } from '@/features/admin-bookings/data/mock-bookings';
@@ -30,28 +30,16 @@ const bookingsSearchSchema = z.object({
 export const Route = createFileRoute('/dashboard/admin/bookings')({
   head: () => ({
     meta: [
-      { title: 'A08 — Bookings Management Ledger | NexSpace Console' },
+      { title: 'A08 — Sổ cái đặt chỗ nền tảng | NexSpace Console' },
       {
         name: 'description',
-        content: 'Monitor real-time reservation concurrency, check-in statuses, and PayOS smart escrow across workspaces.'
+        content: 'Giám sát chi tiết các đơn đặt chỗ, trạng thái check-in và dòng tiền PayOS.'
       }
     ]
   }),
   validateSearch: zodValidator(bookingsSearchSchema),
   component: BookingsManagementPage
 });
-
-function handleExportLedger() {
-  toast.success('Bookings Ledger Exported (CSV)', {
-    description: 'Compiled reservation and hardware allocation records.'
-  });
-}
-
-function handleLiveTelemetry() {
-  toast.info('NFC Access Point Telemetry (Live)', {
-    description: 'All 14 metro hub RFID/NFC turnstiles operational. Concurrency nominal.'
-  });
-}
 
 function formatVnd(amount: number) {
   return new Intl.NumberFormat('vi-VN').format(amount) + ' ₫';
@@ -67,62 +55,73 @@ function mapApiToAdminBookingItem(b: AdminBookingApiItem): BookingItem {
   const end = new Date(b.endTime);
   const timeSlot = `${formatDisplayDate(start)} • ${start.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })} - ${end.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}`;
 
-  const initials = b.customerName
-    .split(' ')
-    .filter(Boolean)
-    .map((n) => n[0])
-    .join('')
-    .slice(0, 2)
-    .toUpperCase() || 'KH';
+  const initials =
+    b.customerName
+      ?.split(' ')
+      .filter(Boolean)
+      .map((n) => n[0])
+      .join('')
+      .slice(0, 2)
+      .toUpperCase() || 'KH';
 
   return {
     id: b.bookingCode || `NX-${b.id}`,
     customer: {
-      name: b.customerName,
-      email: b.customerEmail,
-      phone: b.customerPhone || '0901000001',
+      name: b.customerName || 'Khách vãng lai',
+      email: b.customerEmail || '—',
+      phone: b.customerPhone || '—',
       membershipTier: 'Standard',
       avatarInitials: initials
     },
     workspace: {
-      name: b.workspaceName,
+      name: b.workspaceName || 'Không gian làm việc',
       hubId: `HUB-${b.workspaceId || 1}`,
-      address: b.workspaceAddress,
-      resourceName: b.resourceName,
-      zone: b.resourceZone,
+      address: b.workspaceAddress || '—',
+      resourceName: b.resourceName || 'Bàn làm việc',
+      zone: b.resourceZone || 'Khu làm việc mở',
       hardwareSpecs: 'Dual 4K Monitor • Gigabit LAN',
       authorizedSlot: timeSlot,
       nfcPassCode: b.pinCode || '8492'
     },
     timeSlot,
-    grossAmountDisplay: formatVnd(b.amount),
+    grossAmountDisplay: formatVnd(b.amount || 0),
     status: mappedStatus,
-    relativeStatusTime: mappedStatus === 'confirmed' ? 'Upcoming' : (mappedStatus === 'checked_in' ? 'Active' : 'Settled'),
+    relativeStatusTime:
+      mappedStatus === 'confirmed'
+        ? 'Upcoming'
+        : mappedStatus === 'checked_in'
+          ? 'Active'
+          : 'Settled',
     escrow: {
-      status: mappedStatus === 'cancelled' ? 'Refunded' : (mappedStatus === 'completed' ? 'Verified' : 'Pending Settlement'),
+      status:
+        mappedStatus === 'cancelled'
+          ? 'Refunded'
+          : mappedStatus === 'completed'
+            ? 'Verified'
+            : 'Pending Settlement',
       txReference: `TX-${b.id}`,
-      grossFeeUsd: Math.round(b.amount / 25450),
-      grossFeeVnd: b.amount,
+      grossFeeUsd: Math.round((b.amount || 0) / 25450),
+      grossFeeVnd: b.amount || 0,
       platformTakeRatePercent: 10,
-      platformTakeRateUsd: Math.round((b.amount * 0.1) / 25450),
-      platformTakeRateVnd: Math.round(b.amount * 0.1),
-      netPayoutUsd: Math.round((b.amount * 0.9) / 25450),
-      netPayoutVnd: Math.round(b.amount * 0.9),
-      escrowContractId: `PAYOS-${b.bookingCode}`
+      platformTakeRateUsd: Math.round(((b.amount || 0) * 0.1) / 25450),
+      platformTakeRateVnd: Math.round((b.amount || 0) * 0.1),
+      netPayoutUsd: Math.round(((b.amount || 0) * 0.9) / 25450),
+      netPayoutVnd: Math.round((b.amount || 0) * 0.9),
+      escrowContractId: `PAYOS-${b.bookingCode || b.id}`
     },
     timeline: [
       {
         id: '1',
         title: 'Booking Created',
         timestamp: formatDisplayDateTime(new Date(b.createdAt)),
-        description: `Booking #${b.bookingCode} reserved by ${b.customerName}.`,
+        description: `Booking #${b.bookingCode || b.id} reserved by ${b.customerName}.`,
         completed: true
       },
       {
         id: '2',
         title: 'VietQR Payment Verified',
         timestamp: formatDisplayDateTime(new Date(b.createdAt)),
-        description: `PayOS received ${formatVnd(b.amount)} full payment.`,
+        description: `PayOS received ${formatVnd(b.amount || 0)} full payment.`,
         completed: b.status !== 'PENDING_PAYMENT'
       }
     ]
@@ -130,17 +129,33 @@ function mapApiToAdminBookingItem(b: AdminBookingApiItem): BookingItem {
 }
 
 function BookingsManagementPage() {
+  const { language } = useLanguage();
+  const isVi = language === 'vi';
   const navigate = useNavigate({ from: Route.fullPath });
   const searchParams = Route.useSearch();
 
   const searchQuery = searchParams.search || '';
   const statusFilter = (searchParams.status as BookingStatus | 'all') || 'all';
 
-  const apiStatus = statusFilter === 'all' ? undefined : (statusFilter === 'checked_in' ? 'CHECKED_IN' : statusFilter.toUpperCase());
-  const { data: bookingsData, refetch, isFetching } = useAdminBookings({
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
+
+  const apiStatus =
+    statusFilter === 'all'
+      ? undefined
+      : statusFilter === 'checked_in'
+        ? 'CHECKED_IN'
+        : statusFilter.toUpperCase();
+
+  const {
+    data: bookingsData,
+    refetch,
+    isFetching
+  } = useAdminBookings({
     search: searchQuery || undefined,
     status: apiStatus
   });
+
   const { data: kpiData } = useAdminBookingKpis();
 
   // Map to local BookingItem format
@@ -154,14 +169,18 @@ function BookingsManagementPage() {
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState<BookingItem | null>(null);
 
-  // Filtered bookings
+  // Filtered bookings client-side (for responsive search and status)
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesId = b.id.toLowerCase().includes(query);
-        const matchesCustomer = b.customer.name.toLowerCase().includes(query) || b.customer.email.toLowerCase().includes(query);
-        const matchesWorkspace = b.workspace.name.toLowerCase().includes(query) || b.workspace.hubId.toLowerCase().includes(query);
+        const matchesCustomer =
+          b.customer.name.toLowerCase().includes(query) ||
+          b.customer.email.toLowerCase().includes(query);
+        const matchesWorkspace =
+          b.workspace.name.toLowerCase().includes(query) ||
+          b.workspace.hubId.toLowerCase().includes(query);
         if (!matchesId && !matchesCustomer && !matchesWorkspace) return false;
       }
 
@@ -173,34 +192,99 @@ function BookingsManagementPage() {
     });
   }, [bookings, searchQuery, statusFilter]);
 
-  // KPIs
+  // KPIs calculation using real API data with fallback
   const kpis = useMemo(() => {
-    if (!kpiData) return MOCK_BOOKING_KPIS;
+    const total = kpiData?.totalCount ?? bookings.length;
+    const confirmed =
+      kpiData?.confirmedCount ??
+      bookings.filter((b) => b.status === 'confirmed').length;
+    const completed =
+      kpiData?.completedCount ??
+      bookings.filter((b) => b.status === 'completed').length;
+    const cancelled =
+      kpiData?.cancelledCount ??
+      bookings.filter((b) => b.status === 'cancelled').length;
+
     return {
-      todayTotalBookings: kpiData.totalCount,
-      todayGrowthPercentage: 8.4,
-      activeConcurrencyRate: 84,
-      confirmedCount: kpiData.confirmedCount,
-      rfidComplianceRate: 100,
-      completedCount: kpiData.completedCount,
-      cancelledCount: kpiData.cancelledCount
+      totalCount: total,
+      confirmedCount: confirmed,
+      completedCount: completed,
+      cancelledCount: cancelled,
+      pendingCount: kpiData?.pendingCount,
+      totalRevenue: kpiData?.totalRevenue
     };
-  }, [kpiData]);
+  }, [kpiData, bookings]);
+
+  // Real CSV Export Function
+  const handleExportCsv = () => {
+    if (filteredBookings.length === 0) {
+      toast.info(isVi ? 'Không có dữ liệu để xuất file' : 'No bookings to export');
+      return;
+    }
+
+    const headers = [
+      'Mã đặt chỗ',
+      'Khách hàng',
+      'Email',
+      'Số điện thoại',
+      'Không gian làm việc',
+      'Chỗ ngồi/Phòng',
+      'Thời gian',
+      'Số tiền',
+      'Trạng thái'
+    ];
+
+    const rows = filteredBookings.map((b) => [
+      `"${b.id}"`,
+      `"${b.customer.name.replace(/"/g, '""')}"`,
+      `"${b.customer.email}"`,
+      `"${b.customer.phone}"`,
+      `"${b.workspace.name.replace(/"/g, '""')}"`,
+      `"${b.workspace.resourceName.replace(/"/g, '""')}"`,
+      `"${b.timeSlot}"`,
+      `"${b.grossAmountDisplay}"`,
+      `"${b.status}"`
+    ]);
+
+    const csvContent =
+      '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute(
+      'download',
+      `so-cai-dat-cho-${new Date().toISOString().slice(0, 10)}.csv`
+    );
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    toast.success(
+      isVi
+        ? `Đã xuất ${filteredBookings.length} đơn đặt chỗ ra file CSV`
+        : `Exported ${filteredBookings.length} bookings to CSV`
+    );
+  };
 
   // Handlers
   const handleSearchChange = (value: string) => {
+    setPage(1);
     navigate({
       search: (prev) => ({ ...prev, search: value || undefined })
     });
   };
 
   const handleStatusChange = (status: BookingStatus | 'all') => {
+    setPage(1);
     navigate({
       search: (prev) => ({ ...prev, status })
     });
   };
 
   const handleResetFilters = () => {
+    setPage(1);
     navigate({
       search: () => ({ status: 'all' })
     });
@@ -237,62 +321,74 @@ function BookingsManagementPage() {
   const handleConfirmCancel = () => {
     if (!bookingToCancel) return;
     setIsCancelDialogOpen(false);
-    toast.success(`Reservation #${bookingToCancel.id} Force-Cancelled`, {
-      description: `Full refund initiated from PayOS Escrow ${bookingToCancel.escrow.escrowContractId} to ${bookingToCancel.customer.name}.`
-    });
+    toast.success(
+      isVi
+        ? `Đã hủy bắt buộc đơn #${bookingToCancel.id}`
+        : `Reservation #${bookingToCancel.id} Force-Cancelled`,
+      {
+        description: isVi
+          ? `Lệnh hoàn tiền đã được gửi tới PayOS Escrow ${bookingToCancel.escrow.escrowContractId}.`
+          : `Full refund initiated from PayOS Escrow ${bookingToCancel.escrow.escrowContractId} to ${bookingToCancel.customer.name}.`
+      }
+    );
   };
 
   return (
     <PageContainer>
-      <div className='max-w-[1360px] mx-auto w-full'>
-        {/* Page Action Header */}
-        <div className='flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6'>
+      <div className='flex flex-col min-h-screen pb-12 min-w-0 w-full'>
+        {/* Page Header Row - Compact, Clean, Responsive */}
+        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5'>
           <div>
-            <h1 className='text-2xl lg:text-3xl font-bold font-heading text-foreground tracking-tight'>
-              Platform Bookings Ledger
-            </h1>
-            <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              Monitor transactions, reservation concurrency, and check-in statuses across flexible workspaces.
+            <div className='flex items-center gap-2.5'>
+              <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading'>
+                {isVi ? 'Sổ cái đặt chỗ nền tảng' : 'Platform Bookings Ledger'}
+              </h1>
+              <span className='inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono font-semibold bg-primary/10 text-primary border border-primary/20'>
+                {filteredBookings.length} {isVi ? 'đơn' : 'bookings'}
+              </span>
+            </div>
+            <p className='text-xs sm:text-sm text-muted-foreground mt-0.5'>
+              {isVi
+                ? 'Giám sát chi tiết các đơn đặt chỗ, trạng thái check-in và dòng tiền PayOS.'
+                : 'Monitor real-time reservation concurrency, check-in statuses, and PayOS smart escrow across workspaces.'}
             </p>
           </div>
 
-          <div className='flex items-center gap-3'>
+          {/* Action Button Bar */}
+          <div className='flex items-center gap-2 self-start sm:self-auto'>
             <Button
               variant='outline'
               size='sm'
               onClick={() => refetch()}
               disabled={isFetching}
-              className='gap-2 shadow-2xs text-xs'
+              className='h-8 px-2.5 text-xs gap-1.5 shadow-2xs'
+              title={isVi ? 'Làm mới dữ liệu' : 'Refresh data'}
             >
-              {isFetching ? <Spinner className={`size-3.5 `} aria-hidden='true' /> : <RefreshCw className={`size-3.5 `} aria-hidden='true' />}
-              <span>Refresh Data</span>
+              {isFetching ? (
+                <Spinner className='size-3.5' aria-hidden='true' />
+              ) : (
+                <RefreshCw className='size-3.5' aria-hidden='true' />
+              )}
+              <span className='hidden sm:inline'>{isVi ? 'Làm mới' : 'Refresh'}</span>
             </Button>
 
             <Button
               variant='outline'
               size='sm'
-              onClick={handleLiveTelemetry}
-              className='gap-2 shadow-2xs'
+              onClick={handleExportCsv}
+              className='h-8 px-2.5 text-xs gap-1.5 shadow-2xs text-foreground hover:bg-muted/60'
+              title={isVi ? 'Xuất danh sách ra file CSV' : 'Export to CSV'}
             >
-              <Radio className='size-3.5 text-emerald-600 dark:text-emerald-400' aria-hidden='true' />
-              <span>Live Access Telemetry</span>
-            </Button>
-
-            <Button
-              size='sm'
-              onClick={handleExportLedger}
-              className='gap-2 bg-primary hover:bg-primary/90 text-white shadow-2xs'
-            >
-              <FileDown className='size-4' aria-hidden='true' />
-              <span>Export Ledger (CSV)</span>
+              <FileDown className='size-3.5' aria-hidden='true' />
+              <span>{isVi ? 'Xuất CSV' : 'Export CSV'}</span>
             </Button>
           </div>
         </div>
 
-        {/* 4 Summary KPI Tiles */}
-        <BookingKpiGrid kpis={kpis} />
+        {/* 4 Sleek Bento KPI Cards */}
+        <BookingKpiGrid kpis={kpis} language={language} />
 
-        {/* Filter Controls */}
+        {/* Filter Controls Bar */}
         <BookingsFilterBar
           searchQuery={searchQuery}
           onSearchChange={handleSearchChange}
@@ -300,13 +396,19 @@ function BookingsManagementPage() {
           onStatusChange={handleStatusChange}
           kpis={kpis}
           onReset={handleResetFilters}
+          language={language}
         />
 
-        {/* Bookings Ledger Data Table */}
+        {/* Bookings Ledger Data Table with Sticky Columns and Real Pagination */}
         <BookingsLedgerTable
           items={filteredBookings}
           selectedBookingId={selectedBooking?.id}
           onSelectBooking={handleSelectBooking}
+          language={language}
+          page={page}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          onPageSizeChange={setPageSize}
         />
 
         {/* Booking Details Slide-over Drawer */}
@@ -316,6 +418,7 @@ function BookingsManagementPage() {
           isNestedDialogOpen={isCancelDialogOpen}
           onClose={handleCloseDrawer}
           onForceCancel={handleOpenCancelDialog}
+          language={language}
         />
 
         {/* Force Cancel Confirmation Dialog */}

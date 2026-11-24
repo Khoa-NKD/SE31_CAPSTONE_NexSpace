@@ -123,20 +123,23 @@ export function calculateLiveFinancialKpis(
 ): FinancialSummaryKpis {
   // 1. Calculate system-wide gross volume and disbursements
   // Prefer server aggregate totals from database, fallback to page items
-  const grossVnd =
+  const grossVnd = Math.round(
     summary?.totalGrossVolume !== undefined && summary?.totalGrossVolume !== null
       ? Number(summary.totalGrossVolume)
-      : transactions.filter((t) => t.status === 'settled').reduce((sum, t) => sum + t.grossChargeVnd, 0);
+      : transactions.filter((t) => t.status === 'settled').reduce((sum, t) => sum + t.grossChargeVnd, 0)
+  );
 
-  const commVnd =
+  const commVnd = Math.round(
     summary?.totalPlatformFee !== undefined && summary?.totalPlatformFee !== null
       ? Number(summary.totalPlatformFee)
-      : Math.round(grossVnd * 0.1);
+      : grossVnd * 0.1
+  );
 
-  const payoutsVnd =
+  const payoutsVnd = Math.round(
     summary?.totalPayoutAmount !== undefined && summary?.totalPayoutAmount !== null
       ? Number(summary.totalPayoutAmount)
-      : Math.round(grossVnd * 0.885);
+      : grossVnd * 0.885
+  );
 
   const totalCount = summary?.totalTransactions ?? transactions.length;
   const effectiveSettled =
