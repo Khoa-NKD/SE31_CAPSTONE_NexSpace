@@ -61,6 +61,8 @@ public class AdminAnalyticsServiceImpl implements IAdminAnalyticsService {
     private static final Locale VI_LOCALE = Locale.forLanguageTag("vi-VN");
     private static final DateTimeFormatter DAY_OF_WEEK_FORMAT = DateTimeFormatter.ofPattern("EEE", VI_LOCALE);
     private static final DateTimeFormatter MONTH_FORMAT = DateTimeFormatter.ofPattern("MM/yyyy", VI_LOCALE);
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter FULL_DATE_FORMAT_VI = DateTimeFormatter.ofPattern("EEEE, dd/MM/yyyy", VI_LOCALE);
 
     private final IUserRepository userRepository;
     private final IOrganizerProfileRepository organizerProfileRepository;
@@ -256,11 +258,16 @@ public class AdminAnalyticsServiceImpl implements IAdminAnalyticsService {
             int count = entry.getValue();
             long settlement = settlementsByDay.getOrDefault(date, 0L);
             String dayName = rangeKey.equals("today")
-                    ? date.format(DateTimeFormatter.ofPattern("dd/MM"))
-                    : date.format(DAY_OF_WEEK_FORMAT);
+                    ? date.format(DATE_FORMAT)
+                    : (rangeKey.equals("30d")
+                        ? date.format(DATE_FORMAT)
+                        : date.format(DAY_OF_WEEK_FORMAT) + " " + date.format(DATE_FORMAT));
 
             trendPoints.add(AdminOperationalTrendPointDTO.builder()
                     .day(dayName)
+                    .date(date.toString())
+                    .formattedDate(date.format(DATE_FORMAT))
+                    .fullDateLabel(date.format(FULL_DATE_FORMAT_VI))
                     .bookings(count)
                     .settlements(settlement)
                     .isPeak(count > 0 && count == maxBookings && date.equals(peakDate))
@@ -270,9 +277,9 @@ public class AdminAnalyticsServiceImpl implements IAdminAnalyticsService {
         AdminVolumeSummaryDTO volumeSummary = AdminVolumeSummaryDTO.builder()
                 .totalVolume(formatCurrencyVnd(revenueRange))
                 .slaSuccessRate("99.4%")
-                .peakDay(peakDate.format(DAY_OF_WEEK_FORMAT))
+                .peakDay(peakDate.format(DateTimeFormatter.ofPattern("EEEE (dd/MM)", VI_LOCALE)))
                 .peakCount(maxBookings)
-                .peakHub("Enouvo Space 1 - Dragon Bridge Hub")
+                .peakHub("Campus Nest FPT City")
                 .build();
 
         // 4. Live System Alerts from Audit Logs
