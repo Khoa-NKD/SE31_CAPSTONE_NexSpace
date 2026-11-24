@@ -56,10 +56,9 @@ export function WorkspaceBookingCard({
   const { data: holdData } = useCurrentPendingBooking();
 
   const isSelectedHeldByMe = Boolean(
-    selectedResource && (
-      availabilityMap?.get(selectedResource.id)?.isOccupiedByMe ||
-      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
-    )
+    selectedResource &&
+    (availabilityMap?.get(selectedResource.id)?.isOccupiedByMe ||
+      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id)))
   );
 
   const isSelectedResourceAvailable = useMemo(() => {
@@ -71,8 +70,14 @@ export function WorkspaceBookingCard({
     );
     const isBooked = avail?.state === 'BOOKED';
     const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
-    const isMaintenance = avail?.state === 'MAINTENANCE' || (!selectedResource.selectable && !isHeldByMe);
-    return (!avail || avail.state === 'AVAILABLE' || isHeldByMe) && !isBooked && !isLocked && !isMaintenance;
+    const isMaintenance =
+      avail?.state === 'MAINTENANCE' || (!selectedResource.selectable && !isHeldByMe);
+    return (
+      (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
+      !isBooked &&
+      !isLocked &&
+      !isMaintenance
+    );
   }, [selectedResource, availabilityMap, holdData]);
 
   // Compute lowest starting hourly price from floor resources if workspace.pricePerHour is not present
@@ -91,10 +96,7 @@ export function WorkspaceBookingCard({
   }, [floors]);
 
   const effectiveHourlyRate =
-    selectedResource?.pricePerHour ||
-    workspace?.pricePerHour ||
-    floorStartingHourlyPrice ||
-    0;
+    selectedResource?.pricePerHour || workspace?.pricePerHour || floorStartingHourlyPrice || 0;
 
   const isStartingRate = !selectedResource && effectiveHourlyRate > 0;
   const durationHours = useMemo(() => {
@@ -116,7 +118,8 @@ export function WorkspaceBookingCard({
     String(workspace?.bookingConfirmationMode || '').toUpperCase() === 'INSTANT';
 
   const bookingSearchParams = {
-    workspaceId: workspace?.id ? Number(workspace.id) : 1,
+    workspaceId: workspace?.id ? Number(workspace.id) : undefined,
+    priceType: schedule?.priceType ?? 'HOURLY',
     date: schedule?.date,
     startTime: schedule?.isoStartTime || schedule?.startTime,
     endTime: schedule?.isoEndTime || schedule?.endTime,
@@ -176,9 +179,7 @@ export function WorkspaceBookingCard({
               ) : null}
             </div>
 
-            <span
-              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
-            >
+            <span className='inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'>
               <Zap className='size-3 fill-current' />
               {language === 'vi' ? 'Xác nhận ngay' : 'Instant Book'}
             </span>
@@ -219,7 +220,9 @@ export function WorkspaceBookingCard({
                     {selectedResource.typeName && <span>{selectedResource.typeName}</span>}
                     {selectedResource.capacity ? (
                       <span className='inline-flex items-center gap-0.5'>
-                        • <Users className='size-3' /> {availabilityMap?.get(selectedResource.id)?.capacity ?? selectedResource.capacity}
+                        • <Users className='size-3' />{' '}
+                        {availabilityMap?.get(selectedResource.id)?.capacity ??
+                          selectedResource.capacity}
                       </span>
                     ) : null}
                   </div>
@@ -374,9 +377,7 @@ export function WorkspaceBookingCard({
                 <span className='text-xs font-bold text-slate-900 dark:text-white'>
                   {language === 'vi' ? 'Tổng tạm tính' : 'Estimated Total'}
                 </span>
-                <span className='text-lg font-extrabold text-primary'>
-                  {formatPrice(subtotal)}
-                </span>
+                <span className='text-lg font-extrabold text-primary'>{formatPrice(subtotal)}</span>
               </div>
             </div>
           )}

@@ -1,28 +1,12 @@
+import { WizardStepIntro } from './wizard-step-intro';
+import { getAmenityIcon } from '@/features/amenities/components/amenity-icons';
+import { useLocation } from '@tanstack/react-router';
 import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useRouter } from '@tanstack/react-router';
 import {
   Wifi,
-  PhoneCall,
-  Cast,
-  Monitor,
-  Armchair,
-  MoveVertical,
-  Lock,
-  ShowerHead,
-  Heart,
-  Bike,
-  Presentation,
-  Printer,
-  Coffee,
-  Droplets,
-  Beer,
-  Utensils,
-  Key,
-  UserCheck,
-  ShieldCheck,
-  Mail,
   Search,
   X,
   Check,
@@ -66,52 +50,9 @@ const getCategoryMetadata = (c: (en: string, vi: string) => string) =>
     }
   }) as const;
 
-function renderAmenityIcon(iconName: string) {
-  const props = { className: 'size-5' };
-  switch (iconName) {
-    case 'Wifi':
-      return <Wifi {...props} />;
-    case 'PhoneCall':
-      return <PhoneCall {...props} />;
-    case 'Cast':
-      return <Cast {...props} />;
-    case 'Monitor':
-      return <Monitor {...props} />;
-    case 'Armchair':
-      return <Armchair {...props} />;
-    case 'MoveVertical':
-      return <MoveVertical {...props} />;
-    case 'Lock':
-      return <Lock {...props} />;
-    case 'ShowerHead':
-      return <ShowerHead {...props} />;
-    case 'Heart':
-      return <Heart {...props} />;
-    case 'Bike':
-      return <Bike {...props} />;
-    case 'Presentation':
-      return <Presentation {...props} />;
-    case 'Printer':
-      return <Printer {...props} />;
-    case 'Coffee':
-      return <Coffee {...props} />;
-    case 'Droplets':
-      return <Droplets {...props} />;
-    case 'Beer':
-      return <Beer {...props} />;
-    case 'Utensils':
-      return <Utensils {...props} />;
-    case 'Key':
-      return <Key {...props} />;
-    case 'UserCheck':
-      return <UserCheck {...props} />;
-    case 'ShieldCheck':
-      return <ShieldCheck {...props} />;
-    case 'Mail':
-      return <Mail {...props} />;
-    default:
-      return <Sparkles {...props} />;
-  }
+function renderAmenityIcon(name: string) {
+  const Icon = getAmenityIcon(name);
+  return <Icon className='size-5' />;
 }
 
 export function StepAmenitiesView() {
@@ -130,14 +71,22 @@ export function StepAmenitiesView() {
     clearAmenities,
     saveDraft
   } = useWizardStore();
-  const { saveDraftToServer, isSaving } = useWizardDraftSync();
+  const editing = (useLocation().search as Record<string, unknown>).mode === 'edit';
+  const { saveDraftToServer, isSaving: isSavingDraft } = useWizardDraftSync();
+  const [syncing, setSyncing] = useState(false);
+  const isSaving = isSavingDraft || syncing;
 
   const [searchQuery, setSearchQuery] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isCustomAmenityOpen, setIsCustomAmenityOpen] = useState(false);
 
   // Load platform standard + organizer custom active catalog from Backend (GET /api/organizer/amenities/available)
-  const { data: serverAmenities, isLoading } = useQuery(amenityQueries.organizerAvailable());
+  const {
+    data: serverAmenities,
+    isLoading,
+    isError,
+    refetch
+  } = useQuery(amenityQueries.organizerAvailable());
 
   // Convert raw server amenities to typed items for onboarding catalog
   const activeCatalog: AmenityItem[] = useMemo(() => {
@@ -182,22 +131,21 @@ export function StepAmenitiesView() {
     enabled: !!numericWorkspaceId && numericWorkspaceId > 0
   });
 
-  const hasHydratedRef = useRef(false);
+  const hasHydratedRef = useRef<string | null>(null);
   useEffect(() => {
     if (
-      !hasHydratedRef.current &&
+      hasHydratedRef.current !== String(numericWorkspaceId) &&
       numericWorkspaceId &&
       existingWorkspaceAmenities &&
-      existingWorkspaceAmenities.length > 0
+      !useWizardStore.getState().editAmenitiesDirty
     ) {
-      hasHydratedRef.current = true;
+      hasHydratedRef.current = String(numericWorkspaceId);
       const ids = existingWorkspaceAmenities.map((wa) => String(wa.amenityId));
       setAmenities(ids);
       existingWorkspaceAmenities.forEach((wa) => {
-        if (wa.addonPricePerHour > 0) {
-          setAmenityAddonRate(String(wa.amenityId), wa.addonPricePerHour);
-        }
+        setAmenityAddonRate(String(wa.amenityId), wa.addonPricePerHour ?? 0);
       });
+      useWizardStore.setState({ editAmenitiesDirty: false });
     }
   }, [numericWorkspaceId, existingWorkspaceAmenities, setAmenities, setAmenityAddonRate]);
 
@@ -245,9 +193,13 @@ export function StepAmenitiesView() {
   };
 
   const syncAmenitiesToBackend = async (targetWorkspaceId?: string | number) => {
-    const rawId = targetWorkspaceId || canonicalWorkspaceId || '1';
+    if (editing) {
+      useWizardStore.setState({ editAmenitiesDirty: true });
+      return true;
+    }
+    const rawId = targetWorkspaceId || canonicalWorkspaceId;
     const wsId = Number(rawId);
-    if (isNaN(wsId) || wsId <= 0) return;
+    if (isNaN(wsId) || wsId <= 0) return false;
 
     const validAmenities = amenities
       .map((id) => {
@@ -261,10 +213,12 @@ export function StepAmenitiesView() {
       .filter((item): item is { amenityId: number; addonPricePerHour: number } => item !== null);
 
     try {
+      setSyncing(true);
       await amenityService.syncWorkspaceAmenities(wsId, { amenities: validAmenities });
       queryClient.invalidateQueries({
         queryKey: [...amenityQueries.all, 'workspace', String(wsId)]
       });
+      useWizardStore.getState().markDraftSynced(true);
       toast.success(c('Workspace Amenities Synced', 'Đã đồng bộ tiện ích'), {
         description: c(
           `Successfully synchronized ${validAmenities.length} amenities to workspace #${wsId}.`,
@@ -272,16 +226,25 @@ export function StepAmenitiesView() {
         )
       });
     } catch (err: unknown) {
-      console.warn('Could not sync workspace amenities to backend:', err);
+      toast.error(err instanceof Error ? err.message : 'Không lưu được tiện ích.');
+      return false;
+    } finally {
+      setSyncing(false);
     }
+    return true;
   };
 
   const handleSaveDraft = async () => {
+    if (editing) {
+      useWizardStore.setState({ editAmenitiesDirty: true });
+      await saveDraftToServer({ commitEdit: true });
+      return;
+    }
     saveDraft();
     const updated = await saveDraftToServer();
     const targetId = updated?.id || canonicalWorkspaceId;
     if (targetId) {
-      await syncAmenitiesToBackend(targetId);
+      if (!(await syncAmenitiesToBackend(targetId))) return;
     }
   };
 
@@ -326,7 +289,7 @@ export function StepAmenitiesView() {
   };
 
   return (
-    <div className='w-full max-w-6xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
+    <div className='wizard-shell wizard-amenities'>
       <div>
         {/* Wizard Header Bar */}
         <WizardHeader currentStep={5} />
@@ -334,25 +297,32 @@ export function StepAmenitiesView() {
         {/* Wizard Stepper */}
         <WizardStepper currentStep={5} />
 
-        {/* Page Title & Subtitle Banner */}
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
-          <div>
-            <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground'>
-              {c('Workspace Amenities & Facilities', 'Tiện ích và cơ sở vật chất')}
-            </h1>
-            <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              {c(
-                'Select all features available in your workspace. Configure optional hourly add-on rates if applicable.',
-                'Chọn các tiện ích sẵn có và phụ thu theo giờ nếu có.'
-              )}
-            </p>
+        <WizardStepIntro
+          icon={Wifi}
+          title={c('Amenities and services', 'Tiện ích và dịch vụ')}
+          description={c(
+            'Choose what is included and which extras guests can add.',
+            'Chọn tiện ích đi kèm và những dịch vụ khách có thể đặt thêm.'
+          )}
+        />
+        <div className='mb-5 grid gap-3 sm:grid-cols-2'>
+          <div className='wizard-hint'>
+            <p className='mb-1 font-medium text-foreground'>Tiện ích miễn phí</p>Hiển thị trên trang
+            không gian và đã bao gồm trong tiền thuê.
           </div>
-          <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
-            <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
-            <span>{c('Draft automatically synced', 'Bản nháp được đồng bộ tự động')}</span>
+          <div className='wizard-hint'>
+            <p className='mb-1 font-medium text-foreground'>Tiện ích tính phí</p>Đặt đơn giá theo
+            giờ. Khách tự chọn trước khi thanh toán.
           </div>
         </div>
-
+        {isError && (
+          <div role='alert' className='mb-4 rounded-lg border border-destructive p-4 text-sm'>
+            Không tải được danh mục tiện ích.{' '}
+            <Button variant='link' onClick={() => void refetch()}>
+              Thử lại
+            </Button>
+          </div>
+        )}
         {/* Validation Error Banner */}
         {validationError && (
           <div className='mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-3 text-xs sm:text-sm'>
@@ -395,7 +365,7 @@ export function StepAmenitiesView() {
           <div className='flex items-center justify-between sm:justify-end gap-2.5 flex-wrap'>
             <Badge
               variant='secondary'
-              className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-xs font-semibold px-2.5 py-1'
+              className='bg-primary/5 bg-primary/5 text-primary text-primary border border-primary/25 border-primary/25 text-xs font-semibold px-2.5 py-1'
             >
               {amenities.length} {c('of', 'trên')} {activeCatalog.length} {c('selected', 'đã chọn')}
             </Badge>
@@ -405,7 +375,7 @@ export function StepAmenitiesView() {
               variant='outline'
               size='sm'
               onClick={() => setIsCustomAmenityOpen(true)}
-              className='text-xs h-9 gap-1.5 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-400 hover:bg-indigo-50/60 dark:hover:bg-indigo-950/40'
+              className='text-xs h-9 gap-1.5 border-primary/25 border-primary/25 text-primary text-primary hover:bg-primary/5 dark:hover:bg-primary/5'
             >
               <Plus className='size-3.5' />
 
@@ -505,7 +475,7 @@ export function StepAmenitiesView() {
                   </div>
 
                   {/* 4-column Responsive Grid */}
-                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3.5'>
+                  <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-3.5'>
                     {items.map((item) => {
                       const isSelected = amenities.includes(item.id);
                       const addonRate = amenityAddonRates?.[item.id] || 0;
@@ -529,7 +499,7 @@ export function StepAmenitiesView() {
                           }}
                           className={`relative group rounded-xl p-4 cursor-pointer transition-all border text-left flex flex-col justify-between select-none ${
                             isSelected
-                              ? 'bg-indigo-50/70 dark:bg-indigo-950/30 border-indigo-600 dark:border-indigo-500 shadow-2xs ring-1 ring-indigo-600/30'
+                              ? 'bg-primary/5 bg-primary/5 border-primary/25 dark:border-primary shadow-2xs ring-1 ring-primary/20'
                               : 'bg-card border-border hover:border-slate-400 dark:hover:border-slate-600 hover:bg-muted/40 shadow-2xs'
                           }`}
                         >
@@ -539,7 +509,7 @@ export function StepAmenitiesView() {
                               <div
                                 className={`size-10 rounded-lg flex items-center justify-center transition-colors ${
                                   isSelected
-                                    ? 'bg-indigo-600 text-white shadow-xs'
+                                    ? 'bg-primary text-white shadow-xs'
                                     : 'bg-muted text-muted-foreground group-hover:text-foreground group-hover:bg-muted/80'
                                 }`}
                               >
@@ -549,7 +519,7 @@ export function StepAmenitiesView() {
                               <div
                                 className={`size-5 rounded flex items-center justify-center border transition-all ${
                                   isSelected
-                                    ? 'bg-indigo-600 border-indigo-600 text-white'
+                                    ? 'bg-primary border-primary/25 text-white'
                                     : 'border-muted-foreground/40 bg-background group-hover:border-foreground/70'
                                 }`}
                               >
@@ -562,7 +532,7 @@ export function StepAmenitiesView() {
                               <h3
                                 className={`text-xs sm:text-sm font-bold tracking-tight leading-snug ${
                                   isSelected
-                                    ? 'text-indigo-950 dark:text-indigo-100 font-bold'
+                                    ? 'text-primary text-primary font-bold'
                                     : 'text-foreground'
                                 }`}
                               >
@@ -596,7 +566,7 @@ export function StepAmenitiesView() {
                                     className={`font-semibold ${
                                       addonRate > 0
                                         ? 'text-emerald-600 dark:text-emerald-400'
-                                        : 'text-indigo-600 dark:text-indigo-400'
+                                        : 'text-primary'
                                     }`}
                                   >
                                     {addonRate > 0
@@ -611,7 +581,7 @@ export function StepAmenitiesView() {
                                     variant={addonRate === 0 ? 'default' : 'outline'}
                                     className={`h-7 text-[10px] px-2 py-0 ${
                                       addonRate === 0
-                                        ? 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                        ? 'bg-primary text-white hover:bg-primary/90'
                                         : 'border-border text-muted-foreground'
                                     }`}
                                     onClick={(e) => {
@@ -644,7 +614,7 @@ export function StepAmenitiesView() {
                                 <span>
                                   {item.isCommon ? 'Popular Essential' : 'Tiện ích không gian'}
                                 </span>
-                                <span className='text-indigo-600 dark:text-indigo-400 font-medium'>
+                                <span className='text-primary font-medium'>
                                   {c('Select to enable', 'Chọn để bật')}
                                 </span>
                               </div>
@@ -661,8 +631,8 @@ export function StepAmenitiesView() {
         )}
       </div>
 
-      {/* Sticky Action Footer Bar */}
-      <footer className='mt-8 bg-card/95 backdrop-blur border border-border px-6 py-4 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3'>
+      {/* Page actions */}
+      <footer className='wizard-actions'>
         {/* Left: Back to Operating Hours */}
         <Button
           type='button'
@@ -678,30 +648,32 @@ export function StepAmenitiesView() {
         <div className='flex items-center gap-3'>
           <Button
             type='button'
-            variant='outline'
-            disabled={isSaving}
+            variant={editing ? 'default' : 'outline'}
+            disabled={isSaving || isError}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
             {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>
-              {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
+              {isSaving
+                ? c('Saving...', 'Đang lưu...')
+                : editing
+                  ? c('Review changes', 'Xem lại thay đổi')
+                  : c('Save Draft', 'Lưu bản nháp')}
             </span>
           </Button>
 
-          <Button
-            type='button'
-            disabled={isSaving}
-            onClick={handleContinue}
-            className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
-          >
-            <span>{c('Continue to Media Gallery', 'Tiếp tục đến thư viện ảnh')}</span>
-            {isSaving ? (
-              <Loader2 className='size-4' />
-            ) : (
-              <ArrowRight className='size-4' />
-            )}
-          </Button>
+          {!editing && (
+            <Button
+              type='button'
+              disabled={isSaving}
+              onClick={handleContinue}
+              className='h-11 px-6 bg-primary hover:bg-primary/90 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
+            >
+              <span>{c('Continue to Media Gallery', 'Tiếp tục đến thư viện ảnh')}</span>
+              {isSaving ? <Loader2 className='size-4' /> : <ArrowRight className='size-4' />}
+            </Button>
+          )}
         </div>
       </footer>
 

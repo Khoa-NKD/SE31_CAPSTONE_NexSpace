@@ -3,27 +3,13 @@ import { z } from 'zod';
 export const basicInfoSchema = z.object({
   name: z
     .string()
-    .min(3, 'Workspace public name is required (minimum 3 characters)')
-    .max(100, 'Workspace name cannot exceed 100 characters'),
-  category: z.enum(['coworking_hub', 'business_lounge', 'creative_studio'], {
-    error: 'Please select a space category'
-  }),
-  description: z
-    .string()
-    .max(200, 'Description cannot exceed 200 characters')
-    .default(''),
-  contactPhone: z
-    .string()
-    .min(8, 'Please enter a valid booking hotline number'),
-  contactEmail: z
-    .string()
-    .email('Please enter a valid venue support email address')
+    .min(3, 'Tên không gian cần ít nhất 3 ký tự')
+    .max(100, 'Tên không gian tối đa 100 ký tự'),
+  description: z.string().max(200, 'Giới thiệu ngắn tối đa 200 ký tự').default('')
 });
 
 export const locationSchema = z.object({
-  streetAddress: z
-    .string()
-    .min(5, 'Street address is required (building name and street number)'),
+  streetAddress: z.string().min(5, 'Street address is required (building name and street number)'),
   district: z.string().min(2, 'Ward / District is required'),
   city: z.string().min(2, 'City is required'),
   floorSuite: z.string().default(''),
@@ -50,20 +36,12 @@ export function parseTimeToMinutes(timeStr: string): number {
 }
 
 export function isOperatingTimeRangeValid(openTime: string, closeTime: string): boolean {
-  return parseTimeToMinutes(closeTime) > parseTimeToMinutes(openTime);
+  return parseTimeToMinutes(closeTime) !== parseTimeToMinutes(openTime);
 }
 
 export const dayScheduleSchema = z
   .object({
-    day: z.enum([
-      'monday',
-      'tuesday',
-      'wednesday',
-      'thursday',
-      'friday',
-      'saturday',
-      'sunday'
-    ]),
+    day: z.enum(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']),
     label: z.string(),
     isOpen: z.boolean(),
     openTime: z.string(),
@@ -72,7 +50,7 @@ export const dayScheduleSchema = z
   .refine(
     (data) => {
       if (!data.isOpen) return true;
-      return parseTimeToMinutes(data.closeTime) > parseTimeToMinutes(data.openTime);
+      return parseTimeToMinutes(data.closeTime) !== parseTimeToMinutes(data.openTime);
     },
     {
       message: 'Giờ đóng cửa phải sau giờ mở cửa (Closing time must be after opening time)',
@@ -93,7 +71,8 @@ export const operatingHoursSchema = z
       return data.schedule.some((item) => item.isOpen);
     },
     {
-      message: 'Vui lòng cấu hình ít nhất 1 ngày mở cửa hoặc bật chế độ Mở cửa 24/7 (At least one day must be configured as Open, or enable 24/7 Access)',
+      message:
+        'Vui lòng cấu hình ít nhất 1 ngày mở cửa hoặc bật chế độ Mở cửa 24/7 (At least one day must be configured as Open, or enable 24/7 Access)',
       path: ['schedule']
     }
   )
@@ -101,11 +80,13 @@ export const operatingHoursSchema = z
     (data) => {
       if (data.is247) return true;
       return data.schedule.every(
-        (item) => !item.isOpen || parseTimeToMinutes(item.closeTime) > parseTimeToMinutes(item.openTime)
+        (item) =>
+          !item.isOpen || parseTimeToMinutes(item.closeTime) !== parseTimeToMinutes(item.openTime)
       );
     },
     {
-      message: 'Giờ đóng cửa phải sau giờ mở cửa cho tất cả các ngày mở cửa (Closing time must be after opening time for all open days)',
+      message:
+        'Giờ đóng cửa phải sau giờ mở cửa cho tất cả các ngày mở cửa (Closing time must be after opening time for all open days)',
       path: ['schedule']
     }
   );
@@ -172,7 +153,9 @@ export const zoneItemSchema = z.object({
 export const floorPlanSchema = z.object({
   selectedFloorId: z.string().min(1, 'Please select an active floor'),
   floors: z.array(floorItemSchema).min(1, 'At least 1 floor must be configured'),
-  zones: z.array(zoneItemSchema).min(1, 'At least 1 functional zone must be configured on the floor'),
+  zones: z
+    .array(zoneItemSchema)
+    .min(1, 'At least 1 functional zone must be configured on the floor'),
   gridSnap: z.boolean().default(true),
   showDimensions: z.boolean().default(false),
   zoomLevel: z.number().min(25).max(300).default(100)

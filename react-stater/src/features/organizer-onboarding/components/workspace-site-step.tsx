@@ -1,3 +1,7 @@
+import { WizardStepIntro } from './wizard-step-intro';
+import { useWizardDraftSync } from '../hooks/use-wizard-draft-sync';
+import { useWizardStore } from '../store/wizard-store';
+import { useLocation } from '@tanstack/react-router';
 import { Spinner as LoaderCircle } from '@/components/ui/spinner';
 import { lazy, Suspense, useState, type FormEvent } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -124,15 +128,32 @@ function SiteForm({
   const c = useOrganizerCopy();
   const client = useQueryClient();
   const navigate = useNavigate();
-  const [floors, setFloors] = useState(() => readFloors(site));
+  const editing = (useLocation().search as Record<string, unknown>).mode === 'edit';
+  const { saveDraftToServer, isSaving } = useWizardDraftSync();
+  const stagedSite = useWizardStore((state) => state.stagedSite);
+  const [floors, setFloors] = useState<FloorShapeDraft[]>(
+    () =>
+      stagedSite?.floors.map((f, i) => ({
+        ...newFloor(i + 1),
+        ...f,
+        widthM: String(f.widthM),
+        lengthM: String(f.lengthM),
+        cornerRadiusM: String(f.cornerRadiusM ?? 0)
+      })) ?? readFloors(site)
+  );
   const [selectedFloor, setSelectedFloor] = useState(0);
   const [count, setCount] = useState(() => String(floors.length));
-  const [address, setAddress] = useState(site?.address ?? '');
-  const [admin, setAdmin] = useState({ city: site?.city ?? '', ward: site?.ward ?? '' });
+  const [address, setAddress] = useState(stagedSite?.address ?? site?.address ?? '');
+  const [admin, setAdmin] = useState({
+    city: stagedSite?.city ?? site?.city ?? '',
+    ward: stagedSite?.ward ?? site?.ward ?? ''
+  });
   const [coordinates, setCoordinates] = useState<MapPoint | null>(() =>
-    site?.latitude != null && site.longitude != null
-      ? { latitude: site.latitude, longitude: site.longitude }
-      : null
+    stagedSite
+      ? { latitude: stagedSite.latitude, longitude: stagedSite.longitude }
+      : site?.latitude != null && site.longitude != null
+        ? { latitude: site.latitude, longitude: site.longitude }
+        : null
   );
   const [mapPoint, setMapPoint] = useState<MapPoint | null>(null);
   const [locating, setLocating] = useState(false);
@@ -143,7 +164,12 @@ function SiteForm({
     setMapPoint(null);
     void navigate({
       to: '/dashboard/organizer/workspaces/create/location',
-      search: { id: String(workspaceId), studio: studio || undefined, stage: next }
+      search: {
+        id: String(workspaceId),
+        studio: studio || undefined,
+        stage: next,
+        mode: editing ? 'edit' : undefined
+      }
     });
   };
   const legacy = !!site && !site.workspaceId;
@@ -155,14 +181,14 @@ function SiteForm({
       ? navigate({ to: '/dashboard/organizer/floorplan', search: { workspaceId } })
       : navigate({
           to: '/dashboard/organizer/workspaces/create/hours',
-          search: { id: String(workspaceId) }
+          search: { id: String(workspaceId), mode: editing ? 'edit' : undefined }
         });
   const back = () =>
     studio
       ? navigate({ to: '/dashboard/organizer/floorplan', search: { workspaceId } })
       : navigate({
           to: '/dashboard/organizer/workspaces/create',
-          search: { id: String(workspaceId) }
+          search: { id: String(workspaceId), mode: editing ? 'edit' : undefined }
         });
 
   function changeCount(value: string) {
@@ -212,7 +238,7 @@ function SiteForm({
       );
       return;
     }
-    if (!showFloors && !legacy) {
+    if (!showFloors && !legacy && !editing) {
       setError('');
       switchStage('floors');
       return;
@@ -244,6 +270,27 @@ function SiteForm({
     setError('');
     setBusy(true);
     try {
+      if (editing) {
+        useWizardStore.setState({ stagedSite: payload, isDraftSynced: false });
+        const saved = await saveDraftToServer({ commitEdit: true });
+        if (!saved) {
+          setError(
+            useWizardStore.getState().syncError ||
+              c(
+                'Could not save. Please review the information.',
+                'Chưa lưu được. Vui lòng kiểm tra lại thông tin.'
+              )
+          );
+          return;
+        }
+        await Promise.all([
+          client.invalidateQueries({
+            queryKey: workspaceSiteOptions(actorId, workspaceId).queryKey
+          }),
+          invalidateResources(client, actorId)
+        ]);
+        return;
+      }
       const saved = await saveWorkspaceSite(workspaceId, payload);
       client.setQueryData(workspaceSiteOptions(actorId, workspaceId).queryKey, saved);
       await Promise.all([
@@ -266,7 +313,7 @@ function SiteForm({
   const active = floors[activeIndex];
   const totalArea = floors.reduce((sum, floor) => sum + area(floor), 0);
   return (
-    <div className='mx-auto max-w-6xl space-y-5 pb-8 pt-4'>
+    <div className='wizard-shell space-y-5'>
       {!studio && (
         <>
           <WizardHeader currentStep={showFloors ? 3 : 2} />
@@ -299,47 +346,34 @@ function SiteForm({
         </div>
       )}
       <form onSubmit={submit} className='space-y-5'>
-        <header className='flex flex-wrap items-center justify-between gap-4 rounded-2xl border bg-gradient-to-r from-primary/[.07] via-card to-card px-6 py-5'>
-          <div className='flex items-center gap-3'>
-            <span className='flex size-11 items-center justify-center rounded-xl border border-primary/15 bg-primary/10 text-primary'>
-              {showFloors ? <Layers3 className='size-5' /> : <MapPin className='size-5' />}
-            </span>
-            <div>
-              <h1 className='text-xl font-semibold tracking-tight'>
-                {showFloors
-                  ? c('Configure your floors', 'Thiết lập mặt bằng từng tầng')
-                  : c('Workspace location', 'Địa điểm workspace')}
-              </h1>
-              <p className='mt-1 max-w-xl text-sm text-muted-foreground'>
-                {showFloors
-                  ? c(
-                      'Enter real dimensions or drag the floor plan to adjust its shape.',
-                      'Nhập số đo thực tế hoặc kéo trực tiếp trên mặt bằng để chỉnh hình dạng.'
-                    )
-                  : c(
-                      'Choose the address and pin the entrance on the map.',
-                      'Chọn địa chỉ và đánh dấu vị trí lối vào trên bản đồ.'
-                    )}
-              </p>
-            </div>
-          </div>
+        <WizardStepIntro
+          icon={showFloors ? Layers3 : MapPin}
+          title={
+            showFloors
+              ? c('Floor configuration', 'Cấu hình tầng')
+              : c('Workspace location', 'Địa điểm không gian')
+          }
+          description={
+            showFloors
+              ? c(
+                  'Define the real shape and dimensions of each floor.',
+                  'Thiết lập số tầng, hình dạng và kích thước thực tế của mặt bằng.'
+                )
+              : c(
+                  'Choose an address and pin the entrance on the map.',
+                  'Chọn địa chỉ và đánh dấu lối vào chính xác trên bản đồ.'
+                )
+          }
+        >
           {showFloors && (
-            <div className='flex items-center gap-5 text-right'>
-              <div>
-                <p className='text-xs text-muted-foreground'>{c('Floors', 'Số tầng')}</p>
-                <p className='mt-1 text-lg font-semibold'>{floors.length}</p>
-              </div>
-              <div className='border-l pl-5'>
-                <p className='text-xs text-muted-foreground'>
-                  {c('Total floor area', 'Tổng diện tích tầng')}
-                </p>
-                <p className='mt-1 text-lg font-semibold text-primary'>
-                  {format(totalArea)} <span className='text-sm'>m²</span>
-                </p>
-              </div>
-            </div>
+            <span className='rounded-lg border bg-card px-3 py-2 text-xs text-muted-foreground'>
+              <strong className='text-foreground'>{floors.length}</strong> tầng{' '}
+              <span className='mx-2'>·</span>
+              <strong className='text-primary'>{format(totalArea)} m²</strong>
+            </span>
           )}
-        </header>
+        </WizardStepIntro>
+
         {legacy ? (
           <div className='rounded-xl border bg-card p-6 text-sm'>
             <p className='font-medium'>{site.address}</p>
@@ -369,7 +403,7 @@ function SiteForm({
                 </label>
               </div>
               <nav
-                className='max-h-[540px] space-y-1 overflow-y-auto p-2'
+                className='max-h-[420px] space-y-1 overflow-y-auto p-2'
                 aria-label={c('Choose a floor', 'Chọn tầng')}
               >
                 {floors.map((floor, index) => (
@@ -449,7 +483,7 @@ function SiteForm({
                 </div>
               )}
             </section>
-            <div className='relative min-h-[440px] border-t bg-muted/30 lg:border-l lg:border-t-0'>
+            <div className='relative min-h-[360px] border-t bg-muted/30 lg:border-l lg:border-t-0'>
               <Suspense
                 fallback={<p className='p-6 text-sm'>{c('Loading map…', 'Đang tải bản đồ…')}</p>}
               >
@@ -476,7 +510,7 @@ function SiteForm({
             {error}
           </p>
         )}
-        <footer className='flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-card px-5 py-4'>
+        <footer className='wizard-actions'>
           <Button
             type='button'
             variant='outline'
@@ -491,13 +525,15 @@ function SiteForm({
               {c('Continue', 'Tiếp tục')}
             </Button>
           ) : (
-            <Button type='submit' disabled={busy || locating} className='min-w-44'>
+            <Button type='submit' disabled={busy || locating || isSaving} className='min-w-44'>
               {busy && <LoaderCircle className='size-4' />}
-              {showFloors
-                ? studio
-                  ? c('Save and open studio', 'Lưu và mở sơ đồ')
-                  : c('Save and continue', 'Lưu và tiếp tục')
-                : c('Configure floors', 'Thiết lập tầng')}
+              {editing
+                ? c('Review changes', 'Xem lại thay đổi')
+                : showFloors
+                  ? studio
+                    ? c('Save and open studio', 'Lưu và mở sơ đồ')
+                    : c('Save and continue', 'Lưu và tiếp tục')
+                  : c('Configure floors', 'Thiết lập tầng')}
               <ArrowRight className='size-4' />
             </Button>
           )}

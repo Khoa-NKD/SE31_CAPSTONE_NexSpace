@@ -58,14 +58,16 @@ export function WorkspacesPage() {
         durationHours,
         isoDate: date,
         isoStartTime: isoStartTime || undefined,
-        isoEndTime: isoEndTime || undefined
+        isoEndTime: isoEndTime || undefined,
+        priceType: params.get('priceType') === 'DAILY' ? 'DAILY' : 'HOURLY'
       };
     }
     return null;
   });
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
   const [workspaces, setWorkspaces] = useState<PublicWorkspaceSummary[]>([]);
-  const [advancedFilters, setAdvancedFilters] = useState<AdvancedFilterValues>(INITIAL_ADVANCED_FILTERS);
+  const [advancedFilters, setAdvancedFilters] =
+    useState<AdvancedFilterValues>(INITIAL_ADVANCED_FILTERS);
 
   // Desktop View Mode ('split' = 54/46 split, 'grid' = full-width list)
   const [viewMode, setViewMode] = useState<'split' | 'grid'>('split');
@@ -107,6 +109,7 @@ export function WorkspacesPage() {
     } else {
       url.searchParams.delete('isoStartTime');
     }
+    if (schedule?.priceType) url.searchParams.set('priceType', schedule.priceType);
     if (schedule?.isoEndTime) {
       url.searchParams.set('isoEndTime', schedule.isoEndTime);
     } else {
@@ -117,10 +120,7 @@ export function WorkspacesPage() {
 
   const handleWorkspacesLoaded = useCallback((loaded: PublicWorkspaceSummary[]) => {
     setWorkspaces((prev) => {
-      if (
-        prev.length === loaded.length &&
-        prev.every((w, i) => w.id === loaded[i]?.id)
-      ) {
+      if (prev.length === loaded.length && prev.every((w, i) => w.id === loaded[i]?.id)) {
         return prev;
       }
       return loaded;
@@ -172,7 +172,7 @@ export function WorkspacesPage() {
   }, [getCurrentLocation]);
 
   return (
-    <div className="flex h-screen w-full flex-col overflow-hidden bg-background text-foreground antialiased selection:bg-primary/20">
+    <div className='flex h-screen w-full flex-col overflow-hidden bg-background text-foreground antialiased selection:bg-primary/20'>
       {/* Global Header */}
       <WorkspaceHeader />
 
@@ -198,13 +198,11 @@ export function WorkspacesPage() {
       />
 
       {/* Main Split Explorer Canvas */}
-      <main className="relative flex w-full flex-1 overflow-hidden">
+      <main className='relative flex w-full flex-1 overflow-hidden'>
         {/* Left Side: Workspace Results (~54% on desktop) */}
         <div
           className={`h-full overflow-hidden transition-all duration-300 ${
-            viewMode === 'grid'
-              ? 'w-full'
-              : 'w-full lg:w-[54%] lg:border-r lg:border-border/60'
+            viewMode === 'grid' ? 'w-full' : 'w-full lg:w-[54%] lg:border-r lg:border-border/60'
           } ${mobileTab === 'list' ? 'flex flex-col' : 'hidden lg:flex lg:flex-col'}`}
         >
           <WorkspaceList
@@ -256,18 +254,18 @@ export function WorkspacesPage() {
             }`}
           >
             <button
-              type="button"
+              type='button'
               onClick={() => setMobileTab((curr) => (curr === 'list' ? 'map' : 'list'))}
-              className="flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-xl shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer"
+              className='flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-xs font-bold text-primary-foreground shadow-xl shadow-primary/25 hover:scale-105 active:scale-95 transition-all cursor-pointer'
             >
               {mobileTab === 'list' ? (
                 <>
-                  <Map className="h-4 w-4" />
+                  <Map className='h-4 w-4' />
                   <span>Xem bản đồ</span>
                 </>
               ) : (
                 <>
-                  <List className="h-4 w-4" />
+                  <List className='h-4 w-4' />
                   <span>Xem danh sách</span>
                 </>
               )}

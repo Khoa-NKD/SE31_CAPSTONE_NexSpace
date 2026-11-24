@@ -1,6 +1,15 @@
+import { BookingAddonSelector } from './booking-addon-selector';
 import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useState, useEffect, useRef } from 'react';
-import { Info, Wallet, Lock, FileText, CheckCircle2, AlertCircle, AlertTriangle, Ban } from '@/components/ui/hugeicons';
+import {
+  Wallet,
+  Lock,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  AlertTriangle,
+  Ban
+} from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import {
   AlertDialog,
@@ -68,6 +77,7 @@ export function PriceBreakdownCard({
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
+  const [addonBusy, setAddonBusy] = useState(false);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
   const [createdBooking, setCreatedBooking] = useState<BookingDto | null>(activeBooking || null);
@@ -120,6 +130,35 @@ export function PriceBreakdownCard({
     dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
   const vat = priceSource?.taxAmount ?? 0;
   const legacyCustomerFee = priceSource?.serviceFeeAmount ?? 0;
+  const addonAmount = Number(priceSource?.addonAmount ?? 0);
+  const surcharge = priceSource?.surchargeAmount ?? 0;
+  const discount = priceSource?.discountAmount ?? 0;
+  const subtotal = baseRate + surcharge + addonAmount + legacyCustomerFee - discount;
+  type AddonLine = { amenityId: number; name: string; hourlyRate: number; amount: number };
+  let addonLines: AddonLine[] = effectiveBooking ? [] : (priceData?.addons ?? []);
+  let vatPercent: number | undefined = effectiveBooking ? undefined : priceData?.vatPercent;
+  if (effectiveBooking?.pricingSnapshot) {
+    try {
+      const snapshot = JSON.parse(effectiveBooking.pricingSnapshot);
+      addonLines = Array.isArray(snapshot.addons)
+        ? snapshot.addons.filter(
+            (item: AddonLine) =>
+              item &&
+              typeof item.name === 'string' &&
+              Number.isFinite(item.hourlyRate) &&
+              Number.isFinite(item.amount)
+          )
+        : [];
+      vatPercent =
+        typeof snapshot.vatPercent === 'number' && Number.isFinite(snapshot.vatPercent)
+          ? snapshot.vatPercent
+          : undefined;
+    } catch {
+      /* Historical snapshots still display the authoritative aggregate amounts. */
+    }
+  }
+  const formatQuantity = (value: number) =>
+    value.toLocaleString('vi-VN', { maximumFractionDigits: 2 });
   const totalAmount = priceSource?.finalPrice ?? 0;
   const totalAmountVnd =
     sourceCurrency === 'VND'
@@ -129,6 +168,7 @@ export function PriceBreakdownCard({
         : null;
 
   const handleConfirmBooking = async () => {
+    if (addonBusy) return;
     setBookingError(null);
     if (!priceSource || !sourceCurrency) {
       setBookingError('Chưa tải được giá hợp lệ. Vui lòng thử lại trước khi thanh toán.');
@@ -268,6 +308,19 @@ export function PriceBreakdownCard({
           </div>
         </div>
 
+        {effectiveBooking && (
+          <BookingAddonSelector
+            key={effectiveBooking.id}
+            booking={effectiveBooking}
+            locked={!!checkoutData || createPaymentMutation.isPending}
+            onBusy={setAddonBusy}
+            onUpdated={(booking) => {
+              setCreatedBooking(booking);
+              onBookingCreated?.(booking);
+              void queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+            }}
+          />
+        )}
         {/* Error Notification */}
         {bookingError && (
           <div className='rounded-xl border border-destructive/30 bg-destructive/10 p-3.5 text-xs text-destructive flex items-start gap-2.5'>
@@ -290,35 +343,80 @@ export function PriceBreakdownCard({
             Không tải được giá. Vui lòng kiểm tra thời gian hoặc thử lại.
           </p>
         )}
-        {/* Line Items */}
-        <div className='border-border/60 space-y-3 border-b py-2 text-xs sm:text-sm'>
-          <div className='flex items-center justify-between text-foreground'>
-            <span className='text-muted-foreground flex items-center gap-1.5'>
-              Tiền thuê ({billingUnits} {dailyRate ? 'ngày' : 'giờ'} × {formatPrice(unitPrice)})
-              <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
-            </span>
-            <span className='font-medium font-mono'>
-              {isCalculating ? (
-                <Loader2 className='size-3.5 inline' />
+        {/* Frozen booking amounts are itemized without repricing the held order. */}
+        <div className='space-y-4 rounded-xl border border-border/60 bg-muted/15 p-4 text-sm'>
+          <div className='flex items-start justify-between gap-4'>
+            <div className='space-y-1'>
+              <p className='font-medium text-foreground'>Tiền thuê không gian</p>
+              <p className='text-xs text-muted-foreground'>
+                {formatQuantity(billingUnits)} {dailyRate ? 'ngày' : 'giờ'} ×{' '}
+                {formatPrice(unitPrice)}/{dailyRate ? 'ngày' : 'giờ'}
+              </p>
+            </div>
+            <span className='shrink-0 font-semibold tabular-nums'>
+              {!effectiveBooking && isCalculating ? (
+                <Loader2 className='size-3.5' />
               ) : (
                 formatPrice(baseRate)
               )}
             </span>
           </div>
-
-          <div className='flex items-center justify-between text-foreground'>
-            <span className='text-muted-foreground flex items-center gap-1.5'>
-              {legacyCustomerFee > 0 ? 'Phí khách đã chốt trên đơn cũ' : 'Phí dịch vụ khách'}
-              <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
-            </span>
-            <span className='font-medium font-mono'>
-              {legacyCustomerFee > 0 ? formatPrice(legacyCustomerFee) : 'Không thu phí'}
-            </span>
-          </div>
-
-          <div className='flex items-center justify-between text-foreground'>
-            <span className='text-muted-foreground'>VAT theo đơn đặt chỗ</span>
-            <span className='text-muted-foreground font-medium font-mono'>{formatPrice(vat)}</span>
+          {addonAmount > 0 && (
+            <div className='space-y-3 border-t border-border/50 pt-4'>
+              <p className='text-xs font-medium text-muted-foreground'>
+                Tiện ích bổ sung{addonLines.length > 0 ? ' (' + addonLines.length + ')' : ''}
+              </p>
+              {addonLines.length > 0 ? (
+                addonLines.map((item) => (
+                  <div key={item.amenityId} className='flex items-start justify-between gap-4'>
+                    <div className='min-w-0 space-y-1'>
+                      <p className='break-words font-medium'>{item.name}</p>
+                      <p className='text-xs text-muted-foreground'>
+                        {formatQuantity(durationHours)} giờ × {formatPrice(item.hourlyRate)}/giờ
+                      </p>
+                    </div>
+                    <span className='shrink-0 font-semibold tabular-nums'>
+                      {formatPrice(item.amount)}
+                    </span>
+                  </div>
+                ))
+              ) : (
+                <div className='flex justify-between gap-4'>
+                  <span>Tiện ích đã chọn</span>
+                  <span className='font-semibold tabular-nums'>{formatPrice(addonAmount)}</span>
+                </div>
+              )}
+            </div>
+          )}
+          {surcharge > 0 && (
+            <div className='flex justify-between gap-4'>
+              <span className='text-muted-foreground'>Phụ thu</span>
+              <span className='font-medium tabular-nums'>{formatPrice(surcharge)}</span>
+            </div>
+          )}
+          {discount > 0 && (
+            <div className='flex justify-between gap-4'>
+              <span className='text-muted-foreground'>Giảm giá</span>
+              <span className='font-medium tabular-nums text-emerald-500'>
+                −{formatPrice(discount)}
+              </span>
+            </div>
+          )}
+          {legacyCustomerFee > 0 && (
+            <div className='flex justify-between gap-4'>
+              <span className='text-muted-foreground'>Phí khách đã chốt trên đơn cũ</span>
+              <span className='font-medium tabular-nums'>{formatPrice(legacyCustomerFee)}</span>
+            </div>
+          )}
+          <div className='space-y-3 border-t border-border/60 pt-4'>
+            <div className='flex justify-between gap-4'>
+              <span className='font-medium'>Tạm tính trước VAT</span>
+              <span className='font-semibold tabular-nums'>{formatPrice(subtotal)}</span>
+            </div>
+            <div className='flex justify-between gap-4 text-muted-foreground'>
+              <span>VAT{vatPercent != null ? ' (' + formatQuantity(vatPercent) + '%)' : ''}</span>
+              <span className='font-medium tabular-nums'>{formatPrice(vat)}</span>
+            </div>
           </div>
         </div>
 
@@ -388,6 +486,7 @@ export function PriceBreakdownCard({
               <Button
                 onClick={handleConfirmBooking}
                 disabled={
+                  addonBusy ||
                   createBookingMutation.isPending ||
                   createPaymentMutation.isPending ||
                   (!effectiveBooking && isCalculating) ||
@@ -485,7 +584,9 @@ export function PriceBreakdownCard({
         holdExpiresAt={effectiveBooking?.holdExpiresAt || holdData?.holdExpiresAt}
         secondsRemaining={secondsRemaining}
         orderRef={
-          effectiveBooking?.bookingCode ? `#${effectiveBooking.bookingCode}` : (holdData?.bookingCode ?? undefined)
+          effectiveBooking?.bookingCode
+            ? `#${effectiveBooking.bookingCode}`
+            : (holdData?.bookingCode ?? undefined)
         }
         isLoading={createPaymentMutation.isPending}
         onRetry={handleConfirmBooking}
@@ -515,23 +616,36 @@ export function PriceBreakdownCard({
             <AlertDialogDescription className='space-y-2 text-sm text-foreground/90 leading-relaxed pt-2'>
               <div className='rounded-lg border border-amber-200 bg-amber-50/80 p-3 text-amber-950 dark:border-amber-500/30 dark:bg-amber-950/30 dark:text-amber-200'>
                 <p className='font-medium'>
-                  Bạn hiện còn <span className='font-bold text-amber-900 underline dark:text-amber-100'>{remainingAttempts} lần</span> hủy giữ chỗ.
+                  Bạn hiện còn{' '}
+                  <span className='font-bold text-amber-900 underline dark:text-amber-100'>
+                    {remainingAttempts} lần
+                  </span>{' '}
+                  hủy giữ chỗ.
                 </p>
                 {remainingAttempts <= 1 ? (
                   <div className='mt-2 rounded-md bg-destructive/15 border border-destructive/30 p-2 text-xs font-semibold text-destructive'>
-                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết {maxAttempts} lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng {penaltyMinutes} phút.
+                    ⚠️ CẢNH BÁO: Đây là lần hủy cuối cùng của bạn! Nếu bấm hủy, bạn sẽ dùng hết{' '}
+                    {maxAttempts} lần và tài khoản sẽ lập tức bị tạm khóa quyền đặt chỗ trong vòng{' '}
+                    {penaltyMinutes} phút.
                   </div>
                 ) : (
                   <p className='mt-1 text-xs text-amber-800 dark:text-amber-300'>
                     Nếu xác nhận hủy phiên này, bạn sẽ chỉ còn{' '}
                     <span className='font-bold text-amber-950 underline dark:text-amber-100'>
                       {Math.max(0, remainingAttempts - 1)} lần
-                    </span>.
+                    </span>
+                    .
                   </p>
                 )}
               </div>
               <p className='text-xs text-muted-foreground pt-1'>
-                <span className='font-semibold text-destructive'>Lưu ý:</span> Nếu bạn hủy hoặc để phiên giữ chỗ hết hạn quá <span className='font-semibold'>{maxAttempts} lần</span> mà không hoàn tất thanh toán, tài khoản sẽ bị <span className='font-bold text-destructive'>TẠM KHÓA đặt chỗ trong vòng {penaltyMinutes} phút</span> (tức là không thể đặt bất kỳ chỗ nào trong {penaltyMinutes} phút tới).
+                <span className='font-semibold text-destructive'>Lưu ý:</span> Nếu bạn hủy hoặc để
+                phiên giữ chỗ hết hạn quá <span className='font-semibold'>{maxAttempts} lần</span>{' '}
+                mà không hoàn tất thanh toán, tài khoản sẽ bị{' '}
+                <span className='font-bold text-destructive'>
+                  TẠM KHÓA đặt chỗ trong vòng {penaltyMinutes} phút
+                </span>{' '}
+                (tức là không thể đặt bất kỳ chỗ nào trong {penaltyMinutes} phút tới).
               </p>
               <p className='font-medium text-foreground pt-1'>
                 Bạn có chắc chắn muốn hủy phiên giữ chỗ này không?
@@ -539,7 +653,10 @@ export function PriceBreakdownCard({
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter className='gap-2 sm:gap-0 pt-2'>
-            <AlertDialogCancel disabled={cancelBookingMutation.isPending} className='cursor-pointer'>
+            <AlertDialogCancel
+              disabled={cancelBookingMutation.isPending}
+              className='cursor-pointer'
+            >
               Không, tiếp tục giữ chỗ
             </AlertDialogCancel>
             <AlertDialogAction

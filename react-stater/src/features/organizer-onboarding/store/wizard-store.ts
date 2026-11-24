@@ -59,6 +59,7 @@ export const INITIAL_OPERATING_HOURS: OperatingHoursValues = {
   is247: false,
   schedule: INITIAL_SCHEDULE,
   blockHolidays: true,
+  holidayCodes: [],
   allowGracePeriod: false
 };
 
@@ -154,6 +155,7 @@ export const INITIAL_FLOOR_PLAN: FloorPlanValues = {
 };
 
 export interface WizardStore extends OnboardingDraftState {
+  editBaseline?: import('../utils/workspace-edit-snapshot').WorkspaceEditSnapshot;
   setBasicInfo: (data: Partial<BasicInfoValues>) => void;
   setLocation: (data: Partial<LocationValues>) => void;
   setCoordinates: (latitude: number | null, longitude: number | null) => void;
@@ -204,6 +206,7 @@ export const useWizardStore = create<WizardStore>()(
       lastSavedAt: new Date().toISOString(),
       isDraftSynced: true,
       canonicalWorkspaceId: undefined,
+      editBaseline: undefined,
       isEditMode: false,
       clientDraftKey: undefined,
       serverVersion: undefined,
@@ -296,6 +299,7 @@ export const useWizardStore = create<WizardStore>()(
             : [...state.amenities, amenityId];
           return {
             isDraftSynced: false,
+            editAmenitiesDirty: true,
             amenities: newAmenities
           };
         }),
@@ -303,6 +307,7 @@ export const useWizardStore = create<WizardStore>()(
       setAmenityAddonRate: (amenityId, rate) =>
         set((state) => ({
           isDraftSynced: false,
+          editAmenitiesDirty: true,
           amenityAddonRates: {
             ...state.amenityAddonRates,
             [amenityId]: Math.max(0, rate)
@@ -312,6 +317,7 @@ export const useWizardStore = create<WizardStore>()(
       setAmenities: (amenities) =>
         set(() => ({
           isDraftSynced: false,
+          editAmenitiesDirty: true,
           amenities
         })),
 
@@ -320,6 +326,7 @@ export const useWizardStore = create<WizardStore>()(
           const combined = Array.from(new Set([...state.amenities, ...commonIds]));
           return {
             isDraftSynced: false,
+            editAmenitiesDirty: true,
             amenities: combined
           };
         }),
@@ -327,6 +334,7 @@ export const useWizardStore = create<WizardStore>()(
       clearAmenities: () =>
         set(() => ({
           isDraftSynced: false,
+          editAmenitiesDirty: true,
           amenities: [],
           amenityAddonRates: {}
         })),
@@ -334,12 +342,14 @@ export const useWizardStore = create<WizardStore>()(
       setMediaGallery: (data) =>
         set((state) => ({
           isDraftSynced: false,
+          editMediaDirty: true,
           media: { ...state.media, ...data }
         })),
 
       clearMedia: () =>
         set(() => ({
           isDraftSynced: false,
+          editMediaDirty: true,
           media: { coverPhotoId: '', items: [] }
         })),
 
@@ -582,6 +592,11 @@ export const useWizardStore = create<WizardStore>()(
           lastSavedAt: new Date().toISOString(),
           isDraftSynced: true,
           canonicalWorkspaceId: undefined,
+          editBaseline: undefined,
+          stagedSite: undefined,
+          editAmenitiesDirty: false,
+          editMediaDirty: false,
+          amenityAddonRates: {},
           isEditMode: false,
           clientDraftKey: undefined,
           serverVersion: undefined,

@@ -1,8 +1,10 @@
 export type WorkspaceStatus =
   | 'DRAFT'
   | 'PENDING'
+  | 'INACTIVE'
   | 'ACTIVE'
   | 'MAINTENANCE'
+  | 'HOLIDAY'
   | 'ARCHIVED';
 
 export interface OrganizerWorkspace {
@@ -37,6 +39,8 @@ export type WorkspaceFilter =
   | 'all'
   | 'active'
   | 'pending'
+  | 'inactive'
   | 'maintenance'
+  | 'holiday'
   | 'draft'
   | 'archived';

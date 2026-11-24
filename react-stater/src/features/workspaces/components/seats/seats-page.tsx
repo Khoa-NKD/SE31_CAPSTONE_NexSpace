@@ -37,7 +37,11 @@ import {
   isResourceOffice
 } from '../detail/public-floor-map';
 import { SeatsListView } from './seats-list-view';
-import { DateTimePickerModal, parseTimeToMinutes, type ScheduleSelection } from '../detail/date-time-picker-modal';
+import {
+  DateTimePickerModal,
+  parseTimeToMinutes,
+  type ScheduleSelection
+} from '../detail/date-time-picker-modal';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import { useCurrentPendingBooking } from '@/features/payments/api';
@@ -45,6 +49,7 @@ import { useRealtimeResourceStatus } from '@/features/resource-availability';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 
 export interface SeatsPageProps {
+  priceType?: 'HOURLY' | 'DAILY';
   workspaceId?: number;
   date?: string;
   startTime?: string;
@@ -105,6 +110,7 @@ function getDefaultSchedule() {
 
 export function SeatsPage({
   workspaceId,
+  priceType: initialPriceType = 'HOURLY',
   date,
   startTime,
   endTime,
@@ -140,6 +146,7 @@ export function SeatsPage({
   const [currentDateLabel, setCurrentDateLabel] = useState<string>(
     formatDateLabel(date) || defaults.date
   );
+  const [priceType, setPriceType] = useState<'HOURLY' | 'DAILY'>(initialPriceType);
   const [durationHours, setDurationHours] = useState<number>(initialDuration);
 
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>(initialFloorId);
@@ -316,7 +323,8 @@ export function SeatsPage({
       const avail = availabilityMap.get(selectedResource.id);
       const isOccupiedByMe = Boolean(
         avail?.isOccupiedByMe ||
-        (currentPendingBooking?.resourceId && Number(currentPendingBooking.resourceId) === Number(selectedResource.id))
+        (currentPendingBooking?.resourceId &&
+          Number(currentPendingBooking.resourceId) === Number(selectedResource.id))
       );
       if (
         (avail?.state === 'BOOKED' ||
@@ -343,6 +351,7 @@ export function SeatsPage({
       setCurrentEndTime(schedule.isoEndTime);
       setCurrentDateLabel(schedule.date);
       setDurationHours(schedule.durationHours);
+      setPriceType(schedule.priceType ?? 'HOURLY');
       setSelectedResource(null); // Reset selection on time shift
     }
   };
@@ -412,7 +421,7 @@ export function SeatsPage({
           startTime: currentStartTime,
           endTime: currentEndTime,
           date: currentDateLabel,
-          priceType: 'HOURLY'
+          priceType
         }
       });
       return;
@@ -472,7 +481,7 @@ export function SeatsPage({
           startTime: currentStartTime,
           endTime: currentEndTime,
           date: currentDateLabel,
-          priceType: 'HOURLY'
+          priceType
         }
       });
       return;
@@ -485,7 +494,7 @@ export function SeatsPage({
         resourceId: res.id,
         startTime: currentStartTime,
         endTime: currentEndTime,
-        priceType: 'HOURLY',
+        priceType,
         partySize: currentAvail?.capacity ?? res.capacity ?? 1
       });
 
@@ -506,7 +515,7 @@ export function SeatsPage({
           startTime: currentStartTime,
           endTime: currentEndTime,
           date: currentDateLabel,
-          priceType: 'HOURLY'
+          priceType
         }
       });
     } catch (err: unknown) {

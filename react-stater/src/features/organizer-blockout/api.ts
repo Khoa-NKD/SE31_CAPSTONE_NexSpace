@@ -12,13 +12,16 @@ export interface MaintenanceSchedule {
   key: string;
   targetKey: string;
   name: string;
-  kind: MaintenanceTarget['kind'];
+  kind: MaintenanceTarget['kind'] | 'WORKSPACE' | 'GROUP';
+  targetKeys?: string[];
+  wholeWorkspace?: boolean;
   floorNumber: number | null;
   startTime: string;
   endTime: string | null;
   reason: string;
 }
 export interface MaintenanceInput {
+  wholeWorkspace?: boolean;
   targetKeys: string[];
   startTime: string;
   endTime: string;
@@ -32,5 +35,7 @@ export const maintenanceApi = {
     apiClient.get<MaintenanceSchedule[]>(path(id), { params: { from, to }, signal }),
   create: (id: number, input: MaintenanceInput) =>
     apiClient.post<MaintenanceSchedule[]>(path(id), input),
+  update: (id: number, groupId: number, input: MaintenanceInput) =>
+    apiClient.put<MaintenanceSchedule[]>(path(id) + '/groups/' + groupId, input),
   remove: (id: number, key: string) => apiClient.delete(path(id) + '/' + encodeURIComponent(key))
 };

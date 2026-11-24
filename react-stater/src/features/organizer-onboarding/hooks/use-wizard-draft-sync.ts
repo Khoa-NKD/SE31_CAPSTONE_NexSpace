@@ -1,14 +1,19 @@
-import { cancellationPolicyError, defaultCancellationRules } from '@/features/workspaces/utils/cancellation-policy';
+import { workspaceSiteOptions } from '@/features/organizer-resources/api/buildings';
+import { workspaceEditSnapshot } from '../utils/workspace-edit-snapshot';
+import { amenityQueries } from '@/features/amenities/api/queries';
+import { amenityService } from '@/features/amenities/api/service';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocation } from '@tanstack/react-router';
 import { toast } from 'sonner';
+import { useWizardSaveFeedback } from '../components/wizard-save-feedback';
+import { getWizardValidationMessage } from '../utils/wizard-copy';
 import { useWizardStore } from '../store/wizard-store';
 import { mapWizardStateToCreateDto, mapWizardStateToUpdateDto } from '../utils/wizard-api-mapper';
 import { workspaceService, workspaceQueryKeys } from '@/features/workspaces/api';
 import type { CanonicalWorkspace } from '@/features/workspaces/api/types';
-import { ApiError } from '@/lib/api-client';
+import { ApiError, apiClient } from '@/lib/api-client';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 
 // The wizard can have more than one mounted save caller for the same draft.
@@ -45,10 +50,11 @@ export function useWizardDraftSync() {
    * - Never duplicates POST requests if one is currently in flight.
    */
   const saveDraftToServer = useCallback(
-    async (options?: { silent?: boolean }): Promise<CanonicalWorkspace | null> => {
+    async (options?: {
+      silent?: boolean;
+      commitEdit?: boolean;
+    }): Promise<CanonicalWorkspace | null> => {
       const currentState = useWizardStore.getState();
-      const policyError = cancellationPolicyError(currentState.cancellationRules ?? defaultCancellationRules(), c);
-      if (policyError) { toast.error(policyError); return null; }
       if (!currentState.canonicalWorkspaceId && !currentState.basicInfo.name.trim()) {
         toast.error(
           c(
@@ -66,6 +72,29 @@ export function useWizardDraftSync() {
           )
         );
         return null;
+      }
+      const editing = search.mode === 'edit';
+      if (
+        editing &&
+        options?.commitEdit &&
+        currentState.media.items.some(
+          (item) => item.uploadStatus === 'uploading' || item.uploadStatus === 'error'
+        )
+      ) {
+        toast.error('Hoàn tất tải ảnh hoặc xử lý ảnh lỗi trước khi lưu.');
+        return null;
+      }
+      if (
+        editing &&
+        currentState.canonicalWorkspaceId &&
+        (!options?.commitEdit || !location.pathname.endsWith('/review'))
+      ) {
+        if (options?.commitEdit)
+          useWizardSaveFeedback.setState({ workspaceId: currentState.canonicalWorkspaceId });
+        return {
+          id: currentState.canonicalWorkspaceId,
+          version: currentState.serverVersion
+        } as unknown as CanonicalWorkspace;
       }
       const actorId = useAuthStore.getState().user?.id;
       let draftKey = currentState.clientDraftKey;
@@ -125,10 +154,38 @@ export function useWizardDraftSync() {
           } else {
             // Incremental Draft Update via PATCH with optimistic concurrency
             const updateDto = mapWizardStateToUpdateDto(currentState, currentState.serverVersion);
-            updatedRecord = await workspaceService.updateWorkspace(
-              String(currentState.canonicalWorkspaceId),
-              updateDto
-            );
+            updatedRecord = editing
+              ? await apiClient.put<CanonicalWorkspace>(
+                  `/workspaces/${currentState.canonicalWorkspaceId}/editor`,
+                  {
+                    workspace: updateDto,
+                    site: currentState.stagedSite,
+                    amenities: currentState.editAmenitiesDirty
+                      ? {
+                          amenities: currentState.amenities.map((id) => ({
+                            amenityId: Number(id),
+                            addonPricePerHour: currentState.amenityAddonRates?.[id] ?? 0
+                          }))
+                        }
+                      : undefined,
+                    media: currentState.editMediaDirty
+                      ? {
+                          items: currentState.media.items
+                            .filter((item) => /^https?:/.test(item.url))
+                            .map((item, displayOrder) => ({
+                              url: item.url,
+                              isCover: item.id === currentState.media.coverPhotoId,
+                              displayOrder,
+                              mediaType: 'IMAGE'
+                            }))
+                        }
+                      : undefined
+                  }
+                )
+              : await workspaceService.updateWorkspace(
+                  String(currentState.canonicalWorkspaceId),
+                  updateDto
+                );
             if (!isCurrentDraft()) return null;
 
             currentState.setServerVersion(updatedRecord.version);
@@ -137,27 +194,56 @@ export function useWizardDraftSync() {
 
             queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
 
-            if (!options?.silent) {
-              toast.success(c('Draft Saved to Server', 'Đã lưu bản nháp'), {
-                description: c(
-                  `Saved at ${new Date(updatedRecord.updatedAt).toLocaleTimeString('en-US')} (v${updatedRecord.version}).`,
-                  `Đã lưu lúc ${new Date(updatedRecord.updatedAt).toLocaleTimeString('vi-VN')} (v${updatedRecord.version}).`
-                )
-              });
+            if (!options?.silent && !editing) {
+              toast.success(
+                editing
+                  ? c('Changes saved', 'Đã lưu thay đổi')
+                  : c('Draft Saved to Server', 'Đã lưu bản nháp'),
+                {
+                  description: c(
+                    `Saved at ${new Date(updatedRecord.updatedAt).toLocaleTimeString('en-US')} (v${updatedRecord.version}).`,
+                    `Đã lưu lúc ${new Date(updatedRecord.updatedAt).toLocaleTimeString('vi-VN')} (v${updatedRecord.version}).`
+                  )
+                }
+              );
             }
           }
 
+          const latest = useWizardStore.getState();
+          const unchanged =
+            JSON.stringify(mapWizardStateToUpdateDto(latest)) ===
+              JSON.stringify(mapWizardStateToUpdateDto(currentState)) &&
+            JSON.stringify(latest.amenityAddonRates) ===
+              JSON.stringify(currentState.amenityAddonRates) &&
+            JSON.stringify(latest.media) === JSON.stringify(currentState.media) &&
+            JSON.stringify(latest.stagedSite) === JSON.stringify(currentState.stagedSite);
+          if (unchanged) {
+            latest.markDraftSynced(true);
+            if (editing)
+              useWizardStore.setState({
+                editAmenitiesDirty: false,
+                editMediaDirty: false,
+                stagedSite: undefined
+              });
+          }
+          if (editing && currentState.editAmenitiesDirty) {
+            await queryClient.invalidateQueries({
+              queryKey: amenityQueries.workspaceAmenities(currentState.canonicalWorkspaceId)
+                .queryKey
+            });
+          }
+          if (editing && options?.commitEdit && !location.pathname.endsWith('/review')) {
+            useWizardSaveFeedback.setState({ workspaceId: String(updatedRecord.id) });
+          }
           return updatedRecord;
         } catch (err: unknown) {
           if (!isCurrentDraft()) return null;
           if (err instanceof ApiError) {
             if (err.status === 409) {
-              currentState.setSyncError('Conflict: Modified by another session');
-              toast.error(c('Version Conflict Detected', 'Dữ liệu đã thay đổi'), {
-                description: c(
-                  'This workspace was modified in another session. Please reload the latest server draft.',
-                  'Không gian đã được sửa ở phiên khác. Vui lòng tải lại bản nháp mới nhất.'
-                )
+              const message = getWizardValidationMessage(err.message, c);
+              currentState.setSyncError(message);
+              toast.error(c('Changes could not be saved', 'Chưa lưu được thay đổi'), {
+                description: message
               });
             } else if (err.status === 400 && err.validationErrors) {
               const firstErr = Object.values(err.validationErrors)[0];
@@ -187,7 +273,7 @@ export function useWizardDraftSync() {
       inFlightSaves.set(saveKey, savePromise);
       return savePromise;
     },
-    [queryClient, c, routeWorkspaceId]
+    [queryClient, c, routeWorkspaceId, search.mode, location.pathname]
   );
 
   /**
@@ -198,9 +284,41 @@ export function useWizardDraftSync() {
     async (workspaceId: string) => {
       const sequence = ++loadSequenceRef.current;
       try {
-        const canonical = await workspaceService.getWorkspaceById(workspaceId);
+        const [canonical, media, amenities, site] = await Promise.all([
+          workspaceService.getWorkspaceById(workspaceId),
+          workspaceService.getWorkspaceMedia(Number(workspaceId)),
+          amenityService.getWorkspaceAmenities(workspaceId),
+          queryClient.fetchQuery(
+            workspaceSiteOptions(useAuthStore.getState().user?.id ?? 0, Number(workspaceId))
+          )
+        ]);
         if (sequence !== loadSequenceRef.current) return;
         useWizardStore.getState().hydrateFromServer(canonical);
+        const state = useWizardStore.getState();
+        const items = media.map((item) => ({
+          id: String(item.id),
+          url: item.url,
+          name: 'Ảnh không gian',
+          isCover: Boolean(item.cover ?? item.isCover),
+          uploadStatus: 'uploaded' as const
+        }));
+        state.setMediaGallery({
+          items,
+          coverPhotoId: items.find((item) => item.isCover)?.id ?? items[0]?.id ?? ''
+        });
+        state.setAmenities(amenities.map((item) => String(item.amenityId)));
+        useWizardStore.setState({
+          amenityAddonRates: Object.fromEntries(
+            amenities.map((item) => [String(item.amenityId), item.addonPricePerHour ?? 0])
+          ),
+          editMediaDirty: false,
+          editAmenitiesDirty: false,
+          stagedSite: undefined
+        });
+        useWizardStore.setState({
+          editBaseline: workspaceEditSnapshot(useWizardStore.getState(), site)
+        });
+        state.markDraftSynced(true);
         setLastSavedTime(canonical.updatedAt);
         toast.info(c('Workspace Hydrated from Server', 'Đã tải thông tin không gian'), {
           description: c(
@@ -220,7 +338,7 @@ export function useWizardDraftSync() {
         );
       }
     },
-    [c]
+    [c, queryClient]
   );
 
   // New-workspace entry actions reset the draft explicitly. Saving or revisiting step 1

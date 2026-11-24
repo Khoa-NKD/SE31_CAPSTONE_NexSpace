@@ -3,8 +3,7 @@ import type { CancellationRule } from '../api/types';
 export function defaultCancellationRules(): CancellationRule[] {
   return [
     { minHoursBeforeStart: 24, refundPercent: 100 },
-    { minHoursBeforeStart: 12, refundPercent: 50 },
-    { minHoursBeforeStart: 2, refundPercent: 25 },
+    { minHoursBeforeStart: 2, refundPercent: 50 },
     { minHoursBeforeStart: 0, refundPercent: 0 }
   ];
 }

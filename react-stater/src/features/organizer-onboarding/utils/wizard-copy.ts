@@ -45,6 +45,24 @@ export function getWizardDayLabel(day: string, c: OrganizerCopy): string {
 
 /** Keep unknown server messages intact instead of replacing their diagnostic details. */
 export function getWizardValidationMessage(message: string, c: OrganizerCopy): string {
+  const outsideFloor = message.match(
+    /^Floor (\d+) cannot use these dimensions or corners: Resource (.+) is outside the floor canvas, including its rotation$/
+  );
+  if (outsideFloor) {
+    return c(
+      message,
+      `Tầng ${outsideFloor[1]}: phòng/ghế ${outsideFloor[2]} nằm ngoài mặt bằng với kích thước hoặc góc bo đang chọn. Tăng kích thước tầng hoặc chỉnh vị trí trên sơ đồ rồi lưu lại.`
+    );
+  }
+  if (
+    message === 'This record changed. Reload before continuing' ||
+    message === 'The workspace address changed. Reload before saving'
+  ) {
+    return c(
+      message,
+      'Dữ liệu địa điểm hoặc tầng không còn khớp với bản đang lưu. Tải lại dữ liệu mới nhất trước khi lưu tiếp.'
+    );
+  }
   const vietnamese = validationCopy[message];
   if (vietnamese) return c(message, vietnamese);
   if (message.startsWith('Giờ đóng cửa phải sau giờ mở cửa')) {

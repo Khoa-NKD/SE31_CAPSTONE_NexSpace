@@ -1,7 +1,13 @@
 import { formatDate as formatDisplayDate } from '@/lib/format';
 import type { CanonicalWorkspace } from '../../workspaces/api/types';
 
-export type WorkspaceStatus = 'active' | 'pending' | 'maintenance' | 'draft' | 'suspended' | 'archived';
+export type WorkspaceStatus =
+  | 'active'
+  | 'pending'
+  | 'maintenance'
+  | 'draft'
+  | 'suspended'
+  | 'archived';
 
 export interface WorkspaceGalleryImage {
   id: string;
@@ -47,7 +53,7 @@ export interface WorkspaceDirectoryItem {
   version?: number;
   reviewStatus?: 'Draft' | 'Pending' | 'Approved' | 'Rejected';
   moderationStatus?: 'Normal' | 'Suspended';
-  operatingStatus?: 'Active' | 'Pending' | 'Maintenance' | 'Inactive' | 'Archived';
+  operatingStatus?: 'Active' | 'Pending' | 'Maintenance' | 'Holiday' | 'Inactive' | 'Archived';
   category?: string;
   description?: string;
   coverImageUrl?: string;
@@ -117,7 +123,8 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
   const galleryImages: WorkspaceGalleryImage[] = (cw.images || []).map((img, idx) => ({
     id: img.id || `img-${cw.id}-${idx}`,
     label: img.caption || (img.isCover ? 'Cover Photo' : `Facility View ${idx + 1}`),
-    category: img.mediaType === '360_degree' ? '360° Tour' : (img.isCover ? 'Cover Photo' : 'Nomad Space'),
+    category:
+      img.mediaType === '360_degree' ? '360° Tour' : img.isCover ? 'Cover Photo' : 'Nomad Space',
     verified: true,
     url: img.url
   }));
@@ -127,14 +134,20 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
       ? `${cw.latitude.toFixed(4)}° N, ${cw.longitude.toFixed(4)}° E`
       : 'Coordinates Pending';
 
-  const metroZone = cw.district && cw.city ? `${cw.district}, ${cw.city}` : (cw.city || 'Metro Area');
+  const metroZone = cw.district && cw.city ? `${cw.district}, ${cw.city}` : cw.city || 'Metro Area';
 
   const formattedDate = cw.submittedAt
     ? formatDisplayDate(new Date(cw.submittedAt))
-    : (cw.createdAt ? formatDisplayDate(new Date(cw.createdAt)) : 'Jan 24, 2026');
+    : cw.createdAt
+      ? formatDisplayDate(new Date(cw.createdAt))
+      : 'Jan 24, 2026';
 
   const formattedTime = cw.submittedAt
-    ? new Date(cw.submittedAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }) + ' UTC'
+    ? new Date(cw.submittedAt).toLocaleTimeString('en-US', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      }) + ' UTC'
     : '08:30 UTC';
 
   return {
@@ -144,13 +157,17 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
     streetAddress: cw.streetAddress || 'Address pending',
     metroZone,
     city: cw.city || 'Ho Chi Minh City',
-    organizerLegalName: cw.organizerLegalName || (cw.organizerId ? `Organizer #${cw.organizerId}` : 'Acme Coworking VN Co., Ltd'),
+    organizerLegalName:
+      cw.organizerLegalName ||
+      (cw.organizerId ? `Organizer #${cw.organizerId}` : 'Acme Coworking VN Co., Ltd'),
     organizerTaxId: cw.organizerTaxId || '',
     organizerVerified: cw.organizerVerified ?? true,
     capacityDesks: cw.capacityDesks || 0,
     meetingRooms: cw.meetingRooms || 0,
     focusPods: cw.focusPods || 0,
-    capacityLabel: cw.capacityLabel || `${cw.capacityDesks || 0} Desks, ${cw.meetingRooms || 0} Mtgs, ${cw.focusPods || 0} Pods`,
+    capacityLabel:
+      cw.capacityLabel ||
+      `${cw.capacityDesks || 0} Desks, ${cw.meetingRooms || 0} Mtgs, ${cw.focusPods || 0} Pods`,
     rating: cw.rating || 4.9,
     reviewsCount: cw.reviewsCount || 48,
     bookingCount: Number(cw.bookingCount ?? cw.totalBookings ?? cw.totalBookingsMtd ?? 0),
@@ -163,9 +180,20 @@ export function mapCanonicalToDirectoryItem(cw: CanonicalWorkspace): WorkspaceDi
     operatorContactPhone: cw.operatorContactPhone || cw.supportPhone || '+84 28 3822 5588',
     geofenceCluster: `${cw.buildingName || cw.name} Pin • Geofence Validated`,
     coordinates: coordsString,
-    latitude: typeof cw.latitude === 'number' ? cw.latitude : (cw.latitude ? Number(cw.latitude) : undefined),
-    longitude: typeof cw.longitude === 'number' ? cw.longitude : (cw.longitude ? Number(cw.longitude) : undefined),
-    tags: Array.isArray(cw.tags) && cw.tags.length > 0 ? cw.tags : (Array.isArray(cw.amenities) && cw.amenities.length > 0 ? cw.amenities : []),
+    latitude:
+      typeof cw.latitude === 'number' ? cw.latitude : cw.latitude ? Number(cw.latitude) : undefined,
+    longitude:
+      typeof cw.longitude === 'number'
+        ? cw.longitude
+        : cw.longitude
+          ? Number(cw.longitude)
+          : undefined,
+    tags:
+      Array.isArray(cw.tags) && cw.tags.length > 0
+        ? cw.tags
+        : Array.isArray(cw.amenities) && cw.amenities.length > 0
+          ? cw.amenities
+          : [],
     gallery: galleryImages,
     hsmSessionId: `#WS-REG-${cw.id}`,
     moderatorNotes: cw.reviewFeedback || cw.suspendReason || undefined,
@@ -244,7 +272,12 @@ export const INITIAL_WORKSPACE_DIRECTORY: WorkspaceDirectoryItem[] = [
     operatorContactPhone: '+84 28 3822 9901',
     geofenceCluster: 'Bitexco Tower Cluster Pin • Geofence Validated',
     coordinates: '10.7719° N, 106.7044° E',
-    tags: ['1 Gbps Fiber WiFi 6', 'Soundproof Booths (x6)', 'Ergonomic Herman Miller', 'Specialty Coffee Bar'],
+    tags: [
+      '1 Gbps Fiber WiFi 6',
+      'Soundproof Booths (x6)',
+      'Ergonomic Herman Miller',
+      'Specialty Coffee Bar'
+    ],
     gallery: [
       { id: 'img-1', label: 'Main Nomad Floor', category: 'Nomad Open Space', verified: true },
       { id: 'img-2', label: 'Suite A - Executive', category: 'Meeting Rooms', verified: true },
@@ -397,7 +430,7 @@ export const INITIAL_WORKSPACE_DIRECTORY: WorkspaceDirectoryItem[] = [
     meetingRooms: 3,
     focusPods: 3,
     capacityLabel: '48 Desks, 3 Mtgs, 3 Pods',
-    rating: 4.90,
+    rating: 4.9,
     reviewsCount: 310,
     status: 'active',
     submittedAt: 'Dec 28, 2025',
@@ -410,7 +443,12 @@ export const INITIAL_WORKSPACE_DIRECTORY: WorkspaceDirectoryItem[] = [
     coordinates: '10.7745° N, 106.7032° E',
     tags: ['Walking Street View', 'Dedicated Leased Line', 'Gaming Lounge'],
     gallery: [
-      { id: 'img-61', label: 'Walking Street View Desks', category: 'Nomad Open Space', verified: true },
+      {
+        id: 'img-61',
+        label: 'Walking Street View Desks',
+        category: 'Nomad Open Space',
+        verified: true
+      },
       { id: 'img-62', label: 'Soundproof Pod B', category: 'Focus Pods', verified: true }
     ],
     hsmSessionId: '#WS-MRB-2026-X128'

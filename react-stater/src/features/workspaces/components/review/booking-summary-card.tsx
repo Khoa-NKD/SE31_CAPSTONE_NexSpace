@@ -39,13 +39,6 @@ export function BookingSummaryCard({
   date,
   isLoading = false
 }: BookingSummaryCardProps) {
-  const amenities = [
-    { icon: Zap, label: '65W USB-C PD' },
-    { icon: Chair, label: 'Aeron Ergonomic' },
-    { icon: Wifi, label: '1 Gbps Ultra-Speed' },
-    { icon: VolumeX, label: 'Acoustic Barrier' }
-  ];
-
   const schedule = formatSchedule(startTime, endTime, date);
 
   if (isLoading) {
@@ -135,27 +128,6 @@ export function BookingSummaryCard({
         <div className='text-amber-600 dark:text-amber-400 flex items-center gap-1 text-xs font-bold uppercase tracking-wider'>
           <Lock className='h-3.5 w-3.5' />
           <span>Locked for Hold</span>
-        </div>
-      </div>
-
-      {/* Included Station Amenities Row */}
-      <div className='border-border/60 border-t pt-4'>
-        <span className='text-foreground mb-3 block text-xs font-semibold'>
-          Included Station Amenities
-        </span>
-        <div className='grid grid-cols-2 gap-2.5 sm:grid-cols-4'>
-          {amenities.map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={idx}
-                className='bg-muted/50 border-border/70 flex items-center gap-2 rounded-lg border p-2 text-xs'
-              >
-                <Icon className='text-primary h-4 w-4 shrink-0' />
-                <span className='text-foreground text-xs font-medium'>{item.label}</span>
-              </div>
-            );
-          })}
         </div>
       </div>
 

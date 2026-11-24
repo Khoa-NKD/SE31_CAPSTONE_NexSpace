@@ -1,63 +1,56 @@
-import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
-import React from 'react';
-import { Link } from '@tanstack/react-router';
-import { X, ChevronRight } from '@/components/ui/hugeicons';
+import { Link, useLocation, useNavigate } from '@tanstack/react-router';
+import { ArrowLeft, X } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-
-interface WizardHeaderProps {
-  currentStep: 1 | 2 | 3 | 4 | 5 | 6;
-}
-
-export function WizardHeader({ currentStep }: WizardHeaderProps) {
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
+import { useWizardStore } from '../store/wizard-store';
+import '../styles/workspace-wizard.css';
+import { WizardSaveFeedback } from './wizard-save-feedback';
+export function WizardHeader({ currentStep }: { currentStep: 1 | 2 | 3 | 4 | 5 | 6 }) {
   const c = useOrganizerCopy();
+  const navigate = useNavigate();
+  const editing = (useLocation().search as Record<string, unknown>).mode === 'edit';
   return (
-    <div className='flex flex-wrap items-center justify-between gap-3 pb-4 mb-6 border-b border-border'>
-      {/* Breadcrumb & Step Badge */}
-      <div className='flex items-center gap-2 sm:gap-3 text-xs sm:text-sm'>
-        <nav
-          aria-label={c('Breadcrumb', 'Điều hướng')}
-          className='flex items-center gap-1.5 text-muted-foreground'
-        >
+    <>
+      <WizardSaveFeedback finalStep={currentStep === 6} />
+      <div className='wizard-topbar'>
+        <div className='flex min-w-0 flex-wrap items-center gap-3'>
           <Link
             to='/dashboard/organizer/workspaces'
-            className='hover:text-foreground transition-colors'
+            className='inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground'
           >
-            {c('Home', 'Trang chủ')}
-          </Link>
-          <ChevronRight className='size-3 text-border' />
-          <Link
-            to='/dashboard/organizer/workspaces'
-            className='hover:text-foreground transition-colors'
-          >
+            <ArrowLeft className='size-3.5' />
             {c('Workspaces', 'Không gian')}
           </Link>
-          <ChevronRight className='size-3 text-border' />
-          <span className='font-semibold text-foreground'>
-            {c('Create Workspace', 'Tạo không gian')}
+          <span className='h-4 border-l' />
+          <span className='text-sm font-semibold'>
+            {editing
+              ? c('Edit workspace', 'Chỉnh sửa không gian')
+              : c('Create workspace', 'Tạo không gian')}
           </span>
-        </nav>
-
-        <Badge
-          variant='secondary'
-          className='bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800 text-[11px] font-semibold tracking-wide ml-1'
+          <span className='rounded-full border border-primary/20 bg-primary/5 px-2 py-0.5 text-[10px] font-medium text-primary'>
+            {currentStep}/6
+          </span>
+        </div>
+        <Button
+          size='sm'
+          variant='ghost'
+          className='shrink-0 gap-1.5 text-xs text-muted-foreground'
+          onClick={() => {
+            if (editing) useWizardStore.getState().resetDraft();
+            else
+              useWizardStore.setState({
+                canonicalWorkspaceId: undefined,
+                stagedSite: undefined,
+                editAmenitiesDirty: false,
+                editMediaDirty: false
+              });
+            void navigate({ to: '/dashboard/organizer/workspaces' });
+          }}
         >
-          {c('Step', 'Bước')} {currentStep} {c('of 6', 'trên 6')}
-        </Badge>
+          <X className='size-3.5' />
+          {editing ? c('Cancel editing', 'Hủy chỉnh sửa') : c('Exit setup', 'Thoát thiết lập')}
+        </Button>
       </div>
-
-      {/* Exit Wizard CTA */}
-      <Button
-        variant='ghost'
-        size='sm'
-        asChild
-        className='text-muted-foreground hover:text-foreground hover:bg-muted text-xs sm:text-sm gap-1.5'
-      >
-        <Link to='/dashboard/organizer/workspaces'>
-          <X className='size-4' />
-          <span>{c('Exit Wizard', 'Thoát thiết lập')}</span>
-        </Link>
-      </Button>
-    </div>
+    </>
   );
 }

@@ -10,14 +10,26 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
 
   const rawStatus = (cw.status || '').toUpperCase();
 
-  if (cw.moderationStatus === 'Suspended' || rawStatus === 'SUSPENDED' || cw.operatingStatus === 'Archived' || rawStatus === 'ARCHIVED') {
+  if (
+    cw.moderationStatus === 'Suspended' ||
+    rawStatus === 'SUSPENDED' ||
+    cw.operatingStatus === 'Archived' ||
+    rawStatus === 'ARCHIVED'
+  ) {
     status = 'ARCHIVED';
+  } else if (cw.operatingStatus === 'Holiday' || rawStatus === 'HOLIDAY') {
+    status = 'HOLIDAY';
   } else if (cw.operatingStatus === 'Maintenance' || rawStatus === 'MAINTENANCE') {
     status = 'MAINTENANCE';
-  } else if (cw.operatingStatus === 'Pending' || rawStatus === 'PENDING' || rawStatus === 'INACTIVE' || rawStatus === 'PAUSED') {
-    status = 'PENDING';
+  } else if (
+    cw.operatingStatus === 'Pending' ||
+    rawStatus === 'PENDING' ||
+    rawStatus === 'INACTIVE' ||
+    rawStatus === 'PAUSED'
+  ) {
+    status = 'INACTIVE';
   } else if (cw.reviewStatus === 'Draft' || rawStatus === 'DRAFT') {
-    status = 'DRAFT';
+    status = cw.reviewedAt || cw.submittedAt ? 'INACTIVE' : 'DRAFT';
   } else {
     status = 'ACTIVE';
   }
@@ -27,32 +39,29 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
 
   return {
     id: String(cw.id),
-    name: cw.name,
+    name: cw.name ?? '',
     address: cw.streetAddress || (cw as unknown as { address?: string }).address || '',
-    district: cw.district,
-    city: cw.city,
+    district: cw.district ?? '',
+    city: cw.city ?? '',
     status,
     version: cw.version ?? 1,
     bookingCount: bookingsCount,
     reviewFeedback: cw.reviewFeedback || undefined,
-    draftProgress: isDraft ? (cw.draftProgress ?? 80) : undefined,
-    draftWarningMessage: isDraft
-      ? (cw.draftWarningMessage ??
-        'Floor Plan & Pricing pending setup. Complete setup to publish.')
-      : undefined,
+    draftProgress: isDraft ? cw.draftProgress : undefined,
+    draftWarningMessage: isDraft ? (cw.draftWarningMessage ?? undefined) : undefined,
     imageUrl: cw.coverImageUrl,
     desksCount: cw.capacityDesks,
     meetingRoomsCount: cw.meetingRooms,
     rating: cw.rating,
     reviewsCount: cw.reviewsCount,
-    occupancyRate: cw.occupancyRate ?? (status === 'ACTIVE' ? 75 : 0),
-    tier: cw.tier ?? 'Standard Tier',
+    occupancyRate: cw.occupancyRate,
+    tier: cw.tier,
     publicUrl: cw.publicUrl,
     isLive: cw.isLive,
-    turnstileOnline: cw.turnstileOnline ?? true,
+    turnstileOnline: cw.turnstileOnline,
     bookingMode: cw.bookingConfirmationMode === 'Manual_Approval' ? 'manual' : 'instant',
     lastStatusChange: cw.updatedAt,
-    grossRevenueMtd: cw.grossRevenueMtd ?? 0,
+    grossRevenueMtd: cw.grossRevenueMtd,
     totalBookingsMtd: bookingsCount
   };
 }
