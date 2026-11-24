@@ -1,6 +1,6 @@
 import { lazy, useRef } from 'react';
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react';
-import { ArrowDown, ArrowUpRight } from '@/components/ui/hugeicons';
+import { ArrowDown, Search } from '@/components/ui/hugeicons';
 import { SearchCard, type SearchCriteria } from './search-card';
 import { useLanguage } from '../context/language-context';
 import BlurText from '@/components/react-bits/BlurText';
@@ -96,7 +96,7 @@ export function HeroSection(props: HeroSectionProps) {
                 }}
               >
                 {vi ? 'Tìm không gian của bạn' : 'Find your space'}
-                <ArrowUpRight size={19} />
+                <Search size={18} className='transition-transform duration-200 group-hover:scale-110' />
               </a>
               <a
                 href='#how-it-works'

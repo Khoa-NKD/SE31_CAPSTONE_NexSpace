@@ -452,7 +452,11 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                     setIsDatePickerOpen(true);
                     return;
                   }
-                  setSelectedResource(res);
+                  if (!res || (selectedResource && selectedResource.id === res.id)) {
+                    setSelectedResource(null);
+                  } else {
+                    setSelectedResource(res);
+                  }
                 }}
                 activeFloorId={activeFloorId}
                 onFloorChange={setActiveFloorId}

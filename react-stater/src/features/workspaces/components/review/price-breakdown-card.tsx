@@ -47,6 +47,8 @@ interface PriceBreakdownCardProps {
   autoOpen?: boolean;
   secondsRemaining?: number;
   onExpired?: () => void;
+  addonAmount?: number;
+  addonName?: string;
 }
 
 export function PriceBreakdownCard({
@@ -61,7 +63,9 @@ export function PriceBreakdownCard({
   onBookingCreated,
   autoOpen,
   secondsRemaining,
-  onExpired
+  onExpired,
+  addonAmount: propAddonAmount,
+  addonName
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
@@ -120,7 +124,20 @@ export function PriceBreakdownCard({
     dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
   const vat = priceSource?.taxAmount ?? 0;
   const legacyCustomerFee = priceSource?.serviceFeeAmount ?? 0;
-  const totalAmount = priceSource?.finalPrice ?? 0;
+
+  const effectiveAddonAmount =
+    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0
+      ? effectiveBooking.addonAmount
+      : undefined) ??
+    propAddonAmount ??
+    0;
+
+  const totalAmount = effectiveBooking
+    ? effectiveBooking.finalPrice
+    : priceData
+      ? priceData.finalPrice + effectiveAddonAmount
+      : 0;
+
   const totalAmountVnd =
     sourceCurrency === 'VND'
       ? Math.round(totalAmount)
@@ -168,7 +185,8 @@ export function PriceBreakdownCard({
         startTime,
         endTime,
         priceType,
-        notes: customerNotes
+        notes: customerNotes,
+        addonAmount: effectiveAddonAmount > 0 ? effectiveAddonAmount : undefined
       });
 
       setCreatedBooking(booking);
@@ -305,6 +323,18 @@ export function PriceBreakdownCard({
               )}
             </span>
           </div>
+
+          {effectiveAddonAmount > 0 && (
+            <div className='flex items-center justify-between text-foreground animate-in fade-in'>
+              <span className='text-muted-foreground flex items-center gap-1.5'>
+                {addonName || 'Tiện ích: Màn hình phụ Dell 27" 4K'}
+                <Info className='text-muted-foreground/60 h-3.5 w-3.5' />
+              </span>
+              <span className='font-medium font-mono text-primary'>
+                +{formatPrice(effectiveAddonAmount)}
+              </span>
+            </div>
+          )}
 
           <div className='flex items-center justify-between text-foreground'>
             <span className='text-muted-foreground flex items-center gap-1.5'>
