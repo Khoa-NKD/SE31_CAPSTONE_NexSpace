@@ -7,6 +7,9 @@ import lombok.Value;
 @Builder
 public class AdminOperationalTrendPointDTO {
     String day;
+    String date;
+    String formattedDate;
+    String fullDateLabel;
     int bookings;
     long settlements;
     boolean isPeak;

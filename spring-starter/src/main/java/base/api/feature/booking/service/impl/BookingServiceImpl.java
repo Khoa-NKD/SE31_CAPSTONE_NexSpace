@@ -238,8 +238,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         // 10. Generate QR Token Hash
         String qrTokenHash = generateQrTokenHash(bookingCode, customer.getId());
 
+        BigDecimal addonAmount = dto.getAddonAmount() != null && dto.getAddonAmount().compareTo(BigDecimal.ZERO) > 0
+                ? dto.getAddonAmount()
+                : BigDecimal.ZERO;
+
         // 11. Create Snapshots (Pricing & Cancellation Policies)
-        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource);
+        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource, addonAmount);
         String cancellationPolicySnapshot = buildCancellationPolicySnapshot(workspace.getId());
 
         // 12. Determine Initial Status (Chỉ sử dụng INSTANT -> PENDING_PAYMENT)
@@ -259,10 +263,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         booking.setBaseAmount(priceCalc.getBaseAmount());
         booking.setSurchargeAmount(priceCalc.getSurchargeAmount());
         booking.setAddonAmount(priceCalc.getAddonAmount());
+        booking.setAddonAmount(addonAmount);
         booking.setDiscountAmount(priceCalc.getDiscountAmount());
         booking.setTaxAmount(priceCalc.getTaxAmount());
         booking.setServiceFeeAmount(priceCalc.getServiceFeeAmount());
-        booking.setFinalPrice(priceCalc.getFinalPrice());
+        booking.setFinalPrice(priceCalc.getFinalPrice().add(addonAmount));
         booking.setPlatformFeeAmount(platformFeeAmount);
         booking.setQuotaUsedAmount(BigDecimal.ZERO);
         booking.setStatus(initialStatus);
@@ -1116,7 +1121,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         }
     }
 
-    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource) {
+    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource, BigDecimal addonAmount) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("resourceId", resource.getId());
         map.put("resourceCode", resource.getLabel());
@@ -1127,10 +1132,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         map.put("addonAmount", priceCalc.getAddonAmount());
         map.put("addons", priceCalc.getAddons());
         map.put("vatPercent", priceCalc.getVatPercent());
+        map.put("addonAmount", addonAmount != null ? addonAmount : BigDecimal.ZERO);
         map.put("taxAmount", priceCalc.getTaxAmount());
         map.put("serviceFeeAmount", priceCalc.getServiceFeeAmount());
         map.put("discountAmount", priceCalc.getDiscountAmount());
-        map.put("finalPrice", priceCalc.getFinalPrice());
+        BigDecimal finalPrice = priceCalc.getFinalPrice().add(addonAmount != null ? addonAmount : BigDecimal.ZERO);
+        map.put("finalPrice", finalPrice);
         map.put("currency", priceCalc.getCurrency());
         try {
             return objectMapper.writeValueAsString(map);

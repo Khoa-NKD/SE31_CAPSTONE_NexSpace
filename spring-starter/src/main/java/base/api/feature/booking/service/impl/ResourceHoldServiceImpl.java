@@ -239,8 +239,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         String bookingCode = generateUniqueBookingCode();
         String qrTokenHash = generateQrTokenHash(bookingCode, customer.getId());
 
+        BigDecimal addonAmount = dto.getAddonAmount() != null && dto.getAddonAmount().compareTo(BigDecimal.ZERO) > 0
+                ? dto.getAddonAmount()
+                : BigDecimal.ZERO;
+
         // 9. Tạo snapshot giá và chính sách hủy
-        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource);
+        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource, addonAmount);
         String cancellationPolicySnapshot = buildCancellationPolicySnapshot(workspace.getId());
 
         // 10. Xác định trạng thái khởi tạo (Chỉ sử dụng INSTANT -> PENDING_PAYMENT)
@@ -259,11 +263,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         booking.setPriceType(dto.getPriceType() != null ? dto.getPriceType() : PriceType.HOURLY);
         booking.setBaseAmount(priceCalc.getBaseAmount());
         booking.setSurchargeAmount(priceCalc.getSurchargeAmount());
-        booking.setAddonAmount(BigDecimal.ZERO);
+        booking.setAddonAmount(addonAmount);
         booking.setDiscountAmount(priceCalc.getDiscountAmount());
         booking.setTaxAmount(priceCalc.getTaxAmount());
         booking.setServiceFeeAmount(priceCalc.getServiceFeeAmount());
-        booking.setFinalPrice(priceCalc.getFinalPrice());
+        booking.setFinalPrice(priceCalc.getFinalPrice().add(addonAmount));
         booking.setPlatformFeeAmount(platformFeeAmount);
         booking.setQuotaUsedAmount(BigDecimal.ZERO);
         booking.setStatus(initialStatus);
@@ -548,6 +552,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .holdDurationMinutes(effectiveHoldMinutes)
                 .isReused(isReused)
                 .baseAmount(booking.getBaseAmount())
+                .addonAmount(booking.getAddonAmount())
                 .finalPrice(booking.getFinalPrice())
                 .remainingHoldAttempts(remainingAttempts)
                 .maxHoldAttempts(effectiveThreshold)
@@ -658,7 +663,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         }
     }
 
-    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource) {
+    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource, BigDecimal addonAmount) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("resourceId", resource.getId());
         map.put("resourceCode", resource.getLabel());
@@ -666,10 +671,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         map.put("durationHours", priceCalc.getDurationHours());
         map.put("baseAmount", priceCalc.getBaseAmount());
         map.put("surchargeAmount", priceCalc.getSurchargeAmount());
+        map.put("addonAmount", addonAmount != null ? addonAmount : BigDecimal.ZERO);
         map.put("taxAmount", priceCalc.getTaxAmount());
         map.put("serviceFeeAmount", priceCalc.getServiceFeeAmount());
         map.put("discountAmount", priceCalc.getDiscountAmount());
-        map.put("finalPrice", priceCalc.getFinalPrice());
+        BigDecimal finalPrice = priceCalc.getFinalPrice().add(addonAmount != null ? addonAmount : BigDecimal.ZERO);
+        map.put("finalPrice", finalPrice);
         map.put("currency", priceCalc.getCurrency());
         try {
             return objectMapper.writeValueAsString(map);
