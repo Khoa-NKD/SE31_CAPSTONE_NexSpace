@@ -37,7 +37,7 @@ import {
   isResourceOffice
 } from '../detail/public-floor-map';
 import { SeatsListView } from './seats-list-view';
-import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time-picker-modal';
+import { DateTimePickerModal, parseTimeToMinutes, type ScheduleSelection } from '../detail/date-time-picker-modal';
 import { usePublicWorkspaceDetailQuery } from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, useCreateBookingMutation } from '../../api/booking-queries';
 import { useCurrentPendingBooking } from '@/features/payments/api';
@@ -63,6 +63,11 @@ function computeDurationHours(startIso?: string, endIso?: string, fallback = 4):
       const diffHours = (e - s) / (1000 * 60 * 60);
       return Math.round(diffHours * 10) / 10;
     }
+    const startM = parseTimeToMinutes(startIso);
+    const endM = parseTimeToMinutes(endIso);
+    const diffM = endM > startM ? endM - startM : endM + 1440 - startM;
+    const hours = Math.round((diffM / 60) * 10) / 10;
+    if (Number.isFinite(hours) && hours > 0) return hours;
   } catch {
     // fallback
   }
@@ -486,8 +491,8 @@ export function SeatsPage({
 
       toast.success(
         c(
-          `Held ${res.name || res.code} for 15 minutes!`,
-          `Đã giữ chỗ ${res.name || res.code} trong 15 phút!`
+          `Held ${res.name || res.code}! Please complete payment before hold expires.`,
+          `Đã giữ chỗ ${res.name || res.code}! Vui lòng hoàn tất thanh toán trước khi hết hạn giữ chỗ.`
         )
       );
 

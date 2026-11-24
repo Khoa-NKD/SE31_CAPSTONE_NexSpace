@@ -61,7 +61,7 @@ const DEFAULT_OPERATING_HOURS: WorkspaceOperatingHour[] = [1, 2, 3, 4, 5, 6, 7].
 /**
  * Parses time string (e.g. "09:00", "09:00 AM", "2026-11-12T09:00:00") into minutes from midnight.
  */
-function parseTimeToMinutes(timeStr?: string): number {
+export function parseTimeToMinutes(timeStr?: string): number {
   if (!timeStr) return 0;
   // Check if ISO formatted timestamp
   if (timeStr.includes('T')) {

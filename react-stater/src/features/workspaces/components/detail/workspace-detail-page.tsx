@@ -10,7 +10,7 @@ import { usePublicWorkspaceDetailQuery, useWorkspaceMediaQuery, useWorkspaceAmen
 import { useWorkspaceAvailabilityQuery, bookingKeys } from '../../api/booking-queries';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 import { useLanguage } from '@/features/landing/context/language-context';
-import type { ScheduleSelection } from './date-time-picker-modal';
+import { DateTimePickerModal, type ScheduleSelection, parseTimeToMinutes } from './date-time-picker-modal';
 import type {
   CustomerFloor,
   MapResource,
@@ -81,7 +81,52 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
   const { data: mediaItems = [] } = useWorkspaceMediaQuery(workspaceId);
   const { data: amenitiesList = [] } = useWorkspaceAmenitiesQuery(workspaceId);
 
-  const [schedule, setSchedule] = useState<ScheduleSelection | null>(null);
+  const [schedule, setSchedule] = useState<ScheduleSelection | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+    const startTime = params.get('startTime');
+    const endTime = params.get('endTime');
+    const isoStartTime = params.get('isoStartTime');
+    const isoEndTime = params.get('isoEndTime');
+    if (date && startTime && endTime) {
+      let durationHours = 1;
+      try {
+        const startM = parseTimeToMinutes(startTime);
+        const endM = parseTimeToMinutes(endTime);
+        const diffM = endM > startM ? endM - startM : endM + 1440 - startM;
+        durationHours = Math.max(1, Math.round((diffM / 60) * 10) / 10);
+      } catch {
+        durationHours = 1;
+      }
+      if (!Number.isFinite(durationHours) || durationHours <= 0) {
+        durationHours = 1;
+      }
+      return {
+        date,
+        day: 1,
+        startTime,
+        endTime,
+        durationHours,
+        isoDate: date,
+        isoStartTime: isoStartTime || undefined,
+        isoEndTime: isoEndTime || undefined
+      };
+    }
+    return null;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || !schedule) return;
+    const url = new URL(window.location.href);
+    if (schedule.date) url.searchParams.set('date', schedule.date);
+    if (schedule.startTime) url.searchParams.set('startTime', schedule.startTime);
+    if (schedule.endTime) url.searchParams.set('endTime', schedule.endTime);
+    if (schedule.isoStartTime) url.searchParams.set('isoStartTime', schedule.isoStartTime);
+    if (schedule.isoEndTime) url.searchParams.set('isoEndTime', schedule.isoEndTime);
+    window.history.replaceState({}, '', url.toString());
+  }, [schedule]);
+
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const [loadedFloors, setLoadedFloors] = useState<CustomerFloor[]>([]);
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>();

@@ -7,6 +7,8 @@ import { WorkspaceMap } from './workspace-map';
 import { useCurrentLocation } from '../hooks/use-current-location';
 import type { PublicWorkspaceSummary } from '../api/types';
 import type { AdvancedFilterValues } from './workspace-advanced-filter-modal';
+import type { ScheduleSelection } from './detail/date-time-picker-modal';
+import { parseTimeToMinutes } from './detail/date-time-picker-modal';
 
 const INITIAL_ADVANCED_FILTERS: AdvancedFilterValues = {
   city: undefined,
@@ -26,6 +28,40 @@ export function WorkspacesPage() {
   const [category, setCategory] = useState(() => {
     if (typeof window === 'undefined') return '';
     return new URLSearchParams(window.location.search).get('category') || '';
+  });
+  const [schedule, setSchedule] = useState<ScheduleSelection | null>(() => {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    const date = params.get('date');
+    const startTime = params.get('startTime');
+    const endTime = params.get('endTime');
+    const isoStartTime = params.get('isoStartTime');
+    const isoEndTime = params.get('isoEndTime');
+    if (date && startTime && endTime) {
+      let durationHours = 1;
+      try {
+        const startM = parseTimeToMinutes(startTime);
+        const endM = parseTimeToMinutes(endTime);
+        const diffM = endM > startM ? endM - startM : endM + 1440 - startM;
+        durationHours = Math.max(1, Math.round((diffM / 60) * 10) / 10);
+      } catch {
+        durationHours = 1;
+      }
+      if (!Number.isFinite(durationHours) || durationHours <= 0) {
+        durationHours = 1;
+      }
+      return {
+        date,
+        day: 1,
+        startTime,
+        endTime,
+        durationHours,
+        isoDate: date,
+        isoStartTime: isoStartTime || undefined,
+        isoEndTime: isoEndTime || undefined
+      };
+    }
+    return null;
   });
   const [totalCount, setTotalCount] = useState<number | undefined>(undefined);
   const [workspaces, setWorkspaces] = useState<PublicWorkspaceSummary[]>([]);
@@ -51,8 +87,33 @@ export function WorkspacesPage() {
     } else {
       url.searchParams.delete('category');
     }
+    if (schedule?.date) {
+      url.searchParams.set('date', schedule.date);
+    } else {
+      url.searchParams.delete('date');
+    }
+    if (schedule?.startTime) {
+      url.searchParams.set('startTime', schedule.startTime);
+    } else {
+      url.searchParams.delete('startTime');
+    }
+    if (schedule?.endTime) {
+      url.searchParams.set('endTime', schedule.endTime);
+    } else {
+      url.searchParams.delete('endTime');
+    }
+    if (schedule?.isoStartTime) {
+      url.searchParams.set('isoStartTime', schedule.isoStartTime);
+    } else {
+      url.searchParams.delete('isoStartTime');
+    }
+    if (schedule?.isoEndTime) {
+      url.searchParams.set('isoEndTime', schedule.isoEndTime);
+    } else {
+      url.searchParams.delete('isoEndTime');
+    }
     window.history.replaceState({}, '', url.toString());
-  }, [search, category]);
+  }, [search, category, schedule]);
 
   const handleWorkspacesLoaded = useCallback((loaded: PublicWorkspaceSummary[]) => {
     setWorkspaces((prev) => {
@@ -121,6 +182,8 @@ export function WorkspacesPage() {
         onSearchChange={setSearch}
         category={category}
         onCategoryChange={setCategory}
+        schedule={schedule}
+        onScheduleChange={setSchedule}
         totalCount={totalCount}
         isNearMeActive={isNearMeActive}
         onToggleNearMe={handleToggleNearMe}
@@ -154,6 +217,8 @@ export function WorkspacesPage() {
             amenityIds={advancedFilters.amenityIds}
             resourceCategories={resourceCategories}
             minRating={advancedFilters.minRating}
+            startTime={schedule?.isoStartTime}
+            endTime={schedule?.isoEndTime}
             onTotalCountChange={setTotalCount}
             onWorkspacesLoaded={handleWorkspacesLoaded}
             isNearMeActive={isNearMeActive}

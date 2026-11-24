@@ -267,6 +267,10 @@ export interface PublicWorkspaceFilterParams {
   amenityIds?: number[];
   resourceCategories?: string[];
   minRating?: number;
+  startTime?: string;
+  endTime?: string;
+  lat?: number;
+  lng?: number;
 }
 
 export interface NearbyWorkspacesParams {

@@ -43,12 +43,18 @@ import { SaveSearchModal } from './save-search-modal';
 import { useWorkspaceSuggestionsQuery } from '../api/queries';
 import { useSavedSearches } from '../hooks/use-saved-searches';
 import type { SavedSearchCriteria } from '../api/types';
+import {
+  DateTimePickerModal,
+  type ScheduleSelection
+} from './detail/date-time-picker-modal';
 
 interface WorkspaceFilterBarProps {
   search?: string;
   onSearchChange?: (val: string) => void;
   category?: string;
   onCategoryChange?: (val: string) => void;
+  schedule?: ScheduleSelection | null;
+  onScheduleChange?: (schedule: ScheduleSelection) => void;
   totalCount?: number;
   // Geolocation & Near Me Proximity
   isNearMeActive?: boolean;
@@ -86,6 +92,8 @@ export function WorkspaceFilterBar({
   onSearchChange,
   category = '',
   onCategoryChange,
+  schedule,
+  onScheduleChange,
   totalCount,
   isNearMeActive = false,
   onToggleNearMe,
@@ -424,10 +432,31 @@ export function WorkspaceFilterBar({
           </DropdownMenu>
 
           {/* Date & Time Trigger */}
-          <div className="hidden lg:flex h-9 sm:h-10 cursor-pointer items-center gap-1.5 rounded-xl border border-border bg-background px-3 text-xs font-medium text-foreground shadow-2xs hover:bg-muted/50">
-            <Calendar className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-            <span>Hôm nay, Giờ linh hoạt</span>
-          </div>
+          <DateTimePickerModal
+            initialDate={schedule?.date}
+            initialStartTime={schedule?.startTime}
+            initialEndTime={schedule?.endTime}
+            onConfirm={(newSched) => {
+              onScheduleChange?.(newSched);
+            }}
+          >
+            <button
+              type="button"
+              className={cn(
+                "hidden lg:flex h-9 sm:h-10 cursor-pointer items-center gap-1.5 rounded-xl border px-3 text-xs font-semibold shadow-2xs transition-all cursor-pointer",
+                schedule
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border bg-background text-foreground hover:bg-muted/50"
+              )}
+            >
+              <Calendar className={cn("h-3.5 w-3.5 shrink-0", schedule ? "text-primary" : "text-muted-foreground")} />
+              <span>
+                {schedule
+                  ? `${schedule.date}, ${schedule.startTime} - ${schedule.endTime}`
+                  : "Hôm nay, Giờ linh hoạt"}
+              </span>
+            </button>
+          </DateTimePickerModal>
 
           {/* Price Range Popover */}
           <Popover open={isPricePopoverOpen} onOpenChange={handleOpenPricePopover}>
