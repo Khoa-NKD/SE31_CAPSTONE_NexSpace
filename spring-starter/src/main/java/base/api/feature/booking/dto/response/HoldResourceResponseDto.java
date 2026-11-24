@@ -56,6 +56,9 @@ public class HoldResourceResponseDto {
     @Schema(description = "Giá gốc trước thuế và giảm giá (VNĐ)", example = "140000.00")
     BigDecimal baseAmount;
 
+    @Schema(description = "Chi phí tiện ích bổ sung (VNĐ)", example = "70000.00")
+    BigDecimal addonAmount;
+
     @Schema(description = "Tổng tiền thanh toán cuối cùng (VNĐ)", example = "151200.00")
     BigDecimal finalPrice;
 

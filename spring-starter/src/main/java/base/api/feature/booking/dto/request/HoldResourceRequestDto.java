@@ -46,4 +46,7 @@ public class HoldResourceRequestDto {
     @Size(max = 500, message = "Ghi chú không được vượt quá 500 ký tự")
     @Schema(description = "Ghi chú hoặc mục đích sử dụng", example = "Làm việc cá nhân")
     private String notes;
+
+    @Schema(description = "Chi phí tiện ích bổ sung (Addon Amount)", example = "70000.00")
+    private java.math.BigDecimal addonAmount;
 }
