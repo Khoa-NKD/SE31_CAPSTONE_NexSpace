@@ -381,20 +381,87 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(workspaces);
         Map<Long, String> coverUrls = getCoverUrlsForPage(workspaces);
 
-        return page.map(w -> {
+        boolean hasTimeFilter = filterRequest != null && filterRequest.getStartTime() != null && filterRequest.getEndTime() != null;
+        Set<Long> workspaceIdsWithAvailableSeats = new HashSet<>();
+        if (hasTimeFilter && !workspaces.isEmpty()) {
+            LocalDateTime now = LocalDateTime.now();
+            Set<Long> occupiedResourceIds = bookingRepository.findOccupiedResourceIds(
+                    filterRequest.getStartTime(), filterRequest.getEndTime(), now);
+            List<Long> wsIds = workspaces.stream().map(WorkspaceModel::getId).toList();
+            List<base.api.shared.entity.resource.BookableResourceModel> availableResources =
+                    bookableResourceRepository.findAvailableResourcesByWorkspaceIds(wsIds);
+            workspaceIdsWithAvailableSeats = availableResources.stream()
+                    .filter(r -> !occupiedResourceIds.contains(r.getId()))
+                    .map(r -> r.getFloorPlan().getWorkspace().getId())
+                    .collect(Collectors.toSet());
+        }
+
+        Double userLat = filterRequest != null ? filterRequest.getLat() : null;
+        Double userLng = filterRequest != null ? filterRequest.getLng() : null;
+        Map<Long, Double> distances = new HashMap<>();
+        if (userLat != null && userLng != null) {
+            for (WorkspaceModel w : workspaces) {
+                if (w.getLatitude() != null && w.getLongitude() != null) {
+                    distances.put(w.getId(), calculateDistanceKm(userLat, userLng, w.getLatitude().doubleValue(), w.getLongitude().doubleValue()));
+                }
+            }
+        }
+
+        List<WorkspaceModel> sortedWorkspaces = new ArrayList<>(workspaces);
+        if (hasTimeFilter || (userLat != null && userLng != null)) {
+            final Set<Long> finalAvailableSet = workspaceIdsWithAvailableSeats;
+            sortedWorkspaces.sort((w1, w2) -> {
+                if (hasTimeFilter) {
+                    boolean avail1 = finalAvailableSet.contains(w1.getId());
+                    boolean avail2 = finalAvailableSet.contains(w2.getId());
+                    if (avail1 != avail2) {
+                        return avail1 ? -1 : 1; // Ưu tiên workspace có chỗ trống lên đầu
+                    }
+                }
+                if (userLat != null && userLng != null) {
+                    Double d1 = distances.get(w1.getId());
+                    Double d2 = distances.get(w2.getId());
+                    if (d1 != null && d2 != null) {
+                        int distCmp = Double.compare(d1, d2);
+                        if (distCmp != 0) return distCmp;
+                    } else if (d1 != null) {
+                        return -1;
+                    } else if (d2 != null) {
+                        return 1;
+                    }
+                }
+                return 0;
+            });
+        }
+
+        List<WorkspaceDto> dtoList = sortedWorkspaces.stream().map(w -> {
             Long bCount = bookingCounts.getOrDefault(w.getId(), 0L);
             RatingSummary rSummary = ratingSummaries.get(w.getId());
             java.math.BigDecimal price = minPrices.get(w.getId());
             String coverUrl = coverUrls.get(w.getId());
+            Double dist = distances.get(w.getId());
             return WorkspaceMapper.toDto(
                     w,
-                    null,
+                    dist,
                     bCount,
                     price,
                     rSummary != null ? rSummary.avgRating() : null,
                     rSummary != null ? rSummary.reviewCount() : 0L,
                     coverUrl);
-        });
+        }).toList();
+
+        return new PageImpl<>(dtoList, page.getPageable(), page.getTotalElements());
+    }
+
+    private double calculateDistanceKm(double lat1, double lon1, double lat2, double lon2) {
+        final int earthRadiusKm = 6371;
+        double latDistance = Math.toRadians(lat2 - lat1);
+        double lonDistance = Math.toRadians(lon2 - lon1);
+        double a = Math.sin(latDistance / 2) * Math.sin(latDistance / 2)
+                + Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2))
+                * Math.sin(lonDistance / 2) * Math.sin(lonDistance / 2);
+        double c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return Math.round(earthRadiusKm * c * 100.0) / 100.0;
     }
 
     @Override

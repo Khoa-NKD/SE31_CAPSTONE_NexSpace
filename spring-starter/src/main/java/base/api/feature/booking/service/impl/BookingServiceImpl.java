@@ -239,10 +239,8 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         String pricingSnapshot = buildPricingSnapshot(priceCalc, resource);
         String cancellationPolicySnapshot = buildCancellationPolicySnapshot(workspace.getId());
 
-        // 12. Determine Initial Status
-        BookingStatus initialStatus = workspace.getBookingConfirmationMode() == BookingConfirmationMode.MANUAL_APPROVAL
-                ? BookingStatus.PENDING_APPROVAL
-                : BookingStatus.PENDING_PAYMENT;
+        // 12. Determine Initial Status (Chỉ sử dụng INSTANT -> PENDING_PAYMENT)
+        BookingStatus initialStatus = BookingStatus.PENDING_PAYMENT;
 
         // 13. Build & Save BookingModel
         BookingModel booking = new BookingModel();
