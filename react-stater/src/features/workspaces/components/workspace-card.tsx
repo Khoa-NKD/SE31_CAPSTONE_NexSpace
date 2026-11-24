@@ -125,6 +125,7 @@ export function WorkspaceCard({ workspace, isActive, onHover }: WorkspaceCardPro
     <Link
       to='/workspaces/$workspaceId'
       params={{ workspaceId: String(id) }}
+      search={(prev: any) => prev}
       onMouseEnter={() => onHover?.(String(id))}
       onMouseLeave={() => onHover?.(null)}
       className={cn(

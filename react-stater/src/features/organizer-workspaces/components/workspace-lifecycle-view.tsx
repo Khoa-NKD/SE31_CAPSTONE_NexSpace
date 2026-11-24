@@ -997,43 +997,18 @@ export function WorkspaceLifecycleView({ workspaceId, initialTab = 'overview' }:
                         <span className='font-bold text-foreground'>Booking Confirmation Protocol</span>
                         <span className='text-muted-foreground text-[11px] font-mono'>Policy #NX-POL-24</span>
                       </div>
-                      <div className='grid grid-cols-1 sm:grid-cols-2 gap-3'>
-                        <button
-                          type='button'
-                          disabled={updateMutation.isPending}
-                          onClick={() => handleBookingModeChange('instant')}
-                          className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
-                            activeWorkspace.bookingMode !== 'manual'
-                              ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30'
-                              : 'border-border bg-card'
-                          } ${updateMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      <div className='grid grid-cols-1 gap-3'>
+                        <div
+                          className='p-3 rounded-lg border border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30 text-left'
                         >
                           <div className='flex items-center justify-between mb-1'>
-                            <span className='text-xs font-bold text-foreground'>Instant Booking</span>
-                            <Badge variant='secondary' className='text-[10px] font-semibold'>Recommended</Badge>
+                            <span className='text-xs font-bold text-foreground'>Instant Booking (100% Tự động)</span>
+                            <Badge variant='secondary' className='text-[10px] font-semibold'>Mặc định nền tảng</Badge>
                           </div>
                           <p className='text-[11px] text-muted-foreground'>
-                            Confirmed instantly if slot is open. Maximum conversion rate (+34%).
+                            Đơn đặt chỗ được xác nhận và giữ chỗ ngay lập tức khi khách chọn khung giờ khả dụng. Tối ưu tỷ lệ chuyển đổi và trải nghiệm đặt tức thì.
                           </p>
-                        </button>
-
-                        <button
-                          type='button'
-                          disabled={updateMutation.isPending}
-                          onClick={() => handleBookingModeChange('manual')}
-                          className={`p-3 rounded-lg border text-left cursor-pointer transition-all ${
-                            activeWorkspace.bookingMode === 'manual'
-                              ? 'border-indigo-600 bg-indigo-50/40 dark:bg-indigo-950/30'
-                              : 'border-border bg-card'
-                          } ${updateMutation.isPending ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                          <div className='flex items-center justify-between mb-1'>
-                            <span className='text-xs font-bold text-foreground'>Manual Approval</span>
-                          </div>
-                          <p className='text-[11px] text-muted-foreground'>
-                            Organizer reviews KYC &amp; guest company profile before accepting slot.
-                          </p>
-                        </button>
+                        </div>
                       </div>
                     </div>
                   </div>

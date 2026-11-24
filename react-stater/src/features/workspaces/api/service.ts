@@ -138,6 +138,10 @@ export const workspaceService = {
       if (params.resourceCategories && params.resourceCategories.length > 0) {
         queryParams.resourceCategories = params.resourceCategories.join(',');
       }
+      if (params.startTime) queryParams.startTime = params.startTime;
+      if (params.endTime) queryParams.endTime = params.endTime;
+      if (params.lat !== undefined) queryParams.lat = params.lat;
+      if (params.lng !== undefined) queryParams.lng = params.lng;
     }
 
     return apiClient.get<PublicWorkspaceListResponse>('/public/workspaces', {

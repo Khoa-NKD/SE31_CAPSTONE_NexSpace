@@ -17,6 +17,8 @@ interface WorkspaceListProps {
   amenityIds?: number[];
   resourceCategories?: string[];
   minRating?: number;
+  startTime?: string;
+  endTime?: string;
   sortBy?: 'featuredPosition' | 'pricePerHour' | 'rating' | 'name' | 'popular' | string;
   sortOrder?: 'asc' | 'desc';
   onTotalCountChange?: (count: number) => void;
@@ -40,6 +42,8 @@ export function WorkspaceList({
   amenityIds,
   resourceCategories,
   minRating,
+  startTime,
+  endTime,
   sortBy,
   sortOrder,
   onTotalCountChange,
@@ -72,6 +76,8 @@ export function WorkspaceList({
     amenityIds,
     resourceCategories,
     minRating,
+    startTime,
+    endTime,
     activeSortBy,
     activeSortOrder,
     isNearbyEnabled,
@@ -88,6 +94,8 @@ export function WorkspaceList({
     prevFilterState.amenityIds !== amenityIds ||
     prevFilterState.resourceCategories !== resourceCategories ||
     prevFilterState.minRating !== minRating ||
+    prevFilterState.startTime !== startTime ||
+    prevFilterState.endTime !== endTime ||
     prevFilterState.activeSortBy !== activeSortBy ||
     prevFilterState.activeSortOrder !== activeSortOrder ||
     prevFilterState.isNearbyEnabled !== isNearbyEnabled ||
@@ -103,6 +111,8 @@ export function WorkspaceList({
       amenityIds,
       resourceCategories,
       minRating,
+      startTime,
+      endTime,
       activeSortBy,
       activeSortOrder,
       isNearbyEnabled,
@@ -125,7 +135,11 @@ export function WorkspaceList({
     sortBy: activeSortBy,
     sortOrder: activeSortOrder,
     page,
-    limit
+    limit,
+    startTime: startTime || undefined,
+    endTime: endTime || undefined,
+    lat: nearMeCoords?.lat,
+    lng: nearMeCoords?.lng
   });
 
   const nearbyQuery = useNearbyWorkspacesQuery(

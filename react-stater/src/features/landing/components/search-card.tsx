@@ -13,9 +13,14 @@ import {
   X
 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 import { useLanguage } from '../context/language-context';
 import type { WorkspaceType } from '../api/types';
 import { highlightSearchCard } from './search-card-highlight';
+import {
+  DateTimePickerModal,
+  type ScheduleSelection
+} from '@/features/workspaces/components/detail/date-time-picker-modal';
 
 export interface SearchCriteria {
   mode: WorkspaceType | 'all';
@@ -95,6 +100,7 @@ export function SearchCard({
   const [internalMode, setInternalMode] = useState<WorkspaceType | 'all'>('all');
   const [internalLocation, setInternalLocation] = useState('');
   const [internalDateTime, setInternalDateTime] = useState('today-flexible');
+  const [selectedSchedule, setSelectedSchedule] = useState<ScheduleSelection | null>(null);
   const [internalCapacity, setInternalCapacity] = useState('1 - 4 People');
   const [showMoreOptions, setShowMoreOptions] = useState(false);
 
@@ -159,6 +165,13 @@ export function SearchCard({
     if (capacity) {
       searchParams.capacity = capacity;
     }
+    if (selectedSchedule) {
+      if (selectedSchedule.date) searchParams.date = selectedSchedule.date;
+      if (selectedSchedule.startTime) searchParams.startTime = selectedSchedule.startTime;
+      if (selectedSchedule.endTime) searchParams.endTime = selectedSchedule.endTime;
+      if (selectedSchedule.isoStartTime) searchParams.isoStartTime = selectedSchedule.isoStartTime;
+      if (selectedSchedule.isoEndTime) searchParams.isoEndTime = selectedSchedule.isoEndTime;
+    }
 
     navigate({
       to: '/workspaces',
@@ -214,22 +227,26 @@ export function SearchCard({
             {t('search.dateLabel')}
           </label>
           <div className='relative flex items-center'>
-            <Calendar className='pointer-events-none absolute left-3.5 h-4 w-4 text-slate-400' />
-            <select
-              id='search-datetime'
-              value={dateTime}
-              onChange={(e) => {
-                notifyFilterChange({ dateTime: e.target.value });
+            <Calendar className='pointer-events-none absolute left-3.5 h-4 w-4 text-slate-400 z-10' />
+            <DateTimePickerModal
+              onConfirm={(schedule) => {
+                setSelectedSchedule(schedule);
+                notifyFilterChange({ dateTime: `${schedule.date}, ${schedule.startTime} - ${schedule.endTime}` });
               }}
-              className='h-11 w-full cursor-pointer appearance-none rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-8 text-sm text-slate-900 transition-colors focus:border-[#4b41e1] focus:bg-white focus:ring-2 focus:ring-[#4b41e1]/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950/60 dark:text-white dark:focus:bg-slate-950'
             >
-              {dateOptions.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className='pointer-events-none absolute right-3 h-4 w-4 text-slate-400' />
+              <button
+                type='button'
+                id='search-datetime'
+                className='h-11 w-full cursor-pointer flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-sm text-slate-900 transition-colors hover:border-[#4b41e1] hover:bg-white focus:border-[#4b41e1] focus:bg-white focus:ring-2 focus:ring-[#4b41e1]/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950/60 dark:text-white dark:hover:border-[#4b41e1] dark:focus:bg-slate-950'
+              >
+                <span className={cn('truncate font-medium text-xs sm:text-sm text-left', !selectedSchedule && 'text-slate-500 dark:text-slate-400')}>
+                  {selectedSchedule
+                    ? `${selectedSchedule.date}, ${selectedSchedule.startTime} - ${selectedSchedule.endTime}`
+                    : (language === 'vi' ? 'Hôm nay, Giờ linh hoạt' : 'Today, Flexible hours')}
+                </span>
+                <ChevronDown className='h-4 w-4 text-slate-400 shrink-0 ml-1' />
+              </button>
+            </DateTimePickerModal>
           </div>
         </div>
 

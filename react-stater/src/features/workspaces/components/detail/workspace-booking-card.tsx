@@ -17,6 +17,7 @@ import { useLanguage } from '@/features/landing/context/language-context';
 import { useCurrency } from '@/features/landing/context/currency-context';
 import {
   DateTimePickerModal,
+  parseTimeToMinutes,
   type ScheduleSelection
 } from './date-time-picker-modal';
 import type { CustomerFloor, MapResource } from './public-floor-map';
@@ -96,7 +97,19 @@ export function WorkspaceBookingCard({
     0;
 
   const isStartingRate = !selectedResource && effectiveHourlyRate > 0;
-  const durationHours = schedule?.durationHours || 3;
+  const durationHours = useMemo(() => {
+    if (!schedule) return 3;
+    if (Number.isFinite(schedule.durationHours) && schedule.durationHours > 0) {
+      return schedule.durationHours;
+    }
+    if (schedule.startTime && schedule.endTime) {
+      const startM = parseTimeToMinutes(schedule.startTime);
+      const endM = parseTimeToMinutes(schedule.endTime);
+      const diffM = endM > startM ? endM - startM : endM + 1440 - startM;
+      return Math.max(1, Math.round((diffM / 60) * 10) / 10);
+    }
+    return 3;
+  }, [schedule]);
   const subtotal = effectiveHourlyRate * durationHours;
 
   const isInstantConfirmation =
@@ -164,21 +177,10 @@ export function WorkspaceBookingCard({
             </div>
 
             <span
-              className={cn(
-                'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0',
-                isInstantConfirmation
-                  ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
-                  : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/20'
-              )}
+              className='inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold shrink-0 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20'
             >
               <Zap className='size-3 fill-current' />
-              {isInstantConfirmation
-                ? language === 'vi'
-                  ? 'Xác nhận ngay'
-                  : 'Instant Book'
-                : language === 'vi'
-                  ? 'Chủ duyệt'
-                  : 'Host Review'}
+              {language === 'vi' ? 'Xác nhận ngay' : 'Instant Book'}
             </span>
           </div>
 
@@ -320,8 +322,8 @@ export function WorkspaceBookingCard({
                       {schedule.startTime} – {schedule.endTime}
                     </span>
                     <span className='bg-primary/10 text-primary px-2 py-0.5 rounded-md font-bold text-[11px]'>
-                      {schedule.durationHours}{' '}
-                      {schedule.durationHours > 1
+                      {durationHours}{' '}
+                      {durationHours > 1
                         ? language === 'vi'
                           ? 'giờ'
                           : 'hrs'
