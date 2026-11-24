@@ -11,7 +11,8 @@ import {
   Wifi,
   VolumeX,
   Calendar,
-  QrCode
+  QrCode,
+  Monitor
 } from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
@@ -27,6 +28,7 @@ interface BookingSummaryCardProps {
   startTime?: string;
   endTime?: string;
   date?: string;
+  addonName?: string;
   isLoading?: boolean;
 }
 
@@ -37,6 +39,7 @@ export function BookingSummaryCard({
   startTime,
   endTime,
   date,
+  addonName,
   isLoading = false
 }: BookingSummaryCardProps) {
   const amenities = [
@@ -137,6 +140,24 @@ export function BookingSummaryCard({
           <span>Locked for Hold</span>
         </div>
       </div>
+
+      {/* Selected Add-on Amenity Badge if Chosen */}
+      {addonName && (
+        <div className='bg-primary/10 border-primary/30 flex items-center justify-between rounded-xl border p-3 text-xs animate-in fade-in'>
+          <div className='flex items-center gap-2.5'>
+            <Monitor className='text-primary h-4 w-4 shrink-0' />
+            <div>
+              <span className='text-foreground font-bold'>{addonName}</span>
+              <p className='text-muted-foreground text-[11px]'>
+                Tiện ích mở rộng đã đăng ký kèm đơn đặt chỗ
+              </p>
+            </div>
+          </div>
+          <span className='bg-primary text-primary-foreground font-semibold px-2 py-0.5 rounded text-[11px]'>
+            Đã chọn
+          </span>
+        </div>
+      )}
 
       {/* Included Station Amenities Row */}
       <div className='border-border/60 border-t pt-4'>

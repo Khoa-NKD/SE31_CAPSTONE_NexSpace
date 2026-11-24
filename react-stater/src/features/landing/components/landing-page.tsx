@@ -5,6 +5,7 @@ import { StickyTopSearchBar } from './sticky-top-search-bar';
 import { MarketplaceShowcase } from './marketplace-showcase';
 import { HowItWorksSection } from './how-it-works-section';
 import { PartnerCtaSection } from './partner-cta-section';
+import { ScrollToTopButton } from './scroll-to-top-button';
 import { Footer } from './footer';
 import { LandingSmoothScroll } from './landing-smooth-scroll';
 import type { SearchCriteria } from './search-card';
@@ -73,6 +74,9 @@ export default function LandingPage() {
         {/* 05. Become a Partner CTA */}
         <PartnerCtaSection />
       </main>
+
+      {/* Floating Scroll to Top Button */}
+      <ScrollToTopButton />
 
       {/* 06. Footer */}
       <Footer />

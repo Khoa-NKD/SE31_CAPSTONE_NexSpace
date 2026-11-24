@@ -12,11 +12,15 @@ import {
 interface SeatSpecsGridProps {
   monitorAddonSelected?: boolean;
   onToggleMonitorAddon?: () => void;
+  addonRatePerHour?: number;
+  currency?: string;
 }
 
 export function SeatSpecsGrid({
   monitorAddonSelected = false,
-  onToggleMonitorAddon
+  onToggleMonitorAddon,
+  addonRatePerHour = 35000,
+  currency = 'VND'
 }: SeatSpecsGridProps) {
   const specs = [
     {
@@ -113,7 +117,11 @@ export function SeatSpecsGrid({
               <h3 className='text-foreground text-xs font-bold sm:text-sm'>
                 Dell 27" 4K Monitor Add-on
               </h3>
-              <span className='text-primary text-xs font-bold'>+$1.50/hr</span>
+              <span className='text-primary text-xs font-bold'>
+                +{currency === 'VND'
+                  ? `${addonRatePerHour.toLocaleString('vi-VN')} đ/giờ`
+                  : `$${addonRatePerHour.toFixed(2)}/hr`}
+              </span>
             </div>
             <p className='text-muted-foreground text-xs leading-relaxed'>
               UltraSharp U2723QE with single-cable 90W USB-C hub connectivity &amp; ergonomic

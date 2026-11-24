@@ -498,9 +498,15 @@ export function PublicFloorMap({
       }
 
       if (isAvailable || isHeldByMe) {
-        setInternalSelectedId(resource.id);
-        onSelect?.(resource);
-        onSelectResource?.(resource);
+        if (activeSelectedId === resource.id) {
+          setInternalSelectedId(null);
+          onSelect?.(null as unknown as MapResource);
+          onSelectResource?.(null as unknown as MapResource);
+        } else {
+          setInternalSelectedId(resource.id);
+          onSelect?.(resource);
+          onSelectResource?.(resource);
+        }
       }
     };
 
@@ -1030,9 +1036,15 @@ export function PublicFloorMap({
                     return;
                   }
 
-                  setInternalSelectedId(resource.id);
-                  onSelect?.(resource);
-                  onSelectResource?.(resource);
+                  if (activeSelectedId === resource.id) {
+                    setInternalSelectedId(null);
+                    onSelect?.(null as unknown as MapResource);
+                    onSelectResource?.(null as unknown as MapResource);
+                  } else {
+                    setInternalSelectedId(resource.id);
+                    onSelect?.(resource);
+                    onSelectResource?.(resource);
+                  }
                 }}
               />
             </Suspense>

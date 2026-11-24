@@ -1,9 +1,17 @@
 import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import React, { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Building2, Compass } from '@/components/ui/hugeicons';
+import { useQuery } from '@tanstack/react-query';
+import { ArrowRight, Building2, Compass, Sparkles } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useFeaturedWorkspacesQuery, usePublicWorkspacesQuery } from '@/features/workspaces/api';
+import { useAuthStore } from '@/features/auth/store/auth-store';
+import { customerPreferenceQueryOptions } from '@/features/customer-preferences/api/queries';
+import {
+  sortWorkspacesByPreferences,
+  calculateWorkspacePreferenceScore,
+  hasConfiguredPreferences
+} from '../utils/preference-scoring';
 import { WorkspaceCard, type LandingWorkspaceCardData } from './workspace-card';
 import { useLanguage } from '../context/language-context';
 import type { SearchCriteria } from './search-card';
@@ -19,16 +27,25 @@ export function MarketplaceShowcase({ filterCriteria, onResetFilters }: Marketpl
   const { t, language } = useLanguage();
   const [selectedCity, setSelectedCity] = useState<string>('all');
 
+  const { isAuthenticated } = useAuthStore();
+  const { data: customerPreferences } = useQuery({
+    ...customerPreferenceQueryOptions(),
+    enabled: Boolean(isAuthenticated)
+  });
+
   const { data: featuredData, isLoading: isFeaturedLoading } = useFeaturedWorkspacesQuery();
   const {
     data: publicListData,
     isLoading: isPublicLoading,
     isError
-  } = usePublicWorkspacesQuery({ limit: 6 });
+  } = usePublicWorkspacesQuery({ limit: 50 });
 
   const isLoading = isFeaturedLoading && isPublicLoading;
 
-  // Combine featured workspaces first, then fill up to 6 from public active workspaces
+  const isPersonalized = Boolean(isAuthenticated && hasConfiguredPreferences(customerPreferences));
+
+  // Combine featured workspaces first, then fill from public active workspaces,
+  // prioritized by customer personal preferences if logged in
   const allWorkspaces = useMemo<LandingWorkspaceCardData[]>(() => {
     const map = new Map<string, LandingWorkspaceCardData>();
 
@@ -53,8 +70,9 @@ export function MarketplaceShowcase({ filterCriteria, onResetFilters }: Marketpl
       }
     }
 
-    return Array.from(map.values());
-  }, [featuredData, publicListData]);
+    const combined = Array.from(map.values());
+    return sortWorkspacesByPreferences(combined, customerPreferences);
+  }, [featuredData, publicListData, customerPreferences]);
 
   // Derive available cities dynamically from real data
   const availableCities = useMemo<string[]>(() => {
@@ -133,11 +151,23 @@ export function MarketplaceShowcase({ filterCriteria, onResetFilters }: Marketpl
         {/* Section Header */}
         <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-end'>
           <div>
-            <h2 className='font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white'>
-              {t('market.title')}
-            </h2>
+            <div className='flex flex-wrap items-center gap-2.5'>
+              <h2 className='font-display text-2xl font-extrabold tracking-tight text-slate-900 sm:text-3xl dark:text-white'>
+                {t('market.title')}
+              </h2>
+              {isPersonalized && (
+                <span className='inline-flex items-center gap-1.5 rounded-full border border-indigo-500/40 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-300 backdrop-blur-xs shadow-xs'>
+                  <Sparkles className='h-3.5 w-3.5 text-amber-300 animate-pulse' />
+                  <span>{language === 'vi' ? 'Ưu tiên theo sở thích của bạn' : 'Personalized for you'}</span>
+                </span>
+              )}
+            </div>
             <p className='mt-1.5 max-w-2xl text-sm sm:text-base text-slate-600 dark:text-slate-400'>
-              {t('market.subtitle')}
+              {isPersonalized
+                ? (language === 'vi'
+                    ? 'Hệ thống đã tự động ưu tiên sắp xếp các không gian phù hợp nhất theo sở thích không gian cá nhân của bạn.'
+                    : 'Workspaces prioritized to match your personal workspace preferences and preferred locations.')
+                : t('market.subtitle')}
             </p>
           </div>
 
@@ -250,21 +280,26 @@ export function MarketplaceShowcase({ filterCriteria, onResetFilters }: Marketpl
           </div>
         ) : (
           <div className='ns-workspace-grid mt-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3'>
-            {displayedWorkspaces.map((workspace, index) => (
-              <LandingReveal key={String(workspace.id)} delay={index * 0.04}>
-                <SpotlightCard
-                  className='ns-workspace-spotlight'
-                  intensity={0.25}
-                  borderGlow={0.3}
-                  proximity={0}
-                  ambient={false}
-                  flare={false}
-                  spotlightColor='#a5b4fc'
-                >
-                  <WorkspaceCard workspace={workspace} />
-                </SpotlightCard>
-              </LandingReveal>
-            ))}
+            {displayedWorkspaces.map((workspace, index) => {
+              const prefScore = calculateWorkspacePreferenceScore(workspace, customerPreferences);
+              const isMatch = isPersonalized && prefScore.isMatch;
+
+              return (
+                <LandingReveal key={String(workspace.id)} delay={index * 0.04}>
+                  <SpotlightCard
+                    className='ns-workspace-spotlight'
+                    intensity={0.25}
+                    borderGlow={0.3}
+                    proximity={0}
+                    ambient={false}
+                    flare={false}
+                    spotlightColor='#a5b4fc'
+                  >
+                    <WorkspaceCard workspace={workspace} isPreferenceMatch={isMatch} />
+                  </SpotlightCard>
+                </LandingReveal>
+              );
+            })}
           </div>
         )}
 
