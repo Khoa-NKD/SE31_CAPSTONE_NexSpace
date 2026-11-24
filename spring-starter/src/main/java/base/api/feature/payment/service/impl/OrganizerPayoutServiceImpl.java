@@ -81,6 +81,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
             Map.entry("HDBank", "970437")
     );
 
+    private final base.api.feature.payment.repository.IRefundRequestRepository refundRequests;
     private final IOrganizerPayoutRepository payoutRepository;
     private final IOrganizerPayoutSettingRepository payoutSettingRepository;
     private final IOrganizerWithdrawalBatchRepository withdrawalBatchRepository;
@@ -96,6 +97,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
     private String clientId;
 
     public OrganizerPayoutServiceImpl(
+            base.api.feature.payment.repository.IRefundRequestRepository refundRequests,
             IOrganizerPayoutRepository payoutRepository,
             IOrganizerPayoutSettingRepository payoutSettingRepository,
             IOrganizerWithdrawalBatchRepository withdrawalBatchRepository,
@@ -106,6 +108,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
             @Qualifier("payOSPayoutClient") PayOS payOS,
             IAuditService auditService,
             IUserNotificationRepository userNotificationRepository) {
+        this.refundRequests = refundRequests;
         this.payoutRepository = payoutRepository;
         this.payoutSettingRepository = payoutSettingRepository;
         this.withdrawalBatchRepository = withdrawalBatchRepository;
@@ -289,8 +292,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
         // Tự động giải phóng các khoản đã đủ điều kiện
         releaseEligibleHeldPayoutsForOrganizer(organizerId);
 
-        List<OrganizerPayoutModel> releasedPayouts = payoutRepository.findByOrganizerIdAndStatusAndWithdrawalBatchIsNull(
-                organizerId, PayoutStatus.RELEASED);
+        List<OrganizerPayoutModel> releasedPayouts = payoutRepository.findWithdrawableForUpdate(organizerId);
 
         BigDecimal availableAmount = releasedPayouts.stream()
                 .map(OrganizerPayoutModel::getPayoutAmount)
@@ -371,7 +373,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
         List<OrganizerPayoutModel> toRelease = new ArrayList<>();
         for (OrganizerPayoutModel p : eligiblePayouts) {
             // Không release nếu đang bị chặn bởi khiếu nại (support case)
-            if (p.getSupportCase() == null) {
+            if (p.getSupportCase() == null && !hasPendingRefund(p)) {
                 p.setStatus(PayoutStatus.RELEASED);
                 toRelease.add(p);
             }
@@ -398,8 +400,7 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
             try {
                 releaseEligibleHeldPayoutsForOrganizer(orgId);
 
-                List<OrganizerPayoutModel> releasedPayouts = payoutRepository.findByOrganizerIdAndStatusAndWithdrawalBatchIsNull(
-                        orgId, PayoutStatus.RELEASED);
+                List<OrganizerPayoutModel> releasedPayouts = payoutRepository.findWithdrawableForUpdate(orgId);
 
                 BigDecimal availableAmount = releasedPayouts.stream()
                         .map(OrganizerPayoutModel::getPayoutAmount)
@@ -539,12 +540,16 @@ public class OrganizerPayoutServiceImpl implements IOrganizerPayoutService {
         }
     }
 
+    private boolean hasPendingRefund(OrganizerPayoutModel payout) {
+        return refundRequests.findByBookingId(payout.getBooking().getId()).stream().anyMatch(r -> r.getStatus() == base.api.shared.enums.RefundStatus.PENDING);
+    }
+
     private void releaseEligibleHeldPayoutsForOrganizer(Long organizerId) {
         LocalDateTime now = LocalDateTime.now();
-        List<OrganizerPayoutModel> heldPayouts = payoutRepository.findByOrganizerIdAndStatus(organizerId, PayoutStatus.HELD);
+        List<OrganizerPayoutModel> heldPayouts = payoutRepository.findHeldForUpdate(organizerId);
         List<OrganizerPayoutModel> toRelease = new ArrayList<>();
         for (OrganizerPayoutModel p : heldPayouts) {
-            if (p.getEligibleAt() != null && !p.getEligibleAt().isAfter(now) && p.getSupportCase() == null) {
+            if (p.getEligibleAt() != null && !p.getEligibleAt().isAfter(now) && p.getSupportCase() == null && !hasPendingRefund(p)) {
                 p.setStatus(PayoutStatus.RELEASED);
                 toRelease.add(p);
             }

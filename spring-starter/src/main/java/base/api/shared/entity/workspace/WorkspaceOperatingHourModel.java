@@ -28,7 +28,7 @@ import java.time.LocalTime;
 @Setter
 @Entity
 @Table(name = "workspace_operating_hour")
-@Check(name = "ck_woh_valid", constraints = "is_closed = 1 OR close_time > open_time")
+@Check(name = "ck_woh_valid", constraints = "is_closed = 1 OR is_24_hours = 1 OR (open_time IS NOT NULL AND close_time IS NOT NULL AND ((closes_next_day = 0 AND close_time > open_time) OR (closes_next_day = 1 AND close_time < open_time)))")
 public class WorkspaceOperatingHourModel {
 
     @EmbeddedId
@@ -48,6 +48,12 @@ public class WorkspaceOperatingHourModel {
 
     @Column(name = "is_closed", nullable = false)
     private boolean closed;
+
+    @Column(name = "is_24_hours", nullable = false)
+    private boolean fullDay;
+
+    @Column(name = "closes_next_day", nullable = false)
+    private boolean closesNextDay;
 
     @Getter
     @Setter

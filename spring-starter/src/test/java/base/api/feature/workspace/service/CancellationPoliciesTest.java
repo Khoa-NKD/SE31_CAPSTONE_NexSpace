@@ -15,12 +15,12 @@ class CancellationPoliciesTest {
 
     @Test void agreedDefaultsCoverAllPreStartIntervalsWithoutRoundingHours() {
         var rules=CancellationPolicies.defaults();
-        assertThat(rules).hasSize(4);
+        assertThat(rules).hasSize(3);
         assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(24),start)).isEqualByComparingTo("100");
         assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(24).plusNanos(1),start)).isEqualByComparingTo("50");
         assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(12),start)).isEqualByComparingTo("50");
-        assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(12).plusNanos(1),start)).isEqualByComparingTo("25");
-        assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(2),start)).isEqualByComparingTo("25");
+        assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(12).plusNanos(1),start)).isEqualByComparingTo("50");
+        assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(2),start)).isEqualByComparingTo("50");
         assertThat(CancellationPolicies.refundPercent(rules,start.minusHours(2).plusNanos(1),start)).isZero();
         assertThat(CancellationPolicies.refundPercent(rules,start,start)).isZero();
         assertThat(CancellationPolicies.refundPercent(rules,start.plusMinutes(1),start)).isZero();

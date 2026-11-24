@@ -35,6 +35,12 @@ public final class BookingMapper {
             }
         }
 
+        if (model.getPricingSnapshot() != null) {
+            try {
+                var snapshot = new com.fasterxml.jackson.databind.ObjectMapper().readTree(model.getPricingSnapshot());
+                if (snapshot.hasNonNull("unitPrice")) unitPrice = snapshot.get("unitPrice").decimalValue();
+            } catch (com.fasterxml.jackson.core.JsonProcessingException ignored) { /* Preserve legacy fallback rates for historical snapshots. */ }
+        }
         LocalDateTime now = LocalDateTime.now();
         Long remainingSeconds = null;
         Integer holdDurationMinutes = null;

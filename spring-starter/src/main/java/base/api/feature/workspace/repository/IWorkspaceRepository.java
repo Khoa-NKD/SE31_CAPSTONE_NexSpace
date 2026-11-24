@@ -41,6 +41,18 @@ public interface IWorkspaceRepository extends JpaRepository<WorkspaceModel, Long
             @Param("search") String search,
             Pageable pageable);
 
+    @Query("""
+        select w from WorkspaceModel w where w.organizer.id=:organizerId
+        and (:search is null or lower(w.name) like lower(concat('%',:search,'%')) or lower(w.address) like lower(concat('%',:search,'%')) or lower(w.city) like lower(concat('%',:search,'%')))
+        and (:status is null
+          or (:status='DRAFT' and w.status=base.api.shared.enums.WorkspaceStatus.DRAFT and w.reviewedAt is null and w.submittedAt is null)
+          or (:status='INACTIVE' and (w.status in (base.api.shared.enums.WorkspaceStatus.INACTIVE,base.api.shared.enums.WorkspaceStatus.PENDING) or (w.status=base.api.shared.enums.WorkspaceStatus.DRAFT and (w.reviewedAt is not null or w.submittedAt is not null))))
+          or (:status='HOLIDAY' and w.status=base.api.shared.enums.WorkspaceStatus.ACTIVE and exists (select code from WorkspaceModel hw join hw.holidayCodes code where hw.id=w.id and code in :holidayCodes) and not exists (select g.id from MaintenanceGroupModel g where g.workspace.id=w.id and g.cancelled=false and g.wholeWorkspace=true and g.startTime<=:now and g.endTime>:now))
+          or (:status='ACTIVE' and w.status=base.api.shared.enums.WorkspaceStatus.ACTIVE and not exists (select code from WorkspaceModel hw join hw.holidayCodes code where hw.id=w.id and code in :holidayCodes) and not exists (select g.id from MaintenanceGroupModel g where g.workspace.id=w.id and g.cancelled=false and g.wholeWorkspace=true and g.startTime<=:now and g.endTime>:now))
+          or (:status='MAINTENANCE' and (w.status=base.api.shared.enums.WorkspaceStatus.MAINTENANCE or (w.status=base.api.shared.enums.WorkspaceStatus.ACTIVE and exists (select g.id from MaintenanceGroupModel g where g.workspace.id=w.id and g.cancelled=false and g.wholeWorkspace=true and g.startTime<=:now and g.endTime>:now)))))
+        """)
+    Page<WorkspaceModel> searchByOrganizerEffective(@Param("organizerId") Long organizerId,@Param("status") String status,@Param("search") String search,@Param("now") java.time.LocalDateTime now,@Param("holidayCodes") java.util.Set<String> holidayCodes,Pageable pageable);
+
     Optional<WorkspaceModel> findByIdAndOrganizerId(Long id, Long organizerId);
 
     Optional<WorkspaceModel> findByIdAndStatus(Long id, WorkspaceStatus status);

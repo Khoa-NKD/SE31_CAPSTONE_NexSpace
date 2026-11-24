@@ -19,11 +19,12 @@ import java.math.BigDecimal;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class UpdateWorkspaceDto {
 
-    @Size(max = 255, message = "Tên không gian tối đa 255 ký tự")
+    @Size(min = 3, max = 100, message = "Tên không gian từ 3 đến 100 ký tự")
     private String name;
 
     private WorkspaceCategory category;
 
+    @Size(max = 200, message = "Mô tả ngắn tối đa 200 ký tự")
     private String description;
 
     @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
@@ -51,8 +52,12 @@ public class UpdateWorkspaceDto {
     @JsonAlias({"entryNotes", "entryInstructions"})
     private String entryInstructions;
 
+    @Size(max=6)
+    private java.util.Set<@jakarta.validation.constraints.NotBlank String> holidayCodes;
+
     private BookingConfirmationMode bookingConfirmationMode;
 
+    @jakarta.validation.Valid
     private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
     private java.util.List<base.api.feature.workspace.dto.response.CancellationRuleDto> cancellationRules;
 }

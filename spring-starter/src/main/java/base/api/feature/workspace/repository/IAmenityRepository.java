@@ -32,7 +32,7 @@ public interface IAmenityRepository extends JpaRepository<AmenityModel, Long> {
 
     List<AmenityModel> findByOrganizerIsNullAndActiveTrueOrderByNameAsc();
 
-    @Query("SELECT a FROM AmenityModel a WHERE a.active = true AND a.organizer.id = :organizerId ORDER BY a.name ASC")
+    @Query("SELECT a FROM AmenityModel a WHERE a.active = true AND (a.organizer IS NULL OR a.organizer.id = :organizerId) ORDER BY a.name ASC")
     List<AmenityModel> findAvailableForOrganizer(@Param("organizerId") Long organizerId);
 
     @Query("SELECT a FROM AmenityModel a WHERE a.organizer.id = :organizerId AND " +

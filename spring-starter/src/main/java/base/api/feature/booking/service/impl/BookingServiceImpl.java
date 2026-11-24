@@ -91,11 +91,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             BookingStatus.PENDING_PAYMENT
     );
 
+    private final base.api.feature.payment.service.RefundPayoutService refundPayouts;
+    private final base.api.feature.booking.service.BookingAddons addons;
     private final IBookingRepository bookingRepository;
     private final IBookableResourceRepository resourceRepository;
     private final IWorkspaceRepository workspaceRepository;
     private final IOrganizerProfileRepository organizerProfiles;
     private final IUserRepository userRepository;
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IWorkspaceCancellationRuleRepository cancellationRuleRepository;
     private final IResourceBlockedSlotRepository blockedSlotRepository;
@@ -135,7 +138,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         WorkspaceModel workspace = workspaceRepository.findById(dto.getWorkspaceId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + dto.getWorkspaceId()));
 
-        if (workspace.getStatus() != WorkspaceStatus.ACTIVE) {
+        if (workspace.getBaseStatus() != WorkspaceStatus.ACTIVE) {
             throw new BadRequestException("Không gian làm việc hiện không ở trạng thái sẵn sàng nhận đặt chỗ");
         }
 
@@ -220,10 +223,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         if (dto.getPartySize() > availableCapacity)
             throw new ConflictException("Số người vượt số ghế khả dụng sau khi trừ ghế đang bảo trì.");
         // 8. Calculate Pricing & Tariffs
-        PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType());
+        PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType(), dto.getAmenityIds());
 
         BigDecimal platformCommissionPercent = getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT);
-        BigDecimal platformFeeAmount = priceCalc.getBaseAmount()
+        BigDecimal platformFeeAmount = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount()).add(priceCalc.getAddonAmount())
                 .multiply(platformCommissionPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
@@ -255,7 +258,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         booking.setPriceType(dto.getPriceType() != null ? dto.getPriceType() : PriceType.HOURLY);
         booking.setBaseAmount(priceCalc.getBaseAmount());
         booking.setSurchargeAmount(priceCalc.getSurchargeAmount());
-        booking.setAddonAmount(BigDecimal.ZERO);
+        booking.setAddonAmount(priceCalc.getAddonAmount());
         booking.setDiscountAmount(priceCalc.getDiscountAmount());
         booking.setTaxAmount(priceCalc.getTaxAmount());
         booking.setServiceFeeAmount(priceCalc.getServiceFeeAmount());
@@ -298,12 +301,58 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         BookableResourceModel resource = resourceRepository.findById(dto.getResourceId())
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy chỗ ngồi/phòng với ID: " + dto.getResourceId()));
+        if (!resource.getFloorPlan().getWorkspace().getId().equals(workspace.getId())) throw new NotFoundException("Vị trí không thuộc không gian.");
         requireIndividuallyBookable(resource);
 
         validateTimeRange(dto.getStartTime(), dto.getEndTime());
         validateOperatingHours(workspace.getId(), dto.getStartTime(), dto.getEndTime());
 
-        return computePrice(workspace, resource, dto.getStartTime(), dto.getEndTime(), dto.getPriceType());
+        return computePrice(workspace, resource, dto.getStartTime(), dto.getEndTime(), dto.getPriceType(), dto.getAmenityIds());
+    }
+
+    @Override
+    @Transactional
+    public BookingResponseDto updateAddons(Long customerId, Long bookingId, List<Long> amenityIds) {
+        var booking = bookingRepository.findByIdForUpdate(bookingId)
+                .filter(b -> b.getCustomer().getId().equals(customerId))
+                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ."));
+        if (booking.getStatus() != BookingStatus.PENDING_PAYMENT || booking.getHoldExpiresAt() == null
+                || !booking.getHoldExpiresAt().isAfter(LocalDateTime.now()))
+            throw new ConflictException("Đơn không còn trong thời gian giữ chỗ.");
+        // Once a gateway session exists, its immutable amount cannot be changed by another tab.
+        if (!paymentTransactionRepository.findByBookingId(bookingId).isEmpty())
+            throw new ConflictException("Phiên thanh toán đã được tạo. Hãy giữ nguyên tiện ích của đơn này.");
+        var selected = addons.quote(booking.getWorkspace().getId(),amenityIds,booking.getStartTime(),booking.getEndTime());
+        var previous = BookingMapper.toDto(booking);
+        var amount = selected.stream().map(base.api.feature.booking.service.BookingAddons.Item::amount).reduce(BigDecimal.ZERO,BigDecimal::add);
+        com.fasterxml.jackson.databind.JsonNode frozen;
+        try { frozen = objectMapper.readTree(booking.getPricingSnapshot()); }
+        catch (Exception ex) { throw new BadRequestException("Không đọc được giá đã chốt của đơn."); }
+        String currency = frozen.path("currency").asText("VND");
+        if (amount.signum() > 0 && !"VND".equals(currency)) throw new BadRequestException("Tiện ích VND chỉ áp dụng cho đơn VND.");
+        BigDecimal oldTaxable = booking.getBaseAmount().add(booking.getSurchargeAmount()).add(booking.getAddonAmount()).subtract(booking.getDiscountAmount());
+        BigDecimal rate = frozen.hasNonNull("vatPercent") ? frozen.get("vatPercent").decimalValue()
+                : oldTaxable.signum() > 0 ? booking.getTaxAmount().multiply(BigDecimal.valueOf(100)).divide(oldTaxable,2,RoundingMode.HALF_UP) : BigDecimal.ZERO;
+        BigDecimal taxable = booking.getBaseAmount().add(booking.getSurchargeAmount()).add(amount).subtract(booking.getDiscountAmount());
+        BigDecimal tax = taxable.multiply(rate).divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP);
+        var quote = PriceCalculationResponseDto.builder().resourceId(booking.getResource().getId()).unitPrice(previous.getUnitPrice())
+                .durationHours(previous.getDurationHours()).priceType(booking.getPriceType()).baseAmount(booking.getBaseAmount())
+                .surchargeAmount(booking.getSurchargeAmount()).addonAmount(amount).addons(selected).discountAmount(booking.getDiscountAmount())
+                .vatPercent(rate).taxAmount(tax).serviceFeeAmount(booking.getServiceFeeAmount()).currency(currency)
+                .finalPrice(taxable.add(tax).add(booking.getServiceFeeAmount()).setScale(2,RoundingMode.HALF_UP)).build();
+        booking.setBaseAmount(quote.getBaseAmount());
+        booking.setSurchargeAmount(quote.getSurchargeAmount());
+        booking.setAddonAmount(quote.getAddonAmount());
+        booking.setTaxAmount(quote.getTaxAmount());
+        booking.setDiscountAmount(quote.getDiscountAmount());
+        booking.setServiceFeeAmount(quote.getServiceFeeAmount());
+        booking.setFinalPrice(quote.getFinalPrice());
+        booking.setPricingSnapshot(buildPricingSnapshot(quote, booking.getResource()));
+        booking.setPlatformFeeAmount(quote.getBaseAmount().add(quote.getSurchargeAmount()).add(quote.getAddonAmount())
+                .multiply(getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+        bookingRepository.save(booking);
+        return enrichBookingDto(booking);
     }
 
     private void requireIndividuallyBookable(BookableResourceModel resource) {
@@ -632,8 +681,10 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             percent = host ? BigDecimal.valueOf(100)
                     : base.api.feature.workspace.service.CancellationPolicies.refundPercent(rules,now,booking.getStartTime());
         }
-        BigDecimal amount = booking.getFinalPrice() == null ? BigDecimal.ZERO
-                : booking.getFinalPrice().multiply(percent).divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP);
+        BigDecimal paidAmount = booking.getStatus() == BookingStatus.CONFIRMED
+                ? base.api.feature.payment.service.BookingRefundAmount.settledTransaction(paymentTransactionRepository.findByBookingId(bookingId)).getAmount()
+                : BigDecimal.ZERO;
+        BigDecimal amount = base.api.feature.payment.service.BookingRefundAmount.calculate(paidAmount,percent);
         var items = rules.stream().map(rule -> BookingCancellationPreviewDto.CancellationRuleItemDto.builder()
                 .minHoursBeforeStart(rule.minHoursBeforeStart().intValueExact()).refundPercent(rule.refundPercent())
                 .label("Từ " + rule.minHoursBeforeStart().intValueExact() + " giờ trước khi bắt đầu: hoàn " + rule.refundPercent().toPlainString() + "%").build()).toList();
@@ -644,7 +695,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         return BookingCancellationPreviewDto.builder().bookingId(booking.getId()).bookingCode(booking.getBookingCode())
                 .status(booking.getStatus()).startTime(booking.getStartTime())
                 .hoursBeforeStart(Math.max(0,Duration.between(now,booking.getStartTime()).toHours()))
-                .finalPrice(booking.getFinalPrice()).refundPercent(percent).refundAmount(amount)
+                .finalPrice(paidAmount).refundPercent(percent).refundAmount(amount)
                 .isHostCancellation(host).canCancel(canCancel).cancellationPolicyExplanation(explanation).rules(items).build();
     }
 
@@ -659,7 +710,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     @Override
     @Transactional
     public BookingResponseDto cancelBooking(Long customerId, Long bookingId, base.api.feature.booking.dto.request.CancelBookingRequestDto requestDto) {
-        BookingModel booking = bookingRepository.findById(bookingId)
+        BookingModel booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
 
         String cancelReason = requestDto != null ? requestDto.getReason() : null;
@@ -699,10 +750,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 var policy = base.api.feature.workspace.service.CancellationPolicies.readSnapshot(booking.getCancellationPolicySnapshot());
                 refundPercent = base.api.feature.workspace.service.CancellationPolicies.refundPercent(policy,now,booking.getStartTime());
             }
-            if (booking.getFinalPrice() != null) refundAmount = booking.getFinalPrice().multiply(refundPercent)
-                    .divide(BigDecimal.valueOf(100),2,RoundingMode.HALF_UP);
+            var charge = base.api.feature.payment.service.BookingRefundAmount.settledTransaction(paymentTransactionRepository.findByBookingId(bookingId));
+            refundAmount = base.api.feature.payment.service.BookingRefundAmount.calculate(charge.getAmount(),refundPercent);
         }
 
+        if (refundAmount.signum() > 0) refundPayouts.reserve(booking);
         BookingStatus previousStatus = booking.getStatus();
         booking.setStatus(BookingStatus.CANCELLED);
         booking.setHoldExpiresAt(null);
@@ -717,31 +769,24 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         UserModel actor = userRepository.findById(customerId).orElse(booking.getCustomer());
 
         // Create Refund Request if refundAmount > 0 and transaction exists
-        if (refundAmount.compareTo(BigDecimal.ZERO) > 0 && refundRequestRepository != null && paymentTransactionRepository != null) {
-            try {
-                List<PaymentTransactionModel> txs = paymentTransactionRepository.findByBookingId(updated.getId());
-                if (txs != null && !txs.isEmpty()) {
-                    PaymentTransactionModel tx = txs.get(0);
-                    RefundRequestModel refund = new RefundRequestModel();
-                    refund.setBooking(updated);
-                    refund.setPaymentTransaction(tx);
-                    refund.setRequestedBy(actor);
-                    refund.setSource(cancelSource == CancelSource.ORGANIZER ? RefundSource.ORGANIZER_CANCEL : RefundSource.CUSTOMER_CANCEL);
-                    refund.setReason(updated.getCancelReason());
-                    refund.setRequestedAmount(refundAmount);
-                    refund.setStatus(RefundStatus.PENDING);
-                    if (requestDto != null) {
-                        refund.setBankName(requestDto.getBankName());
-                        refund.setBankBin(requestDto.getBankBin());
-                        refund.setBankAccountNumber(requestDto.getBankAccountNumber());
-                        refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
-                    }
-                    RefundRequestModel savedRefund = refundRequestRepository.save(refund);
-                    notificationService.sendRefundRequestedNotification(savedRefund);
-                }
-            } catch (Exception e) {
-                log.warn("Failed to create refund request record for cancelled booking {}: {}", updated.getId(), e.getMessage());
+        if (refundAmount.compareTo(BigDecimal.ZERO) > 0) {
+            PaymentTransactionModel tx = base.api.feature.payment.service.BookingRefundAmount.settledTransaction(paymentTransactionRepository.findByBookingId(updated.getId()));
+            RefundRequestModel refund = new RefundRequestModel();
+            refund.setBooking(updated);
+            refund.setPaymentTransaction(tx);
+            refund.setRequestedBy(actor);
+            refund.setSource(cancelSource == CancelSource.ORGANIZER ? RefundSource.ORGANIZER_CANCEL : cancelSource == CancelSource.ADMINISTRATOR ? RefundSource.ADMIN_DISPUTE : RefundSource.CUSTOMER_CANCEL);
+            refund.setReason(updated.getCancelReason());
+            refund.setRequestedAmount(refundAmount);
+            refund.setStatus(RefundStatus.PENDING);
+            if (requestDto != null) {
+                refund.setBankName(requestDto.getBankName());
+                refund.setBankBin(requestDto.getBankBin());
+                refund.setBankAccountNumber(requestDto.getBankAccountNumber());
+                refund.setBankAccountName(requestDto.getBankAccountName() != null ? requestDto.getBankAccountName().toUpperCase() : null);
             }
+            RefundRequestModel savedRefund = refundRequestRepository.save(refund);
+            notificationService.sendRefundRequestedNotification(savedRefund);
         }
 
         auditService.log(
@@ -965,36 +1010,12 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private base.api.feature.workspace.service.WorkspaceHolidayService workspaceHolidays;
     private void validateOperatingHours(Long workspaceId, LocalDateTime startTime, LocalDateTime endTime) {
-        int dayOfWeek = startTime.getDayOfWeek().getValue(); // 1 = Monday ... 7 = Sunday
-        List<WorkspaceOperatingHourModel> operatingHours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId);
-
-        if (operatingHours.isEmpty()) {
-            return; // No restricted hours configured
-        }
-
-        WorkspaceOperatingHourModel dayHour = operatingHours.stream()
-                .filter(h -> h.getId() != null && Objects.equals(h.getId().getDayOfWeek(), dayOfWeek))
-                .findFirst()
-                .orElse(null);
-
-        if (dayHour == null) {
-            return;
-        }
-
-        if (dayHour.isClosed()) {
-            throw new BadRequestException("Không gian làm việc đóng cửa vào " + getDayOfWeekName(dayOfWeek));
-        }
-
-        if (dayHour.getOpenTime() != null && startTime.toLocalTime().isBefore(dayHour.getOpenTime())) {
-            throw new BadRequestException("Thời gian bắt đầu (" + startTime.toLocalTime()
-                    + ") trước giờ mở cửa của cơ sở (" + dayHour.getOpenTime() + ")");
-        }
-
-        if (dayHour.getCloseTime() != null && endTime.toLocalTime().isAfter(dayHour.getCloseTime())) {
-            throw new BadRequestException("Thời gian kết thúc (" + endTime.toLocalTime()
-                    + ") sau giờ đóng cửa của cơ sở (" + dayHour.getCloseTime() + ")");
-        }
+        workspaceHolidays.validate(workspaceId,startTime,endTime);
+        if (maintenanceGroups.wholeWorkspaceOverlaps(workspaceId,startTime,endTime)) throw new base.api.shared.exception.ConflictException("Không gian có lịch bảo trì trong khoảng đặt chỗ.");
+        base.api.feature.workspace.service.OperatingHours.validate(
+                operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId), startTime, endTime);
     }
 
     private String getDayOfWeekName(int dayOfWeek) {
@@ -1012,7 +1033,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
     private PriceCalculationResponseDto computePrice(
             WorkspaceModel workspace, BookableResourceModel resource,
-            LocalDateTime startTime, LocalDateTime endTime, PriceType priceType) {
+            LocalDateTime startTime, LocalDateTime endTime, PriceType priceType, List<Long> amenityIds) {
 
         var baseQuote = base.api.feature.pricing.service.BookingBaseRates.quote(resource, startTime, endTime, priceType);
         PriceType effectivePriceType = baseQuote.priceType();
@@ -1025,7 +1046,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
 
         BigDecimal discountAmount = BigDecimal.ZERO;
 
-        BigDecimal taxableBase = baseAmount.add(surchargeAmount);
+        var selectedAddons = addons.quote(workspace.getId(), amenityIds, startTime, endTime);
+        BigDecimal addonAmount = selectedAddons.stream().map(base.api.feature.booking.service.BookingAddons.Item::amount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal taxableBase = baseAmount.add(surchargeAmount).add(addonAmount);
         BigDecimal vatPercent = getDecimalSetting("payment.vat_percent", DEFAULT_VAT_PERCENT);
         BigDecimal taxAmount = taxableBase.multiply(vatPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -1043,6 +1066,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
             currency = resource.getResourceType().getCurrency().name();
         }
 
+        if (addonAmount.signum() > 0 && !"VND".equals(currency)) throw new BadRequestException("Tiện ích VND chỉ áp dụng cho đơn VND.");
         return PriceCalculationResponseDto.builder()
                 .resourceId(resource.getId())
                 .resourceName(resource.getName() != null ? resource.getName() : resource.getLabel())
@@ -1052,6 +1076,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
                 .durationHours(durationHours)
                 .baseAmount(baseAmount)
                 .surchargeAmount(surchargeAmount)
+                .addonAmount(addonAmount)
+                .addons(selectedAddons)
+                .vatPercent(vatPercent)
                 .taxAmount(taxAmount)
                 .serviceFeeAmount(serviceFeeAmount)
                 .discountAmount(discountAmount)
@@ -1097,6 +1124,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         map.put("durationHours", priceCalc.getDurationHours());
         map.put("baseAmount", priceCalc.getBaseAmount());
         map.put("surchargeAmount", priceCalc.getSurchargeAmount());
+        map.put("addonAmount", priceCalc.getAddonAmount());
+        map.put("addons", priceCalc.getAddons());
+        map.put("vatPercent", priceCalc.getVatPercent());
         map.put("taxAmount", priceCalc.getTaxAmount());
         map.put("serviceFeeAmount", priceCalc.getServiceFeeAmount());
         map.put("discountAmount", priceCalc.getDiscountAmount());
@@ -1110,8 +1140,7 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
     }
 
     private String buildCancellationPolicySnapshot(Long workspaceId) {
-        return base.api.feature.workspace.service.CancellationPolicies.snapshot(
-                cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId));
+        return base.api.feature.workspace.service.CancellationPolicies.systemSnapshot();
     }
 
     private BigDecimal getDecimalSetting(String key, BigDecimal defaultValue) {

@@ -28,6 +28,10 @@ public class WorkspaceDto {
     String supportPhone;
     BookingConfirmationMode bookingConfirmationMode;
     WorkspaceStatus status;
+    java.util.Set<String> holidayCodes;
+    java.util.List<base.api.feature.workspace.service.VietnamHolidays.Period> holidayPeriods;
+    base.api.feature.workspace.service.VietnamHolidays.Closure holidayClosure;
+    Integer holidayCalendarThroughYear;
     String reviewStatus;
     String operatingStatus;
     String moderationStatus;

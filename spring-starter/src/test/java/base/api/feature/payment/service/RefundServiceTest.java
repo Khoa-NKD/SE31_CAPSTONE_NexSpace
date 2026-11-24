@@ -71,6 +71,9 @@ class RefundServiceTest {
     @Mock
     private IAuditService auditService;
 
+    @Mock
+    private base.api.feature.payment.service.RefundPayoutService refundPayouts;
+
     @InjectMocks
     private RefundServiceImpl refundService;
 
@@ -185,7 +188,7 @@ class RefundServiceTest {
         mockPayout.setId("PAYOUT_123456");
         mockPayout.setReferenceId("RF800_REF");
         when(payoutsService.create(any(PayoutRequests.class))).thenReturn(mockPayout);
-        when(refundRequestRepository.save(any(RefundRequestModel.class))).thenAnswer(i -> i.getArgument(0));
+        when(refundRequestRepository.saveAndFlush(any(RefundRequestModel.class))).thenAnswer(i -> i.getArgument(0));
 
         ApproveRefundRequestDto dto = ApproveRefundRequestDto.builder()
                 .approvedAmount(BigDecimal.valueOf(100000))
@@ -232,7 +235,7 @@ class RefundServiceTest {
     void rejectRefund_Success() {
         when(refundRequestRepository.findByIdForUpdate(800L)).thenReturn(Optional.of(mockRefund));
         when(userRepository.findById(1L)).thenReturn(Optional.of(mockAdmin));
-        when(refundRequestRepository.save(any(RefundRequestModel.class))).thenAnswer(i -> i.getArgument(0));
+        when(refundRequestRepository.saveAndFlush(any(RefundRequestModel.class))).thenAnswer(i -> i.getArgument(0));
 
         RejectRefundRequestDto dto = RejectRefundRequestDto.builder()
                 .reason("Không đủ điều kiện hoàn tiền do đơn đã check-in")

@@ -47,6 +47,7 @@ public class RefundServiceImpl implements IRefundService {
             "id", "createdAt", "requestedAmount", "approvedAmount", "status"
     );
 
+    private final base.api.feature.payment.service.RefundPayoutService refundPayouts;
     private final IRefundRequestRepository refundRequestRepository;
     private final IUserRepository userRepository;
     private final IBookingRepository bookingRepository;
@@ -58,12 +59,14 @@ public class RefundServiceImpl implements IRefundService {
     private String clientId;
 
     public RefundServiceImpl(
+            base.api.feature.payment.service.RefundPayoutService refundPayouts,
             IRefundRequestRepository refundRequestRepository,
             IUserRepository userRepository,
             IBookingRepository bookingRepository,
             @Qualifier("payOSPayoutClient") PayOS payOS,
             IAuditService auditService,
             @org.springframework.beans.factory.annotation.Autowired(required = false) base.api.feature.notification.service.INotificationService notificationService) {
+        this.refundPayouts = refundPayouts;
         this.refundRequestRepository = refundRequestRepository;
         this.userRepository = userRepository;
         this.bookingRepository = bookingRepository;
@@ -144,6 +147,7 @@ public class RefundServiceImpl implements IRefundService {
             throw new BadRequestException("Số tiền duyệt (" + approvedAmount + " đ) không được vượt quá số tiền yêu cầu (" + refund.getRequestedAmount() + " đ)");
         }
 
+        refundPayouts.reserve(refund.getBooking());
         String refId = "RF" + refund.getId() + "_" + (System.currentTimeMillis() % 1000000);
         String desc = sanitizeDescription("NX REFUND " + refund.getBooking().getId());
 
@@ -180,7 +184,8 @@ public class RefundServiceImpl implements IRefundService {
         refund.setReviewedAt(LocalDateTime.now());
         refund.setProcessedAt(LocalDateTime.now());
 
-        RefundRequestModel saved = refundRequestRepository.save(refund);
+        RefundRequestModel saved = refundRequestRepository.saveAndFlush(refund);
+        refundPayouts.reconcile(refund.getBooking());
 
         if (notificationService != null) {
             notificationService.sendRefundCompletedNotification(saved);
@@ -214,7 +219,8 @@ public class RefundServiceImpl implements IRefundService {
         refund.setReviewedBy(adminUser);
         refund.setReviewedAt(LocalDateTime.now());
 
-        RefundRequestModel saved = refundRequestRepository.save(refund);
+        RefundRequestModel saved = refundRequestRepository.saveAndFlush(refund);
+        refundPayouts.reconcile(refund.getBooking());
 
         if (notificationService != null) {
             notificationService.sendRefundCompletedNotification(saved);

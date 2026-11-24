@@ -72,6 +72,8 @@ public final class WorkspaceMapper {
         }
 
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
+        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace.getHolidayCodes());
+        if (status == WorkspaceStatus.ACTIVE && holiday != null) status=WorkspaceStatus.HOLIDAY;
         String reviewStatus;
         String operatingStatus;
         String moderationStatus = (status == WorkspaceStatus.SUSPENDED) ? "Suspended" : "Normal";
@@ -92,6 +94,7 @@ public final class WorkspaceMapper {
                 operatingStatus = "Active";
                 isListingVisible = true;
             }
+            case HOLIDAY -> { reviewStatus="Approved"; operatingStatus="Holiday"; isListingVisible=true; }
             case MAINTENANCE -> {
                 reviewStatus = "Approved";
                 operatingStatus = "Maintenance";
@@ -136,6 +139,10 @@ public final class WorkspaceMapper {
                 .supportPhone(workspace.getSupportPhone())
                 .bookingConfirmationMode(workspace.getBookingConfirmationMode())
                 .status(status)
+                .holidayCodes(workspace.getHolidayCodes())
+                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace.getHolidayCodes(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
+                .holidayClosure(holiday)
+                .holidayCalendarThroughYear(base.api.feature.workspace.service.VietnamHolidays.publishedThroughYear())
                 .reviewStatus(reviewStatus)
                 .operatingStatus(operatingStatus)
                 .moderationStatus(moderationStatus)
@@ -183,6 +190,8 @@ public final class WorkspaceMapper {
         }
 
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
+        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace.getHolidayCodes());
+        if (status == WorkspaceStatus.ACTIVE && holiday != null) status=WorkspaceStatus.HOLIDAY;
         String reviewStatus;
         String operatingStatus;
         String moderationStatus = (status == WorkspaceStatus.SUSPENDED) ? "Suspended" : "Normal";
@@ -203,6 +212,7 @@ public final class WorkspaceMapper {
                 operatingStatus = "Active";
                 isListingVisible = true;
             }
+            case HOLIDAY -> { reviewStatus="Approved"; operatingStatus="Holiday"; isListingVisible=true; }
             case MAINTENANCE -> {
                 reviewStatus = "Approved";
                 operatingStatus = "Maintenance";
@@ -249,6 +259,10 @@ public final class WorkspaceMapper {
                 .entryInstructions(workspace.getEntryInstructions())
                 .bookingConfirmationMode(workspace.getBookingConfirmationMode())
                 .status(status)
+                .holidayCodes(workspace.getHolidayCodes())
+                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace.getHolidayCodes(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
+                .holidayClosure(holiday)
+                .holidayCalendarThroughYear(base.api.feature.workspace.service.VietnamHolidays.publishedThroughYear())
                 .reviewStatus(reviewStatus)
                 .operatingStatus(operatingStatus)
                 .moderationStatus(moderationStatus)
@@ -275,11 +289,7 @@ public final class WorkspaceMapper {
             return null;
         }
         boolean isClosed = model.isClosed();
-        boolean is24Hours = !isClosed
-                && model.getOpenTime() != null
-                && model.getCloseTime() != null
-                && model.getOpenTime().equals(LocalTime.MIN)
-                && (model.getCloseTime().equals(LocalTime.of(23, 59)) || model.getCloseTime().equals(LocalTime.of(23, 59, 59)));
+        boolean is24Hours = !isClosed && model.isFullDay();
 
         return WorkspaceOperatingHourDto.builder()
                 .id(model.getId() != null && model.getId().getDayOfWeek() != null ? String.valueOf(model.getId().getDayOfWeek()) : null)
@@ -288,7 +298,7 @@ public final class WorkspaceMapper {
                 .closeTime(model.getCloseTime())
                 .isClosed(isClosed)
                 .is24Hours(is24Hours)
-                .closesNextDay(false)
+                .closesNextDay(model.isClosesNextDay())
                 .build();
     }
 
@@ -301,6 +311,8 @@ public final class WorkspaceMapper {
         model.setId(key);
         model.setWorkspace(workspace);
 
+        model.setFullDay(!dto.isClosed() && dto.is24Hours());
+        model.setClosesNextDay(!dto.isClosed() && !dto.is24Hours() && dto.isClosesNextDay());
         if (dto.isClosed()) {
             model.setClosed(true);
             model.setOpenTime(null);

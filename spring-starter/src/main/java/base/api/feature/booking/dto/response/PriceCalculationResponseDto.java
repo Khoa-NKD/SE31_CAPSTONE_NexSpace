@@ -19,6 +19,9 @@ public class PriceCalculationResponseDto {
     BigDecimal durationHours;
     BigDecimal baseAmount;
     BigDecimal surchargeAmount;
+    BigDecimal addonAmount;
+    java.util.List<base.api.feature.booking.service.BookingAddons.Item> addons;
+    BigDecimal vatPercent;
     BigDecimal taxAmount;
     BigDecimal serviceFeeAmount;
     BigDecimal discountAmount;

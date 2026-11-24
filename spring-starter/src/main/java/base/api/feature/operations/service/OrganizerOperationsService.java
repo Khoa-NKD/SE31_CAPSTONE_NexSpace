@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 @Transactional(readOnly=true)
 public class OrganizerOperationsService {
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IWorkspaceRepository workspaces;
     private final IBookableResourceRepository resources;
     private final IResourceTypeRepository types;
@@ -143,7 +144,7 @@ public class OrganizerOperationsService {
         if (input.startTime() == null || input.endTime() == null || !input.startTime().isBefore(input.endTime())
                 || input.startTime().isBefore(LocalDateTime.now().minusMinutes(2)) || input.reason() == null || input.reason().isBlank())
             throw new BadRequestException("Cần lý do và thời gian hợp lệ trong tương lai.");
-        if (input.resourceIds() == null || input.resourceIds().isEmpty() || input.resourceIds().size() > 200)
+        if (input.resourceIds() == null || input.resourceIds().isEmpty())
             throw new BadRequestException("Chọn từ 1 đến 200 ghế/phòng.");
         var ids = input.resourceIds().stream().distinct().sorted().toList();
         var targets = ids.stream().map(id -> resource(id, workspaceId))
@@ -164,6 +165,7 @@ public class OrganizerOperationsService {
     @Transactional
     public void deleteBlock(Long actor, Long workspaceId, Long id) {
         var workspace = owned(actor, workspaceId);
+        if (maintenanceGroups.owningGroup(workspaceId,"RESOURCE:"+id).isPresent()) throw new ConflictException("Hãy sửa hoặc gỡ toàn bộ lịch bảo trì nhóm.");
         var row = blocks.findById(id).filter(b -> b.getResource().getFloorPlan().getWorkspace().getId().equals(workspaceId))
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy lịch ngừng nhận đặt."));
         // Serializing on the blocked resource also serializes competing removals.

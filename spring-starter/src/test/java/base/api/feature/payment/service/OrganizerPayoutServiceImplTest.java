@@ -86,6 +86,7 @@ class OrganizerPayoutServiceImplTest {
         when(payOS.payouts()).thenReturn(payoutsService);
 
         service = new OrganizerPayoutServiceImpl(
+                org.mockito.Mockito.mock(base.api.feature.payment.repository.IRefundRequestRepository.class),
                 payoutRepository,
                 payoutSettingRepository,
                 withdrawalBatchRepository,

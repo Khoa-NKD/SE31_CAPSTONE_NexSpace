@@ -72,6 +72,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final IBookableResourceRepository resourceRepository;
     private final IBookingRepository bookingRepository;
     private final IResourceLockService resourceLockService;
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IWorkspaceCancellationRuleRepository cancellationRuleRepository;
     private final IOrganizerProfileRepository organizerProfiles;
@@ -207,7 +208,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
         WorkspaceModel workspace = resource.getFloorPlan().getWorkspace();
 
-        if (workspace.getStatus() != WorkspaceStatus.ACTIVE) {
+        if (workspace.getBaseStatus() != WorkspaceStatus.ACTIVE) {
             throw new BadRequestException("Không gian làm việc hiện không ở trạng thái sẵn sàng nhận đặt chỗ");
         }
 
@@ -570,36 +571,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         }
     }
 
+    @org.springframework.beans.factory.annotation.Autowired private base.api.feature.workspace.service.WorkspaceHolidayService workspaceHolidays;
     private void validateOperatingHours(Long workspaceId, LocalDateTime startTime, LocalDateTime endTime) {
-        List<WorkspaceOperatingHourModel> operatingHours =
-                operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId);
-
-        if (operatingHours.isEmpty()) {
-            return;
-        }
-
-        int dayOfWeek = startTime.getDayOfWeek().getValue() % 7;
-        WorkspaceOperatingHourModel todayHours = operatingHours.stream()
-                .filter(h -> h.getId() != null && Objects.equals(h.getId().getDayOfWeek(), dayOfWeek))
-                .findFirst()
-                .orElse(null);
-
-        if (todayHours == null || todayHours.isClosed()) {
-            throw new BadRequestException("Không gian không mở cửa vào ngày này");
-        }
-
-        LocalTime openTime = todayHours.getOpenTime();
-        LocalTime closeTime = todayHours.getCloseTime();
-
-        if (openTime != null && closeTime != null) {
-            LocalTime startLocal = startTime.toLocalTime();
-            LocalTime endLocal = endTime.toLocalTime();
-
-            if (startLocal.isBefore(openTime) || endLocal.isAfter(closeTime)) {
-                throw new BadRequestException("Thời gian đặt chỗ nằm ngoài khung giờ mở cửa của không gian ("
-                        + openTime + " - " + closeTime + ")");
-            }
-        }
+        workspaceHolidays.validate(workspaceId,startTime,endTime);
+        if (maintenanceGroups.wholeWorkspaceOverlaps(workspaceId,startTime,endTime)) throw new base.api.shared.exception.ConflictException("Không gian có lịch bảo trì trong khoảng đặt chỗ.");
+        base.api.feature.workspace.service.OperatingHours.validate(
+                operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId), startTime, endTime);
     }
 
     private PriceCalculationResponseDto computePrice(
@@ -702,8 +679,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     }
 
     private String buildCancellationPolicySnapshot(Long workspaceId) {
-        return base.api.feature.workspace.service.CancellationPolicies.snapshot(
-                cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(workspaceId));
+        return base.api.feature.workspace.service.CancellationPolicies.systemSnapshot();
     }
 
     private int getIntegerSetting(String primaryKey, String fallbackKey, int defaultValue) {

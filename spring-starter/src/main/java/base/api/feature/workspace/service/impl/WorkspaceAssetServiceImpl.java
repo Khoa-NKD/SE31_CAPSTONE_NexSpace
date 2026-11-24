@@ -54,6 +54,7 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
     );
 
     private final IWorkspaceRepository workspaceRepository;
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IWorkspaceAssetRepository assetRepository;
     private final IAssetMaintenanceLogRepository maintenanceLogRepository;
     private final IBookableResourceRepository resourceRepository;
@@ -382,6 +383,8 @@ public class WorkspaceAssetServiceImpl implements IWorkspaceAssetService {
     }
 
     private Set<Long> maintainedAssets(Long workspaceId) {
+        if (maintenanceGroups.wholeWorkspaceOverlaps(workspaceId,LocalDateTime.now(),LocalDateTime.now().plusNanos(1000)))
+            return assetRepository.findByWorkspaceId(workspaceId).stream().map(a -> a.getId()).collect(java.util.stream.Collectors.toSet());
         return maintenanceLogRepository.findMaintainedAssetIds(workspaceId, LocalDateTime.now(),
                 List.of(MaintenanceStatus.SCHEDULED, MaintenanceStatus.IN_PROGRESS));
     }

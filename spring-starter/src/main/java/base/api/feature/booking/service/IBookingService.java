@@ -16,6 +16,8 @@ import java.util.List;
 public interface IBookingService {
 
     /** Khách hàng tạo đơn đặt chỗ có bảo vệ chống Overbooking bằng Pessimistic Lock */
+    BookingResponseDto updateAddons(Long customerId, Long bookingId, java.util.List<Long> amenityIds);
+
     BookingResponseDto createBooking(Long customerId, CreateBookingRequestDto dto);
 
     /** Tạm tính chi phí đặt chỗ trước khi xác nhận */

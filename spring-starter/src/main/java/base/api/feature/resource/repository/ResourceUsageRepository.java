@@ -84,6 +84,8 @@ public class ResourceUsageRepository {
                                             .AvailabilityState.MAINTENANCE
                                     : base.api.feature.resource.dto.FloorManagement
                                             .AvailabilityState.LOCKED);
+        var workspaceId = em.createQuery("select f.workspace.id from FloorPlanModel f where f.id=:id", Long.class).setParameter("id",floorId).getSingleResult();
+        applyWholeWorkspaceMaintenance(result,workspaceId,floorId,from,to);
         return result;
     }
 
@@ -156,6 +158,7 @@ public class ResourceUsageRepository {
                                             .AvailabilityState.MAINTENANCE
                                     : base.api.feature.resource.dto.FloorManagement
                                             .AvailabilityState.LOCKED);
+        applyWholeWorkspaceMaintenance(result,workspaceId,null,from,to);
         return result;
     }
 
@@ -200,5 +203,15 @@ public class ResourceUsageRepository {
                         "select count(r) from " + entity + " r where r.resource.id=:id", Long.class)
                 .setParameter("id", id)
                 .getSingleResult();
+    }
+    private void applyWholeWorkspaceMaintenance(java.util.Map<Long,java.util.Set<base.api.feature.resource.dto.FloorManagement.AvailabilityState>> result,
+            Long workspaceId, Long floorId, LocalDateTime from,LocalDateTime to) {
+        long count=em.createQuery("select count(g) from MaintenanceGroupModel g where g.workspace.id=:workspace and g.cancelled=false and g.wholeWorkspace=true and g.startTime<:to and g.endTime>:from",Long.class)
+                .setParameter("workspace",workspaceId).setParameter("from",from).setParameter("to",to).getSingleResult();
+        if(count==0)return;
+        for(Long id:em.createQuery("select r.id from BookableResourceModel r where r.floorPlan.workspace.id=:workspace and (:floor is null or r.floorPlan.id=:floor)",Long.class)
+                .setParameter("workspace",workspaceId).setParameter("floor",floorId).getResultList())
+            result.computeIfAbsent(id,ignored -> java.util.EnumSet.noneOf(base.api.feature.resource.dto.FloorManagement.AvailabilityState.class))
+                .add(base.api.feature.resource.dto.FloorManagement.AvailabilityState.MAINTENANCE);
     }
 }
