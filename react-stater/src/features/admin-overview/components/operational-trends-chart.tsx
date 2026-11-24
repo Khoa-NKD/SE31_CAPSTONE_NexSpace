@@ -53,9 +53,21 @@ function formatVndFull(val: number): string {
   }).format(val);
 }
 
+function formatXAxisTick(val: string): string {
+  if (!val) return '';
+  if (val.length === 10 && val.includes('-')) {
+    const parts = val.split('-');
+    return `${parts[2]}/${parts[1]}`;
+  }
+  return val;
+}
+
 interface CustomTooltipProps {
   active?: boolean;
-  payload?: Array<{ value?: unknown }>;
+  payload?: Array<{
+    value?: unknown;
+    payload?: AdminOperationalTrendPointDTO;
+  }>;
   label?: string;
   isRevenue?: boolean;
   language?: string;
@@ -63,27 +75,58 @@ interface CustomTooltipProps {
 
 function ChartCustomTooltip({ active, payload, label, isRevenue, language }: CustomTooltipProps) {
   if (!active || !payload || !payload.length) return null;
-  const val = Number(payload[0].value || 0);
+  const item = (payload[0]?.payload || {}) as Partial<AdminOperationalTrendPointDTO>;
+  const settlements = typeof item.settlements === 'number' ? item.settlements : Number(payload[0]?.value || 0);
+  const bookings = typeof item.bookings === 'number' ? item.bookings : 0;
+
+  let dateTitle = label || '';
+  if (item.date) {
+    try {
+      const parts = item.date.split('-').map(Number);
+      const d = new Date(parts[0], parts[1] - 1, parts[2]);
+      dateTitle =
+        language === 'vi'
+          ? (item.fullDateLabel || d.toLocaleDateString('vi-VN', { weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' }))
+          : d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    } catch {
+      dateTitle = item.fullDateLabel || label || '';
+    }
+  } else if (item.fullDateLabel) {
+    dateTitle = item.fullDateLabel;
+  }
 
   return (
-    <div className='rounded-lg border bg-popover p-2.5 shadow-md text-xs text-popover-foreground'>
-      <div className='font-semibold mb-1 text-[11px]'>{label}</div>
-      {isRevenue ? (
-        <>
-          <div className='flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-bold'>
+    <div className='rounded-xl border border-border/80 bg-popover/95 backdrop-blur-md p-3 shadow-xl text-xs text-popover-foreground min-w-[200px]'>
+      <div className='font-semibold mb-2.5 text-xs border-b border-border/60 pb-1.5 flex items-center justify-between gap-2'>
+        <span className='capitalize font-heading text-foreground'>{dateTitle}</span>
+        {item.isPeak && (
+          <span className='px-1.5 py-0.5 rounded text-[10px] bg-amber-500/10 text-amber-600 dark:text-amber-400 font-bold border border-amber-500/20'>
+            {language === 'vi' ? 'Cao điểm' : 'Peak'}
+          </span>
+        )}
+      </div>
+
+      <div className='space-y-1.5'>
+        <div className={`flex items-center justify-between gap-3 text-xs ${isRevenue ? 'font-bold' : ''}`}>
+          <span className='text-muted-foreground flex items-center gap-1.5'>
             <span className='size-2 rounded-full bg-emerald-500'></span>
-            <span>{formatVndFull(val)}</span>
-          </div>
-          <div className='text-[10px] text-muted-foreground mt-0.5'>
-            {language === 'vi' ? 'Tiền quyết toán PayOS' : 'PayOS Settlements'}
-          </div>
-        </>
-      ) : (
-        <div className='flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 font-bold'>
-          <span className='size-2 rounded-full bg-indigo-600'></span>
-          <span>{val} {language === 'vi' ? 'lượt đặt chỗ' : 'bookings'}</span>
+            {language === 'vi' ? 'Dòng tiền PayOS:' : 'PayOS Settlements:'}
+          </span>
+          <span className='text-emerald-600 dark:text-emerald-400 font-mono'>
+            {formatVndFull(settlements)}
+          </span>
         </div>
-      )}
+
+        <div className={`flex items-center justify-between gap-3 text-xs ${!isRevenue ? 'font-bold' : ''}`}>
+          <span className='text-muted-foreground flex items-center gap-1.5'>
+            <span className='size-2 rounded-full bg-indigo-600'></span>
+            {language === 'vi' ? 'Lượt đặt chỗ:' : 'Bookings:'}
+          </span>
+          <span className='text-indigo-600 dark:text-indigo-400 font-mono'>
+            {bookings} {language === 'vi' ? 'lượt' : 'slots'}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -99,6 +142,9 @@ export function OperationalTrendsChart({
   const hasData = trendPoints && trendPoints.length > 0;
   const totalSettlements = trendPoints?.reduce((acc, p) => acc + (p.settlements || 0), 0) || 0;
   const totalBookingsCount = trendPoints?.reduce((acc, p) => acc + (p.bookings || 0), 0) || 0;
+
+  const xKey = trendPoints?.[0]?.date ? 'date' : 'day';
+  const xAxisInterval = trendPoints?.length > 14 ? Math.floor(trendPoints.length / 8) : 0;
 
   return (
     <Card className='rounded-xl border border-border/70 p-4 sm:p-5 shadow-2xs flex flex-col justify-between bg-card mb-6'>
@@ -249,9 +295,11 @@ export function OperationalTrendsChart({
                         </defs>
                         <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='currentColor' className='text-border/60' />
                         <XAxis
-                          dataKey='day'
+                          dataKey={xKey}
                           tickLine={false}
                           axisLine={false}
+                          interval={xAxisInterval}
+                          tickFormatter={formatXAxisTick}
                           tick={{ fontSize: 11 }}
                           className='text-muted-foreground'
                         />
@@ -299,9 +347,11 @@ export function OperationalTrendsChart({
                       <BarChart data={trendPoints} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                         <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='currentColor' className='text-border/60' />
                         <XAxis
-                          dataKey='day'
+                          dataKey={xKey}
                           tickLine={false}
                           axisLine={false}
+                          interval={xAxisInterval}
+                          tickFormatter={formatXAxisTick}
                           tick={{ fontSize: 11 }}
                           className='text-muted-foreground'
                         />
@@ -357,9 +407,11 @@ export function OperationalTrendsChart({
                       </defs>
                       <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='currentColor' className='text-border/60' />
                       <XAxis
-                        dataKey='day'
+                        dataKey={xKey}
                         tickLine={false}
                         axisLine={false}
+                        interval={xAxisInterval}
+                        tickFormatter={formatXAxisTick}
                         tick={{ fontSize: 11 }}
                         className='text-muted-foreground'
                       />
@@ -411,9 +463,11 @@ export function OperationalTrendsChart({
                     <BarChart data={trendPoints} margin={{ top: 10, right: 15, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray='3 3' vertical={false} stroke='currentColor' className='text-border/60' />
                       <XAxis
-                        dataKey='day'
+                        dataKey={xKey}
                         tickLine={false}
                         axisLine={false}
+                        interval={xAxisInterval}
+                        tickFormatter={formatXAxisTick}
                         tick={{ fontSize: 11 }}
                         className='text-muted-foreground'
                       />

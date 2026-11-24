@@ -19,8 +19,9 @@ export function useReviewPayoutRequestMutation() {
       queryClient.invalidateQueries({ queryKey: adminPayoutKeys.requests(1, 10) });
       queryClient.invalidateQueries({ queryKey: adminPayoutKeys.all });
     },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Lỗi khi xử lý phê duyệt yêu cầu Payout');
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : 'Lỗi khi xử lý phê duyệt yêu cầu Payout';
+      toast.error(msg);
     }
   });
 }
@@ -34,8 +35,9 @@ export function useRetryWithdrawalMutation() {
       toast.success('Đã gửi lại lệnh chi tiền PayOS thành công!');
       queryClient.invalidateQueries({ queryKey: adminPayoutKeys.ledger() });
     },
-    onError: (error: any) => {
-      toast.error(error?.message || 'Thử lại chi tiền thất bại');
+    onError: (error: unknown) => {
+      const msg = error instanceof Error ? error.message : 'Thử lại chi tiền thất bại';
+      toast.error(msg);
     }
   });
 }

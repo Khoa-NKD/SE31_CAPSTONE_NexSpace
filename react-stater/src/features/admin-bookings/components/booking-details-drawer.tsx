@@ -25,6 +25,7 @@ interface BookingDetailsDrawerProps {
   isNestedDialogOpen?: boolean;
   onClose: () => void;
   onForceCancel: (booking: BookingItem) => void;
+  language?: 'vi' | 'en';
 }
 
 export function BookingDetailsDrawer({
@@ -32,8 +33,10 @@ export function BookingDetailsDrawer({
   isOpen,
   isNestedDialogOpen = false,
   onClose,
-  onForceCancel
+  onForceCancel,
+  language = 'vi'
 }: BookingDetailsDrawerProps) {
+  const isVi = language === 'vi';
   const triggerRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
@@ -99,23 +102,23 @@ export function BookingDetailsDrawer({
               {booking.status === 'confirmed' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800'>
                   <span className='w-1.5 h-1.5 rounded-full bg-indigo-500' aria-hidden='true'></span>
-                  Confirmed
+                  {isVi ? 'Đã xác nhận' : 'Confirmed'}
                 </span>
               )}
               {booking.status === 'checked_in' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800'>
                   <span className='w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse' aria-hidden='true'></span>
-                  Checked In
+                  {isVi ? 'Đang sử dụng' : 'Checked In'}
                 </span>
               )}
               {booking.status === 'completed' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-muted text-muted-foreground border border-border'>
-                  Completed
+                  {isVi ? 'Hoàn tất' : 'Completed'}
                 </span>
               )}
               {booking.status === 'cancelled' && (
                 <span className='inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-50 dark:bg-rose-950/50 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800'>
-                  Cancelled
+                  {isVi ? 'Đã hủy' : 'Cancelled'}
                 </span>
               )}
 
