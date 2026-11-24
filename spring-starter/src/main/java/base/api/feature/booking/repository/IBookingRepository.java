@@ -16,6 +16,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 @Repository
 public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
@@ -491,4 +492,32 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
     List<BookingModel> findConfirmedBookingsByOrganizerId(
             @Param("organizerId") Long organizerId,
             @Param("statuses") Collection<BookingStatus> statuses);
+
+    @Query("""
+            SELECT DISTINCT b.resource.id
+            FROM BookingModel b
+            WHERE b.startTime < :endTime
+              AND b.endTime > :startTime
+              AND b.resource IS NOT NULL
+              AND (
+                  b.status IN (:activeStatuses)
+                  OR (b.status = :pendingStatus AND b.holdExpiresAt > :now)
+              )
+            """)
+    Set<Long> findOccupiedResourceIds(
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("now") LocalDateTime now,
+            @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
+            @Param("pendingStatus") BookingStatus pendingStatus);
+
+    default Set<Long> findOccupiedResourceIds(
+            LocalDateTime startTime,
+            LocalDateTime endTime,
+            LocalDateTime now) {
+        return findOccupiedResourceIds(
+                startTime, endTime, now,
+                List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN),
+                BookingStatus.PENDING_PAYMENT);
+    }
 }

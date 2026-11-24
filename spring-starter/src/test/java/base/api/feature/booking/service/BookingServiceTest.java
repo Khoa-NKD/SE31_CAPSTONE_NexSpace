@@ -601,9 +601,9 @@ class BookingServiceTest {
     }
 
     @Test
-    @DisplayName("Tạo đơn đặt chỗ thành công với chế độ MANUAL_APPROVAL (PENDING_APPROVAL)")
-    void testCreateBooking_Success_ManualApproval() {
-        mockWorkspace.setBookingConfirmationMode(BookingConfirmationMode.MANUAL_APPROVAL);
+    @DisplayName("Tạo đơn đặt chỗ luôn thành công với trạng thái PENDING_PAYMENT (loại bỏ MANUAL_APPROVAL)")
+    void testCreateBooking_Success_AlwaysInstantPendingPayment() {
+        mockWorkspace.setBookingConfirmationMode(BookingConfirmationMode.INSTANT);
 
         CreateBookingRequestDto dto = CreateBookingRequestDto.builder()
                 .workspaceId(mockWorkspace.getId())
@@ -640,7 +640,7 @@ class BookingServiceTest {
         BookingResponseDto result = bookingService.createBooking(mockCustomer.getId(), dto);
 
         assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(BookingStatus.PENDING_APPROVAL);
+        assertThat(result.getStatus()).isEqualTo(BookingStatus.PENDING_PAYMENT);
         assertThat(result.getHoldExpiresAt()).isNotNull();
     }
 

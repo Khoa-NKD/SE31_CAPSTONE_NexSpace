@@ -38,6 +38,22 @@ public interface IBookableResourceRepository
             Long workspaceId,
             BookableResourceStatus status);
 
+    @org.springframework.data.jpa.repository.Query("""
+            SELECT r FROM BookableResourceModel r
+            WHERE r.floorPlan.workspace.id IN :workspaceIds
+              AND r.status = :status
+            """)
+    List<BookableResourceModel> findByFloorPlanWorkspaceIdInAndStatus(
+            @org.springframework.data.repository.query.Param("workspaceIds") java.util.Collection<Long> workspaceIds,
+            @org.springframework.data.repository.query.Param("status") BookableResourceStatus status);
+
+    default List<BookableResourceModel> findAvailableResourcesByWorkspaceIds(java.util.Collection<Long> workspaceIds) {
+        if (workspaceIds == null || workspaceIds.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return findByFloorPlanWorkspaceIdInAndStatus(workspaceIds, BookableResourceStatus.ACTIVE);
+    }
+
     List<BookableResourceModel> findByFloorPlanIdAndStatus(
             Long floorPlanId, BookableResourceStatus status);
 

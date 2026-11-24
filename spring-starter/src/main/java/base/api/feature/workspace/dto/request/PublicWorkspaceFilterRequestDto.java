@@ -42,5 +42,19 @@ public class PublicWorkspaceFilterRequestDto extends PageRequestDTO {
 
     @Schema(description = "Điểm đánh giá tối thiểu (1.0 - 5.0)", example = "4.0")
     private Double minRating;
+
+    @Schema(description = "Thời gian bắt đầu tìm kiếm", example = "2026-11-25T08:00:00")
+    @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+    private java.time.LocalDateTime startTime;
+
+    @Schema(description = "Thời gian kết thúc tìm kiếm", example = "2026-11-25T17:00:00")
+    @org.springframework.format.annotation.DateTimeFormat(iso = org.springframework.format.annotation.DateTimeFormat.ISO.DATE_TIME)
+    private java.time.LocalDateTime endTime;
+
+    @Schema(description = "Vĩ độ người dùng (GPS)", example = "16.0544")
+    private Double lat;
+
+    @Schema(description = "Kinh độ người dùng (GPS)", example = "108.2022")
+    private Double lng;
 }
 
