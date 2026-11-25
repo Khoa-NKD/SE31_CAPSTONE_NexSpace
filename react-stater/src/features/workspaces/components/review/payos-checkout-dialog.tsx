@@ -163,10 +163,15 @@ export function PayOSCheckoutDialog({
     if (isExpired && open && !hasNotifiedExpiryRef.current) {
       hasNotifiedExpiryRef.current = true;
       toast.error('Phiên giữ chỗ đã hết hạn', {
-        description: 'Vị trí đã được giải phóng. Bạn vui lòng tạo phiên mới để đặt lại.'
+        description: 'Đang chuyển về trang đơn đặt chỗ của bạn để theo dõi trạng thái...'
       });
+      const timer = setTimeout(() => {
+        handleOpenChange(false);
+        navigate({ to: '/workspaces/my-bookings' });
+      }, 1800);
+      return () => clearTimeout(timer);
     }
-  }, [isExpired, open]);
+  }, [isExpired, open, navigate]);
 
   const handleOpenChange = (isOpen: boolean) => {
     if (!isOpen) {
@@ -625,15 +630,11 @@ export function PayOSCheckoutDialog({
                     type='button'
                     onClick={() => {
                       handleOpenChange(false);
-                      if (onCancelCheckoutSuccess) {
-                        onCancelCheckoutSuccess();
-                      } else {
-                        window.history.back();
-                      }
+                      navigate({ to: '/workspaces/my-bookings' });
                     }}
                     className='w-full cursor-pointer h-10 text-xs font-semibold shadow-md bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center justify-center gap-2'
                   >
-                    <span>Quay lại trang chi tiết không gian</span>
+                    <span>Xem danh sách đơn đặt chỗ của tôi</span>
                   </Button>
                 </div>
               )}
