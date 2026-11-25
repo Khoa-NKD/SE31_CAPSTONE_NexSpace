@@ -1,4 +1,7 @@
-export interface CancellationRule { minHoursBeforeStart: number; refundPercent: number; }
+export interface CancellationRule {
+  minHoursBeforeStart: number;
+  refundPercent: number;
+}
 
 /**
  * Canonical Workspace Entity & DTOs
@@ -14,14 +17,20 @@ export type WorkspaceCategory =
   | 'other';
 
 export type WorkspaceReviewStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected';
-export type WorkspaceOperatingStatus = 'Active' | 'Pending' | 'Maintenance' | 'Inactive' | 'Archived';
+export type WorkspaceOperatingStatus =
+  | 'Active'
+  | 'Pending'
+  | 'Maintenance'
+  | 'Inactive'
+  | 'Holiday'
+  | 'Archived';
 export type WorkspaceModerationStatus = 'Normal' | 'Suspended';
 export type BookingConfirmationMode = 'Instant' | 'Manual_Approval';
 
 export interface WorkspaceOperatingHour {
   id?: string;
   dayOfWeek: number; // 1 (Mon) - 7 (Sun)
-  openTime: string;  // e.g. "07:00"
+  openTime: string; // e.g. "07:00"
   closeTime: string; // e.g. "22:00"
   isClosed: boolean;
   is24Hours: boolean;
@@ -52,6 +61,10 @@ export interface WorkspaceFloorSummary {
 }
 
 export interface CanonicalWorkspace {
+  holidayCodes?: string[];
+  holidayPeriods?: { code: string; name: string; start: string; end: string }[];
+  holidayClosure?: { names: string[]; start: string; end: string; reopensAt: string | null } | null;
+  holidayCalendarThroughYear?: number;
   // 1. Identity & Ownership
   id: string;
   workspaceCode: string;
@@ -63,7 +76,7 @@ export interface CanonicalWorkspace {
 
   // 2. General Information
   name: string;
-  category: WorkspaceCategory;
+  category?: WorkspaceCategory;
   description: string;
   shortDescription?: string;
   usableAreaSqm: number;
@@ -131,7 +144,15 @@ export interface CanonicalWorkspace {
 
   // 11. Operational & Lifecycle Status (Organizer)
   operatingStatus: WorkspaceOperatingStatus;
-  status: 'active' | 'pending' | 'suspended' | 'draft' | 'archived' | 'paused' | 'maintenance';
+  status:
+    | 'active'
+    | 'pending'
+    | 'suspended'
+    | 'draft'
+    | 'archived'
+    | 'paused'
+    | 'maintenance'
+    | 'holiday';
   isLive: boolean;
   turnstileOnline?: boolean;
   accessMethod?: string;
@@ -183,6 +204,10 @@ export interface WorkspaceListResponse {
 }
 
 export interface PublicWorkspaceSummary {
+  holidayCodes?: string[];
+  holidayPeriods?: { code: string; name: string; start: string; end: string }[];
+  holidayClosure?: { names: string[]; start: string; end: string; reopensAt: string | null } | null;
+  holidayCalendarThroughYear?: number;
   id: string;
   workspaceCode: string;
   name: string;
@@ -260,7 +285,14 @@ export interface PublicWorkspaceFilterParams {
   category?: WorkspaceCategory | string;
   page?: number;
   limit?: number;
-  sortBy?: 'name' | 'rating' | 'pricePerHour' | 'featuredPosition' | 'popular' | 'createdAt' | string;
+  sortBy?:
+    | 'name'
+    | 'rating'
+    | 'pricePerHour'
+    | 'featuredPosition'
+    | 'popular'
+    | 'createdAt'
+    | string;
   sortOrder?: 'asc' | 'desc';
   minPrice?: number;
   maxPrice?: number;
@@ -313,8 +345,9 @@ export interface WorkspaceSuggestionsResponse {
 }
 
 export interface CreateWorkspaceDto {
+  holidayCodes?: string[];
   name: string;
-  category: WorkspaceCategory;
+  category?: WorkspaceCategory;
   streetAddress?: string;
   city?: string;
   district?: string;
@@ -353,6 +386,7 @@ export interface CreateWorkspaceDto {
  * are excluded and rejected by the server allowlist.
  */
 export interface UpdateWorkspaceDto {
+  holidayCodes?: string[];
   name?: string;
   category?: WorkspaceCategory;
   streetAddress?: string;
@@ -452,7 +486,10 @@ export interface AdminFeaturedWorkspaceDto {
  * 4. isListingVisible === true
  */
 export function isWorkspacePubliclyEligible(
-  w: Pick<CanonicalWorkspace, 'reviewStatus' | 'operatingStatus' | 'moderationStatus' | 'isListingVisible'>
+  w: Pick<
+    CanonicalWorkspace,
+    'reviewStatus' | 'operatingStatus' | 'moderationStatus' | 'isListingVisible'
+  >
 ): boolean {
   return (
     w.reviewStatus === 'Approved' &&
@@ -691,6 +728,3 @@ export interface CreateSavedSearchFilterPayload {
   name: string;
   criteria: SavedSearchCriteria;
 }
-
-
-

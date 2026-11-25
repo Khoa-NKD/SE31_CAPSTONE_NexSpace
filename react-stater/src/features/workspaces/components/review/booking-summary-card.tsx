@@ -42,13 +42,6 @@ export function BookingSummaryCard({
   addonName,
   isLoading = false
 }: BookingSummaryCardProps) {
-  const amenities = [
-    { icon: Zap, label: '65W USB-C PD' },
-    { icon: Chair, label: 'Aeron Ergonomic' },
-    { icon: Wifi, label: '1 Gbps Ultra-Speed' },
-    { icon: VolumeX, label: 'Acoustic Barrier' }
-  ];
-
   const schedule = formatSchedule(startTime, endTime, date);
 
   if (isLoading) {
@@ -141,44 +134,15 @@ export function BookingSummaryCard({
         </div>
       </div>
 
-      {/* Selected Add-on Amenity Badge if Chosen */}
       {addonName && (
-        <div className='bg-primary/10 border-primary/30 flex items-center justify-between rounded-xl border p-3 text-xs animate-in fade-in'>
-          <div className='flex items-center gap-2.5'>
-            <Monitor className='text-primary h-4 w-4 shrink-0' />
-            <div>
-              <span className='text-foreground font-bold'>{addonName}</span>
-              <p className='text-muted-foreground text-[11px]'>
-                Tiện ích mở rộng đã đăng ký kèm đơn đặt chỗ
-              </p>
-            </div>
+        <div className='flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs'>
+          <BadgeCheck className='size-4 shrink-0 text-primary' />
+          <div>
+            <p className='font-medium'>{addonName}</p>
+            <p className='mt-1 text-muted-foreground'>Tiện ích đã chọn kèm đơn đặt chỗ</p>
           </div>
-          <span className='bg-primary text-primary-foreground font-semibold px-2 py-0.5 rounded text-[11px]'>
-            Đã chọn
-          </span>
         </div>
       )}
-
-      {/* Included Station Amenities Row */}
-      <div className='border-border/60 border-t pt-4'>
-        <span className='text-foreground mb-3 block text-xs font-semibold'>
-          Included Station Amenities
-        </span>
-        <div className='grid grid-cols-2 gap-2.5 sm:grid-cols-4'>
-          {amenities.map((item, idx) => {
-            const Icon = item.icon;
-            return (
-              <div
-                key={idx}
-                className='bg-muted/50 border-border/70 flex items-center gap-2 rounded-lg border p-2 text-xs'
-              >
-                <Icon className='text-primary h-4 w-4 shrink-0' />
-                <span className='text-foreground text-xs font-medium'>{item.label}</span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
 
       {/* Booking Time & Slot */}
       <div className='bg-muted/40 border-border/60 rounded-xl border p-4'>

@@ -1,3 +1,6 @@
+import { ImageIcon } from '@/components/ui/hugeicons';
+import { WizardStepIntro } from './wizard-step-intro';
+import { useLocation } from '@tanstack/react-router';
 import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { getWizardValidationMessage } from '../utils/wizard-copy';
@@ -59,6 +62,7 @@ export function StepMediaGalleryView({
   const router = useRouter();
   const queryClient = useQueryClient();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const editing = (useLocation().search as Record<string, unknown>).mode === 'edit';
   const uploadMediaMutation = useUploadMediaMutation();
   const fileRefMap = useRef<Map<string, File>>(new Map());
 
@@ -102,7 +106,13 @@ export function StepMediaGalleryView({
   const hasHydratedBackendRef = useRef(false);
 
   useEffect(() => {
-    if (!isEditMode || !backendMediaList || hasHydratedBackendRef.current) return;
+    if (
+      !isEditMode ||
+      !backendMediaList ||
+      hasHydratedBackendRef.current ||
+      useWizardStore.getState().editMediaDirty
+    )
+      return;
     hasHydratedBackendRef.current = true;
 
     const mappedItems: MediaItem[] = backendMediaList.map((m) => ({
@@ -121,6 +131,7 @@ export function StepMediaGalleryView({
       items: mappedItems,
       coverPhotoId: coverItem?.id || ''
     });
+    useWizardStore.setState({ editMediaDirty: false });
   }, [isEditMode, backendMediaList, setMediaGallery]);
 
   // In create mode: clear any legacy mock photos so the gallery starts completely empty
@@ -310,6 +321,10 @@ export function StepMediaGalleryView({
   // In create mode: syncs once draft record is initialized.
   // -----------------------------------------------------------------------------------------------
   const syncMediaToBackend = async (workspaceIdStr?: string | number): Promise<boolean> => {
+    if (editing) {
+      useWizardStore.setState({ editMediaDirty: true });
+      return true;
+    }
     const wsId = workspaceMediaId(workspaceIdStr ?? activeWorkspaceId);
     if (!wsId) {
       const message = 'Save the workspace draft before synchronizing its photos.';
@@ -350,6 +365,19 @@ export function StepMediaGalleryView({
   };
 
   const handleSaveDraft = async () => {
+    if (editing) {
+      if (
+        media.items.some(
+          (item) => item.uploadStatus === 'uploading' || item.uploadStatus === 'error'
+        )
+      ) {
+        setValidationError('Hoàn tất tải ảnh hoặc xử lý ảnh lỗi trước khi lưu.');
+        return;
+      }
+      useWizardStore.setState({ editMediaDirty: true });
+      await saveDraftToServer({ commitEdit: true });
+      return;
+    }
     saveDraft();
     if (activeWorkspaceId) {
       await syncMediaToBackend(activeWorkspaceId);
@@ -442,7 +470,7 @@ export function StepMediaGalleryView({
   };
 
   return (
-    <div className='w-full max-w-6xl mx-auto py-2 sm:py-4 flex flex-col justify-between'>
+    <div className='wizard-shell wizard-media'>
       <div>
         {/* Hidden File Input */}
         <input
@@ -461,43 +489,14 @@ export function StepMediaGalleryView({
         {/* Wizard Stepper */}
         <WizardStepper currentStep={6} />
 
-        {/* Page Title & Subtitle Banner */}
-        <div className='flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6'>
-          <div>
-            <h1 className='text-xl sm:text-2xl font-bold tracking-tight text-foreground'>
-              {c('Workspace Media Gallery & Cover Photo', 'Thư viện ảnh và ảnh bìa không gian')}
-            </h1>
-            <p className='text-xs sm:text-sm text-muted-foreground mt-1'>
-              {c(
-                'High-quality photography directly correlates with customer booking confidence and search placement.',
-                'Ảnh rõ nét giúp khách hàng tin tưởng và dễ lựa chọn không gian.'
-              )}
-            </p>
-          </div>
-          <div className='inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 text-xs font-medium self-start sm:self-center shrink-0'>
-            <span className='size-1.5 rounded-full bg-emerald-500 animate-pulse' />
-            <span>{c('Draft automatically synced', 'Bản nháp được đồng bộ tự động')}</span>
-          </div>
-        </div>
-
-        {/* Local Development Media Upload Status Banner */}
-        <div className='mb-6 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/30 text-indigo-900 dark:text-indigo-200 flex items-start gap-3 text-xs sm:text-sm'>
-          <CheckCircle2 className='size-5 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5' />
-          <div>
-            <p className='font-semibold text-indigo-900 dark:text-indigo-200'>
-              {c(
-                'Development Media Service Active (Local Storage)',
-                'Dịch vụ ảnh phát triển đang dùng bộ nhớ cục bộ'
-              )}
-            </p>
-            <p className='mt-1 text-xs text-indigo-800/90 dark:text-indigo-300/90 leading-relaxed'>
-              JPEG, PNG, and WebP photos are saved to backend storage. Uploaded photos use a
-              persistent /uploads/ path or cloud URL and can be included in your workspace gallery.
-            </p>
-          </div>
-        </div>
-
-        {/* Validation Error Banner */}
+        <WizardStepIntro
+          icon={ImageIcon}
+          title={c('Photos and cover image', 'Thư viện ảnh')}
+          description={c(
+            'Show your workspace clearly and choose a strong cover image.',
+            'Thể hiện không gian qua ảnh rõ nét và chọn ảnh bìa nổi bật.'
+          )}
+        />
         {validationError && (
           <div className='mb-6 p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive flex items-start gap-3 text-xs sm:text-sm'>
             <AlertCircle className='size-5 shrink-0 mt-0.5' />
@@ -526,15 +525,15 @@ export function StepMediaGalleryView({
                   fileInputRef.current?.click();
                 }
               }}
-              className={`border-2 border-dashed rounded-xl p-6 sm:p-8 text-center cursor-pointer transition-all flex flex-col items-center group ${
+              className={`border-2 border-dashed rounded-xl p-5 sm:p-6 text-center cursor-pointer transition-all flex flex-col items-center group ${
                 isDragging
-                  ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-950/30 scale-[1.005]'
-                  : 'border-border hover:border-indigo-500 hover:bg-muted/40 bg-muted/20'
+                  ? 'border-primary/25 bg-primary/5 bg-primary/5 scale-[1.005]'
+                  : 'border-border hover:border-primary hover:bg-muted/40 bg-muted/20'
               }`}
             >
               {/* Upload Icon */}
-              <div className='size-14 rounded-full bg-indigo-50 dark:bg-indigo-950/70 border border-indigo-100 dark:border-indigo-900 flex items-center justify-center text-indigo-600 dark:text-indigo-400 mb-3.5 group-hover:scale-105 transition-transform'>
-                <CloudUpload className='size-7' />
+              <div className='size-11 rounded-xl bg-primary/5 bg-primary/5 border border-primary/25 border-primary/25 flex items-center justify-center text-primary mb-3.5 group-hover:scale-105 transition-transform'>
+                <CloudUpload className='size-5' />
               </div>
 
               {/* Main & Subtext */}
@@ -562,8 +561,8 @@ export function StepMediaGalleryView({
                     }`}
                   >
                     {uploadedCount >= recommendedMin
-                      ? `${uploadedCount} photos uploaded (Goal reached)`
-                      : `${uploadedCount} of ${recommendedMin} minimum recommended photos`}
+                      ? `${uploadedCount} ảnh đã tải · Đạt gợi ý`
+                      : `${uploadedCount} ảnh đã tải · Gợi ý từ ${recommendedMin} ảnh`}
                   </span>
                   <span className='text-xs font-bold text-foreground'>{progressPercent}%</span>
                 </div>
@@ -606,7 +605,7 @@ export function StepMediaGalleryView({
                   {isEditMode && numericWsId ? (
                     <Badge
                       variant='outline'
-                      className='border-indigo-200 bg-indigo-50/50 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 text-[11px]'
+                      className='border-primary/25 bg-primary/5 text-primary border-primary/25 bg-primary/5 text-primary text-[11px]'
                     >
                       {c('Editing workspace #', 'Chỉnh sửa không gian #')}
                       {numericWsId}
@@ -637,7 +636,7 @@ export function StepMediaGalleryView({
             {/* Content: Loading State vs Empty State vs Grid */}
             {isLoadingBackendMedia ? (
               <div className='flex flex-col items-center justify-center py-12 text-center text-muted-foreground border-2 border-dashed border-border rounded-xl'>
-                <Loader2 className='size-8 text-indigo-600 mb-3' />
+                <Loader2 className='size-8 text-primary mb-3' />
                 <p className='text-sm font-medium'>
                   {c('Loading existing workspace photos...', 'Đang tải ảnh không gian hiện có...')}
                 </p>
@@ -663,7 +662,7 @@ export function StepMediaGalleryView({
                   type='button'
                   size='sm'
                   onClick={() => fileInputRef.current?.click()}
-                  className='bg-indigo-600 hover:bg-indigo-700 text-white text-xs gap-1.5 shadow-2xs font-medium'
+                  className='bg-primary hover:bg-primary/90 text-white text-xs gap-1.5 shadow-2xs font-medium'
                 >
                   <Plus className='size-4' />
                   <span>{c('Add photos now', 'Thêm ảnh ngay')}</span>
@@ -679,7 +678,7 @@ export function StepMediaGalleryView({
                       key={item.id}
                       className={`relative group rounded-xl overflow-hidden aspect-[16/10] bg-slate-900 shadow-2xs flex flex-col justify-between transition-all ${
                         isCover
-                          ? 'border-2 border-indigo-600 ring-2 ring-indigo-600/30 shadow-md'
+                          ? 'border-2 border-primary/25 ring-2 ring-primary/20 shadow-md'
                           : 'border border-border hover:border-slate-400 dark:hover:border-slate-600'
                       }`}
                     >
@@ -698,7 +697,7 @@ export function StepMediaGalleryView({
                       <div className='relative z-10 p-3 flex items-start justify-between pointer-events-none'>
                         <div className='flex flex-col gap-1 items-start'>
                           {isCover && (
-                            <span className='inline-flex items-center gap-1 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
+                            <span className='inline-flex items-center gap-1 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
                               <Star className='size-3 fill-white' />
                               <span>{c('COVER PHOTO', 'ẢNH BÌA')}</span>
                             </span>
@@ -749,7 +748,7 @@ export function StepMediaGalleryView({
                         <div className='flex items-start justify-between gap-2'>
                           <div>
                             {isCover ? (
-                              <span className='inline-flex items-center gap-1.5 bg-indigo-600 text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
+                              <span className='inline-flex items-center gap-1.5 bg-primary text-white text-[11px] font-bold px-2.5 py-1 rounded shadow-sm tracking-wide'>
                                 <Star className='size-3.5 fill-white text-white' />
                                 <span>{c('COVER PHOTO', 'ẢNH BÌA')}</span>
                               </span>
@@ -762,7 +761,7 @@ export function StepMediaGalleryView({
                                   e.stopPropagation();
                                   handleSetCover(item.id, item.name);
                                 }}
-                                className='h-7 px-2.5 bg-slate-900/80 hover:bg-indigo-600 text-white hover:text-white border border-white/20 text-xs font-semibold shadow transition-colors'
+                                className='h-7 px-2.5 bg-slate-900/80 hover:bg-primary text-white hover:text-white border border-white/20 text-xs font-semibold shadow transition-colors'
                                 title={c('Set as primary cover photo', 'Đặt làm ảnh bìa chính')}
                               >
                                 <Star className='size-3 mr-1 text-amber-400' />
@@ -883,7 +882,7 @@ export function StepMediaGalleryView({
                 {uploadedCount < maxPhotos && (
                   <div
                     onClick={() => fileInputRef.current?.click()}
-                    className='border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 text-center hover:border-indigo-500 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-all cursor-pointer aspect-[16/10] group'
+                    className='border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center p-6 text-center hover:border-primary hover:bg-primary/5 dark:hover:bg-primary/5 transition-all cursor-pointer aspect-[16/10] group'
                     role='button'
                     tabIndex={0}
                     onKeyDown={(e) => {
@@ -893,10 +892,10 @@ export function StepMediaGalleryView({
                     }}
                     aria-label={c('Add more photos', 'Thêm ảnh')}
                   >
-                    <div className='size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:bg-indigo-100 dark:group-hover:bg-indigo-950 transition-colors mb-2'>
+                    <div className='size-10 rounded-full bg-muted flex items-center justify-center text-muted-foreground group-hover:text-primary dark:group-hover:text-primary group-hover:bg-primary/5 dark:group-hover:bg-primary/5 transition-colors mb-2'>
                       <Plus className='size-5' />
                     </div>
-                    <span className='text-xs sm:text-sm font-semibold text-foreground group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors'>
+                    <span className='text-xs sm:text-sm font-semibold text-foreground group-hover:text-primary dark:group-hover:text-primary transition-colors'>
                       {c('+ Add more photos', '+ Thêm ảnh')}
                     </span>
                     <span className='text-[11px] text-muted-foreground mt-0.5'>
@@ -929,8 +928,8 @@ export function StepMediaGalleryView({
         </div>
       </div>
 
-      {/* Sticky Action Footer Bar */}
-      <footer className='mt-8 bg-card/95 backdrop-blur border border-border px-6 py-4 rounded-xl shadow-2xs flex flex-wrap items-center justify-between gap-3'>
+      {/* Page actions */}
+      <footer className='wizard-actions'>
         {/* Left: Back to Amenities */}
         <Button
           type='button'
@@ -946,34 +945,40 @@ export function StepMediaGalleryView({
         <div className='flex items-center gap-3'>
           <Button
             type='button'
-            variant='outline'
+            variant={editing ? 'default' : 'outline'}
             disabled={isSaving || isContinuing}
             onClick={handleSaveDraft}
             className='gap-1.5 text-xs sm:text-sm border-border hover:bg-muted'
           >
             {isSaving ? <Loader2 className='size-4' /> : <Save className='size-4' />}
             <span>
-              {isSaving ? c('Saving...', 'Đang lưu...') : c('Save Draft', 'Lưu bản nháp')}
+              {isSaving
+                ? c('Saving...', 'Đang lưu...')
+                : editing
+                  ? c('Review changes', 'Xem lại thay đổi')
+                  : c('Save Draft', 'Lưu bản nháp')}
             </span>
           </Button>
 
-          <Button
-            type='button'
-            disabled={isSaving || isContinuing}
-            onClick={handleCompleteReview}
-            className='h-11 px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
-          >
-            <span>
-              {isContinuing
-                ? c('Saving gallery…', 'Đang lưu thư viện ảnh…')
-                : c('Continue', 'Tiếp tục')}
-            </span>
-            {isSaving || isContinuing ? (
-              <Loader2 className='size-4' />
-            ) : (
-              <ArrowRight className='size-4' />
-            )}
-          </Button>
+          {!editing && (
+            <Button
+              type='button'
+              disabled={isSaving || isContinuing}
+              onClick={handleCompleteReview}
+              className='h-11 px-6 bg-primary hover:bg-primary/90 text-white font-medium text-xs sm:text-sm gap-2 shadow-2xs'
+            >
+              <span>
+                {isContinuing
+                  ? c('Saving gallery…', 'Đang lưu thư viện ảnh…')
+                  : c('Continue', 'Tiếp tục')}
+              </span>
+              {isSaving || isContinuing ? (
+                <Loader2 className='size-4' />
+              ) : (
+                <ArrowRight className='size-4' />
+              )}
+            </Button>
+          )}
         </div>
       </footer>
 
@@ -1005,7 +1010,7 @@ export function StepMediaGalleryView({
             <div>
               {previewItem &&
                 (previewItem.id === media.coverPhotoId || previewItem.isCover ? (
-                  <Badge className='h-8 px-2.5 bg-indigo-600 text-white text-xs font-semibold gap-1.5'>
+                  <Badge className='h-8 px-2.5 bg-primary text-white text-xs font-semibold gap-1.5'>
                     <Star className='size-3.5 fill-white' />
                     <span>{c('Cover Photo Active', 'Đang dùng làm ảnh bìa')}</span>
                   </Badge>
@@ -1085,7 +1090,7 @@ export function StepMediaGalleryView({
               </div>
             </div>
 
-            <div className='p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs leading-relaxed'>
+            <div className='p-3 rounded-lg bg-primary/5 bg-primary/5 border border-primary/25 border-primary/25 text-primary text-primary text-xs leading-relaxed'>
               <p className='font-semibold mb-1'>Next Stage: Floor Plan &amp; Zones Setup (O10)</p>
               <p className='opacity-90'>
                 All draft configuration is securely stored in local persistence. Proceed to define
@@ -1112,7 +1117,7 @@ export function StepMediaGalleryView({
                   search: (prev) => prev
                 });
               }}
-              className='h-10 px-5 text-xs sm:text-sm font-medium bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs flex items-center gap-1.5'
+              className='h-10 px-5 text-xs sm:text-sm font-medium bg-primary hover:bg-primary/90 text-white shadow-xs flex items-center gap-1.5'
             >
               <span>Continue to Floor Plan &amp; Zones (O10)</span>
               <ArrowRight className='size-4' />

@@ -12,7 +12,8 @@ export const workspaceQueryKeys = {
   lists: () => [...workspaceQueryKeys.all, 'list'] as const,
   list: (params: WorkspaceFilterParams = {}) => [...workspaceQueryKeys.lists(), params] as const,
   publicLists: () => [...workspaceQueryKeys.all, 'public-list'] as const,
-  publicList: (params: PublicWorkspaceFilterParams = {}) => [...workspaceQueryKeys.publicLists(), params] as const,
+  publicList: (params: PublicWorkspaceFilterParams = {}) =>
+    [...workspaceQueryKeys.publicLists(), params] as const,
   details: () => [...workspaceQueryKeys.all, 'detail'] as const,
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
   media: (id: string | number) => [...workspaceQueryKeys.all, 'media', String(id)] as const,
@@ -26,7 +27,8 @@ export const workspaceQueryKeys = {
   publicDetails: () => [...workspaceQueryKeys.all, 'public-detail'] as const,
   publicDetail: (id: string) => [...workspaceQueryKeys.publicDetails(), id] as const,
   featured: () => [...workspaceQueryKeys.all, 'featured'] as const,
-  nearby: (params: NearbyWorkspacesParams) => [...workspaceQueryKeys.all, 'nearby', params] as const,
+  nearby: (params: NearbyWorkspacesParams) =>
+    [...workspaceQueryKeys.all, 'nearby', params] as const,
   suggestions: (query: string) => [...workspaceQueryKeys.all, 'suggestions', query] as const,
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
@@ -36,6 +38,7 @@ export const workspaceQueryKeys = {
  */
 export const workspacesQueryOptions = (params: WorkspaceFilterParams = {}) =>
   queryOptions({
+    refetchInterval: 30000,
     queryKey: workspaceQueryKeys.list(params),
     queryFn: () => workspaceService.getWorkspaces(params)
   });
@@ -67,7 +70,10 @@ export const workspaceDetailQueryOptions = (
   options?: { role?: string; organizerId?: string }
 ) =>
   queryOptions({
-    queryKey: id ? [...workspaceQueryKeys.detail(id), options] : [...workspaceQueryKeys.details(), 'empty'],
+    refetchInterval: 30000,
+    queryKey: id
+      ? [...workspaceQueryKeys.detail(id), options]
+      : [...workspaceQueryKeys.details(), 'empty'],
     queryFn: () => (id ? workspaceService.getWorkspaceById(id, options) : null),
     enabled: Boolean(id)
   });
@@ -77,7 +83,10 @@ export const workspaceDetailQueryOptions = (
  */
 export const publicWorkspaceDetailQueryOptions = (id: string | null) =>
   queryOptions({
-    queryKey: id ? workspaceQueryKeys.publicDetail(id) : [...workspaceQueryKeys.publicDetails(), 'empty'],
+    refetchInterval: 30000,
+    queryKey: id
+      ? workspaceQueryKeys.publicDetail(id)
+      : [...workspaceQueryKeys.publicDetails(), 'empty'],
     queryFn: () => (id ? workspaceService.getPublicWorkspaceById(id) : null),
     enabled: Boolean(id),
     retry: (failureCount, error: unknown) => {
@@ -110,7 +119,8 @@ export function useNearbyWorkspacesQuery(
 ) {
   return useQuery({
     ...nearbyWorkspacesQueryOptions(params),
-    enabled: (options?.enabled ?? true) && typeof params.lat === 'number' && typeof params.lng === 'number'
+    enabled:
+      (options?.enabled ?? true) && typeof params.lat === 'number' && typeof params.lng === 'number'
   });
 }
 
@@ -181,7 +191,9 @@ export function useFeaturedWorkspacesQuery() {
  */
 export const workspaceMediaQueryOptions = (workspaceId: number | string | null | undefined) =>
   queryOptions({
-    queryKey: workspaceId ? workspaceQueryKeys.media(workspaceId) : [...workspaceQueryKeys.all, 'media', 'none'],
+    queryKey: workspaceId
+      ? workspaceQueryKeys.media(workspaceId)
+      : [...workspaceQueryKeys.all, 'media', 'none'],
     queryFn: () => (workspaceId ? workspaceService.getWorkspaceMedia(workspaceId) : []),
     enabled: Boolean(workspaceId)
   });
@@ -221,8 +233,21 @@ export const workspaceAssetsQueryOptions = (
 ) =>
   queryOptions({
     refetchInterval: 3000,
-    queryKey: workspaceId ? workspaceQueryKeys.assets(workspaceId, params) : [...workspaceQueryKeys.all, 'assets', 'none'],
-    queryFn: () => (workspaceId ? workspaceService.getWorkspaceAssets(workspaceId, params) : { listObjects: [], pageNumber: 1, pageSize: 20, totalRecords: 0, totalPages: 0, hasNext: false, hasPrevious: false }),
+    queryKey: workspaceId
+      ? workspaceQueryKeys.assets(workspaceId, params)
+      : [...workspaceQueryKeys.all, 'assets', 'none'],
+    queryFn: () =>
+      workspaceId
+        ? workspaceService.getWorkspaceAssets(workspaceId, params)
+        : {
+            listObjects: [],
+            pageNumber: 1,
+            pageSize: 20,
+            totalRecords: 0,
+            totalPages: 0,
+            hasNext: false,
+            hasPrevious: false
+          },
     enabled: Boolean(workspaceId)
   });
 
@@ -249,7 +274,8 @@ export const workspaceAssetDetailQueryOptions = (
       workspaceId && assetId
         ? workspaceQueryKeys.assetDetail(workspaceId, assetId)
         : [...workspaceQueryKeys.all, 'asset-detail', 'none'],
-    queryFn: () => (workspaceId && assetId ? workspaceService.getWorkspaceAssetById(workspaceId, assetId) : null),
+    queryFn: () =>
+      workspaceId && assetId ? workspaceService.getWorkspaceAssetById(workspaceId, assetId) : null,
     enabled: Boolean(workspaceId && assetId)
   });
 
@@ -275,7 +301,8 @@ export const assetMaintenanceLogsQueryOptions = (
       workspaceId && assetId
         ? workspaceQueryKeys.maintenanceLogs(workspaceId, assetId)
         : [...workspaceQueryKeys.all, 'maintenance-logs', 'none'],
-    queryFn: () => (workspaceId && assetId ? workspaceService.getMaintenanceLogs(workspaceId, assetId) : []),
+    queryFn: () =>
+      workspaceId && assetId ? workspaceService.getMaintenanceLogs(workspaceId, assetId) : [],
     enabled: Boolean(workspaceId && assetId)
   });
 
@@ -288,7 +315,6 @@ export function useAssetMaintenanceLogsQuery(
 ) {
   return useQuery(assetMaintenanceLogsQueryOptions(workspaceId, assetId));
 }
-
 
 /**
  * TanStack Query options for fetching operating hours (authenticated/organizer).

@@ -1,3 +1,4 @@
+import { useLocation } from '@tanstack/react-router';
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CalendarRange, Wrench, Trash2, RefreshCw } from '@/components/ui/hugeicons';
@@ -104,6 +105,10 @@ function MaintenanceWorkspace({
     d.setDate(d.getDate() + 30);
     return localDate(d);
   });
+  const [wholeWorkspace, setWholeWorkspace] = useState(
+    (useLocation().search as Record<string, unknown>).scope === 'workspace'
+  );
+  const [editingGroup, setEditingGroup] = useState<number | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [startDay, setStartDay] = useState(() => localDate(new Date()));
   const [endDay, setEndDay] = useState(() => localDate(new Date()));
@@ -130,6 +135,9 @@ function MaintenanceWorkspace({
     queryFn: ({ signal }) => maintenanceApi.targets(workspaceId, signal),
     refetchInterval: 3000
   });
+  useEffect(() => {
+    if (wholeWorkspace && targets.data) setSelected(targets.data.map((t) => t.key));
+  }, [wholeWorkspace, targets.data]);
   const schedules = useQuery({
     queryKey: ['organizer-operations', actor, workspaceId, 'maintenance', from, to],
     queryFn: ({ signal }) =>
@@ -151,7 +159,7 @@ function MaintenanceWorkspace({
       periodFrom,
       periodTo
     ],
-    enabled: periodValid && selected.length > 0,
+    enabled: periodValid && (wholeWorkspace || selected.length > 0),
     refetchInterval: 3000,
     queryFn: async ({ signal }) => {
       const [bookings, maintenance, blocks, pendingHolds, awaitingApproval] = await Promise.all([
@@ -186,7 +194,7 @@ function MaintenanceWorkspace({
     all,
     selected,
     reservations.data?.bookings ?? [],
-    reservations.data?.maintenance ?? [],
+    reservations.data?.maintenance.filter((s) => s.key !== 'GROUP:' + editingGroup) ?? [],
     reservations.data?.blocks ?? [],
     clock
   );
@@ -215,6 +223,8 @@ function MaintenanceWorkspace({
         conflict.name;
   }
   const labels = {
+    WORKSPACE: 'Toàn không gian',
+    GROUP: 'Nhóm bảo trì',
     ROOM: c('Room', 'Phòng'),
     DESK: c('Seat', 'Ghế'),
     ASSET: c('Equipment', 'Thiết bị'),
@@ -246,7 +256,7 @@ function MaintenanceWorkspace({
       return;
     }
     const direct = selected.filter((key) => !inherited(all.find((t) => t.key === key)!));
-    if (!direct.length || direct.length > 200) {
+    if (!wholeWorkspace && (!direct.length || direct.length > 200)) {
       setError(c('Select 1–200 targets.', 'Chọn từ 1 đến 200 đối tượng.'));
       return;
     }
@@ -258,14 +268,21 @@ function MaintenanceWorkspace({
     }
     setBusy(true);
     try {
-      await maintenanceApi.create(workspaceId, {
-        targetKeys: direct,
+      await (
+        editingGroup
+          ? (id: number, input: import('../api').MaintenanceInput) =>
+              maintenanceApi.update(id, editingGroup, input)
+          : maintenanceApi.create
+      )(workspaceId, {
+        wholeWorkspace,
+        targetKeys: wholeWorkspace ? [] : direct,
         startTime: start,
         endTime: end,
         reason: reason.trim()
       });
       setSelected([]);
       setReason('');
+      setEditingGroup(null);
       await refresh();
       toast.success(c('Maintenance saved', 'Đã tạo lịch bảo trì'));
     } catch (e) {
@@ -289,6 +306,28 @@ function MaintenanceWorkspace({
               'Chọn phòng, ghế hoặc đồ bố trí bên trái, rồi đặt thời gian bảo trì bên phải.'
             )}
           </p>
+          <div className='mt-4 flex flex-wrap gap-2'>
+            <Button
+              type='button'
+              variant={wholeWorkspace ? 'default' : 'outline'}
+              onClick={() => {
+                setWholeWorkspace(true);
+                setSelected(all.map((t) => t.key));
+              }}
+            >
+              Toàn bộ không gian
+            </Button>
+            <Button
+              type='button'
+              variant={!wholeWorkspace ? 'default' : 'outline'}
+              onClick={() => {
+                setWholeWorkspace(false);
+                setSelected([]);
+              }}
+            >
+              Chọn đối tượng
+            </Button>
+          </div>
           <form
             className='mt-5 grid items-start gap-5 lg:grid-cols-[minmax(0,1.8fr)_minmax(280px,1fr)]'
             onSubmit={save}
@@ -296,7 +335,10 @@ function MaintenanceWorkspace({
             <MaintenanceTargetPicker
               targets={all}
               selected={selected}
-              onChange={setSelected}
+              onChange={(keys) => {
+                setWholeWorkspace(false);
+                setSelected(keys);
+              }}
               busy={busy}
               loading={targets.isPending}
               error={targets.error?.message}
@@ -372,7 +414,7 @@ function MaintenanceWorkspace({
                 className='w-full'
                 disabled={
                   busy ||
-                  !selected.length ||
+                  (!wholeWorkspace && !selected.length) ||
                   targets.isPending ||
                   !!targets.error ||
                   !start ||
@@ -382,7 +424,7 @@ function MaintenanceWorkspace({
                   reservations.isError
                 }
               >
-                {busy ? c('Saving…', 'Đang lưu…') : c('Save maintenance', 'Tạo lịch bảo trì')}
+                {busy ? 'Đang lưu…' : editingGroup ? 'Lưu thay đổi lịch' : 'Tạo lịch bảo trì'}
               </Button>
               <p className='text-xs leading-relaxed text-muted-foreground'>
                 {c(
@@ -452,6 +494,31 @@ function MaintenanceWorkspace({
                               : c('Scheduled', 'Sắp bảo trì'))}
                       </p>
                     </div>
+                    {s.key.startsWith('GROUP:') && !ended && (
+                      <Button
+                        variant='ghost'
+                        size='sm'
+                        onClick={() => {
+                          setEditingGroup(Number(s.key.substring(6)));
+                          setWholeWorkspace(!!s.wholeWorkspace);
+                          setSelected(
+                            s.wholeWorkspace ? all.map((t) => t.key) : (s.targetKeys ?? [])
+                          );
+                          setStartDay(
+                            s.startTime.slice(0, 10) < today ? today : s.startTime.slice(0, 10)
+                          );
+                          const last = new Date(s.endTime ?? s.startTime);
+                          last.setDate(last.getDate() - 1);
+                          setEndDay(localDate(last));
+                          setReason(s.reason);
+                          document
+                            .getElementById('maintenance-form')
+                            ?.scrollIntoView({ behavior: 'smooth' });
+                        }}
+                      >
+                        Sửa lịch
+                      </Button>
+                    )}
                     <Button
                       size='icon'
                       variant='ghost'

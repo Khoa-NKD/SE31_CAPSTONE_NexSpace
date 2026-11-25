@@ -5,7 +5,10 @@ import PageContainer from '@/components/layout/page-container';
 import { BlockoutManagementView } from '@/features/organizer-blockout/components/blockout-management-view';
 
 export const Route = createFileRoute('/dashboard/organizer/blockout/')({
-  validateSearch: z.object({ workspaceId: z.coerce.number().int().positive().optional() }),
+  validateSearch: z.object({
+    workspaceId: z.coerce.number().int().positive().optional(),
+    scope: z.enum(['workspace', 'selected']).optional()
+  }),
   head: () => ({
     meta: [
       { title: 'Maintenance schedule | NexSpace Organizer Hub' },
@@ -27,4 +30,3 @@ function OrganizerBlockoutPage() {
     </PageContainer>
   );
 }
-

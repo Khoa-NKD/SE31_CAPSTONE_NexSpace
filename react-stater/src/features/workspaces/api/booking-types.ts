@@ -2,7 +2,7 @@ export interface CreateBookingPayload {
   workspaceId: number;
   resourceId: number;
   startTime: string; // ISO 8601 string, e.g. "2026-11-25T09:00:00"
-  endTime: string;   // ISO 8601 string, e.g. "2026-11-25T13:00:00"
+  endTime: string; // ISO 8601 string, e.g. "2026-11-25T13:00:00"
   partySize?: number;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
   notes?: string;
@@ -31,6 +31,9 @@ export interface PriceCalculationResult {
   discountAmount: number;
   finalPrice: number;
   currency: string;
+  vatPercent?: number;
+  addonAmount?: number;
+  addons?: { amenityId: number; name: string; hourlyRate: number; amount: number }[];
 }
 
 export interface BookingDto {

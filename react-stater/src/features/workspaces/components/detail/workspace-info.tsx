@@ -372,9 +372,14 @@ export function WorkspaceInfo({
           (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
         );
         const isBooked = availItem?.state === 'BOOKED';
-        const isLocked = (availItem?.state === 'LOCKED' || availItem?.state === 'HOLDING') && !isHeldByMe;
+        const isLocked =
+          (availItem?.state === 'LOCKED' || availItem?.state === 'HOLDING') && !isHeldByMe;
         const isMaint = availItem?.state === 'MAINTENANCE' || (!res.selectable && !isHeldByMe);
-        const isAvailable = (!availItem || availItem.state === 'AVAILABLE' || isHeldByMe) && !isBooked && !isLocked && !isMaint;
+        const isAvailable =
+          (!availItem || availItem.state === 'AVAILABLE' || isHeldByMe) &&
+          !isBooked &&
+          !isLocked &&
+          !isMaint;
         const cap = Math.max(1, res.capacity || 1);
         const price = res.pricePerHour || 0;
 
@@ -402,12 +407,20 @@ export function WorkspaceInfo({
             const curAvail = availabilityMap?.get(existing.sampleResource.id);
             const curHeldByMe = Boolean(
               curAvail?.isOccupiedByMe ||
-              (holdData?.resourceId && Number(holdData.resourceId) === Number(existing.sampleResource.id))
+              (holdData?.resourceId &&
+                Number(holdData.resourceId) === Number(existing.sampleResource.id))
             );
             const curBooked = curAvail?.state === 'BOOKED';
-            const curLocked = (curAvail?.state === 'LOCKED' || curAvail?.state === 'HOLDING') && !curHeldByMe;
-            const curMaint = curAvail?.state === 'MAINTENANCE' || (!existing.sampleResource.selectable && !curHeldByMe);
-            const curAvailable = (!curAvail || curAvail.state === 'AVAILABLE' || curHeldByMe) && !curBooked && !curLocked && !curMaint;
+            const curLocked =
+              (curAvail?.state === 'LOCKED' || curAvail?.state === 'HOLDING') && !curHeldByMe;
+            const curMaint =
+              curAvail?.state === 'MAINTENANCE' ||
+              (!existing.sampleResource.selectable && !curHeldByMe);
+            const curAvailable =
+              (!curAvail || curAvail.state === 'AVAILABLE' || curHeldByMe) &&
+              !curBooked &&
+              !curLocked &&
+              !curMaint;
 
             // Prioritize: If current resource is held by me, or if sampleResource is not available, choose res
             if (isHeldByMe || !curAvailable) {
@@ -436,34 +449,36 @@ export function WorkspaceInfo({
   // Normalize amenities from API endpoint + workspace.amenities string[] fallback
   const normalizedAmenities = useMemo(() => {
     if (amenitiesList.length > 0) {
-      return amenitiesList.map((item, idx) => {
-        const raw = item as WorkspaceAmenityDto & {
-          amenityName?: string;
-          amenityCode?: string;
-          customNote?: string;
-          amenityDescription?: string;
-          isFree?: boolean;
-          extraPrice?: number;
-        };
-        const displayName = raw.name || raw.amenityName || `Amenity #${idx + 1}`;
-        const displayCode = raw.icon || raw.amenityCode || displayName;
-        const displayDesc = raw.description || raw.customNote || raw.amenityDescription || '';
-        const isFree =
-          raw.isComplimentary ??
-          raw.complimentary ??
-          raw.isFree ??
-          !(raw.addonPricePerHour || raw.extraPrice);
-        const extraPrice = raw.addonPricePerHour || raw.extraPrice;
+      return amenitiesList
+        .filter((item) => !item.addonPricePerHour || item.addonPricePerHour <= 0)
+        .map((item, idx) => {
+          const raw = item as WorkspaceAmenityDto & {
+            amenityName?: string;
+            amenityCode?: string;
+            customNote?: string;
+            amenityDescription?: string;
+            isFree?: boolean;
+            extraPrice?: number;
+          };
+          const displayName = raw.name || raw.amenityName || `Amenity #${idx + 1}`;
+          const displayCode = raw.icon || raw.amenityCode || displayName;
+          const displayDesc = raw.description || raw.customNote || raw.amenityDescription || '';
+          const isFree =
+            raw.isComplimentary ??
+            raw.complimentary ??
+            raw.isFree ??
+            !(raw.addonPricePerHour || raw.extraPrice);
+          const extraPrice = raw.addonPricePerHour || raw.extraPrice;
 
-        return {
-          key: String(raw.id || raw.amenityId || `${displayName}-${idx}`),
-          code: displayCode,
-          name: displayName,
-          description: displayDesc,
-          isFree,
-          extraPrice
-        };
-      });
+          return {
+            key: String(raw.id || raw.amenityId || `${displayName}-${idx}`),
+            code: displayCode,
+            name: displayName,
+            description: displayDesc,
+            isFree,
+            extraPrice
+          };
+        });
     }
     if (workspace?.amenities && workspace.amenities.length > 0) {
       return workspace.amenities.map((name, idx) => ({
@@ -856,196 +871,205 @@ export function WorkspaceInfo({
                     (group.category === 'ROOM'
                       ? selectedResource.id === group.sampleResource.id
                       : selectedResource.category === group.category &&
-                        (selectedResource.typeName || '') === (group.sampleResource.typeName || ''));
+                        (selectedResource.typeName || '') ===
+                          (group.sampleResource.typeName || ''));
 
-                return (
-                  <div
-                    key={group.key}
-                    className={cn(
-                      'group relative flex flex-col justify-between rounded-xl border p-4 transition-all',
-                      isSelectedGroup
-                        ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs'
-                        : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700'
-                    )}
-                  >
-                    <div>
-                      <div className='flex items-start justify-between gap-2'>
-                        <div>
-                          <div className='flex items-center gap-1.5 mb-1.5'>
-                            <span
-                              className={cn(
-                                'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider',
-                                group.category === 'ROOM'
-                                  ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
-                                  : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                              )}
-                            >
-                              {group.category === 'ROOM'
-                                ? language === 'vi'
-                                  ? 'Phòng khép kín'
-                                  : 'Private Space'
-                                : language === 'vi'
-                                  ? 'Bàn làm việc'
-                                  : 'Desk Space'}
-                            </span>
-                            {group.availableCount === 0 && (
-                              <span className='inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'>
-                                {language === 'vi' ? 'Hết chỗ' : 'Sold out'}
+                  return (
+                    <div
+                      key={group.key}
+                      className={cn(
+                        'group relative flex flex-col justify-between rounded-xl border p-4 transition-all',
+                        isSelectedGroup
+                          ? 'border-primary bg-primary/5 dark:bg-primary/10 shadow-xs'
+                          : 'border-slate-200/80 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-slate-300 dark:hover:border-slate-700'
+                      )}
+                    >
+                      <div>
+                        <div className='flex items-start justify-between gap-2'>
+                          <div>
+                            <div className='flex items-center gap-1.5 mb-1.5'>
+                              <span
+                                className={cn(
+                                  'inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider',
+                                  group.category === 'ROOM'
+                                    ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400'
+                                    : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                )}
+                              >
+                                {group.category === 'ROOM'
+                                  ? language === 'vi'
+                                    ? 'Phòng khép kín'
+                                    : 'Private Space'
+                                  : language === 'vi'
+                                    ? 'Bàn làm việc'
+                                    : 'Desk Space'}
                               </span>
-                            )}
+                              {group.availableCount === 0 && (
+                                <span className='inline-flex items-center px-1.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'>
+                                  {language === 'vi' ? 'Hết chỗ' : 'Sold out'}
+                                </span>
+                              )}
+                            </div>
+                            <h3 className='text-sm font-bold text-slate-900 dark:text-white'>
+                              {group.label}
+                            </h3>
                           </div>
-                          <h3 className='text-sm font-bold text-slate-900 dark:text-white'>
-                            {group.label}
-                          </h3>
+
+                          {group.minPricePerHour > 0 && (
+                            <div className='text-right shrink-0'>
+                              <div className='text-sm font-extrabold text-primary'>
+                                {formatPrice(group.minPricePerHour)}
+                                <span className='text-[11px] font-normal text-slate-500'>
+                                  /{language === 'vi' ? 'giờ' : 'hr'}
+                                </span>
+                              </div>
+                              <div className='text-[10px] text-slate-400'>
+                                {language === 'vi' ? 'Giá khởi điểm' : 'Starting rate'}
+                              </div>
+                            </div>
+                          )}
                         </div>
 
-                        {group.minPricePerHour > 0 && (
-                          <div className='text-right shrink-0'>
-                            <div className='text-sm font-extrabold text-primary'>
-                              {formatPrice(group.minPricePerHour)}
-                              <span className='text-[11px] font-normal text-slate-500'>
-                                /{language === 'vi' ? 'giờ' : 'hr'}
-                              </span>
-                            </div>
-                            <div className='text-[10px] text-slate-400'>
-                              {language === 'vi' ? 'Giá khởi điểm' : 'Starting rate'}
-                            </div>
+                        <div className='mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400'>
+                          <span className='inline-flex items-center gap-1'>
+                            <Users className='size-3.5 text-slate-400' />
+                            {group.minCapacity === group.maxCapacity
+                              ? `${group.minCapacity} ${
+                                  language === 'vi'
+                                    ? 'người'
+                                    : group.minCapacity === 1
+                                      ? 'person'
+                                      : 'people'
+                                }`
+                              : `${group.minCapacity}–${group.maxCapacity} ${
+                                  language === 'vi' ? 'người' : 'people'
+                                }`}
+                          </span>
+                          <span>•</span>
+                          <span
+                            className={cn(
+                              'font-semibold',
+                              group.availableCount > 0
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-rose-600 dark:text-rose-400'
+                            )}
+                          >
+                            {group.availableCount > 0
+                              ? `${group.availableCount}/${group.unitCount} ${
+                                  language === 'vi' ? 'vị trí sẵn sàng' : 'units available'
+                                }`
+                              : `${group.availableCount}/${group.unitCount} ${
+                                  language === 'vi' ? 'vị trí (Đã kín chỗ)' : 'units (Fully booked)'
+                                }`}
+                          </span>
+                        </div>
+
+                        {group.zones.length > 0 && (
+                          <div className='mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate'>
+                            {language === 'vi' ? 'Khu vực:' : 'Zones:'} {group.zones.join(', ')}
                           </div>
                         )}
                       </div>
 
-                      <div className='mt-2.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600 dark:text-slate-400'>
-                        <span className='inline-flex items-center gap-1'>
-                          <Users className='size-3.5 text-slate-400' />
-                          {group.minCapacity === group.maxCapacity
-                            ? `${group.minCapacity} ${
-                                language === 'vi'
-                                  ? 'người'
-                                  : group.minCapacity === 1
-                                    ? 'person'
-                                    : 'people'
-                              }`
-                            : `${group.minCapacity}–${group.maxCapacity} ${
-                                language === 'vi' ? 'người' : 'people'
-                              }`}
-                        </span>
-                        <span>•</span>
-                        <span
-                          className={cn(
-                            'font-semibold',
-                            group.availableCount > 0
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-rose-600 dark:text-rose-400'
-                          )}
+                      <div className='mt-3.5 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2'>
+                        <button
+                          type='button'
+                          onClick={() => handlePreviewSpaceOnMap(group)}
+                          className='inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors cursor-pointer'
                         >
-                          {group.availableCount > 0
-                            ? `${group.availableCount}/${group.unitCount} ${
-                                language === 'vi' ? 'vị trí sẵn sàng' : 'units available'
-                              }`
-                            : `${group.availableCount}/${group.unitCount} ${
-                                language === 'vi' ? 'vị trí (Đã kín chỗ)' : 'units (Fully booked)'
-                              }`}
-                        </span>
-                      </div>
+                          <Compass className='size-3.5 text-primary' />
+                          <span>{language === 'vi' ? 'Xem trên sơ đồ' : 'Locate on map'}</span>
+                        </button>
 
-                      {group.zones.length > 0 && (
-                        <div className='mt-1.5 text-[11px] text-slate-500 dark:text-slate-400 truncate'>
-                          {language === 'vi' ? 'Khu vực:' : 'Zones:'} {group.zones.join(', ')}
-                        </div>
-                      )}
-                    </div>
+                        {group.availableCount > 0 ? (
+                          (() => {
+                            const sampleAvail = availabilityMap?.get(group.sampleResource.id);
+                            const isGroupHeldByMe = Boolean(
+                              sampleAvail?.isOccupiedByMe ||
+                              (holdData?.resourceId &&
+                                Number(holdData.resourceId) === Number(group.sampleResource.id))
+                            );
+                            const isSampleLocked =
+                              (sampleAvail?.state === 'LOCKED' ||
+                                sampleAvail?.state === 'HOLDING') &&
+                              !isGroupHeldByMe;
+                            const isSampleBooked = sampleAvail?.state === 'BOOKED';
 
-                    <div className='mt-3.5 pt-3 border-t border-slate-200/60 dark:border-slate-800/80 flex items-center justify-between gap-2'>
-                      <button
-                        type='button'
-                        onClick={() => handlePreviewSpaceOnMap(group)}
-                        className='inline-flex items-center gap-1 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:text-primary dark:hover:text-primary transition-colors cursor-pointer'
-                      >
-                        <Compass className='size-3.5 text-primary' />
-                        <span>{language === 'vi' ? 'Xem trên sơ đồ' : 'Locate on map'}</span>
-                      </button>
+                            if (isSampleLocked || isSampleBooked) {
+                              return (
+                                <button
+                                  type='button'
+                                  disabled
+                                  className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
+                                  title={
+                                    language === 'vi'
+                                      ? 'Vị trí này đang được người khác giữ hoặc đã kín chỗ trong khung giờ đã chọn'
+                                      : 'This space is held or booked in this time slot'
+                                  }
+                                >
+                                  <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+                                </button>
+                              );
+                            }
 
-                      {group.availableCount > 0 ? (
-                        (() => {
-                          const sampleAvail = availabilityMap?.get(group.sampleResource.id);
-                          const isGroupHeldByMe = Boolean(
-                            sampleAvail?.isOccupiedByMe ||
-                            (holdData?.resourceId && Number(holdData.resourceId) === Number(group.sampleResource.id))
-                          );
-                          const isSampleLocked = (sampleAvail?.state === 'LOCKED' || sampleAvail?.state === 'HOLDING') && !isGroupHeldByMe;
-                          const isSampleBooked = sampleAvail?.state === 'BOOKED';
-
-                          if (isSampleLocked || isSampleBooked) {
                             return (
                               <button
                                 type='button'
-                                disabled
-                                className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
-                                title={
-                                  language === 'vi'
-                                    ? 'Vị trí này đang được người khác giữ hoặc đã kín chỗ trong khung giờ đã chọn'
-                                    : 'This space is held or booked in this time slot'
-                                }
+                                onClick={() => {
+                                  if (!hasScheduleSelected) {
+                                    toast.warning(
+                                      language === 'vi'
+                                        ? 'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí!'
+                                        : 'Please select a date and time slot before choosing a space!'
+                                    );
+                                    onRequestSelectSchedule?.();
+                                    return;
+                                  }
+                                  if (group.floorId && group.floorId !== activeFloorId) {
+                                    onFloorChange?.(group.floorId);
+                                  }
+                                  onSelectResource?.(group.sampleResource);
+                                  onContinueWithResource?.(group.sampleResource, group.floorId);
+                                }}
+                                className={cn(
+                                  'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer active:scale-95',
+                                  isGroupHeldByMe
+                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white'
+                                    : 'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground'
+                                )}
                               >
-                                <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+                                <span>
+                                  {isGroupHeldByMe
+                                    ? language === 'vi'
+                                      ? 'Tiếp tục giữ chỗ'
+                                      : 'Continue Hold'
+                                    : language === 'vi'
+                                      ? 'Chọn đặt'
+                                      : 'Select'}
+                                </span>
+                                <ArrowUpRight className='size-3.5' />
                               </button>
                             );
-                          }
-
-                          return (
-                            <button
-                              type='button'
-                              onClick={() => {
-                                if (!hasScheduleSelected) {
-                                  toast.warning(
-                                    language === 'vi'
-                                      ? 'Vui lòng chọn ngày và khung giờ đặt chỗ trước khi chọn vị trí!'
-                                      : 'Please select a date and time slot before choosing a space!'
-                                  );
-                                  onRequestSelectSchedule?.();
-                                  return;
-                                }
-                                if (group.floorId && group.floorId !== activeFloorId) {
-                                  onFloorChange?.(group.floorId);
-                                }
-                                onSelectResource?.(group.sampleResource);
-                                onContinueWithResource?.(group.sampleResource, group.floorId);
-                              }}
-                              className={cn(
-                                'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold transition-colors cursor-pointer active:scale-95',
-                                isGroupHeldByMe
-                                  ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500 hover:text-white'
-                                  : 'bg-primary/10 text-primary hover:bg-primary hover:text-primary-foreground'
-                              )}
-                            >
-                              <span>
-                                {isGroupHeldByMe
-                                  ? language === 'vi' ? 'Tiếp tục giữ chỗ' : 'Continue Hold'
-                                  : language === 'vi' ? 'Chọn đặt' : 'Select'}
-                              </span>
-                              <ArrowUpRight className='size-3.5' />
-                            </button>
-                          );
-                        })()
-                      ) : (
-                        <button
-                          type='button'
-                          disabled
-                          className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
-                          title={
-                            language === 'vi'
-                              ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
-                              : 'This space is fully booked in this time slot'
-                          }
-                        >
-                          <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
-                        </button>
-                      )}
+                          })()
+                        ) : (
+                          <button
+                            type='button'
+                            disabled
+                            className='inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 cursor-not-allowed select-none border border-slate-200/60 dark:border-slate-800'
+                            title={
+                              language === 'vi'
+                                ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
+                                : 'This space is fully booked in this time slot'
+                            }
+                          >
+                            <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}

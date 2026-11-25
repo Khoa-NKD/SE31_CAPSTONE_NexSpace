@@ -92,7 +92,8 @@ export function mapWizardScheduleToCanonical(
       openTime: is247 ? '00:00' : time12To24(found.openTime),
       closeTime: is247 ? '23:59' : time12To24(found.closeTime),
       isClosed: is247 ? false : !found.isOpen,
-      is24Hours: is247
+      is24Hours: is247,
+      closesNextDay: !is247 && time12To24(found.closeTime) < time12To24(found.openTime)
     };
   });
 }
@@ -130,7 +131,10 @@ export function isDurableMediaUrl(url?: string): boolean {
   const trimmed = url.trim();
   if (trimmed.startsWith('/uploads/')) {
     const segments = trimmed.slice('/uploads/'.length).split('/');
-    return segments.every(segment => Boolean(segment) && segment !== '.' && segment !== '..' && /^[a-zA-Z0-9_.-]+$/.test(segment));
+    return segments.every(
+      (segment) =>
+        Boolean(segment) && segment !== '.' && segment !== '..' && /^[a-zA-Z0-9_.-]+$/.test(segment)
+    );
   }
   if (trimmed.startsWith('/api/media/') || trimmed.startsWith('/api/v1/media/')) {
     const filename = trimmed.replace(/^\/api(\/v1)?\/media\//, '').trim();
@@ -184,7 +188,8 @@ export function mapWizardFloorPlanToCanonical(
   const totalFloors = Math.max(1, floors.length);
   const totalCapacityFromZones = zones.reduce((sum, z) => sum + (Number(z.capacity) || 0), 0);
   const totalCapacityFromFloors = floors.reduce((sum, f) => sum + (Number(f.capacity) || 0), 0);
-  const capacityDesks = totalCapacityFromZones > 0 ? totalCapacityFromZones : totalCapacityFromFloors;
+  const capacityDesks =
+    totalCapacityFromZones > 0 ? totalCapacityFromZones : totalCapacityFromFloors;
 
   const meetingRooms = zones.filter((z) => z.type === 'meeting_suite').length;
   const focusPods = zones.filter((z) => z.type === 'quiet_focus').length;
@@ -235,16 +240,13 @@ export function mapWizardStateToCreateDto(
 
   return {
     name: state.basicInfo.name || 'Untitled Workspace Draft',
-    category: (state.basicInfo.category as WorkspaceCategory) || 'coworking_hub',
     buildingName: state.location.floorSuite || undefined,
     facilitySubtitle: state.location.floorSuite || undefined,
     description: state.basicInfo.description || '',
-    supportPhone: state.basicInfo.contactPhone || undefined,
-    supportEmail: state.basicInfo.contactEmail || undefined,
     organizerId,
     amenities: state.amenities || [],
     operatingHours,
-    cancellationRules: state.cancellationRules ?? defaultCancellationRules(),
+    holidayCodes: state.operatingHours.holidayCodes ?? [],
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     clientDraftKey: state.clientDraftKey,
     ...floorPlanMeta
@@ -273,18 +275,13 @@ export function mapWizardStateToUpdateDto(
 
   const dto: UpdateWorkspaceDto = {
     name: state.basicInfo.name,
-    category: state.basicInfo.category as WorkspaceCategory,
     buildingName: state.location.floorSuite,
     facilitySubtitle: state.location.floorSuite,
     entryInstructions: state.location.entryNotes,
     description: state.basicInfo.description,
-    supportPhone: state.basicInfo.contactPhone,
-    supportEmail: state.basicInfo.contactEmail,
     operatingHours,
-    cancellationRules: state.cancellationRules ?? defaultCancellationRules(),
+    holidayCodes: state.operatingHours.holidayCodes ?? [],
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
-    autoBlockPublicHolidays: state.operatingHours.blockHolidays,
-    checkInLeadMinutes: state.operatingHours.allowGracePeriod ? 15 : 0,
     amenities: state.amenities,
     totalFloors: floorPlanMeta.totalFloors,
     capacityDesks: floorPlanMeta.capacityDesks,
@@ -315,7 +312,9 @@ export function mapCanonicalToWizardState(
   existingLocalState?: Partial<OnboardingDraftState>
 ): Partial<OnboardingDraftState> {
   const schedules = mapCanonicalScheduleToWizard(cw.operatingHours);
-  const is247 = Boolean(cw.operatingHours?.some((h) => h.is24Hours));
+  const is247 = Boolean(
+    cw.operatingHours?.length === 7 && cw.operatingHours.every((h) => h.is24Hours)
+  );
 
   // Preserve local blob previews if available, otherwise use canonical images
   const serverMediaItems: MediaItem[] = (cw.images || []).map((img) => ({
@@ -331,10 +330,7 @@ export function mapCanonicalToWizardState(
   const localBlobs = localMedia.filter((m) => m.url?.startsWith('blob:'));
   const mergedItems = [...serverMediaItems, ...localBlobs];
   const coverPhotoId =
-    mergedItems.find((m) => m.isCover)?.id ||
-    mergedItems[0]?.id ||
-    cw.coverImageUrl ||
-    '';
+    mergedItems.find((m) => m.isCover)?.id || mergedItems[0]?.id || cw.coverImageUrl || '';
 
   return {
     canonicalWorkspaceId: cw.id,
@@ -342,30 +338,43 @@ export function mapCanonicalToWizardState(
     isDraftSynced: true,
     lastSavedAt: cw.updatedAt || new Date().toISOString(),
     basicInfo: {
-      name: cw.name || existingLocalState?.basicInfo?.name || '',
-      category: (cw.category as unknown as SpaceCategory) || existingLocalState?.basicInfo?.category || 'coworking_hub',
-      description: cw.description || existingLocalState?.basicInfo?.description || '',
+      name: cw.name ?? '',
+      category:
+        (cw.category as unknown as SpaceCategory) ||
+        existingLocalState?.basicInfo?.category ||
+        'coworking_hub',
+      description: cw.description ?? '',
       totalArea: cw.usableAreaSqm ?? 0,
-      contactPhone: cw.supportPhone || cw.operatorContactPhone || existingLocalState?.basicInfo?.contactPhone || '',
+      contactPhone:
+        cw.supportPhone ||
+        cw.operatorContactPhone ||
+        existingLocalState?.basicInfo?.contactPhone ||
+        '',
       contactEmail: cw.supportEmail || existingLocalState?.basicInfo?.contactEmail || ''
     },
     location: {
       streetAddress: cw.streetAddress || '',
       district: cw.district || '',
       city: cw.city || '',
-      floorSuite: cw.buildingName || cw.facilitySubtitle || existingLocalState?.location?.floorSuite || '',
+      floorSuite:
+        cw.buildingName || cw.facilitySubtitle || existingLocalState?.location?.floorSuite || '',
       latitude: typeof cw.latitude === 'number' ? cw.latitude : null,
       longitude: typeof cw.longitude === 'number' ? cw.longitude : null,
-      entryNotes: cw.entryInstructions || existingLocalState?.location?.entryNotes || ''
+      entryNotes: cw.entryInstructions ?? ''
     },
     cancellationRules: cw.cancellationRules ?? defaultCancellationRules(),
     operatingHours: {
       is247,
-      schedule: schedules.length > 0 ? schedules : existingLocalState?.operatingHours?.schedule || [],
+      schedule:
+        schedules.length > 0 ? schedules : existingLocalState?.operatingHours?.schedule || [],
       blockHolidays: cw.autoBlockPublicHolidays ?? true,
+      holidayCodes: cw.holidayCodes ?? [],
       allowGracePeriod: (cw.checkInLeadMinutes || 0) > 0
     },
-    amenities: Array.isArray(cw.amenities) && cw.amenities.length > 0 ? cw.amenities : existingLocalState?.amenities || [],
+    amenities:
+      Array.isArray(cw.amenities) && cw.amenities.length > 0
+        ? cw.amenities
+        : existingLocalState?.amenities || [],
     media: {
       items: mergedItems.length > 0 ? mergedItems : existingLocalState?.media?.items || [],
       coverPhotoId: coverPhotoId || existingLocalState?.media?.coverPhotoId || ''

@@ -1,3 +1,4 @@
+import { WorkspaceHolidayNotice } from './workspace-holiday-notice';
 import { LoadingPlaceholder } from '@/components/ui/loading-placeholder';
 import { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useParams } from '@tanstack/react-router';
@@ -6,16 +7,20 @@ import { Footer } from '@/features/landing/components/footer';
 import { WorkspaceGallery } from './workspace-gallery';
 import { WorkspaceInfo } from './workspace-info';
 import { WorkspaceBookingCard } from './workspace-booking-card';
-import { usePublicWorkspaceDetailQuery, useWorkspaceMediaQuery, useWorkspaceAmenitiesQuery } from '../../api/queries';
+import {
+  usePublicWorkspaceDetailQuery,
+  useWorkspaceMediaQuery,
+  useWorkspaceAmenitiesQuery
+} from '../../api/queries';
 import { useWorkspaceAvailabilityQuery, bookingKeys } from '../../api/booking-queries';
 import type { ResourceAvailabilityItem } from '../../api/booking-types';
 import { useLanguage } from '@/features/landing/context/language-context';
-import { DateTimePickerModal, type ScheduleSelection, parseTimeToMinutes } from './date-time-picker-modal';
-import type {
-  CustomerFloor,
-  MapResource,
-  SpaceFilterType
-} from './public-floor-map';
+import {
+  DateTimePickerModal,
+  type ScheduleSelection,
+  parseTimeToMinutes
+} from './date-time-picker-modal';
+import type { CustomerFloor, MapResource, SpaceFilterType } from './public-floor-map';
 import { AlertCircle, ArrowLeft } from '@/components/ui/hugeicons';
 import { cn } from '@/lib/utils';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
@@ -28,12 +33,7 @@ interface WorkspaceDetailPageProps {
   workspaceId?: string;
 }
 
-type SectionId =
-  | 'overview'
-  | 'spaces-floor-map'
-  | 'amenities'
-  | 'location'
-  | 'reviews';
+type SectionId = 'overview' | 'spaces-floor-map' | 'amenities' | 'location' | 'reviews';
 
 const SECTION_IDS: SectionId[] = [
   'overview',
@@ -63,7 +63,9 @@ function getDefaultSchedule(): ScheduleSelection {
   };
 }
 
-export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceDetailPageProps = {}) {
+export function WorkspaceDetailPage({
+  workspaceId: propWorkspaceId
+}: WorkspaceDetailPageProps = {}) {
   const params = useParams({ strict: false }) as { workspaceId?: string };
   const workspaceId = propWorkspaceId || params.workspaceId || '1';
 
@@ -72,11 +74,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
 
-  const {
-    data: workspace,
-    isLoading,
-    isError
-  } = usePublicWorkspaceDetailQuery(workspaceId);
+  const { data: workspace, isLoading, isError } = usePublicWorkspaceDetailQuery(workspaceId);
 
   const { data: mediaItems = [] } = useWorkspaceMediaQuery(workspaceId);
   const { data: amenitiesList = [] } = useWorkspaceAmenitiesQuery(workspaceId);
@@ -110,7 +108,8 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
         durationHours,
         isoDate: date,
         isoStartTime: isoStartTime || undefined,
-        isoEndTime: isoEndTime || undefined
+        isoEndTime: isoEndTime || undefined,
+        priceType: params.get('priceType') === 'DAILY' ? 'DAILY' : 'HOURLY'
       };
     }
     return null;
@@ -123,6 +122,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
     if (schedule.startTime) url.searchParams.set('startTime', schedule.startTime);
     if (schedule.endTime) url.searchParams.set('endTime', schedule.endTime);
     if (schedule.isoStartTime) url.searchParams.set('isoStartTime', schedule.isoStartTime);
+    if (schedule.priceType) url.searchParams.set('priceType', schedule.priceType);
     if (schedule.isoEndTime) url.searchParams.set('isoEndTime', schedule.isoEndTime);
     window.history.replaceState({}, '', url.toString());
   }, [schedule]);
@@ -304,6 +304,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
         to: '/workspaces/seats',
         search: {
           workspaceId: numericWorkspaceId,
+          priceType: schedule?.priceType ?? 'HOURLY',
           date: schedule?.date,
           startTime: schedule?.isoStartTime || schedule?.startTime,
           endTime: schedule?.isoEndTime || schedule?.endTime,
@@ -343,7 +344,10 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
       <WorkspaceHeader />
 
       {isLoading ? (
-        <LoadingPlaceholder as='main' className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6'>
+        <LoadingPlaceholder
+          as='main'
+          className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 w-full flex-1 space-y-6'
+        >
           <div className='space-y-3'>
             <div className='h-4 w-48 bg-slate-200 dark:bg-slate-800 rounded' />
             <div className='h-8 w-80 bg-slate-200 dark:bg-slate-800 rounded-lg' />
@@ -385,6 +389,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
         <main className='flex-1 w-full'>
           {/* Top Container: Breadcrumb + Header + Compact Gallery */}
           <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-5 pb-4'>
+            <WorkspaceHolidayNotice workspace={workspace} />
             <WorkspaceGallery
               workspace={workspace}
               mediaItems={mediaItems}
@@ -413,8 +418,7 @@ export function WorkspaceDetailPage({ workspaceId: propWorkspaceId }: WorkspaceD
                           const next = navItems[(idx + 1) % navItems.length];
                           scrollToSection(next.id);
                         } else if (e.key === 'ArrowLeft') {
-                          const prev =
-                            navItems[(idx - 1 + navItems.length) % navItems.length];
+                          const prev = navItems[(idx - 1 + navItems.length) % navItems.length];
                           scrollToSection(prev.id);
                         }
                       }}

@@ -3,7 +3,7 @@ import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 import React, { useState, useMemo, useCallback } from 'react';
-import { Link, useSearch } from '@tanstack/react-router';
+import { Link, useSearch, useNavigate } from '@tanstack/react-router';
 import {
   Plus,
   Search,
@@ -28,6 +28,7 @@ import type { WorkspaceFilter, WorkspaceStatus } from '../types';
 
 export function WorkspacesDashboardView() {
   const c = useOrganizerCopy();
+  const navigate = useNavigate();
   const routerSearch = useSearch({ strict: false }) as Record<string, unknown>;
   const page = (routerSearch.page as number) ?? 1;
   const perPage = (routerSearch.perPage as number) ?? 10;
@@ -65,7 +66,7 @@ export function WorkspacesDashboardView() {
   // Authoritative server data precedence:
   // When the query succeeds (HTTP 200), always honor server records (even when empty).
   // Only fallback to local store if the API request resulted in a connection error.
-  const workspaces = isError ? storeWorkspaces : serverWorkspaces;
+  const workspaces = serverWorkspaces;
   const isHardError = isError && workspaces.length === 0;
 
   // Total records and pagination counts
@@ -88,11 +89,12 @@ export function WorkspacesDashboardView() {
 
   // Compute status summary counts strictly from serverWorkspaces when query is successful
   const counts = useMemo(() => {
-    const list = isError ? storeWorkspaces : serverWorkspaces;
+    const list = serverWorkspaces;
     return {
       all: totalElements,
       active: list.filter((w) => w.status === 'ACTIVE').length,
-      pending: list.filter((w) => w.status === 'PENDING').length,
+      pending: 0,
+      inactive: list.filter((w) => w.status === 'INACTIVE').length,
       maintenance: list.filter((w) => w.status === 'MAINTENANCE').length,
       draft: list.filter((w) => w.status === 'DRAFT').length
     };
@@ -102,7 +104,8 @@ export function WorkspacesDashboardView() {
   const filteredWorkspaces = useMemo(() => {
     return workspaces.filter((workspace) => {
       if (filter === 'active' && workspace.status !== 'ACTIVE') return false;
-      if (filter === 'pending' && workspace.status !== 'PENDING') return false;
+      if (filter === 'inactive' && workspace.status !== 'INACTIVE') return false;
+      if (filter === 'holiday' && workspace.status !== 'HOLIDAY') return false;
       if (filter === 'maintenance' && workspace.status !== 'MAINTENANCE') return false;
       if (filter === 'draft' && workspace.status !== 'DRAFT') return false;
       if (filter === 'archived' && workspace.status !== 'ARCHIVED') return false;
@@ -124,13 +127,22 @@ export function WorkspacesDashboardView() {
   // Table columns definition with action handlers
   const handleStatusChange = useCallback(
     (id: string, newStatus: WorkspaceStatus) => {
+      if (newStatus === 'MAINTENANCE') {
+        void navigate({
+          to: '/dashboard/organizer/blockout',
+          search: { workspaceId: Number(id), scope: 'workspace' }
+        });
+        return;
+      }
       const targetWs = workspaces.find((w) => w.id === id);
       const actionMap: Record<
         WorkspaceStatus,
         'ACTIVATE' | 'PENDING' | 'MAINTENANCE' | 'DRAFT' | 'ARCHIVE'
       > = {
         ACTIVE: 'ACTIVATE',
-        PENDING: 'PENDING',
+        HOLIDAY: 'ACTIVATE',
+        INACTIVE: 'DRAFT',
+        PENDING: 'DRAFT',
         MAINTENANCE: 'MAINTENANCE',
         DRAFT: 'DRAFT',
         ARCHIVED: 'ARCHIVE'
@@ -152,12 +164,17 @@ export function WorkspacesDashboardView() {
         }
       );
     },
-    [workspaces, lifecycleMutation, updateWorkspaceStatus, refetch]
+    [workspaces, lifecycleMutation, updateWorkspaceStatus, refetch, navigate]
   );
 
   const columns = useMemo(
-    () => getWorkspaceColumns(c, handleStatusChange),
-    [c, handleStatusChange]
+    () =>
+      getWorkspaceColumns(c, handleStatusChange).filter(
+        (column) =>
+          column.id !== 'capacity' ||
+          workspaces.some((ws) => ws.desksCount != null || ws.meetingRoomsCount != null)
+      ),
+    [c, handleStatusChange, workspaces]
   );
 
   const { table } = useDataTable({

@@ -2,6 +2,7 @@ import { createFileRoute } from '@tanstack/react-router';
 import { SeatsPage } from '@/features/workspaces/components/seats/seats-page';
 
 export interface SeatsSearch {
+  priceType?: 'HOURLY' | 'DAILY';
   workspaceId?: number;
   date?: string;
   startTime?: string;
@@ -17,6 +18,7 @@ export const Route = createFileRoute('/workspaces/seats')({
       Number.isSafeInteger(Number(search.workspaceId)) && Number(search.workspaceId) > 0
         ? Number(search.workspaceId)
         : undefined,
+    priceType: search.priceType === 'DAILY' ? 'DAILY' : 'HOURLY',
     date: typeof search.date === 'string' ? search.date : undefined,
     startTime: typeof search.startTime === 'string' ? search.startTime : undefined,
     endTime: typeof search.endTime === 'string' ? search.endTime : undefined,

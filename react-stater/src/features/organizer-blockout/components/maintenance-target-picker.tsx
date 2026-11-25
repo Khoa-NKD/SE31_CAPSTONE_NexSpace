@@ -202,6 +202,24 @@ export function MaintenanceTargetPicker({
               type='button'
               variant='ghost'
               size='sm'
+              disabled={busy}
+              onClick={() =>
+                onChange([
+                  ...new Set([
+                    ...selected,
+                    ...targets
+                      .filter((t) => floor === 'all' || floorKey(t) === floor)
+                      .map((t) => t.key)
+                  ])
+                ])
+              }
+            >
+              {floor === 'all' ? 'Chọn tất cả' : 'Chọn cả tầng'}
+            </Button>
+            <Button
+              type='button'
+              variant='ghost'
+              size='sm'
               onClick={() =>
                 setExpanded(new Set(targets.filter((t) => t.kind === 'ROOM').map((t) => t.key)))
               }

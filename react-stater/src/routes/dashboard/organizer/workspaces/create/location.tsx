@@ -5,10 +5,11 @@ import { WorkspaceSiteStep } from '@/features/organizer-onboarding/components/wo
 export const Route = createFileRoute('/dashboard/organizer/workspaces/create/location')({
   validateSearch: (
     search: Record<string, unknown>
-  ): { id?: string; studio?: boolean; stage?: 'floors' } => {
+  ): { id?: string; studio?: boolean; stage?: 'floors'; mode?: 'edit' | 'create' } => {
     const id = Number(search.id ?? search.workspaceId);
     return {
       id: Number.isSafeInteger(id) && id > 0 ? String(id) : undefined,
+      mode: search.mode === 'edit' || search.mode === 'create' ? search.mode : undefined,
       stage: search.stage === 'floors' ? 'floors' : undefined,
       studio: search.studio === true ? true : undefined
     };

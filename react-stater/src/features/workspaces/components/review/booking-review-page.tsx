@@ -66,23 +66,30 @@ export function BookingReviewPage({
 
   // Load existing held booking if bookingId or bookingCode is provided from seats page or resume link
   const { data: heldBookingById, isLoading: isLoadingBookingById } = useBookingByIdQuery(bookingId);
-  const { data: heldBookingByCode, isLoading: isLoadingBookingByCode } = useBookingByCodeQuery(bookingCode);
+  const { data: heldBookingByCode, isLoading: isLoadingBookingByCode } =
+    useBookingByCodeQuery(bookingCode);
   const initialBooking = heldBookingById || heldBookingByCode || null;
 
   const effectiveBooking = activeBooking || initialBooking || null;
 
   const effectiveAddonAmount =
     propAddonAmount ??
-    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0 ? effectiveBooking.addonAmount : undefined);
+    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0
+      ? effectiveBooking.addonAmount
+      : undefined);
   const effectiveAddonName =
     propAddonName ??
-    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0 ? 'Màn hình phụ Dell 27" 4K' : undefined);
+    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0
+      ? 'Màn hình phụ Dell 27" 4K'
+      : undefined);
 
   // Resolve effective parameters with fallback to loaded booking
   const workspaceId = propWorkspaceId ?? effectiveBooking?.workspaceId;
   const resourceId = propResourceId ?? effectiveBooking?.resourceId;
-  const startTime = propStartTime ?? (effectiveBooking?.startTime ? String(effectiveBooking.startTime) : undefined);
-  const endTime = propEndTime ?? (effectiveBooking?.endTime ? String(effectiveBooking.endTime) : undefined);
+  const startTime =
+    propStartTime ?? (effectiveBooking?.startTime ? String(effectiveBooking.startTime) : undefined);
+  const endTime =
+    propEndTime ?? (effectiveBooking?.endTime ? String(effectiveBooking.endTime) : undefined);
   const date = propDate ?? (startTime ? startTime.split('T')[0] : undefined);
 
   // Fetch workspace details
@@ -123,9 +130,7 @@ export function BookingReviewPage({
   const effectiveExpiresAt = effectiveBooking?.holdExpiresAt || effectiveHoldData?.holdExpiresAt;
   const effectiveServerTime = effectiveBooking?.serverTime || effectiveHoldData?.serverTime;
   const effectiveInitialSeconds =
-    extractSeconds(effectiveBooking) ??
-    extractSeconds(effectiveHoldData) ??
-    undefined;
+    extractSeconds(effectiveBooking) ?? extractSeconds(effectiveHoldData) ?? undefined;
 
   const navigate = useNavigate();
   const { language } = useLanguage();
@@ -218,7 +223,10 @@ export function BookingReviewPage({
   }, [effectiveExpiresAt, effectiveServerTime, effectiveInitialSeconds]);
 
   // If a booking ID or Code was specified but still resolving, show clean loading view
-  const isResolvingBooking = Boolean(bookingId || bookingCode) && !initialBooking && (isLoadingBookingById || isLoadingBookingByCode);
+  const isResolvingBooking =
+    Boolean(bookingId || bookingCode) &&
+    !initialBooking &&
+    (isLoadingBookingById || isLoadingBookingByCode);
 
   if (isResolvingBooking) {
     return (
@@ -247,7 +255,8 @@ export function BookingReviewPage({
             <Building2 className='mx-auto size-12 text-primary mb-4' />
             <h2 className='text-xl font-bold tracking-tight'>No Workspace or Seat Selected</h2>
             <p className='mt-2 text-sm text-muted-foreground'>
-              Please select a workspace and your preferred seat on the interactive floor map before proceeding to review.
+              Please select a workspace and your preferred seat on the interactive floor map before
+              proceeding to review.
             </p>
             <Button asChild className='mt-6 w-full'>
               <Link to='/workspaces'>Explore Workspaces</Link>
@@ -279,10 +288,18 @@ export function BookingReviewPage({
           holdExpiresAt={effectiveExpiresAt}
           initialSeconds={effectiveInitialSeconds}
           serverTime={effectiveBooking?.serverTime || effectiveHoldData?.serverTime}
-          holdDurationMinutes={effectiveBooking?.holdDurationMinutes ?? effectiveHoldData?.holdDurationMinutes ?? 15}
-          remainingHoldAttempts={effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3}
-          maxHoldAttempts={effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3}
-          penaltyBlockMinutes={effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20}
+          holdDurationMinutes={
+            effectiveBooking?.holdDurationMinutes ?? effectiveHoldData?.holdDurationMinutes ?? 15
+          }
+          remainingHoldAttempts={
+            effectiveBooking?.remainingHoldAttempts ?? effectiveHoldData?.remainingHoldAttempts ?? 3
+          }
+          maxHoldAttempts={
+            effectiveBooking?.maxHoldAttempts ?? effectiveHoldData?.maxHoldAttempts ?? 3
+          }
+          penaltyBlockMinutes={
+            effectiveBooking?.penaltyBlockMinutes ?? effectiveHoldData?.penaltyBlockMinutes ?? 20
+          }
           secondsRemaining={secondsRemaining}
           onExpired={handleHoldExpired}
           onReleaseSuccess={() => {
@@ -311,11 +328,11 @@ export function BookingReviewPage({
               isLoading={isLoadingWorkspace || isLoadingFloors}
               addonName={effectiveAddonName}
             />
-            <BookerInfoCard
-              notes={customerNotes}
-              onNotesChange={setCustomerNotes}
+            <BookerInfoCard notes={customerNotes} onNotesChange={setCustomerNotes} />
+            <CancellationPolicyCard
+              snapshot={effectiveBooking?.cancellationPolicySnapshot}
+              rules={workspace?.cancellationRules}
             />
-            <CancellationPolicyCard snapshot={effectiveBooking?.cancellationPolicySnapshot} rules={workspace?.cancellationRules} />
           </div>
 
           {/* Right Column (5 cols ~ 40% - Sticky Card) */}

@@ -59,7 +59,11 @@ export function maintenanceConflicts(
     });
   }
   for (const schedule of schedules)
-    if (selected.includes(schedule.targetKey))
+    if (
+      schedule.wholeWorkspace ||
+      selected.includes(schedule.targetKey) ||
+      schedule.targetKeys?.some((key) => selected.includes(key))
+    )
       result.push({
         start: schedule.startTime,
         end: schedule.endTime,

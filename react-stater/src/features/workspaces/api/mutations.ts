@@ -125,9 +125,11 @@ export function useAdminModerateWorkspaceMutation() {
       if (err instanceof ApiError) {
         if (err.status === 409) {
           queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.all });
-          description = 'Concurrency conflict: this workspace was modified by another session. Latest data refreshed; please reconfirm your decision.';
+          description =
+            'Concurrency conflict: this workspace was modified by another session. Latest data refreshed; please reconfirm your decision.';
         } else if (err.status === 403) {
-          description = err.message || 'You are not authorized to perform administrator moderation actions.';
+          description =
+            err.message || 'You are not authorized to perform administrator moderation actions.';
         } else if (err.validationErrors) {
           const firstErr = Object.values(err.validationErrors)[0];
           description = firstErr || err.message;
@@ -202,9 +204,15 @@ export function useWorkspaceLifecycleMutation() {
       queryClient.setQueryData(workspaceQueryKeys.detail(updatedWorkspace.id), updatedWorkspace);
 
       const displayName = variables.workspaceName || updatedWorkspace.name;
-      const actionName = variables.dto.action.charAt(0).toUpperCase() + variables.dto.action.slice(1);
-      toast.success(`Workspace ${actionName}d`, {
-        description: `Operational state updated for "${displayName}".`
+      const titles: Record<string, string> = {
+        ACTIVATE: 'Đã bật hoạt động',
+        DRAFT: 'Đã ngưng hoạt động',
+        PENDING: 'Đã ngưng hoạt động',
+        MAINTENANCE: 'Đã cập nhật bảo trì',
+        ARCHIVE: 'Đã lưu trữ không gian'
+      };
+      toast.success(titles[variables.dto.action] ?? 'Đã cập nhật trạng thái', {
+        description: displayName
       });
     },
 
@@ -212,7 +220,8 @@ export function useWorkspaceLifecycleMutation() {
       let description = 'Could not update workspace lifecycle.';
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          description = 'Concurrency conflict: this workspace was modified by another session. Please refresh and try again.';
+          description =
+            'Concurrency conflict: this workspace was modified by another session. Please refresh and try again.';
         } else if (err.status === 403) {
           description = err.message || 'Forbidden operation: cannot modify a suspended workspace.';
         } else if (err.status === 400) {
@@ -255,7 +264,8 @@ export function useSubmitWorkspaceMutation() {
       let description = 'Could not submit workspace. Please check required fields.';
       if (err instanceof ApiError) {
         if (err.status === 409) {
-          description = 'Concurrency conflict: this workspace was modified by another session. Please reload the latest draft.';
+          description =
+            'Concurrency conflict: this workspace was modified by another session. Please reload the latest draft.';
         } else if (err.status === 403) {
           description = err.message || 'You are not authorized to submit this workspace.';
         } else if (err.validationErrors) {
@@ -379,8 +389,7 @@ export function useSetCoverMediaMutation() {
     Error,
     { workspaceId: number | string; mediaId: number | string }
   >({
-    mutationFn: ({ workspaceId, mediaId }) =>
-      workspaceService.setCoverMedia(workspaceId, mediaId),
+    mutationFn: ({ workspaceId, mediaId }) => workspaceService.setCoverMedia(workspaceId, mediaId),
 
     onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({
@@ -434,11 +443,7 @@ export function useReorderWorkspaceMediaMutation() {
 export function useDeleteWorkspaceMediaMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<
-    void,
-    Error,
-    { workspaceId: number | string; mediaId: number | string }
-  >({
+  return useMutation<void, Error, { workspaceId: number | string; mediaId: number | string }>({
     mutationFn: ({ workspaceId, mediaId }) =>
       workspaceService.deleteWorkspaceMedia(workspaceId, mediaId),
 
@@ -681,8 +686,6 @@ export function useUpdateMaintenanceLogMutation() {
   });
 }
 
-
-
 /**
  * TanStack Query mutation hook for updating workspace operating hours.
  */
@@ -694,10 +697,13 @@ export function useUpdateOperatingHoursMutation() {
     Error,
     { workspaceId: string; hours: WorkspaceOperatingHour[] }
   >({
-    mutationFn: ({ workspaceId, hours }) => workspaceService.updateOperatingHours(workspaceId, hours),
+    mutationFn: ({ workspaceId, hours }) =>
+      workspaceService.updateOperatingHours(workspaceId, hours),
 
     onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: ['workspaces', 'operating-hours', variables.workspaceId] });
+      queryClient.invalidateQueries({
+        queryKey: ['workspaces', 'operating-hours', variables.workspaceId]
+      });
       queryClient.invalidateQueries({ queryKey: workspaceQueryKeys.detail(variables.workspaceId) });
       toast.success('Operating Hours Saved', {
         description: 'Successfully updated weekly operating hours schedule.'

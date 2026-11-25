@@ -54,6 +54,7 @@ export interface OperatingHoursValues {
   is247: boolean;
   schedule: DaySchedule[];
   blockHolidays: boolean;
+  holidayCodes?: string[];
   allowGracePeriod: boolean;
 }
 
@@ -126,6 +127,9 @@ export interface OnboardingDraftState {
   isDraftSynced: boolean;
   canonicalWorkspaceId?: string;
   isEditMode?: boolean;
+  stagedSite?: import('@/features/organizer-resources/api/buildings').WorkspaceSiteInput;
+  editAmenitiesDirty?: boolean;
+  editMediaDirty?: boolean;
   clientDraftKey?: string;
   serverVersion?: number;
   isSavingToServer?: boolean;
