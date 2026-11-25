@@ -11,6 +11,8 @@ import java.util.List;
 @Repository
 public interface IWorkspaceOperatingHourRepository extends JpaRepository<WorkspaceOperatingHourModel, WorkspaceOperatingHourModel.Key> {
 
+    List<WorkspaceOperatingHourModel> findByWorkspaceIdIn(java.util.Collection<Long> workspaceIds);
+
     @Query("SELECT w FROM WorkspaceOperatingHourModel w WHERE w.workspace.id = :workspaceId ORDER BY w.id.dayOfWeek ASC")
     List<WorkspaceOperatingHourModel> findByWorkspaceIdOrderByDayOfWeekAsc(@Param("workspaceId") Long workspaceId);
 }

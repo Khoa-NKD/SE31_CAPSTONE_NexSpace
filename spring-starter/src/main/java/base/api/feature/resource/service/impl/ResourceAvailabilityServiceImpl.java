@@ -52,6 +52,7 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
     );
 
     private final IWorkspaceRepository workspaceRepository;
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
     private final IBookableResourceRepository bookableResourceRepository;
     private final IBookingRepository bookingRepository;
@@ -349,39 +350,9 @@ public class ResourceAvailabilityServiceImpl implements IResourceAvailabilitySer
     }
 
     private void validateOperatingHours(Long workspaceId, LocalDateTime startTime, LocalDateTime endTime) {
-        DayOfWeek requestedDay = startTime.getDayOfWeek();
-        int dayOfWeekValue = requestedDay.getValue(); // 1 = Thứ 2 ... 7 = Chủ nhật
-
-        List<WorkspaceOperatingHourModel> operatingHours = operatingHourRepository
-                .findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId);
-
-        WorkspaceOperatingHourModel todayHour = operatingHours.stream()
-                .filter(h -> h.getId() != null && h.getId().getDayOfWeek() != null && h.getId().getDayOfWeek() == dayOfWeekValue)
-                .findFirst()
-                .orElse(null);
-
-        if (todayHour == null || todayHour.isClosed()) {
-            throw new BadRequestException("Không gian không mở cửa vào ngày " + getDayOfWeekVietnamese(requestedDay));
-        }
-
-        LocalTime openTime = todayHour.getOpenTime();
-        LocalTime closeTime = todayHour.getCloseTime();
-        LocalTime requestedStartTime = startTime.toLocalTime();
-        LocalTime requestedEndTime = endTime.toLocalTime();
-
-        if (openTime != null && requestedStartTime.isBefore(openTime)) {
-            throw new BadRequestException(String.format(
-                    "Thời gian bắt đầu (%s) sớm hơn giờ mở cửa của không gian (%s)",
-                    requestedStartTime, openTime
-            ));
-        }
-
-        if (closeTime != null && requestedEndTime.isAfter(closeTime)) {
-            throw new BadRequestException(String.format(
-                    "Thời gian kết thúc (%s) muộn hơn giờ đóng cửa của không gian (%s)",
-                    requestedEndTime, closeTime
-            ));
-        }
+        if (maintenanceGroups.wholeWorkspaceOverlaps(workspaceId,startTime,endTime)) throw new base.api.shared.exception.ConflictException("Không gian có lịch bảo trì trong khoảng đặt chỗ.");
+        base.api.feature.workspace.service.OperatingHours.validate(
+                operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId), startTime, endTime);
     }
 
     private DeskAvailabilityResponseDto mapToDeskAvailabilityResponse(

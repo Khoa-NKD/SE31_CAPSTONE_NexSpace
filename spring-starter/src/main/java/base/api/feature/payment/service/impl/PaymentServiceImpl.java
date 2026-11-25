@@ -111,7 +111,7 @@ public class PaymentServiceImpl implements IPaymentService {
     @Override
     @Transactional
     public PaymentCheckoutResponseDTO createPaymentForBooking(Long bookingId, Long actorId) {
-        BookingModel booking = bookingRepository.findById(bookingId)
+        BookingModel booking = bookingRepository.findByIdForUpdate(bookingId)
                 .orElseThrow(() -> new NotFoundException("Đơn đặt chỗ không tồn tại với ID: " + bookingId));
 
         // Strict Ownership Defense

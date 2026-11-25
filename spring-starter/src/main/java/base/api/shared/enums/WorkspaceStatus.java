@@ -7,6 +7,7 @@ public enum WorkspaceStatus {
     REJECTED,
     ACTIVE,
     MAINTENANCE,
+    HOLIDAY,
     INACTIVE,
     SUSPENDED,
     ARCHIVED

@@ -58,6 +58,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class ResourceHoldServiceTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
 
     @Mock
     private IUserRepository userRepository;
@@ -90,6 +92,8 @@ class ResourceHoldServiceTest {
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
+    @Mock private base.api.feature.workspace.service.WorkspaceHolidayService workspaceHolidays;
+
     @InjectMocks
     private ResourceHoldServiceImpl holdService;
 
@@ -101,6 +105,7 @@ class ResourceHoldServiceTest {
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(holdService,"workspaceHolidays",workspaceHolidays);
         mockCustomer = new UserModel();
         mockCustomer.setId(10L);
         mockCustomer.setEmail("customer@nexspace.vn");
@@ -151,6 +156,7 @@ class ResourceHoldServiceTest {
 
     @Test
     void holdChargesRentalAndConfiguredVatWithoutCustomerFees() {
+        mockOperatingHours();
         mockResource.setPricePerHour(new BigDecimal("500000"));
         var vat = new base.api.shared.entity.governance.PlatformSettingModel();
         vat.setSettingValue("10");
@@ -195,6 +201,7 @@ class ResourceHoldServiceTest {
 
     @Test
     void dailyHoldUsesTheSameBaseRateAsThePreview() {
+        mockOperatingHours();
         mockResource.getResourceType().setPricePerDay(new BigDecimal("200000.00"));
         var request=HoldResourceRequestDto.builder().resourceId(mockResource.getId()).startTime(baseStartTime)
                 .endTime(baseEndTime).priceType(PriceType.DAILY).build();
@@ -225,7 +232,7 @@ class ResourceHoldServiceTest {
 
     private void mockOperatingHours() {
         WorkspaceOperatingHourModel woh = new WorkspaceOperatingHourModel();
-        woh.setId(new WorkspaceOperatingHourModel.Key(mockWorkspace.getId(), baseStartTime.getDayOfWeek().getValue() % 7));
+        woh.setId(new WorkspaceOperatingHourModel.Key(mockWorkspace.getId(), baseStartTime.getDayOfWeek().getValue()));
         woh.setClosed(false);
         woh.setOpenTime(LocalTime.of(7, 0));
         woh.setCloseTime(LocalTime.of(22, 0));
@@ -369,8 +376,6 @@ class ResourceHoldServiceTest {
 
             mockOperatingHours();
             when(pricingRuleRepository.findByWorkspaceId(mockWorkspace.getId())).thenReturn(Collections.emptyList());
-            when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                    .thenReturn(Collections.emptyList());
             when(bookingRepository.existsByBookingCode(any())).thenReturn(false);
 
             when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
@@ -431,8 +436,6 @@ class ResourceHoldServiceTest {
 
             mockOperatingHours();
             when(pricingRuleRepository.findByWorkspaceId(mockWorkspace.getId())).thenReturn(Collections.emptyList());
-            when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                    .thenReturn(Collections.emptyList());
             when(bookingRepository.existsByBookingCode(any())).thenReturn(false);
 
             when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
@@ -750,8 +753,6 @@ class ResourceHoldServiceTest {
 
             mockOperatingHours();
             when(pricingRuleRepository.findByWorkspaceId(mockWorkspace.getId())).thenReturn(Collections.emptyList());
-            when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                    .thenReturn(Collections.emptyList());
             when(bookingRepository.existsByBookingCode(any())).thenReturn(false);
 
             when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
@@ -804,8 +805,6 @@ class ResourceHoldServiceTest {
 
             mockOperatingHours();
             when(pricingRuleRepository.findByWorkspaceId(mockWorkspace.getId())).thenReturn(Collections.emptyList());
-            when(cancellationRuleRepository.findByWorkspaceIdOrderByMinHoursBeforeStartDesc(mockWorkspace.getId()))
-                    .thenReturn(Collections.emptyList());
             when(bookingRepository.existsByBookingCode(any())).thenReturn(false);
 
             when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {

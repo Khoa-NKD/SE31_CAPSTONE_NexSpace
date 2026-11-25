@@ -31,12 +31,15 @@ import java.util.*;
 @Transactional
 public class ResourceLockServiceImpl implements IResourceLockService {
 
+    @jakarta.persistence.PersistenceContext private jakarta.persistence.EntityManager em;
+
     private static final List<BookingStatus> CONFIRMED_BOOKING_STATUSES = List.of(
             BookingStatus.CONFIRMED,
             BookingStatus.CHECKED_IN,
             BookingStatus.PENDING_APPROVAL
     );
 
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IBookableResourceRepository bookableResourceRepository;
     private final IBookingRepository bookingRepository;
     private final IResourceBlockedSlotRepository blockedSlotRepository;
@@ -123,6 +126,9 @@ public class ResourceLockServiceImpl implements IResourceLockService {
             Long excludeBookingId,
             boolean isRoom
     ) {
+        // Serialize holiday configuration against reservation writes, before locking any resources.
+        var workspaceIds=bookableResourceRepository.findAllById(idsToLock).stream().map(r -> r.getFloorPlan().getWorkspace().getId()).distinct().sorted().toList();
+        for(var workspaceId:workspaceIds) em.find(base.api.shared.entity.workspace.WorkspaceModel.class,workspaceId,jakarta.persistence.LockModeType.PESSIMISTIC_READ);
         // Giao thức Khóa Nhất quán Chống Deadlock (Deadlock-Free Locking Protocol):
         // Luôn luôn sắp xếp danh sách resourceId theo thứ tự tăng dần (ID ASC)
         List<Long> sortedIds = idsToLock.stream().sorted().toList();
@@ -152,6 +158,10 @@ public class ResourceLockServiceImpl implements IResourceLockService {
         if (resolvedTarget == null && !lockedResources.isEmpty()) {
             resolvedTarget = lockedResources.get(0);
         }
+
+        if (targetResource != null && maintenanceGroups.wholeWorkspaceOverlaps(
+                resolvedTarget.getFloorPlan().getWorkspace().getId(), startTime, endTime))
+            throw new ConflictException("Không gian có lịch bảo trì trong khoảng đặt chỗ.");
 
         // Kiểm tra Xung đột Nguyên tử với Khóa Đọc Hiện tại (Locking Read / Current Read chống Phantom Read)
         LocalDateTime now = LocalDateTime.now();

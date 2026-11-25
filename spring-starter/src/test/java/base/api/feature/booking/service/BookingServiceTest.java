@@ -64,6 +64,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class BookingServiceTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
 
     @Mock
     private IBookingRepository bookingRepository;
@@ -119,6 +121,11 @@ class BookingServiceTest {
     @Spy
     private ObjectMapper objectMapper = new ObjectMapper();
 
+    @Mock private base.api.feature.workspace.service.WorkspaceHolidayService workspaceHolidays;
+
+    @Mock private base.api.feature.payment.service.RefundPayoutService refundPayouts;
+    @Mock private base.api.feature.booking.service.BookingAddons addons;
+
     @InjectMocks
     private BookingServiceImpl bookingService;
 
@@ -128,11 +135,33 @@ class BookingServiceTest {
     private FloorPlanModel mockFloorPlan;
     private ResourceTypeModel mockResourceType;
     private BookableResourceModel mockResource;
+    private void mockQuoteOperatingHours() {
+        var hours = new WorkspaceOperatingHourModel();
+        hours.setId(new WorkspaceOperatingHourModel.Key(mockWorkspace.getId(), futureMondayStart.getDayOfWeek().getValue()));
+        hours.setOpenTime(LocalTime.of(8, 0));
+        hours.setCloseTime(LocalTime.of(22, 0));
+        when(operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(mockWorkspace.getId()))
+                .thenReturn(List.of(hours));
+    }
+
+    private void paidCharge(BookingModel booking) {
+        var charge = new base.api.shared.entity.payment.PaymentTransactionModel();
+        charge.setId(5000L);
+        charge.setBooking(booking);
+        charge.setStatus(PaymentStatus.SUCCESS);
+        charge.setAmount(booking.getFinalPrice());
+        charge.setReceivedAmount(booking.getFinalPrice());
+        when(paymentTransactionRepository.findByBookingId(booking.getId())).thenReturn(List.of(charge));
+        if (booking.getCancellationPolicySnapshot() == null) {
+            booking.setCancellationPolicySnapshot(base.api.feature.workspace.service.CancellationPolicies.systemSnapshot());
+        }
+    }
     private LocalDateTime futureMondayStart;
     private LocalDateTime futureMondayEnd;
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(bookingService,"workspaceHolidays",workspaceHolidays);
         mockCustomer = new UserModel();
         mockCustomer.setId(100L);
         mockCustomer.setFirstName("Minh");
@@ -342,7 +371,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> bookingService.createBooking(mockCustomer.getId(), dto))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("trước giờ mở cửa");
+                .hasMessageContaining("ngoài giờ hoạt động");
 
         verify(bookingRepository, never()).save(any());
     }
@@ -350,6 +379,7 @@ class BookingServiceTest {
     @Test
     @DisplayName("Tạm tính chi phí calculatePrice tính toán chính xác")
     void testCalculatePrice_Success() {
+        mockQuoteOperatingHours();
         CalculatePriceRequestDto dto = CalculatePriceRequestDto.builder()
                 .workspaceId(mockWorkspace.getId())
                 .resourceId(mockResource.getId())
@@ -372,6 +402,7 @@ class BookingServiceTest {
 
     @Test
     void dailyPreviewChargesOneDayInsteadOfMultiplyingByHours() {
+        mockQuoteOperatingHours();
         mockResourceType.setPricePerDay(new BigDecimal("300000.00"));
         when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
         when(resourceRepository.findById(mockResource.getId())).thenReturn(Optional.of(mockResource));
@@ -385,6 +416,7 @@ class BookingServiceTest {
 
     @Test
     void quoteNeverAddsTheObsoleteCustomerServiceFee() {
+        mockQuoteOperatingHours();
         var obsoleteFee = new base.api.shared.entity.governance.PlatformSettingModel();
         obsoleteFee.setSettingValue("2");
         lenient().when(platformSettingRepository.findById("payment.service_fee_percent"))
@@ -436,7 +468,7 @@ class BookingServiceTest {
 
         assertThatThrownBy(() -> bookingService.calculatePrice(dto))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("trước giờ mở cửa");
+                .hasMessageContaining("ngoài giờ hoạt động");
     }
 
     @Test
@@ -683,7 +715,7 @@ class BookingServiceTest {
         booking.setEndTime(futureMondayEnd);
         booking.setFinalPrice(new BigDecimal("100000.00"));
 
-        when(bookingRepository.findById(99L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(99L)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
 
@@ -712,12 +744,13 @@ class BookingServiceTest {
         booking.setStartTime(LocalDateTime.now().plusHours(48)); // 48h before start
         booking.setEndTime(LocalDateTime.now().plusHours(56));
         booking.setFinalPrice(new BigDecimal("500000.00"));
+        paidCharge(booking);
 
         base.api.shared.entity.workspace.WorkspaceCancellationRuleModel rule24h = new base.api.shared.entity.workspace.WorkspaceCancellationRuleModel();
         rule24h.setMinHoursBeforeStart(24);
         rule24h.setRefundPercent(new BigDecimal("100.00"));
 
-        when(bookingRepository.findById(1001L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(1001L)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
         booking.setCancellationPolicySnapshot(base.api.feature.workspace.service.CancellationPolicies.snapshot(List.of(rule24h)));
@@ -746,8 +779,9 @@ class BookingServiceTest {
         booking.setStartTime(LocalDateTime.now().plusHours(2)); // Only 2h before start
         booking.setEndTime(LocalDateTime.now().plusHours(6));
         booking.setFinalPrice(new BigDecimal("800000.00"));
+        paidCharge(booking);
 
-        when(bookingRepository.findById(1002L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(1002L)).thenReturn(Optional.of(booking));
         when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
         when(userRepository.findById(mockHost.getId())).thenReturn(Optional.of(mockHost));
 
@@ -774,6 +808,7 @@ class BookingServiceTest {
         booking.setStartTime(LocalDateTime.now().plusHours(30)); // 30h before
         booking.setEndTime(LocalDateTime.now().plusHours(34));
         booking.setFinalPrice(new BigDecimal("600000.00"));
+        paidCharge(booking);
 
         base.api.shared.entity.workspace.WorkspaceCancellationRuleModel rule24h = new base.api.shared.entity.workspace.WorkspaceCancellationRuleModel();
         rule24h.setMinHoursBeforeStart(24);
@@ -805,7 +840,7 @@ class BookingServiceTest {
         booking.setCustomer(mockCustomer);
         booking.setStatus(BookingStatus.CANCELLED);
 
-        when(bookingRepository.findById(99L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(99L)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> bookingService.cancelBooking(mockCustomer.getId(), 99L, "Thử hủy lại"))
                 .isInstanceOf(base.api.shared.exception.BadRequestException.class)

@@ -57,6 +57,13 @@ public class BookingController extends BaseAPIController {
         return success(bookingService.getMyBookings(getCurrentUserId(), status, pageRequest));
     }
 
+    @PatchMapping("/{id}/addons")
+    @PreAuthorize("isAuthenticated()")
+    public ResponseEntity<ApiResponse<BookingResponseDto>> updateAddons(@PathVariable Long id,
+            @Valid @RequestBody base.api.feature.booking.dto.request.BookingAddonRequest request) {
+        return success(bookingService.updateAddons(getCurrentUserId(), id, request.amenityIds()));
+    }
+
     @Operation(summary = "Xem chi tiết đơn đặt chỗ theo ID")
     @GetMapping("/{id}")
     @PreAuthorize("isAuthenticated()")

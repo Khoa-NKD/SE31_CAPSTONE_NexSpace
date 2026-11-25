@@ -75,6 +75,12 @@ public class WorkspaceModel extends BaseModel {
     @Column(name = "entry_instructions", length = 1000)
     private String entryInstructions;
 
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name="workspace_holiday", joinColumns=@JoinColumn(name="workspace_id"))
+    @Column(name="holiday_code", length=30, nullable=false)
+    @org.hibernate.annotations.BatchSize(size=50)
+    private java.util.Set<String> holidayCodes = new java.util.LinkedHashSet<>();
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "booking_confirmation_mode", nullable = false, length = 20)
@@ -84,6 +90,20 @@ public class WorkspaceModel extends BaseModel {
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(nullable = false, length = 20)
     private WorkspaceStatus status = WorkspaceStatus.DRAFT;
+
+    @org.hibernate.annotations.BatchSize(size = 50)
+    @jakarta.persistence.OneToMany(mappedBy = "workspace", fetch = FetchType.LAZY)
+    private java.util.List<MaintenanceGroupModel> maintenanceGroups = new java.util.ArrayList<>();
+
+    public WorkspaceStatus getStatus() {
+        if (status != WorkspaceStatus.ACTIVE) return status;
+        var now = LocalDateTime.now();
+        boolean maintained = maintenanceGroups.stream().anyMatch(g -> !g.isCancelled() && g.isWholeWorkspace()
+                && !g.getStartTime().isAfter(now) && g.getEndTime().isAfter(now));
+        return maintained ? WorkspaceStatus.MAINTENANCE : status;
+    }
+
+    public WorkspaceStatus getBaseStatus() { return status; }
 
     @Column(name = "submitted_at")
     private LocalDateTime submittedAt;

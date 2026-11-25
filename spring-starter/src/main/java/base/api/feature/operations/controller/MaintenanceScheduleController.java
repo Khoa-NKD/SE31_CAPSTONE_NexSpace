@@ -31,6 +31,9 @@ public class MaintenanceScheduleController extends BaseAPIController {
     @PostMapping public ResponseEntity<ApiResponse<List<Schedule>>> create(@PathVariable @Positive Long workspaceId,@Valid @RequestBody Input input) {
         return created(service.create(getCurrentUserId(),workspaceId,input),"Đã lưu lịch bảo trì.");
     }
+    @PutMapping("/groups/{groupId}") public ResponseEntity<ApiResponse<List<Schedule>>> update(@PathVariable @Positive Long workspaceId,@PathVariable @Positive Long groupId,@Valid @RequestBody Input input) {
+        return success(service.update(getCurrentUserId(),workspaceId,groupId,input));
+    }
     @DeleteMapping("/{key}") public ResponseEntity<ApiResponse<Void>> remove(@PathVariable @Positive Long workspaceId,@PathVariable String key) {
         service.remove(getCurrentUserId(),workspaceId,key);return success(null);
     }

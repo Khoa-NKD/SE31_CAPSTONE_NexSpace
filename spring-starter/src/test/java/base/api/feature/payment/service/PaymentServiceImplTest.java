@@ -105,7 +105,7 @@ class PaymentServiceImplTest {
     @Test
     @DisplayName("createPaymentForBooking converts USD to VND, calls PayOS, saves transaction and returns VietQR")
     void createPaymentForBooking_success() {
-        when(bookingRepository.findById(500L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
         when(payOS.paymentRequests()).thenReturn(paymentRequestsService);
 
         CreatePaymentLinkResponse mockPayosResponse = CreatePaymentLinkResponse.builder()
@@ -147,7 +147,7 @@ class PaymentServiceImplTest {
     @Test
     @DisplayName("createPaymentForBooking throws NotFoundException when booking does not exist")
     void createPaymentForBooking_notFound() {
-        when(bookingRepository.findById(999L)).thenReturn(Optional.empty());
+        when(bookingRepository.findByIdForUpdate(999L)).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> paymentService.createPaymentForBooking(999L, 100L))
                 .isInstanceOf(NotFoundException.class)
@@ -157,7 +157,7 @@ class PaymentServiceImplTest {
     @Test
     @DisplayName("createPaymentForBooking throws NotFoundException when actor does not own booking (Strict Ownership Defense)")
     void createPaymentForBooking_ownershipDefense() {
-        when(bookingRepository.findById(500L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
 
         // Different actor (999L vs owner 100L)
         assertThatThrownBy(() -> paymentService.createPaymentForBooking(500L, 999L))
@@ -169,7 +169,7 @@ class PaymentServiceImplTest {
     @DisplayName("createPaymentForBooking throws ConflictException when booking is not in PENDING_PAYMENT")
     void createPaymentForBooking_invalidStatus() {
         booking.setStatus(BookingStatus.CONFIRMED);
-        when(bookingRepository.findById(500L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> paymentService.createPaymentForBooking(500L, 100L))
                 .isInstanceOf(ConflictException.class)
@@ -180,7 +180,7 @@ class PaymentServiceImplTest {
     @DisplayName("createPaymentForBooking throws ConflictException when hold expired")
     void createPaymentForBooking_holdExpired() {
         booking.setHoldExpiresAt(LocalDateTime.now().minusMinutes(5));
-        when(bookingRepository.findById(500L)).thenReturn(Optional.of(booking));
+        when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
 
         assertThatThrownBy(() -> paymentService.createPaymentForBooking(500L, 100L))
                 .isInstanceOf(ConflictException.class)

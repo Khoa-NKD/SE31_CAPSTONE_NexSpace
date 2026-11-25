@@ -62,6 +62,8 @@ class WorkspaceServiceImplTest {
         bookingRepository = mock(IBookingRepository.class);
         service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository, bookingRepository, mock(base.api.feature.resource.service.BuildingService.class));
 
+        org.springframework.test.util.ReflectionTestUtils.setField(service,"holidays", mock(base.api.feature.workspace.service.WorkspaceHolidayService.class));
+
         RoleModel role = new RoleModel();
         role.setName(UserRole.ORGANIZER.name());
 
@@ -150,7 +152,7 @@ class WorkspaceServiceImplTest {
     @Test
     @DisplayName("Cập nhật coworking space thành công bởi chính chủ sở hữu")
     void updateWorkspace_success() {
-        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.findOwnedForResourceUpdate(100L,10L)).thenReturn(Optional.of(existingWorkspace));
         when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
         UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
@@ -182,7 +184,7 @@ class WorkspaceServiceImplTest {
     @Test
     @DisplayName("Strict Ownership Defense: Cập nhật thất bại ném 404 khi không phải chủ sở hữu")
     void updateWorkspace_notOwner_throwsNotFoundException() {
-        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.findOwnedForResourceUpdate(100L,20L)).thenReturn(Optional.empty());
 
         UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
                 .name("Hacked Name")
@@ -198,7 +200,7 @@ class WorkspaceServiceImplTest {
     @DisplayName("Cập nhật thất bại khi workspace đã bị lưu trữ (ARCHIVED)")
     void updateWorkspace_archived_throwsBadRequestException() {
         existingWorkspace.setStatus(WorkspaceStatus.ARCHIVED);
-        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+        when(workspaceRepository.findOwnedForResourceUpdate(100L,10L)).thenReturn(Optional.of(existingWorkspace));
 
         UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
                 .name("New Name")
@@ -236,20 +238,15 @@ class WorkspaceServiceImplTest {
     }
 
     @Test
-    @DisplayName("Cập nhật vòng đời: Archive chuyển sang trạng thái ARCHIVED")
-    void updateLifecycle_archive_success() {
+    @DisplayName("Legacy archive action is rejected without changing workspace status")
+    void updateLifecycle_archive_rejectedWithoutMutation() {
         when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
-        when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
+        var dto = WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.ARCHIVE).reason("Closed").build();
 
-        WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
-                .action(WorkspaceLifecycleAction.ARCHIVE)
-                .reason("Ngừng kinh doanh địa điểm")
-                .build();
-
-        WorkspaceDetailDto result = service.updateLifecycle(10L, 100L, dto);
-
-        assertThat(result.getStatus()).isEqualTo(WorkspaceStatus.ARCHIVED);
-        assertThat(result.getOperatingStatus()).isEqualTo("Archived");
+        assertThatThrownBy(() -> service.updateLifecycle(10L, 100L, dto))
+                .isInstanceOf(BadRequestException.class).hasMessageContaining("Ngưng hoạt động");
+        assertThat(existingWorkspace.getStatus()).isEqualTo(WorkspaceStatus.DRAFT);
+        org.mockito.Mockito.verify(workspaceRepository, org.mockito.Mockito.never()).save(any());
     }
 
     @Test
@@ -271,7 +268,7 @@ class WorkspaceServiceImplTest {
     @DisplayName("Lấy danh sách không gian của Organizer thành công có phân trang")
     void getMyWorkspaces_success() {
         Page<WorkspaceModel> mockPage = new PageImpl<>(List.of(existingWorkspace));
-        when(workspaceRepository.searchByOrganizer(eq(10L), eq(WorkspaceStatus.DRAFT), eq("Old"), any(Pageable.class)))
+        when(workspaceRepository.searchByOrganizerEffective(eq(10L), eq("DRAFT"), eq("Old"), any(), any(), any(Pageable.class)))
                 .thenReturn(mockPage);
 
         PageRequestDTO pageRequest = new PageRequestDTO();
@@ -345,35 +342,29 @@ class WorkspaceServiceImplTest {
     @DisplayName("Cập nhật giờ hoạt động thành công")
     void updateOperatingHours_success() {
         when(workspaceRepository.findByIdAndOrganizerId(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+        var dtos = java.util.stream.IntStream.rangeClosed(1, 7)
+                .mapToObj(day -> base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
+                        .dayOfWeek(day).openTime(java.time.LocalTime.of(8, 0))
+                        .closeTime(java.time.LocalTime.of(21, 0)).isClosed(day == 7).build())
+                .toList();
+        var models = dtos.stream().map(dto -> {
+            var row = new WorkspaceOperatingHourModel();
+            row.setId(new WorkspaceOperatingHourModel.Key(100L, dto.getDayOfWeek()));
+            row.setOpenTime(dto.getOpenTime());
+            row.setCloseTime(dto.getCloseTime());
+            row.setClosed(dto.isClosed());
+            return row;
+        }).toList();
+        when(operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(100L)).thenReturn(models);
 
-        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto mon = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
-                .dayOfWeek(1)
-                .openTime(java.time.LocalTime.of(8, 0))
-                .closeTime(java.time.LocalTime.of(21, 0))
-                .isClosed(false)
-                .build();
+        var result = service.updateOperatingHours(10L, 100L, dtos);
 
-        base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto sun = base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder()
-                .dayOfWeek(7)
-                .isClosed(true)
-                .build();
-
-        List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> dtos = List.of(mon, sun);
-
-        WorkspaceOperatingHourModel modelMon = new WorkspaceOperatingHourModel();
-        modelMon.setId(new WorkspaceOperatingHourModel.Key(100L, 1));
-        modelMon.setOpenTime(java.time.LocalTime.of(8, 0));
-        modelMon.setCloseTime(java.time.LocalTime.of(21, 0));
-        modelMon.setClosed(false);
-
-        when(operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(100L)).thenReturn(List.of(modelMon));
-
-        List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> result = service.updateOperatingHours(10L, 100L, dtos);
-
-        assertThat(result).hasSize(1);
+        assertThat(result).hasSize(7);
         assertThat(result.get(0).getDayOfWeek()).isEqualTo(1);
         assertThat(result.get(0).getOpenTime()).isEqualTo(java.time.LocalTime.of(8, 0));
-        verify(operatingHourRepository).saveAll(any());
+        assertThat(result.get(6).isClosed()).isTrue();
+        verify(operatingHourRepository).saveAll(org.mockito.ArgumentMatchers.argThat(
+                rows -> ((java.util.Collection<?>) rows).size() == 7));
     }
 
     @Test
@@ -388,7 +379,7 @@ class WorkspaceServiceImplTest {
                 .isClosed(false)
                 .build();
 
-        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(invalid)))
+        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, java.util.stream.IntStream.rangeClosed(1,7).mapToObj(day -> day==2 ? invalid : base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder().dayOfWeek(day).isClosed(true).build()).toList()))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Giờ đóng cửa (08:00) phải sau giờ mở cửa (20:00)");
     }
@@ -407,7 +398,7 @@ class WorkspaceServiceImplTest {
                 .isClosed(true)
                 .build();
 
-        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, List.of(day1, day2)))
+        assertThatThrownBy(() -> service.updateOperatingHours(10L, 100L, java.util.stream.Stream.concat(java.util.stream.Stream.of(day1,day2),java.util.stream.Stream.of(1,2,4,5,6).map(day -> base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto.builder().dayOfWeek(day).isClosed(true).build())).toList()))
                 .isInstanceOf(BadRequestException.class)
                 .hasMessageContaining("Trùng lặp cấu hình cho thứ 3");
     }

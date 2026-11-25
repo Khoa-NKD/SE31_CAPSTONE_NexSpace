@@ -25,6 +25,8 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class OrganizerOperationsServiceTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
     @Mock IWorkspaceRepository workspaces;
     @Mock IBookableResourceRepository resources;
     @Mock IResourceTypeRepository types;

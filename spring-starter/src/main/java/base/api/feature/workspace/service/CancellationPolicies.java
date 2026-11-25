@@ -19,7 +19,11 @@ public final class CancellationPolicies {
     private CancellationPolicies() {}
 
     public static List<CancellationRuleDto> defaults() {
-        return List.of(rule(24,100),rule(12,50),rule(2,25),rule(0,0));
+        return List.of(rule(24,100),rule(2,50),rule(0,0));
+    }
+    public static String systemSnapshot() {
+        try { return JSON.writeValueAsString(defaults()); }
+        catch (com.fasterxml.jackson.core.JsonProcessingException ex) { throw new IllegalStateException("Cannot snapshot cancellation policy", ex); }
     }
     private static CancellationRuleDto rule(int hours, int percent) {
         return new CancellationRuleDto(BigDecimal.valueOf(hours), BigDecimal.valueOf(percent));

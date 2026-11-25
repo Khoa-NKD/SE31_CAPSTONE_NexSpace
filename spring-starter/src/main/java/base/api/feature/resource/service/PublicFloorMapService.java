@@ -23,6 +23,7 @@ public class PublicFloorMapService {
     private final IFloorPlanRepository floors;
     private final IBookableResourceRepository resources;
     private final IOrganizerProfileRepository profiles;
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IResourceBlockedSlotRepository blocks;
     private final IDecorationMaintenanceRepository decorationMaintenance;
 
@@ -79,7 +80,13 @@ public class PublicFloorMapService {
                 .filter(p -> p.getStatus() == OrganizerProfileStatus.APPROVED)
                 .orElseThrow(() -> new NotFoundException("Workspace map not found"));
         var now = java.time.LocalDateTime.now();
-        var maintained = ResourceMaintenance.maintenanceIds(blocks.findForWorkspace(workspaceId, now, now.plusNanos(1)));
+        var maintained = new java.util.HashSet<>(ResourceMaintenance.maintenanceIds(blocks.findForWorkspace(workspaceId, now, now.plusNanos(1))));
+        boolean wholeMaintenance = maintenanceGroups.wholeWorkspaceOverlaps(workspaceId, now, now.plusNanos(1));
+        if (wholeMaintenance) {
+            for (var floor : floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId)) {
+                resources.findByFloorPlanId(floor.getId()).forEach(r -> maintained.add(r.getId()));
+            }
+        }
         var maintainedDecorations = decorationMaintenance.overlapping(workspaceId, now, now.plusNanos(1)).stream()
                 .map(d -> d.getFloorPlan().getId() + ":" + d.getDecorationId()).collect(java.util.stream.Collectors.toSet());
         return floors.findByWorkspaceIdOrderByFloorNumberAsc(workspaceId).stream()
@@ -175,7 +182,7 @@ public class PublicFloorMapService {
                                      objects,
                                      ResourceCanvas.decorations(f, false).stream()
                                              .map(d -> maintainedDecorations.contains(f.getId() + ":" + d.id())
-                                                     || ResourceMaintenance.affected(DecorationRoom.parent(d, all, f, true), maintained)
+                                                     || wholeMaintenance || ResourceMaintenance.affected(DecorationRoom.parent(d, all, f, true), maintained)
                                                      ? new FloorDecorations.Item(d.id(), d.kind(), d.label(), d.posX(), d.posY(), d.width(), d.height(), d.rotation(), "#a855f7", d.icon(), d.visual3d()) : d).toList(),
                                      PublishedGeometry.location(f),
                                      f.getBuildingFloor() != null && f.getBuildingFloor().getGeometryVersion() >= 2

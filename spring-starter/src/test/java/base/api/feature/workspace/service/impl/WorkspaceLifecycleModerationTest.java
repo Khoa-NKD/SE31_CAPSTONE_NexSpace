@@ -77,6 +77,13 @@ class WorkspaceLifecycleModerationTest {
         workspace.setAreaSqm(new BigDecimal("250.0"));
         workspace.setBookingConfirmationMode(BookingConfirmationMode.INSTANT);
         workspace.setStatus(WorkspaceStatus.DRAFT);
+        var hours = java.util.stream.IntStream.rangeClosed(1, 7).mapToObj(day -> {
+            var row = new base.api.shared.entity.workspace.WorkspaceOperatingHourModel();
+            row.setId(new base.api.shared.entity.workspace.WorkspaceOperatingHourModel.Key(101L, day));
+            row.setFullDay(true);
+            return row;
+        }).toList();
+        when(operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(101L)).thenReturn(hours);
     }
 
     @Test
@@ -141,41 +148,31 @@ class WorkspaceLifecycleModerationTest {
         when(workspaceRepository.findById(101L)).thenReturn(Optional.of(workspace));
         when(workspaceRepository.save(any(WorkspaceModel.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        // 1. DRAFT -> PENDING
-        WorkspaceLifecycleDto toPending = WorkspaceLifecycleDto.builder()
-                .action(WorkspaceLifecycleAction.PENDING)
-                .build();
-        WorkspaceDetailDto pendingResult = service.updateLifecycle(10L, 101L, toPending);
-        assertThat(pendingResult.getStatus()).isEqualTo(WorkspaceStatus.PENDING);
-        assertThat(pendingResult.getOperatingStatus()).isEqualTo("Pending");
-        assertThat(pendingResult.isListingVisible()).isFalse();
+        var inactive = service.updateLifecycle(10L, 101L,
+                WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.PENDING).build());
+        assertThat(inactive.getStatus()).isEqualTo(WorkspaceStatus.DRAFT);
+        assertThat(inactive.getOperatingStatus()).isEqualTo("Inactive");
+        assertThat(inactive.isListingVisible()).isFalse();
 
-        // 2. PENDING -> ACTIVE
-        WorkspaceLifecycleDto toActive = WorkspaceLifecycleDto.builder()
-                .action(WorkspaceLifecycleAction.ACTIVATE)
-                .build();
-        WorkspaceDetailDto activeResult = service.updateLifecycle(10L, 101L, toActive);
-        assertThat(activeResult.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
-        assertThat(activeResult.getOperatingStatus()).isEqualTo("Active");
-        assertThat(activeResult.isListingVisible()).isTrue();
+        var active = service.updateLifecycle(10L, 101L,
+                WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.ACTIVATE).build());
+        assertThat(active.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(active.getOperatingStatus()).isEqualTo("Active");
+        assertThat(active.isListingVisible()).isTrue();
 
-        // 3. ACTIVE -> MAINTENANCE
-        WorkspaceLifecycleDto toMaintenance = WorkspaceLifecycleDto.builder()
-                .action(WorkspaceLifecycleAction.MAINTENANCE)
-                .reason("Bảo trì định kỳ điều hòa")
-                .build();
-        WorkspaceDetailDto maintenanceResult = service.updateLifecycle(10L, 101L, toMaintenance);
-        assertThat(maintenanceResult.getStatus()).isEqualTo(WorkspaceStatus.MAINTENANCE);
-        assertThat(maintenanceResult.getOperatingStatus()).isEqualTo("Maintenance");
-        assertThat(maintenanceResult.isListingVisible()).isFalse();
+        assertThatThrownBy(() -> service.updateLifecycle(10L, 101L,
+                WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.MAINTENANCE).build()))
+                .isInstanceOf(base.api.shared.exception.BadRequestException.class).hasMessageContaining("lịch bảo trì");
+        assertThat(workspace.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
 
-        // 4. MAINTENANCE -> ACTIVE (RESUME)
-        WorkspaceLifecycleDto toResume = WorkspaceLifecycleDto.builder()
-                .action(WorkspaceLifecycleAction.RESUME)
-                .build();
-        WorkspaceDetailDto resumedResult = service.updateLifecycle(10L, 101L, toResume);
-        assertThat(resumedResult.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
-        assertThat(resumedResult.isListingVisible()).isTrue();
+        var stopped = service.updateLifecycle(10L, 101L,
+                WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.PAUSE).build());
+        assertThat(stopped.getStatus()).isEqualTo(WorkspaceStatus.DRAFT);
+        assertThat(stopped.isListingVisible()).isFalse();
+        var reopened = service.updateLifecycle(10L, 101L,
+                WorkspaceLifecycleDto.builder().action(WorkspaceLifecycleAction.ACTIVATE).build());
+        assertThat(reopened.getStatus()).isEqualTo(WorkspaceStatus.ACTIVE);
+        assertThat(reopened.isListingVisible()).isTrue();
     }
 
     @Test

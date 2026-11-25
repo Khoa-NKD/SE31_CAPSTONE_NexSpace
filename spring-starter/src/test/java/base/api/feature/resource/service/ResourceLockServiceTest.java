@@ -37,6 +37,8 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 @DisplayName("Kiểm thử Động cơ Khóa Tài nguyên Nhất quán (ResourceLockServiceTest)")
 class ResourceLockServiceTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
 
     @Mock
     private IBookableResourceRepository bookableResourceRepository;
@@ -47,14 +49,29 @@ class ResourceLockServiceTest {
     @Mock
     private IResourceBlockedSlotRepository blockedSlotRepository;
 
+    @Mock private jakarta.persistence.EntityManager em;
+
     @InjectMocks
     private ResourceLockServiceImpl resourceLockService;
 
+    private base.api.shared.entity.resource.FloorPlanModel floor;
+
+    private BookableResourceModel resource() {
+        var resource = new BookableResourceModel();
+        resource.setFloorPlan(floor);
+        return resource;
+    }
     private LocalDateTime startTime;
     private LocalDateTime endTime;
 
     @BeforeEach
     void setUp() {
+        org.springframework.test.util.ReflectionTestUtils.setField(resourceLockService, "em", em);
+        var workspace = new base.api.shared.entity.workspace.WorkspaceModel();
+        workspace.setId(1L);
+        floor = new base.api.shared.entity.resource.FloorPlanModel();
+        floor.setId(20L);
+        floor.setWorkspace(workspace);
         startTime = LocalDateTime.now().plusHours(2);
         endTime = LocalDateTime.now().plusHours(4);
     }
@@ -99,16 +116,18 @@ class ResourceLockServiceTest {
             Long deskId = 2L;
             Long parentRoomId = 5L;
 
-            BookableResourceModel parentRoom = new BookableResourceModel();
+            BookableResourceModel parentRoom = resource();
             parentRoom.setId(parentRoomId);
             parentRoom.setStatus(BookableResourceStatus.ACTIVE);
 
-            BookableResourceModel desk = new BookableResourceModel();
+            BookableResourceModel desk = resource();
             desk.setId(deskId);
             desk.setParentRoom(parentRoom);
             desk.setStatus(BookableResourceStatus.ACTIVE);
 
             when(bookableResourceRepository.findById(deskId)).thenReturn(Optional.of(desk));
+            when(bookableResourceRepository.findAllById(java.util.Set.of(deskId, parentRoomId)))
+                    .thenReturn(List.of(desk, parentRoom));
             when(bookableResourceRepository.findByIdForUpdate(deskId)).thenReturn(Optional.of(desk));
             when(bookableResourceRepository.findByIdForUpdate(parentRoomId)).thenReturn(Optional.of(parentRoom));
 
@@ -124,7 +143,9 @@ class ResourceLockServiceTest {
             assertThat(context.getLockedResourceIds()).containsExactly(2L, 5L);
 
             // Xác minh thứ tự gọi findByIdForUpdate theo đúng ID ASC: 2 trước, 5 sau
-            InOrder inOrder = inOrder(bookableResourceRepository);
+            InOrder inOrder = inOrder(em, bookableResourceRepository);
+            inOrder.verify(em).find(base.api.shared.entity.workspace.WorkspaceModel.class, 1L,
+                    jakarta.persistence.LockModeType.PESSIMISTIC_READ);
             inOrder.verify(bookableResourceRepository).findByIdForUpdate(2L);
             inOrder.verify(bookableResourceRepository).findByIdForUpdate(5L);
         }
@@ -135,11 +156,11 @@ class ResourceLockServiceTest {
             Long deskId = 9L;
             Long parentRoomId = 2L;
 
-            BookableResourceModel parentRoom = new BookableResourceModel();
+            BookableResourceModel parentRoom = resource();
             parentRoom.setId(parentRoomId);
             parentRoom.setStatus(BookableResourceStatus.ACTIVE);
 
-            BookableResourceModel desk = new BookableResourceModel();
+            BookableResourceModel desk = resource();
             desk.setId(deskId);
             desk.setParentRoom(parentRoom);
             desk.setStatus(BookableResourceStatus.ACTIVE);
@@ -172,20 +193,20 @@ class ResourceLockServiceTest {
             ResourceTypeModel roomType = new ResourceTypeModel();
             roomType.setCategory(ResourceCategory.ROOM);
 
-            BookableResourceModel room = new BookableResourceModel();
+            BookableResourceModel room = resource();
             room.setId(roomId);
             room.setResourceType(roomType);
             room.setStatus(BookableResourceStatus.ACTIVE);
 
-            BookableResourceModel childDesk1 = new BookableResourceModel();
+            BookableResourceModel childDesk1 = resource();
             childDesk1.setId(3L);
             childDesk1.setStatus(BookableResourceStatus.ACTIVE);
 
-            BookableResourceModel childDesk2 = new BookableResourceModel();
+            BookableResourceModel childDesk2 = resource();
             childDesk2.setId(15L);
             childDesk2.setStatus(BookableResourceStatus.ACTIVE);
 
-            BookableResourceModel childDesk3 = new BookableResourceModel();
+            BookableResourceModel childDesk3 = resource();
             childDesk3.setId(8L);
             childDesk3.setStatus(BookableResourceStatus.ACTIVE);
 
@@ -224,7 +245,7 @@ class ResourceLockServiceTest {
         @DisplayName("Ném ConflictException khi phát hiện booking trùng lặp đang active")
         void overlappingBookingExists_ThrowsConflictException() {
             Long resourceId = 1L;
-            BookableResourceModel resource = new BookableResourceModel();
+            BookableResourceModel resource = resource();
             resource.setId(resourceId);
             resource.setStatus(BookableResourceStatus.ACTIVE);
 
@@ -243,7 +264,7 @@ class ResourceLockServiceTest {
         @DisplayName("Ném ConflictException khi phát hiện slot bảo trì / sự kiện riêng bị khóa")
         void conflictingBlockedSlotExists_ThrowsConflictException() {
             Long resourceId = 1L;
-            BookableResourceModel resource = new BookableResourceModel();
+            BookableResourceModel resource = resource();
             resource.setId(resourceId);
             resource.setStatus(BookableResourceStatus.ACTIVE);
 
@@ -267,7 +288,7 @@ class ResourceLockServiceTest {
         @DisplayName("Ném ConflictException khi tài nguyên có trạng thái ARCHIVED hoặc DISABLED")
         void archivedResource_ThrowsConflictException() {
             Long resourceId = 1L;
-            BookableResourceModel resource = new BookableResourceModel();
+            BookableResourceModel resource = resource();
             resource.setId(resourceId);
             resource.setStatus(BookableResourceStatus.ARCHIVED);
 

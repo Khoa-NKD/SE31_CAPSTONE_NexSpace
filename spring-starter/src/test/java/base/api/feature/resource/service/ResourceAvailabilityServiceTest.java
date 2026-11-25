@@ -43,6 +43,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ResourceAvailabilityServiceTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
 
     @Mock
     private IWorkspaceRepository workspaceRepository;
@@ -122,7 +124,7 @@ class ResourceAvailabilityServiceTest {
 
         assertThatThrownBy(() -> availabilityService.checkDeskAvailability(workspaceId, null, validStartTime, validEndTime, null))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("không mở cửa");
+                .hasMessageContaining("ngoài giờ hoạt động");
     }
 
     @Test
@@ -146,7 +148,7 @@ class ResourceAvailabilityServiceTest {
 
         assertThatThrownBy(() -> availabilityService.checkDeskAvailability(workspaceId, null, earlyStart, earlyEnd, null))
                 .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("sớm hơn giờ mở cửa");
+                .hasMessageContaining("ngoài giờ hoạt động");
     }
 
     @Test

@@ -22,12 +22,12 @@ import java.math.BigDecimal;
 public class CreateWorkspaceDto {
 
     @NotBlank(message = "Tên không gian làm việc không được để trống")
-    @Size(max = 255, message = "Tên không gian tối đa 255 ký tự")
+    @Size(min = 3, max = 100, message = "Tên không gian từ 3 đến 100 ký tự")
     private String name;
 
-    @NotNull(message = "Danh mục không gian không được để trống")
     private WorkspaceCategory category;
 
+    @Size(max = 200, message = "Mô tả ngắn tối đa 200 ký tự")
     private String description;
 
     @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
@@ -55,9 +55,13 @@ public class CreateWorkspaceDto {
     @JsonAlias({"entryNotes", "entryInstructions"})
     private String entryInstructions;
 
+    @Size(max=6)
+    private java.util.Set<@jakarta.validation.constraints.NotBlank String> holidayCodes;
+
     @Builder.Default
     private BookingConfirmationMode bookingConfirmationMode = BookingConfirmationMode.INSTANT;
 
+    @jakarta.validation.Valid
     private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
     private java.util.List<base.api.feature.workspace.dto.response.CancellationRuleDto> cancellationRules;
 }

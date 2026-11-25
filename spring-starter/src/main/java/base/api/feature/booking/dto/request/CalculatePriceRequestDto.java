@@ -36,4 +36,7 @@ public class CalculatePriceRequestDto {
     @Builder.Default
     @Schema(description = "Loại giá (HOURLY / DAILY / MONTHLY)", example = "HOURLY")
     private PriceType priceType = PriceType.HOURLY;
+
+    @jakarta.validation.constraints.Size(max = 100)
+    private java.util.List<@jakarta.validation.constraints.NotNull @jakarta.validation.constraints.Positive Long> amenityIds;
 }

@@ -42,7 +42,11 @@ class WorkspaceCancellationPolicyServiceTest {
         ordered.verify(rules).deleteAll(List.of()); ordered.verify(rules).flush();
         @SuppressWarnings("unchecked") var rows=ArgumentCaptor.forClass(List.class);
         ordered.verify(rules).saveAll(rows.capture());
-        assertThat(rows.getValue()).hasSize(4);
+        assertThat(rows.getValue()).hasSize(3);
+        assertThat(rows.getValue()).extracting(row -> ((WorkspaceCancellationRuleModel) row).getMinHoursBeforeStart())
+                .containsExactly(24, 2, 0);
+        assertThat(rows.getValue()).extracting(row -> ((WorkspaceCancellationRuleModel) row).getRefundPercent())
+                .containsExactly(new BigDecimal("100"), new BigDecimal("50"), BigDecimal.ZERO);
         assertThat(((WorkspaceCancellationRuleModel)rows.getValue().get(0)).getWorkspace()).isSameAs(w);
     }
     @Test void omittedFieldPreservesAnExistingCustomPolicy() {

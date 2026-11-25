@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service @RequiredArgsConstructor @Transactional(readOnly=true)
 public class MaintenanceScheduleService {
+    private final base.api.feature.operations.repository.MaintenanceGroupRepository groups;
     private final IWorkspaceRepository workspaces;
     private final IFloorPlanRepository floors;
     private final IBookableResourceRepository resources;
@@ -55,7 +56,7 @@ public class MaintenanceScheduleService {
         }
         return result;
     }
-    public List<Schedule> list(Long actor,Long workspaceId,LocalDateTime from,LocalDateTime to) {
+    private List<Schedule> individual(Long actor,Long workspaceId,LocalDateTime from,LocalDateTime to) {
         owned(actor,workspaceId);validateRange(from,to);
         var result=new ArrayList<Schedule>();
         for(var b:blocks.findForWorkspace(workspaceId,from,to)) if(b.getBlockType()==ResourceBlockType.MAINTENANCE) {
@@ -76,6 +77,23 @@ public class MaintenanceScheduleService {
         }
         result.sort(Comparator.comparing(Schedule::startTime));return result;
     }
+    public List<Schedule> list(Long actor,Long workspaceId,LocalDateTime from,LocalDateTime to) {
+        var rows=individual(actor,workspaceId,from,to);
+        var grouped=groups.overlapping(workspaceId,from,to);
+        var memberKeys=grouped.stream().flatMap(g -> Arrays.stream(g.getMemberKeys().split(","))).collect(Collectors.toSet());
+        var result=new ArrayList<Schedule>(rows.stream().filter(row -> !memberKeys.contains(row.key())).toList());
+        for(var group:grouped) result.add(new Schedule("GROUP:"+group.getId(),"GROUP:"+group.getId(),
+                group.isWholeWorkspace()?"Toàn bộ không gian": "Nhóm bảo trì ("+group.getMemberKeys().split(",").length+" mục)",
+                group.isWholeWorkspace()?"WORKSPACE":"GROUP",null,group.getStartTime(),group.getEndTime(),group.getReason(),
+                rows.stream().filter(row -> Arrays.asList(group.getMemberKeys().split(",")).contains(row.key())).map(Schedule::targetKey).toList(),group.isWholeWorkspace()));
+        result.sort(Comparator.comparing(Schedule::startTime));return result;
+    }
+    @Transactional(isolation=org.springframework.transaction.annotation.Isolation.READ_COMMITTED)
+    public List<Schedule> update(Long actor,Long workspaceId,Long groupId,Input input) {
+        remove(actor,workspaceId,"GROUP:"+groupId);
+        return create(actor,workspaceId,input);
+    }
+
     private static void validateRange(LocalDateTime start,LocalDateTime end) {
         if(start==null||end==null||!end.isAfter(start)||Duration.between(start,end).toDays()>366)
             throw new BadRequestException("Chọn khoảng bảo trì hợp lệ, tối đa 366 ngày.");
@@ -86,10 +104,12 @@ public class MaintenanceScheduleService {
         validateRange(input.startTime(),input.endTime());
         if(input.startTime().isBefore(LocalDateTime.now().minusMinutes(2)))throw new BadRequestException("Không tạo bảo trì trong quá khứ.");
         var catalog=targets(actor,workspaceId).stream().collect(Collectors.toMap(Target::key,t->t));
-        var selected=input.targetKeys().stream().distinct().map(key->{var t=catalog.get(key);if(t==null)throw new BadRequestException("Đối tượng bảo trì không thuộc không gian.");return t;}).toList();
+        if (!input.wholeWorkspace() && (input.targetKeys().isEmpty() || input.targetKeys().size() > 200)) throw new BadRequestException("Chọn từ 1 đến 200 đối tượng hoặc chọn toàn không gian.");
+        if (groups.wholeWorkspaceOverlaps(workspaceId,input.startTime(),input.endTime())) throw new ConflictException("Trùng lịch bảo trì toàn không gian.");
+        var selected=(input.wholeWorkspace() ? catalog.keySet() : input.targetKeys()).stream().distinct().map(key->{var t=catalog.get(key);if(t==null)throw new BadRequestException("Đối tượng bảo trì không thuộc không gian.");return t;}).toList();
         var lockIds=selected.stream().map(t->t.resourceId()!=null?t.resourceId():t.parentRoomId()).filter(Objects::nonNull).distinct().sorted().toList();
         if(!lockIds.isEmpty())locks.acquireResourcesLock(lockIds,input.startTime(),input.endTime(),null);
-        var existing=list(actor,workspaceId,input.startTime(),input.endTime());
+        var existing=individual(actor,workspaceId,input.startTime(),input.endTime());
         if(selected.stream().anyMatch(t->existing.stream().anyMatch(s->s.targetKey().equals(t.key()))))throw new ConflictException("Đối tượng đã có lịch bảo trì trùng giờ.");
         var resourceIds=selected.stream().filter(t->t.key().startsWith("RESOURCE:")).map(Target::resourceId).toList();
         if(!resourceIds.isEmpty())operations.createBlocks(actor,workspaceId,new BlockInput(resourceIds,input.startTime(),input.endTime(),ResourceBlockType.MAINTENANCE,input.reason()));
@@ -105,10 +125,27 @@ public class MaintenanceScheduleService {
             }
         }
         audit.log(reporter,"MAINTENANCE","CREATE","Workspace",workspaceId,"Tạo lịch bảo trì cho "+selected.size()+" đối tượng.");
+        var previousKeys=existing.stream().map(Schedule::key).collect(Collectors.toSet());
+        var members=individual(actor,workspaceId,input.startTime(),input.endTime()).stream().map(Schedule::key).filter(k -> !previousKeys.contains(k)).toList();
+        var group=new base.api.shared.entity.workspace.MaintenanceGroupModel();
+        group.setWorkspace(workspaces.getReferenceById(workspaceId));group.setWholeWorkspace(input.wholeWorkspace());
+        group.setStartTime(input.startTime());group.setEndTime(input.endTime());group.setReason(input.reason().trim());group.setMemberKeys(String.join(",",members));
+        groups.save(group);
         return list(actor,workspaceId,input.startTime(),input.endTime());
     }
     @Transactional public void remove(Long actor,Long workspaceId,String key) {
         workspaces.findOwnedForResourceUpdate(workspaceId, actor).orElseThrow(() -> new NotFoundException("Không tìm thấy không gian."));
+        if(key.startsWith("GROUP:")) {
+            long groupId; try { groupId=Long.parseLong(key.substring(6)); } catch(NumberFormatException ex) { throw new BadRequestException("Mã lịch không hợp lệ."); }
+            var group=groups.findById(groupId).filter(g -> g.getWorkspace().getId().equals(workspaceId)).orElseThrow(() -> new NotFoundException("Không tìm thấy lịch."));
+            if (!group.isCancelled()) {
+                group.setCancelled(true);groups.saveAndFlush(group);
+                for (String member:group.getMemberKeys().split(",")) if (!member.isBlank()) remove(actor,workspaceId,member);
+                group.setCancelled(true);groups.save(group);
+            }
+            return;
+        }
+        if (groups.owningGroup(workspaceId,key).isPresent()) throw new ConflictException("Đối tượng thuộc lịch bảo trì nhóm. Hãy sửa hoặc gỡ cả lịch.");
         var parts=key.split(":",2);long id;
         try {id=Long.parseLong(parts[1]);}catch(Exception e){throw new BadRequestException("Mã lịch bảo trì không hợp lệ.");}
         switch(parts[0]) {

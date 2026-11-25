@@ -64,6 +64,9 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             "id", "name", "createdAt", "updatedAt", "status", "city", "district", "category"
     );
 
+    @Autowired private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+    @Autowired private base.api.feature.organizer.repository.IOrganizerProfileRepository organizerProfiles;
+    @Autowired private base.api.feature.workspace.service.WorkspaceHolidayService holidays;
     private final IWorkspaceRepository workspaceRepository;
     private final IUserRepository userRepository;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
@@ -117,18 +120,21 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         UserModel organizer = userRepository.findById(organizerId)
                 .orElseThrow(() -> new NotFoundException("Organizer không tồn tại"));
 
+        validateBasicInfo(dto.getName(),dto.getDescription());
         WorkspaceModel workspace = WorkspaceMapper.toModel(dto, organizer);
+        workspace.setName(dto.getName().trim());
         workspace.setStatus(WorkspaceStatus.DRAFT);
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
-        if (cancellationPolicies != null) cancellationPolicies.save(organizerId,saved,dto.getCancellationRules());
+        holidays.saveSelection(saved,dto.getHolidayCodes());
+        if (dto.getOperatingHours() != null) saveOperatingHoursInternal(saved, dto.getOperatingHours());
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         return policyDetail(WorkspaceMapper.toDetailDto(saved, hours), saved);
     }
 
     @Override
     public WorkspaceDetailDto updateWorkspace(Long organizerId, Long workspaceId, UpdateWorkspaceDto dto) {
-        WorkspaceModel workspace = workspaceRepository.findById(workspaceId)
+        WorkspaceModel workspace = workspaceRepository.findOwnedForResourceUpdate(workspaceId, organizerId)
                 .orElseThrow(() -> new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId));
 
         // Strict Ownership Defense: Không thuộc quyền sở hữu ném 404 thay vì 403
@@ -140,9 +146,11 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new BadRequestException("Không thể cập nhật không gian làm việc đã bị lưu trữ");
         }
 
+        holidays.saveSelection(workspace,dto.getHolidayCodes());
+        validateBasicInfo(dto.getName(),dto.getDescription());
         buildings.syncWorkspaceLocation(workspace, false);
         if (dto.getName() != null && !dto.getName().isBlank()) {
-            workspace.setName(dto.getName());
+            workspace.setName(dto.getName().trim());
         }
         if (dto.getCategory() != null) {
             workspace.setCategory(dto.getCategory());
@@ -165,8 +173,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         WorkspaceModel updated = workspaceRepository.save(workspace);
-        if (cancellationPolicies != null) cancellationPolicies.save(organizerId,updated,dto.getCancellationRules());
-        return policyDetail(WorkspaceMapper.toDetailDto(updated), updated);
+        if (dto.getOperatingHours() != null) saveOperatingHoursInternal(updated, dto.getOperatingHours());
+        return policyDetail(WorkspaceMapper.toDetailDto(updated, operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspaceId)), updated);
     }
 
     @Override
@@ -203,7 +211,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         switch (dto.getAction()) {
-            case ARCHIVE -> workspace.setStatus(WorkspaceStatus.ARCHIVED);
+            case ARCHIVE -> throw new BadRequestException("Hãy dùng Ngưng hoạt động để dừng nhận đặt chỗ.");
             case DRAFT -> {
                 if (workspace.getStatus() == WorkspaceStatus.SUSPENDED || workspace.getStatus() == WorkspaceStatus.ARCHIVED) {
                     throw new ConflictException("Không thể chuyển về bản nháp từ trạng thái: " + workspace.getStatus());
@@ -219,7 +227,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                         && workspace.getStatus() != WorkspaceStatus.MAINTENANCE) {
                     throw new ConflictException("Chỉ có thể tạm dừng không gian đang hoạt động (ACTIVE) hoặc bảo trì (MAINTENANCE)");
                 }
-                workspace.setStatus(WorkspaceStatus.PENDING);
+                workspace.setStatus(WorkspaceStatus.DRAFT);
                 if (workspace.getSubmittedAt() == null) {
                     workspace.setSubmittedAt(LocalDateTime.now());
                 }
@@ -252,7 +260,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                         && workspace.getStatus() != WorkspaceStatus.INACTIVE) {
                     throw new ConflictException("Không thể bảo trì không gian có trạng thái: " + workspace.getStatus());
                 }
-                workspace.setStatus(WorkspaceStatus.MAINTENANCE);
+                throw new BadRequestException("Hãy tạo lịch bảo trì toàn không gian để chuyển trạng thái theo thời gian.");
             }
         }
 
@@ -270,7 +278,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                 : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
         String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
 
-        Page<WorkspaceModel> page = workspaceRepository.searchByOrganizer(organizerId, status, search, pageable);
+        Page<WorkspaceModel> page = workspaceRepository.searchByOrganizerEffective(organizerId, status == null ? null : status.name(), search, LocalDateTime.now(), base.api.feature.workspace.service.VietnamHolidays.activeCodes(java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE)), pageable);
         Map<Long, Long> bookingCounts = getBookingCountsForPage(page.getContent());
         return page.map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)));
     }
@@ -390,8 +398,12 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             List<Long> wsIds = workspaces.stream().map(WorkspaceModel::getId).toList();
             List<base.api.shared.entity.resource.BookableResourceModel> availableResources =
                     bookableResourceRepository.findAvailableResourcesByWorkspaceIds(wsIds);
+            var hoursByWorkspace = operatingHourRepository.findByWorkspaceIdIn(wsIds).stream().collect(Collectors.groupingBy(h -> h.getWorkspace().getId()));
+            var maintainedWorkspaceIds = wsIds.stream().filter(id -> maintenanceGroups.wholeWorkspaceOverlaps(id,filterRequest.getStartTime(),filterRequest.getEndTime())).collect(Collectors.toSet());
             workspaceIdsWithAvailableSeats = availableResources.stream()
                     .filter(r -> !occupiedResourceIds.contains(r.getId()))
+                    .filter(r -> base.api.feature.workspace.service.OperatingHours.covers(hoursByWorkspace.get(r.getFloorPlan().getWorkspace().getId()), filterRequest.getStartTime(),filterRequest.getEndTime()))
+                    .filter(r -> !maintainedWorkspaceIds.contains(r.getFloorPlan().getWorkspace().getId()))
                     .map(r -> r.getFloorPlan().getWorkspace().getId())
                     .collect(Collectors.toSet());
         }
@@ -703,8 +715,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     private List<WorkspaceOperatingHourModel> saveOperatingHoursInternal(
             WorkspaceModel workspace,
             List<WorkspaceOperatingHourDto> dtos) {
-        if (dtos == null || dtos.isEmpty()) {
-            return Collections.emptyList();
+        if (dtos == null || dtos.size() != 7) {
+            throw new BadRequestException("Vui lòng cấu hình đủ 7 ngày trong tuần.");
         }
 
         Set<Integer> seenDays = new HashSet<>();
@@ -722,7 +734,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                 if (dto.getOpenTime() == null || dto.getCloseTime() == null) {
                     throw new BadRequestException("Vui lòng nhập đầy đủ giờ mở cửa và đóng cửa cho thứ " + dto.getDayOfWeek());
                 }
-                if (!dto.getCloseTime().isAfter(dto.getOpenTime())) {
+                if (dto.getCloseTime().equals(dto.getOpenTime())
+                        || dto.isClosesNextDay() != dto.getCloseTime().isBefore(dto.getOpenTime())) {
                     throw new BadRequestException("Giờ đóng cửa (" + dto.getCloseTime() + ") phải sau giờ mở cửa (" + dto.getOpenTime() + ") cho thứ " + dto.getDayOfWeek());
                 }
             }
@@ -769,8 +782,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         if (workspace.getName() == null || workspace.getName().isBlank()) {
             throw new BadRequestException("Tên không gian làm việc không được để trống khi đăng lên hệ thống");
         }
-        if (workspace.getCategory() == null) {
-            throw new BadRequestException("Danh mục không gian làm việc không được để trống khi đăng lên hệ thống");
+        if (operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(workspace.getId()).size() != 7) {
+            throw new BadRequestException("Cần lưu đủ lịch hoạt động 7 ngày trước khi kích hoạt.");
         }
         if (workspace.getAddress() == null || workspace.getAddress().isBlank()) {
             throw new BadRequestException("Địa chỉ không gian làm việc không được để trống khi đăng lên hệ thống");
@@ -1002,9 +1015,19 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         return counts;
     }
 
+    private static void validateBasicInfo(String name,String description) {
+        if (name != null && (name.trim().length() < 3 || name.trim().length() > 100)) throw new BadRequestException("Tên không gian từ 3 đến 100 ký tự.");
+        if (description != null && description.length() > 200) throw new BadRequestException("Mô tả ngắn tối đa 200 ký tự.");
+    }
+
     private WorkspaceDetailDto policyDetail(WorkspaceDetailDto dto, WorkspaceModel workspace) {
-        return dto.toBuilder().cancellationRules(cancellationPolicies == null
-                ? base.api.feature.workspace.service.CancellationPolicies.defaults()
-                : cancellationPolicies.getRules(workspace.getId())).build();
+        var builder = dto.toBuilder().cancellationRules(base.api.feature.workspace.service.CancellationPolicies.defaults());
+        if (organizerProfiles != null && workspace.getOrganizer() != null) organizerProfiles.findByOrganizerId(workspace.getOrganizer().getId())
+                .ifPresent(profile -> builder.supportPhone(profile.getContactPhone()).supportEmail(profile.getContactEmail()));
+        var now = LocalDateTime.now();
+        if (maintenanceGroups != null && maintenanceGroups.wholeWorkspaceOverlaps(workspace.getId(),now,now.plusNanos(1))
+                && workspace.getStatus() == WorkspaceStatus.ACTIVE) builder.status(WorkspaceStatus.MAINTENANCE).operatingStatus("Maintenance").isListingVisible(false);
+        if (dto.getHolidayClosure()!=null && holidays!=null) builder.holidayClosure(holidays.withReopening(workspace,dto.getHolidayClosure()));
+        return builder.build();
     }
 }

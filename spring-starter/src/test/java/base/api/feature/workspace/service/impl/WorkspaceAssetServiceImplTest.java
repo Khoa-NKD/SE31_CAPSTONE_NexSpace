@@ -53,6 +53,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class WorkspaceAssetServiceImplTest {
+    @Mock private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
+
 
     @Mock
     private IWorkspaceRepository workspaceRepository;
