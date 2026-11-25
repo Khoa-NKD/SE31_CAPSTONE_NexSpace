@@ -322,10 +322,7 @@ export function PublicFloorMap({
 
     for (const res of resources) {
       const avail = availabilityMap?.get(res.id);
-      const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
-      const isMaintenance = avail?.state === 'MAINTENANCE';
-      const isAvailable =
-        (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
+      const isAvailable = customerResourceStatus(res, avail).available;
 
       if (isAvailable) {
         all++;
@@ -1002,9 +999,22 @@ export function PublicFloorMap({
                     avail?.isOccupiedByMe ||
                     (holdData?.resourceId && Number(holdData.resourceId) === Number(resource.id))
                   );
-                  const isBooked = avail?.state === 'BOOKED';
-                  const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
-                  const isMaintenance = avail?.state === 'MAINTENANCE' || (!resource.selectable && !isHeldByMe);
+                  const status = customerResourceStatus(resource, avail, isHeldByMe);
+                  const isBooked = status.booked;
+                  const isLocked = status.locked;
+                  const isMaintenance = status.maintenance;
+                  if (
+                    status.disabled ||
+                    (!status.available && !isBooked && !isLocked && !isMaintenance)
+                  ) {
+                    toast.warning(
+                      c(
+                        'This location is not accepting bookings for the selected time.',
+                        'Vị trí đang ngừng nhận đặt trong khung giờ đã chọn.'
+                      )
+                    );
+                    return;
+                  }
 
                   if (isBooked) {
                     toast.warning(
@@ -1165,10 +1175,9 @@ export function PublicFloorMap({
             <div className='mt-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-primary/30 bg-primary/5 p-3.5 animate-in fade-in duration-200'>
               {(() => {
                 const isSelectedHeldByMe = Boolean(
-                  selected && (
-                    availabilityMap?.get(selected.id)?.isOccupiedByMe ||
-                    (holdData?.resourceId && Number(holdData.resourceId) === Number(selected.id))
-                  )
+                  selected &&
+                  (availabilityMap?.get(selected.id)?.isOccupiedByMe ||
+                    (holdData?.resourceId && Number(holdData.resourceId) === Number(selected.id)))
                 );
                 return (
                   <>
@@ -1186,9 +1195,7 @@ export function PublicFloorMap({
                       </div>
                       <div>
                         <div className='flex flex-wrap items-center gap-2'>
-                          <span className='text-sm font-bold text-foreground'>
-                            {selected.name}
-                          </span>
+                          <span className='text-sm font-bold text-foreground'>{selected.name}</span>
                           <span className='rounded-md bg-background px-1.5 py-0.5 font-mono text-xs font-bold text-primary border border-primary/20'>
                             {selected.code}
                           </span>
@@ -1206,9 +1213,9 @@ export function PublicFloorMap({
                             {selected.typeName ||
                               (selected.category === 'ROOM'
                                 ? isResourceOffice(selected)
-                                ? c('Private Office', 'Văn phòng riêng')
-                                : c('Meeting Room', 'Phòng họp')
-                              : c('Workstation Desk', 'Bàn làm việc'))}
+                                  ? c('Private Office', 'Văn phòng riêng')
+                                  : c('Meeting Room', 'Phòng họp')
+                                : c('Workstation Desk', 'Bàn làm việc'))}
                           </span>
                           <span>•</span>
                           <span>
@@ -1218,17 +1225,20 @@ export function PublicFloorMap({
                           {selected.zoneName && (
                             <>
                               <span>•</span>
-                              <span className='font-medium text-foreground'>{selected.zoneName}</span>
-                            </>
-                          )}
-                          {typeof selected.pricePerHour === 'number' && selected.pricePerHour > 0 && (
-                            <>
-                              <span>•</span>
-                              <span className='font-bold text-primary'>
-                                {formatPrice(selected.pricePerHour)} / {c('hr', 'giờ')}
+                              <span className='font-medium text-foreground'>
+                                {selected.zoneName}
                               </span>
                             </>
                           )}
+                          {typeof selected.pricePerHour === 'number' &&
+                            selected.pricePerHour > 0 && (
+                              <>
+                                <span>•</span>
+                                <span className='font-bold text-primary'>
+                                  {formatPrice(selected.pricePerHour)} / {c('hr', 'giờ')}
+                                </span>
+                              </>
+                            )}
                         </div>
                       </div>
                     </div>
@@ -1238,10 +1248,12 @@ export function PublicFloorMap({
                         type='button'
                         size='sm'
                         disabled={
-                          Boolean(selected && (
-                            (availabilityMap?.get(selected.id)?.state === 'LOCKED' || availabilityMap?.get(selected.id)?.state === 'HOLDING') &&
+                          Boolean(
+                            selected &&
+                            (availabilityMap?.get(selected.id)?.state === 'LOCKED' ||
+                              availabilityMap?.get(selected.id)?.state === 'HOLDING') &&
                             !isSelectedHeldByMe
-                          )) ||
+                          ) ||
                           Boolean(selected && availabilityMap?.get(selected.id)?.state === 'BOOKED')
                         }
                         onClick={() => {
@@ -1257,7 +1269,9 @@ export function PublicFloorMap({
                           }
 
                           const avail = selected ? availabilityMap?.get(selected.id) : undefined;
-                          const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isSelectedHeldByMe;
+                          const isLocked =
+                            (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') &&
+                            !isSelectedHeldByMe;
                           const isBooked = avail?.state === 'BOOKED';
                           if (isLocked) {
                             toast.warning(
@@ -1283,7 +1297,10 @@ export function PublicFloorMap({
                       >
                         <span>
                           {isSelectedHeldByMe
-                            ? c(`Continue with ${selected.code}`, `Tiếp tục thanh toán ${selected.code}`)
+                            ? c(
+                                `Continue with ${selected.code}`,
+                                `Tiếp tục thanh toán ${selected.code}`
+                              )
                             : c(`Book ${selected.code}`, `Đặt vị trí ${selected.code}`)}
                         </span>
                         <ArrowRight className='size-3.5' />

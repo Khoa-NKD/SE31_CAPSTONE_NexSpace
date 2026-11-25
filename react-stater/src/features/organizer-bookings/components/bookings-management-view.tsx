@@ -5,13 +5,7 @@ import React, { useState, useMemo } from 'react';
 import { toast } from 'sonner';
 import { ShieldCheck, RefreshCw } from '@/components/ui/hugeicons';
 import { useQuery } from '@tanstack/react-query';
-import {
-  BookingItem,
-  BookingStatus,
-  BookingResourceType,
-  BookingsKpiSummary,
-  CheckInState
-} from '../types';
+import { BookingItem, BookingStatus, BookingResourceType, BookingsKpiSummary } from '../types';
 import { BookingsHeaderBar } from './bookings-header-bar';
 import { BookingsKpiRibbon } from './bookings-kpi-ribbon';
 import { BookingsFilterBar, WorkspaceOption } from './bookings-filter-bar';
@@ -21,9 +15,7 @@ import { BookingDetailDialog } from './booking-detail-dialog';
 import { ManualReservationDialog } from './manual-reservation-dialog';
 import {
   useOrganizerBookingsQuery,
-  useCancelBookingMutation,
-  useApproveBookingMutation,
-  useRejectBookingMutation
+  useCancelBookingMutation
 } from '../../workspaces/api/booking-queries';
 import { useOrganizerBookingKpis } from '@/features/organizer-bookings/api/queries';
 import {
@@ -219,9 +211,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
   // Modals & Real-time Sync
   const [activeDetailBooking, setActiveDetailBooking] = useState<BookingItem | null>(null);
   const [isManualModalOpen, setIsManualModalOpen] = useState(false);
-  const [rejectingBooking, setRejectingBooking] = useState<BookingItem | null>(null);
-  const [rejectionReason, setRejectionReason] = useState('');
-  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false);
   const [cancellingBooking, setCancellingBooking] = useState<BookingItem | null>(null);
   const [cancelBookingReason, setCancelBookingReason] = useState('');
   const [isCancelDialogOpen, setIsCancelDialogOpen] = useState(false);
@@ -272,8 +261,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
   });
 
   const cancelMutation = useCancelBookingMutation();
-  const approveMutation = useApproveBookingMutation();
-  const rejectMutation = useRejectBookingMutation();
 
   // Never substitute sample reservations when a live request has not succeeded.
   const bookings: BookingItem[] = useMemo(() => {
@@ -292,7 +279,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
   const statusCounts = useMemo(() => {
     return {
       all: totalItems,
-      pendingApproval: bookings.filter((b) => b.status === 'PENDING_APPROVAL').length,
       confirmed: bookings.filter((b) => b.status === 'CONFIRMED').length,
       pending: bookings.filter((b) => b.status === 'PENDING_PAYMENT').length,
       completed: bookings.filter((b) => b.status === 'COMPLETED').length,
@@ -327,7 +313,7 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
       cancelledCount: statusCounts.cancelled,
       cancellationRatePercent: totalItems > 0 ? (statusCounts.cancelled / totalItems) * 100 : 0
     };
-  }, [kpiData, totalItems, bookings, statusCounts]);
+  }, [kpiData, totalItems, statusCounts]);
 
   // Multi-selection handlers
   const handleToggleSelectAll = () => {
@@ -382,42 +368,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
 
   const handleCancelBooking = (id: string) => {
     handleOpenCancelDialog(id);
-  };
-
-  const handleApproveBooking = async (booking: BookingItem) => {
-    try {
-      await approveMutation.mutateAsync({ id: booking.id });
-      refetch();
-      toast.success(`Booking ${booking.bookingCode} approved`, {
-        description: 'Customer can now proceed to payment within hold duration.'
-      });
-    } catch {
-      toast.error('Failed to approve booking request');
-    }
-  };
-
-  const handleOpenRejectDialog = (booking: BookingItem) => {
-    setRejectingBooking(booking);
-    setRejectionReason('');
-    setIsRejectDialogOpen(true);
-  };
-
-  const handleConfirmReject = async () => {
-    if (!rejectingBooking) return;
-    try {
-      await rejectMutation.mutateAsync({
-        id: rejectingBooking.id,
-        reason: rejectionReason.trim() || 'Organizer declined request'
-      });
-      refetch();
-      setIsRejectDialogOpen(false);
-      setRejectingBooking(null);
-      toast.warning(`Booking ${rejectingBooking.bookingCode} rejected`, {
-        description: 'Seat has been released and customer notified.'
-      });
-    } catch {
-      toast.error('Failed to reject booking request');
-    }
   };
 
   const handleExportCsv = () => {
@@ -524,7 +474,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
           }}
           totalCount={statusCounts.all}
           confirmedCount={statusCounts.confirmed}
-          pendingApprovalCount={statusCounts.pendingApproval}
           pendingCount={statusCounts.pending}
           completedCount={statusCounts.completed}
           cancelledCount={statusCounts.cancelled}
@@ -551,8 +500,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
             onViewDetails={handleViewDetails}
             onSendReminder={handleSendReminder}
             onCancelBooking={handleCancelBooking}
-            onApproveBooking={handleApproveBooking}
-            onRejectBooking={handleOpenRejectDialog}
           />
         )}
 
@@ -613,8 +560,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
         onSendReminder={handleSendReminder}
         onCancelBooking={handleCancelBooking}
         onCheckInToggle={handleCheckInToggle}
-        onApproveBooking={handleApproveBooking}
-        onRejectBooking={handleOpenRejectDialog}
       />
 
       <ManualReservationDialog
@@ -622,64 +567,6 @@ export function BookingsManagementView({ initialWorkspaceId }: { initialWorkspac
         onClose={() => setIsManualModalOpen(false)}
         onCreateBooking={handleCreateManualBooking}
       />
-
-      {/* 8. Rejection Dialog */}
-      <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
-        <DialogContent className='max-w-md'>
-          <DialogHeader>
-            <DialogTitle>{c('Reject Booking Request', 'Từ chối yêu cầu đặt chỗ')}</DialogTitle>
-            <DialogDescription>
-              {c('Provide a reason for declining booking', 'Nhập lý do từ chối đặt chỗ')}{' '}
-              {rejectingBooking?.bookingCode}
-              {c(
-                '. The customer will be notified and the reserved slot will be released immediately.',
-                '. Khách hàng sẽ được thông báo và chỗ đặt sẽ được giải phóng ngay.'
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          <div className='space-y-3 py-2'>
-            <label
-              htmlFor='rejection-reason-textarea'
-              className='text-xs font-semibold text-foreground'
-            >
-              {c('Rejection Reason', 'Lý do từ chối')}{' '}
-              <span className='text-muted-foreground font-normal'>
-                {c('(Optional)', '(Tùy chọn)')}
-              </span>
-            </label>
-            <textarea
-              id='rejection-reason-textarea'
-              className='w-full rounded-md border border-input bg-background p-2.5 text-xs text-foreground placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring min-h-[90px]'
-              placeholder={c(
-                'e.g. Workspace is undergoing maintenance or private event during this time window.',
-                'VD: Không gian đang bảo trì hoặc có sự kiện riêng trong thời gian này.'
-              )}
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-            />
-          </div>
-          <DialogFooter className='gap-2'>
-            <Button
-              variant='outline'
-              size='sm'
-              onClick={() => {
-                setIsRejectDialogOpen(false);
-                setRejectingBooking(null);
-              }}
-            >
-              {c('Cancel', 'Hủy')}
-            </Button>
-            <Button
-              variant='destructive'
-              size='sm'
-              disabled={rejectMutation.isPending}
-              onClick={handleConfirmReject}
-            >
-              {rejectMutation.isPending ? 'Rejecting...' : 'Confirm Rejection'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* 9. Organizer Cancellation Dialog */}
       <Dialog open={isCancelDialogOpen} onOpenChange={setIsCancelDialogOpen}>

@@ -15,7 +15,7 @@ import {
 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { DataTable } from '@/components/ui/table/data-table';
+import { WorkspaceTable } from './workspace-table';
 import { useDataTable } from '@/hooks/use-data-table';
 import { WorkspaceCard } from './workspace-card';
 import { WorkspaceFilterPills } from './workspace-filter-pills';
@@ -60,7 +60,6 @@ export function WorkspacesDashboardView() {
     return rawList.map(mapCanonicalToOrganizerWorkspace);
   }, [workspaceListResponse]);
 
-  const storeWorkspaces = useWorkspacesStore((state) => state.workspaces);
   const updateWorkspaceStatus = useWorkspacesStore((state) => state.updateWorkspaceStatus);
 
   // Authoritative server data precedence:
@@ -98,7 +97,7 @@ export function WorkspacesDashboardView() {
       maintenance: list.filter((w) => w.status === 'MAINTENANCE').length,
       draft: list.filter((w) => w.status === 'DRAFT').length
     };
-  }, [isError, storeWorkspaces, serverWorkspaces, totalElements]);
+  }, [serverWorkspaces, totalElements]);
 
   // Filter workspaces based on search and status pill (client-side fallback if server didn't filter)
   const filteredWorkspaces = useMemo(() => {
@@ -168,13 +167,8 @@ export function WorkspacesDashboardView() {
   );
 
   const columns = useMemo(
-    () =>
-      getWorkspaceColumns(c, handleStatusChange).filter(
-        (column) =>
-          column.id !== 'capacity' ||
-          workspaces.some((ws) => ws.desksCount != null || ws.meetingRoomsCount != null)
-      ),
-    [c, handleStatusChange, workspaces]
+    () => getWorkspaceColumns(c, handleStatusChange),
+    [c, handleStatusChange]
   );
 
   const { table } = useDataTable({
@@ -187,12 +181,12 @@ export function WorkspacesDashboardView() {
         pageIndex: page - 1,
         pageSize: perPage
       },
-      columnPinning: { right: ['actions'] }
+      columnPinning: {}
     }
   });
 
   return (
-    <div className='w-full max-w-[1360px] mx-auto py-2 sm:py-4 flex flex-col gap-6'>
+    <div className='mx-auto flex w-full min-w-0 max-w-[1440px] flex-col gap-5 py-2 sm:py-4'>
       <OrganizerPageHeader
         title={c('My Workspaces', 'Không gian của tôi')}
         description={c(
@@ -235,10 +229,10 @@ export function WorkspacesDashboardView() {
               size='sm'
               className='h-8 px-2.5 gap-1.5 text-xs'
               onClick={() => setViewMode('table')}
-              aria-label={c('Table View', 'Dạng bảng')}
+              aria-label={c('List View', 'Dạng danh sách')}
             >
               <TableIcon className='size-3.5' />
-              <span className='hidden sm:inline'>{c('Table', 'Bảng')}</span>
+              <span className='hidden sm:inline'>{c('List', 'Danh sách')}</span>
             </Button>
             <Button
               variant={viewMode === 'grid' ? 'secondary' : 'ghost'}
@@ -267,7 +261,7 @@ export function WorkspacesDashboardView() {
       </OrganizerPageHeader>
 
       {/* Filter Segmented Controls */}
-      <div className='flex items-center justify-between'>
+      <div className='flex flex-wrap items-center justify-between gap-3'>
         <WorkspaceFilterPills filter={filter} onFilterChange={setFilter} counts={counts} />
 
         <div className='text-xs text-muted-foreground hidden sm:block'>
@@ -343,17 +337,13 @@ export function WorkspacesDashboardView() {
       )}
 
       {/* Table View */}
-      {!isLoading && !isHardError && viewMode === 'table' && (
-        <div className='min-h-[360px] flex flex-col flex-1'>
-          <DataTable table={table} />
-        </div>
-      )}
+      {!isLoading && !isHardError && viewMode === 'table' && <WorkspaceTable table={table} />}
 
       {/* Grid View */}
       {!isLoading && !isHardError && viewMode === 'grid' && filteredWorkspaces.length > 0 && (
         <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8'>
           {filteredWorkspaces.map((ws) => (
-            <WorkspaceCard key={ws.id} workspace={ws} />
+            <WorkspaceCard key={ws.id} workspace={ws} onStatusChange={handleStatusChange} />
           ))}
         </div>
       )}

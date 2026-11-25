@@ -43,8 +43,6 @@ interface BookingDetailDialogProps {
   onSendReminder?: (booking: BookingItem) => void;
   onCancelBooking?: (id: string) => void;
   onCheckInToggle?: (id: string) => void;
-  onApproveBooking?: (booking: BookingItem) => void;
-  onRejectBooking?: (booking: BookingItem) => void;
 }
 
 function getResourceCategoryIcon(category: string) {
@@ -70,7 +68,7 @@ function getStatusBadge(status: string, c: OrganizerCopy) {
           variant='outline'
           className='bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400 dark:border-purple-800/60 font-semibold text-xs'
         >
-          <Clock className='w-3.5 h-3.5 mr-1' /> {c('Needs Approval', 'Chờ duyệt')}
+          <Clock className='w-3.5 h-3.5 mr-1' /> {c('Legacy booking', 'Đơn từ luồng cũ')}
         </Badge>
       );
     case 'CONFIRMED':
@@ -121,9 +119,7 @@ export function BookingDetailDialog({
   onClose,
   onSendReminder,
   onCancelBooking,
-  onCheckInToggle,
-  onApproveBooking,
-  onRejectBooking
+  onCheckInToggle
 }: BookingDetailDialogProps) {
   const c = useOrganizerCopy();
   const [copied, setCopied] = useState(false);
@@ -377,33 +373,6 @@ export function BookingDetailDialog({
 
         <DialogFooter className='p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row items-center justify-between gap-3'>
           <div className='flex items-center gap-2 w-full sm:w-auto'>
-            {booking.status === 'PENDING_APPROVAL' && (
-              <div className='flex items-center gap-2'>
-                <Button
-                  variant='default'
-                  size='sm'
-                  className='text-xs gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white'
-                  onClick={() => {
-                    onApproveBooking?.(booking);
-                    onClose();
-                  }}
-                >
-                  <CheckCircle2 className='w-3.5 h-3.5' /> {c('Approve Booking', 'Duyệt đặt chỗ')}
-                </Button>
-                <Button
-                  variant='destructive'
-                  size='sm'
-                  className='text-xs gap-1.5'
-                  onClick={() => {
-                    onRejectBooking?.(booking);
-                    onClose();
-                  }}
-                >
-                  <XCircle className='w-3.5 h-3.5' /> {c('Reject Request', 'Từ chối yêu cầu')}
-                </Button>
-              </div>
-            )}
-
             {booking.status === 'CONFIRMED' && onCancelBooking && (
               <Button
                 variant='destructive'

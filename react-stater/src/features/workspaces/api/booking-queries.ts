@@ -14,7 +14,8 @@ export const bookingKeys = {
   lists: () => [...bookingKeys.all, 'list'] as const,
   details: () => [...bookingKeys.all, 'detail'] as const,
   detail: (id: string | number) => [...bookingKeys.details(), String(id)] as const,
-  cancellationPreview: (id: string | number) => [...bookingKeys.all, 'cancellation-preview', String(id)] as const,
+  cancellationPreview: (id: string | number) =>
+    [...bookingKeys.all, 'cancellation-preview', String(id)] as const,
   byCode: (code: string) => [...bookingKeys.all, 'code', code] as const,
   my: (params?: { status?: string; page?: number; size?: number }) =>
     [...bookingKeys.all, 'my', params?.status, params?.page, params?.size] as const,
@@ -40,7 +41,14 @@ export const bookingKeys = {
   availability: (workspaceId: number, startTime: string, endTime: string, floorId?: number) =>
     [...bookingKeys.all, 'availability', workspaceId, floorId, startTime, endTime] as const,
   calculatedPrice: (payload: CalculatePricePayload) =>
-    [...bookingKeys.all, 'calculate-price', payload.workspaceId, payload.resourceId, payload.startTime, payload.endTime] as const
+    [
+      ...bookingKeys.all,
+      'calculate-price',
+      payload.workspaceId,
+      payload.resourceId,
+      payload.startTime,
+      payload.endTime
+    ] as const
 };
 
 export function useWorkspaceAvailabilityQuery(
@@ -52,12 +60,10 @@ export function useWorkspaceAvailabilityQuery(
 ) {
   return useQuery<ResourceAvailabilityItem[]>({
     queryKey: bookingKeys.availability(workspaceId ?? 0, startTime ?? '', endTime ?? '', floorId),
-    queryFn: () => workspaceService.getWorkspaceAvailability(workspaceId!, startTime!, endTime!, floorId),
+    queryFn: () =>
+      workspaceService.getWorkspaceAvailability(workspaceId!, startTime!, endTime!, floorId),
     enabled:
-      Boolean(workspaceId) &&
-      Boolean(startTime) &&
-      Boolean(endTime) &&
-      (options?.enabled ?? true),
+      Boolean(workspaceId) && Boolean(startTime) && Boolean(endTime) && (options?.enabled ?? true),
     staleTime: 0,
     refetchInterval: 3000,
     refetchIntervalInBackground: false,
@@ -70,7 +76,9 @@ export function useCalculatePriceQuery(
   options?: { enabled?: boolean }
 ) {
   return useQuery<PriceCalculationResult>({
-    queryKey: payload ? bookingKeys.calculatedPrice(payload) : ['bookings', 'calculate-price', 'empty'],
+    queryKey: payload
+      ? bookingKeys.calculatedPrice(payload)
+      : ['bookings', 'calculate-price', 'empty'],
     queryFn: () => workspaceService.calculateBookingPrice(payload!),
     enabled:
       Boolean(payload?.workspaceId) &&
@@ -211,40 +219,6 @@ export function useCancelBookingMutation() {
       queryClient.invalidateQueries({ queryKey: ['payments'] });
       queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.invalidateQueries({ queryKey: ['admin-refunds'] });
-      queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
-      queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
-    }
-  });
-}
-
-export function useApproveBookingMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation<BookingDto, Error, { id: number | string }>({
-    mutationFn: ({ id }) => workspaceService.approveBooking(id),
-    onSuccess: (booking) => {
-      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['availability'] });
-      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
-      queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
-      queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
-    }
-  });
-}
-
-export function useRejectBookingMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation<BookingDto, Error, { id: number | string; reason?: string }>({
-    mutationFn: ({ id, reason }) => workspaceService.rejectBooking(id, reason),
-    onSuccess: (booking) => {
-      queryClient.invalidateQueries({ queryKey: bookingKeys.all });
-      queryClient.invalidateQueries({ queryKey: ['availability'] });
-      queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
-      queryClient.invalidateQueries({ queryKey: ['payments'] });
-      queryClient.invalidateQueries({ queryKey: ['customer', 'notifications'] });
       queryClient.setQueryData(bookingKeys.byCode(booking.bookingCode), booking);
       queryClient.setQueryData(bookingKeys.detail(booking.id), booking);
     }

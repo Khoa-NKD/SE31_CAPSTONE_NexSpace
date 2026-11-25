@@ -1,5 +1,6 @@
 import { Spinner as Loader2 } from '@/components/ui/spinner';
 import { formatDateLabel } from '@/lib/format';
+import { customerResourceStatus } from '../../utils/customer-resource-status';
 import { formatDate } from '@/lib/format';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
@@ -271,10 +272,7 @@ export function SeatsPage({
 
     for (const res of resources) {
       const avail = availabilityMap.get(res.id);
-      const isBooked = avail?.state === 'BOOKED' || avail?.state === 'LOCKED';
-      const isMaintenance = avail?.state === 'MAINTENANCE';
-      const isAvailable =
-        (!avail || avail.state === 'AVAILABLE') && res.selectable && !isBooked && !isMaintenance;
+      const isAvailable = customerResourceStatus(res, avail).available;
 
       if (isAvailable) {
         allAvailable++;

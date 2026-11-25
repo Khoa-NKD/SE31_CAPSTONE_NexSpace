@@ -1,4 +1,4 @@
-import { WORKSPACE_HOLIDAYS } from '@/features/workspaces/utils/workspace-holidays';
+import { WorkspaceHolidaySelector } from './workspace-holiday-selector';
 import { useState } from 'react';
 import { useRouter, useLocation } from '@tanstack/react-router';
 import { Clock, Copy, Save, ArrowRight, CheckCircle2 } from '@/components/ui/hugeicons';
@@ -175,41 +175,13 @@ export function StepOperatingHoursView() {
             </div>
           )}
         </section>
-        <section className='wizard-panel'>
-          <h2 className='text-sm font-semibold'>Ngày nghỉ lễ</h2>
-          <p className='mt-1 text-xs text-muted-foreground'>
-            Chọn các dịp không nhận đặt chỗ. Hệ thống tự áp dụng ngày nghỉ theo lịch Việt Nam, kể cả
-            khi mở 24/7.
-          </p>
-          <div className='mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3'>
-            {WORKSPACE_HOLIDAYS.map((holiday) => {
-              const checked = hours.holidayCodes?.includes(holiday.code) ?? false;
-              return (
-                <label
-                  key={holiday.code}
-                  className={
-                    'flex cursor-pointer items-center gap-3 rounded-xl border p-3 text-xs transition-colors ' +
-                    (checked ? 'border-primary/40 bg-primary/5' : 'hover:bg-muted/40')
-                  }
-                >
-                  <input
-                    type='checkbox'
-                    checked={checked}
-                    className='size-4 accent-primary'
-                    onChange={() =>
-                      state.setOperatingHours({
-                        holidayCodes: checked
-                          ? (hours.holidayCodes ?? []).filter((code) => code !== holiday.code)
-                          : [...(hours.holidayCodes ?? []), holiday.code]
-                      })
-                    }
-                  />
-                  <span>{holiday.name}</span>
-                </label>
-              );
-            })}
-          </div>
-        </section>
+        <WorkspaceHolidaySelector
+          value={hours}
+          onChange={(values) => {
+            state.setOperatingHours(values);
+            setError('');
+          }}
+        />
         <div className='grid items-start gap-5 md:grid-cols-[minmax(0,1.5fr)_minmax(250px,1fr)]'>
           <section className='wizard-panel space-y-3'>
             <label htmlFor='entry-instructions' className='text-sm font-medium'>

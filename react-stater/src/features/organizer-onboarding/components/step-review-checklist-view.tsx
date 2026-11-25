@@ -1,3 +1,5 @@
+import { holidayScheduleError } from '@/features/workspaces/utils/workspace-holiday-schedules';
+import { WorkspaceOverviewHero, WorkspaceOverviewNavigation } from './workspace-overview-hero';
 import { useState } from 'react';
 import { useLocation, useRouter, Link } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -55,6 +57,7 @@ export function StepReviewChecklistView() {
   const changeCount = changes.filter(Boolean).length;
   const cover = value.media.find((photo) => photo.cover) ?? value.media[0];
   const valid =
+    !holidayScheduleError(value.holidayCodes, value.holidaySchedules) &&
     value.name.trim().length >= 3 &&
     value.name.trim().length <= 100 &&
     !!value.address.trim() &&
@@ -119,41 +122,41 @@ export function StepReviewChecklistView() {
             : 'Xem lại đủ 6 mục trước khi hoàn tất thông tin không gian.'
         }
       />
-      <div className='overview-summary'>
-        {cover && <img src={cover.url} alt='Ảnh bìa không gian' />}
-        <div className='min-w-0 flex-1'>
-          <h2 className='break-words text-base font-semibold'>
-            {value.name || 'Không gian chưa đặt tên'}
-          </h2>
-          <p className='mt-1 break-words text-xs text-muted-foreground'>
-            {value.address || 'Chưa có địa chỉ'}
-          </p>
-          <dl className='overview-metrics mt-4'>
-            <div>
-              <dt>Tầng</dt>
-              <dd>{value.floors.length}</dd>
-            </div>
-            <div>
-              <dt>Diện tích cấu hình</dt>
-              <dd>{formatOverviewNumber(totalArea)} m²</dd>
-            </div>
-            <div>
-              <dt>Tiện ích</dt>
-              <dd>{value.amenities.length}</dd>
-            </div>
-            <div>
-              <dt>Hình ảnh</dt>
-              <dd>{value.media.length}</dd>
-            </div>
-            {editing && original && (
+      <section className='overview-hero-shell'>
+        <WorkspaceOverviewHero
+          preview
+          name={value.name || 'Không gian chưa đặt tên'}
+          address={value.address}
+          coverUrl={cover?.url}
+          photoCount={value.media.length}
+          metrics={
+            <dl className='overview-metrics'>
               <div>
-                <dt>Mục đã thay đổi</dt>
-                <dd className='text-primary'>{changeCount}/6</dd>
+                <dt>Tầng</dt>
+                <dd>{value.floors.length}</dd>
               </div>
-            )}
-          </dl>
-        </div>
-      </div>
+              <div>
+                <dt>Diện tích cấu hình</dt>
+                <dd>{formatOverviewNumber(totalArea)} m²</dd>
+              </div>
+              <div>
+                <dt>Tiện ích</dt>
+                <dd>{value.amenities.length}</dd>
+              </div>
+              <div>
+                <dt>Hình ảnh</dt>
+                <dd>{value.media.length}</dd>
+              </div>
+              {editing && original && (
+                <div>
+                  <dt>Mục đã thay đổi</dt>
+                  <dd className='text-primary'>{changeCount}/6</dd>
+                </div>
+              )}
+            </dl>
+          }
+        />
+      </section>
       {!ready && (
         <div
           className='wizard-hint'
@@ -177,6 +180,7 @@ export function StepReviewChecklistView() {
           )}
         </div>
       )}
+      <WorkspaceOverviewNavigation changes={changes} />
       <WorkspaceOverviewCards
         value={value}
         original={ready ? original : undefined}
@@ -192,7 +196,7 @@ export function StepReviewChecklistView() {
           {error}
         </p>
       )}
-      <div className='wizard-actions'>
+      <div className='wizard-actions overview-review-actions'>
         <p className='mr-auto text-xs text-muted-foreground'>
           {editing
             ? original && changeCount === 0

@@ -1,7 +1,9 @@
 import { Link } from '@tanstack/react-router';
-import { Building2, MapPin, ArrowUpRight, Users, DoorOpen } from '@/components/ui/hugeicons';
+import { Building2, MapPin, ArrowUpRight } from '@/components/ui/hugeicons';
 import { WorkspaceCellAction } from './workspace-columns';
 import { WorkspaceStatusBadge } from './workspace-status-badge';
+import { WorkspaceFacts } from './workspace-facts';
+import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import type { OrganizerWorkspace, WorkspaceStatus } from '../types';
 export function WorkspaceCard({
   workspace,
@@ -10,6 +12,7 @@ export function WorkspaceCard({
   workspace: OrganizerWorkspace;
   onStatusChange?: (id: string, status: WorkspaceStatus) => void;
 }) {
+  const c = useOrganizerCopy();
   const address =
     workspace.address || [workspace.district, workspace.city].filter(Boolean).join(', ');
   return (
@@ -40,29 +43,23 @@ export function WorkspaceCard({
           search={{ id: workspace.id }}
           className='flex items-center justify-between gap-3 text-sm font-semibold hover:text-primary'
         >
-          <span className='truncate'>{workspace.name}</span>
+          <span className='truncate text-base'>{workspace.name}</span>
           <ArrowUpRight className='size-4 shrink-0 text-muted-foreground group-hover:text-primary' />
         </Link>
+        {workspace.description && (
+          <p className='line-clamp-2 text-xs leading-relaxed text-muted-foreground'>
+            {workspace.description}
+          </p>
+        )}
         <p className='flex min-h-9 items-start gap-1.5 text-xs leading-relaxed text-muted-foreground'>
           <MapPin className='mt-0.5 size-3.5 shrink-0' />
-          <span className='line-clamp-2'>{address || 'Chưa thiết lập địa chỉ'}</span>
+          <span className='line-clamp-2'>
+            {address || c('Address not set', 'Chưa thiết lập địa chỉ')}
+          </span>
         </p>
-        {(workspace.desksCount != null || workspace.meetingRoomsCount != null) && (
-          <div className='flex flex-wrap gap-3 border-t pt-3 text-xs text-muted-foreground'>
-            {workspace.desksCount != null && (
-              <span className='inline-flex items-center gap-1.5'>
-                <Users className='size-3.5' />
-                {workspace.desksCount} ghế
-              </span>
-            )}
-            {workspace.meetingRoomsCount != null && (
-              <span className='inline-flex items-center gap-1.5'>
-                <DoorOpen className='size-3.5' />
-                {workspace.meetingRoomsCount} phòng họp
-              </span>
-            )}
-          </div>
-        )}
+        <div className='border-t pt-3'>
+          <WorkspaceFacts workspace={workspace} />
+        </div>
       </div>
     </article>
   );

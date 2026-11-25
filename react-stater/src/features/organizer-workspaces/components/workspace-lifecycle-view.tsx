@@ -1,15 +1,17 @@
+import {
+  WorkspaceOverviewHero,
+  WorkspaceOverviewNavigation
+} from '@/features/organizer-onboarding/components/workspace-overview-hero';
 import { WorkspaceHolidayNotice } from '@/features/workspaces/components/detail/workspace-holiday-notice';
 import { useQuery } from '@tanstack/react-query';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { Button } from '@/components/ui/button';
 import {
   ArrowLeft,
-  MapPin,
   Layers3,
   Wrench,
   Pencil,
   ExternalLink,
-  Building2,
   PlayCircle,
   PauseCircle
 } from '@/components/ui/hugeicons';
@@ -96,29 +98,15 @@ export function WorkspaceLifecycleView({
         </Link>
         <span className='text-[11px] text-muted-foreground'>Chi tiết không gian</span>
       </div>
-      <section className='overflow-hidden rounded-2xl border bg-card'>
-        <div className='flex flex-col gap-5 p-5 sm:flex-row sm:items-center'>
-          {cover ? (
-            <img
-              src={cover.url}
-              alt={data.name}
-              className='h-32 w-full rounded-xl object-cover sm:h-28 sm:w-40'
-            />
-          ) : (
-            <div className='flex h-24 w-28 shrink-0 items-center justify-center rounded-xl border bg-muted/50 text-muted-foreground'>
-              <Building2 className='size-8' />
-            </div>
-          )}
-          <div className='min-w-0 flex-1'>
-            <div className='mb-2 flex flex-wrap items-center gap-3'>
-              <h1 className='break-words text-xl font-semibold'>{data.name}</h1>
-              <WorkspaceStatusBadge status={workspace.status} />
-            </div>
-            <p className='flex items-start gap-1.5 text-xs leading-relaxed text-muted-foreground'>
-              <MapPin className='mt-0.5 size-3.5 shrink-0' />
-              {value.address || 'Chưa thiết lập địa chỉ'}
-            </p>
-            <dl className='overview-metrics mt-4'>
+      <section className='overview-hero-shell'>
+        <WorkspaceOverviewHero
+          name={data.name}
+          address={value.address}
+          coverUrl={cover?.url}
+          photoCount={media.data ? value.media.length : undefined}
+          badge={<WorkspaceStatusBadge status={workspace.status} />}
+          metrics={
+            <dl className='overview-metrics'>
               {site.data && (
                 <>
                   <div>
@@ -156,14 +144,14 @@ export function WorkspaceLifecycleView({
                 </div>
               )}
             </dl>
-          </div>
+          }
+        >
           {!restricted && (
-            <div className='flex flex-wrap gap-2 sm:max-w-52'>
-              <Button asChild size='sm'>
+            <>
+              <Button asChild size='sm' onClick={() => useWizardStore.getState().resetDraft()}>
                 <Link
                   to='/dashboard/organizer/workspaces/create'
                   search={{ id: String(data.id), mode: 'edit' }}
-                  onClick={() => useWizardStore.getState().resetDraft()}
                 >
                   <Pencil className='size-3.5' />
                   Chỉnh sửa hồ sơ
@@ -177,10 +165,10 @@ export function WorkspaceLifecycleView({
                   </Link>
                 </Button>
               )}
-            </div>
+            </>
           )}
-        </div>
-        <div className='flex flex-wrap items-center gap-2 border-t bg-muted/15 px-5 py-3'>
+        </WorkspaceOverviewHero>
+        <div className='overview-management-bar'>
           <Button asChild size='sm' variant='ghost'>
             <Link to='/dashboard/organizer/floorplan' search={{ workspaceId: Number(data.id) }}>
               <Layers3 className='size-4' />
@@ -262,6 +250,7 @@ export function WorkspaceLifecycleView({
           Đang tải tầng, tiện ích và hình ảnh…
         </p>
       ) : null}
+      <WorkspaceOverviewNavigation />
       <WorkspaceOverviewCards
         value={value}
         workspaceId={String(data.id)}

@@ -10,6 +10,9 @@ export type WorkspaceStatus =
 export interface OrganizerWorkspace {
   id: string;
   name: string;
+  description?: string;
+  areaSqm?: number;
+  startingPricePerHour?: number;
   address: string;
   district: string;
   city: string;

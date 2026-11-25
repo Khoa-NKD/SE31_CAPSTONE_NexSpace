@@ -52,6 +52,26 @@ export function WizardStepper({ currentStep }: WizardStepperProps) {
       aria-label={editing ? 'Chọn mục chỉnh sửa' : 'Các bước tạo không gian'}
       className='wizard-step-nav'
     >
+      {!editing && (
+        <div className='wizard-progress-wrap'>
+          <div className='wizard-progress-label'>
+            <span>Tiến trình tạo không gian</span>
+            <strong>
+              Bước {currentStep}/{steps.length}
+            </strong>
+          </div>
+          <div
+            className='wizard-progress-track'
+            role='progressbar'
+            aria-label='Tiến trình tạo không gian'
+            aria-valuemin={1}
+            aria-valuemax={steps.length}
+            aria-valuenow={currentStep}
+          >
+            <span style={{ width: `${(currentStep / steps.length) * 100}%` }} />
+          </div>
+        </div>
+      )}
       <ol>
         {steps.map((step, index) => {
           const number = index + 1,

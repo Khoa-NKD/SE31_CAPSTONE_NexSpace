@@ -1,3 +1,4 @@
+import { customerResourceStatus } from '../../utils/customer-resource-status';
 import { useMemo, useState } from 'react';
 import {
   MapPin,
@@ -323,8 +324,9 @@ export function WorkspaceInfo({
       for (const res of floor.resources || []) {
         if (res.category !== 'DESK' && res.category !== 'ROOM') continue;
 
-        // Bỏ qua các bàn trang trí nội thất bên trong phòng họp không thể đặt lẻ
-        if (res.category === 'DESK' && !res.selectable) continue;
+        // A temporarily maintained desk can still be bookable in the selected interval.
+        if (res.category === 'DESK' && !res.selectable && !availabilityMap?.get(res.id)?.selectable)
+          continue;
 
         const isOffice = isResourceOffice(res);
         const filterType: SpaceFilterType =
@@ -371,15 +373,7 @@ export function WorkspaceInfo({
           availItem?.isOccupiedByMe ||
           (holdData?.resourceId && Number(holdData.resourceId) === Number(res.id))
         );
-        const isBooked = availItem?.state === 'BOOKED';
-        const isLocked =
-          (availItem?.state === 'LOCKED' || availItem?.state === 'HOLDING') && !isHeldByMe;
-        const isMaint = availItem?.state === 'MAINTENANCE' || (!res.selectable && !isHeldByMe);
-        const isAvailable =
-          (!availItem || availItem.state === 'AVAILABLE' || isHeldByMe) &&
-          !isBooked &&
-          !isLocked &&
-          !isMaint;
+        const isAvailable = customerResourceStatus(res, availItem, isHeldByMe).available;
         const cap = Math.max(1, res.capacity || 1);
         const price = res.pricePerHour || 0;
 
@@ -410,17 +404,11 @@ export function WorkspaceInfo({
               (holdData?.resourceId &&
                 Number(holdData.resourceId) === Number(existing.sampleResource.id))
             );
-            const curBooked = curAvail?.state === 'BOOKED';
-            const curLocked =
-              (curAvail?.state === 'LOCKED' || curAvail?.state === 'HOLDING') && !curHeldByMe;
-            const curMaint =
-              curAvail?.state === 'MAINTENANCE' ||
-              (!existing.sampleResource.selectable && !curHeldByMe);
-            const curAvailable =
-              (!curAvail || curAvail.state === 'AVAILABLE' || curHeldByMe) &&
-              !curBooked &&
-              !curLocked &&
-              !curMaint;
+            const curAvailable = customerResourceStatus(
+              existing.sampleResource,
+              curAvail,
+              curHeldByMe
+            ).available;
 
             // Prioritize: If current resource is held by me, or if sampleResource is not available, choose res
             if (isHeldByMe || !curAvailable) {

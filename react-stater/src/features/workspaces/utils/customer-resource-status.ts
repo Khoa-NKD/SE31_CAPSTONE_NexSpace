@@ -5,12 +5,9 @@ export function customerResourceStatus(
   availability?: ResourceAvailabilityItem,
   heldByMe = false
 ) {
-  // A manual activation restriction must not erase an ongoing maintenance overlay.
-  // A genuinely bookable future interval still takes precedence after maintenance ends.
-  const state =
-    resource.state === 'MAINTENANCE' && availability?.state === 'DISABLED'
-      ? 'MAINTENANCE'
-      : (availability?.state ?? resource.state);
+  // The selected interval is authoritative; a current maintenance snapshot must not leak
+  // into another interval, including when that interval is manually disabled instead.
+  const state = availability?.state ?? resource.state;
   const maintenance = state === 'MAINTENANCE',
     disabled = state === 'DISABLED';
   const booked = state === 'BOOKED',

@@ -22,11 +22,20 @@ import {
 import { maintenanceApi, type MaintenanceSchedule, type MaintenanceTarget } from '../api';
 import { MaintenanceTargetPicker } from './maintenance-target-picker';
 import { localDate } from '@/features/organizer-analytics/format';
-import { formatDate } from '@/lib/format';
+import { formatDateTime } from '@/lib/format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { workspaceService } from '@/features/workspaces/api/service';
 import { operationsApi } from '@/features/organizer-operations/api';
-import { maintenanceConflicts, maintenanceTimeConflict } from '../utils/maintenance-time';
+import {
+  maintenanceConflicts,
+  maintenancePeriodIssue,
+  maintenanceIssueText
+} from '../utils/maintenance-time';
+import { MaintenanceTimePicker } from './maintenance-time-picker';
+
+function localTimestamp(value: Date) {
+  return new Date(value.getTime() - value.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+}
 
 function nextDay(value: string) {
   const d = new Date(value + 'T12:00:00');
@@ -109,20 +118,39 @@ function MaintenanceWorkspace({
     (useLocation().search as Record<string, unknown>).scope === 'workspace'
   );
   const [editingGroup, setEditingGroup] = useState<number | null>(null);
-  const [selected, setSelected] = useState<string[]>([]);
+  const [individualSelected, setSelected] = useState<string[]>([]);
   const [startDay, setStartDay] = useState(() => localDate(new Date()));
   const [endDay, setEndDay] = useState(() => localDate(new Date()));
+  const [timeMode, setTimeMode] = useState<'day' | 'hours'>('day');
+  const [startHour, setStartHour] = useState(() =>
+    localTimestamp(new Date(Math.ceil(Date.now() / 60000) * 60000 + 60000)).slice(11)
+  );
+  const [endHour, setEndHour] = useState(() =>
+    localTimestamp(new Date(Math.ceil(Date.now() / 60000) * 60000 + 3660000)).slice(11)
+  );
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [remove, setRemove] = useState<MaintenanceSchedule | null>(null);
   const [clock, setClock] = useState(() => Date.now());
   const today = localDate(new Date(clock));
-  const localNow = new Date(clock - new Date(clock).getTimezoneOffset() * 60000)
-    .toISOString()
-    .slice(0, 19);
-  const start = startDay ? (startDay === today ? localNow : startDay + 'T00:00:00') : '';
-  const end = endDay ? nextDay(endDay) + 'T00:00:00' : '';
+  const localNow = localTimestamp(new Date(clock));
+  const start = startDay
+    ? timeMode === 'hours'
+      ? startHour
+        ? startDay + 'T' + startHour
+        : ''
+      : startDay === today
+        ? localNow
+        : startDay + 'T00:00:00'
+    : '';
+  const end = endDay
+    ? timeMode === 'hours'
+      ? endHour
+        ? endDay + 'T' + endHour
+        : ''
+      : nextDay(endDay) + 'T00:00:00'
+    : '';
   useEffect(() => {
     const timer = window.setInterval(() => setClock(Date.now()), 3000);
     return () => window.clearInterval(timer);
@@ -135,9 +163,9 @@ function MaintenanceWorkspace({
     queryFn: ({ signal }) => maintenanceApi.targets(workspaceId, signal),
     refetchInterval: 3000
   });
-  useEffect(() => {
-    if (wholeWorkspace && targets.data) setSelected(targets.data.map((t) => t.key));
-  }, [wholeWorkspace, targets.data]);
+  const selected = wholeWorkspace
+    ? (targets.data ?? []).map((target) => target.key)
+    : individualSelected;
   const schedules = useQuery({
     queryKey: ['organizer-operations', actor, workspaceId, 'maintenance', from, to],
     queryFn: ({ signal }) =>
@@ -161,6 +189,7 @@ function MaintenanceWorkspace({
     ],
     enabled: periodValid && (wholeWorkspace || selected.length > 0),
     refetchInterval: 3000,
+    refetchOnWindowFocus: 'always',
     queryFn: async ({ signal }) => {
       const [bookings, maintenance, blocks, pendingHolds, awaitingApproval] = await Promise.all([
         workspaceService.getOrganizerCalendarEvents({
@@ -190,14 +219,16 @@ function MaintenanceWorkspace({
       return { bookings: [...combined.values()], maintenance, blocks };
     }
   });
-  const conflicts = maintenanceConflicts(
-    all,
-    selected,
-    reservations.data?.bookings ?? [],
-    reservations.data?.maintenance.filter((s) => s.key !== 'GROUP:' + editingGroup) ?? [],
-    reservations.data?.blocks ?? [],
-    clock
-  );
+  const readConflicts = (snapshot: typeof reservations.data, at: number) =>
+    maintenanceConflicts(
+      all,
+      selected,
+      snapshot?.bookings ?? [],
+      snapshot?.maintenance.filter((s) => s.key !== 'GROUP:' + editingGroup) ?? [],
+      snapshot?.blocks ?? [],
+      at
+    );
+  const conflicts = readConflicts(reservations.data, clock);
   let periodError = '';
   if (!periodValid)
     periodError = c(
@@ -212,15 +243,10 @@ function MaintenanceWorkspace({
       'Ngày kết thúc phải từ ngày bắt đầu trở đi.'
     );
   else if (selected.length && !reservations.isPending && !reservations.isError) {
-    const conflict = maintenanceTimeConflict(start, end, conflicts);
-    if (conflict)
-      periodError =
-        c(
-          'These dates overlap a booking, active hold or existing maintenance.',
-          'Khoảng ngày này trùng booking, giữ chỗ đang hiệu lực hoặc lịch bảo trì đã có.'
-        ) +
-        ' · ' +
-        conflict.name;
+    periodError = maintenanceIssueText(
+      maintenancePeriodIssue(start, end, conflicts, Math.floor(clock / 1000) * 1000),
+      c
+    );
   }
   const labels = {
     WORKSPACE: 'Toàn không gian',
@@ -243,7 +269,8 @@ function MaintenanceWorkspace({
       invalidate(),
       client.invalidateQueries({ queryKey: ['workspace-assets'] }),
       targets.refetch(),
-      schedules.refetch()
+      schedules.refetch(),
+      reservations.refetch()
     ]);
   }
   async function save(event: React.FormEvent) {
@@ -268,6 +295,27 @@ function MaintenanceWorkspace({
     }
     setBusy(true);
     try {
+      // A selection is only a preview: refresh immediately before the authoritative write.
+      const fresh = await reservations.refetch();
+      if (fresh.isError || !fresh.data)
+        throw new Error(
+          c(
+            'Availability could not be verified. Try again.',
+            'Không kiểm tra được lịch mới nhất. Vui lòng thử lại.'
+          )
+        );
+      const currentTime = Date.now();
+      const currentStart =
+        timeMode === 'day' && startDay === localDate(new Date(currentTime))
+          ? localTimestamp(new Date(currentTime))
+          : start;
+      const issue = maintenancePeriodIssue(
+        currentStart,
+        end,
+        readConflicts(fresh.data, currentTime),
+        Math.floor(currentTime / 1000) * 1000
+      );
+      if (issue) throw new Error(maintenanceIssueText(issue, c));
       await (
         editingGroup
           ? (id: number, input: import('../api').MaintenanceInput) =>
@@ -276,7 +324,7 @@ function MaintenanceWorkspace({
       )(workspaceId, {
         wholeWorkspace,
         targetKeys: wholeWorkspace ? [] : direct,
-        startTime: start,
+        startTime: currentStart,
         endTime: end,
         reason: reason.trim()
       });
@@ -287,11 +335,12 @@ function MaintenanceWorkspace({
       toast.success(c('Maintenance saved', 'Đã tạo lịch bảo trì'));
     } catch (e) {
       setError((e as Error).message);
+      void reservations.refetch();
     } finally {
       setBusy(false);
     }
   }
-  const now = new Date();
+  const now = new Date(clock);
   return (
     <>
       <div className='grid gap-5'>
@@ -309,6 +358,7 @@ function MaintenanceWorkspace({
           <div className='mt-4 flex flex-wrap gap-2'>
             <Button
               type='button'
+              disabled={busy}
               variant={wholeWorkspace ? 'default' : 'outline'}
               onClick={() => {
                 setWholeWorkspace(true);
@@ -319,6 +369,7 @@ function MaintenanceWorkspace({
             </Button>
             <Button
               type='button'
+              disabled={busy}
               variant={!wholeWorkspace ? 'default' : 'outline'}
               onClick={() => {
                 setWholeWorkspace(false);
@@ -347,35 +398,175 @@ function MaintenanceWorkspace({
               <p className='text-sm font-semibold'>
                 {c('Maintenance period', 'Thời gian bảo trì')}
               </p>
+              <div
+                className='grid grid-cols-2 gap-1 rounded-lg border bg-background/60 p-1'
+                aria-label={c('Schedule by', 'Cách đặt lịch')}
+              >
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={timeMode === 'day' ? 'default' : 'ghost'}
+                  disabled={busy}
+                  aria-pressed={timeMode === 'day'}
+                  onClick={() => setTimeMode('day')}
+                >
+                  {c('Full days', 'Cả ngày')}
+                </Button>
+                <Button
+                  type='button'
+                  size='sm'
+                  variant={timeMode === 'hours' ? 'default' : 'ghost'}
+                  disabled={busy}
+                  aria-pressed={timeMode === 'hours'}
+                  onClick={() => {
+                    setTimeMode('hours');
+                    if (startDay === today && Date.parse(startDay + 'T' + startHour) < Date.now()) {
+                      const initial = new Date(Math.ceil(Date.now() / 60000) * 60000 + 60000);
+                      const finish = new Date(initial.getTime() + 3600000);
+                      setStartDay(localDate(initial));
+                      setStartHour(localTimestamp(initial).slice(11));
+                      setEndHour(localTimestamp(finish).slice(11));
+                      if (endDay <= localDate(finish)) setEndDay(localDate(finish));
+                    } else if (endDay === startDay && endHour <= startHour)
+                      setEndDay(nextDay(startDay));
+                  }}
+                >
+                  {c('Specific hours', 'Theo giờ')}
+                </Button>
+              </div>
               <div className='grid grid-cols-2 gap-3'>
-                <label className='block min-w-0 space-y-1.5 text-sm'>
+                <div className='min-w-0 space-y-1.5 text-sm'>
                   <span>{c('From date', 'Từ ngày')} *</span>
                   <DateInput
+                    aria-label={c('Maintenance start date', 'Ngày bắt đầu bảo trì')}
+                    disabled={busy}
                     required
                     value={startDay}
                     min={today}
                     onValueChange={(day) => {
                       setStartDay(day);
+                      setError('');
                       if (day > endDay) setEndDay(day);
                     }}
                   />
-                </label>
-                <label className='block min-w-0 space-y-1.5 text-sm'>
-                  <span>{c('Through date', 'Đến ngày')} *</span>
+                  {timeMode === 'hours' && (
+                    <>
+                      <p className='pt-1 text-xs text-muted-foreground'>
+                        {c('Start time', 'Giờ bắt đầu')}
+                      </p>
+                      <MaintenanceTimePicker
+                        label={c('Start time', 'Giờ bắt đầu')}
+                        day={startDay}
+                        value={startHour}
+                        boundary='start'
+                        start={start}
+                        conflicts={conflicts}
+                        now={clock}
+                        disabled={
+                          busy ||
+                          (!wholeWorkspace && !selected.length) ||
+                          targets.isPending ||
+                          targets.isError ||
+                          reservations.isPending ||
+                          reservations.isError
+                        }
+                        onOpen={() => {
+                          void reservations.refetch();
+                        }}
+                        onChange={(time) => {
+                          setStartHour(time);
+                          const candidate = startDay + 'T' + time;
+                          if (
+                            maintenancePeriodIssue(
+                              candidate,
+                              end,
+                              conflicts,
+                              Math.floor(clock / 1000) * 1000
+                            )
+                          )
+                            setEndHour('');
+                          setError('');
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
+                <div className='min-w-0 space-y-1.5 text-sm'>
+                  <span>
+                    {timeMode === 'hours'
+                      ? c('End date', 'Ngày kết thúc')
+                      : c('Through date', 'Đến ngày')}{' '}
+                    *
+                  </span>
                   <DateInput
+                    aria-label={c('Maintenance end date', 'Ngày kết thúc bảo trì')}
+                    disabled={busy}
                     required
                     value={endDay}
                     min={startDay || today}
-                    onValueChange={setEndDay}
+                    onValueChange={(day) => {
+                      setEndDay(day);
+                      setError('');
+                    }}
                   />
-                </label>
+                  {timeMode === 'hours' && (
+                    <>
+                      <p className='pt-1 text-xs text-muted-foreground'>
+                        {c('End time', 'Giờ kết thúc')}
+                      </p>
+                      <MaintenanceTimePicker
+                        label={c('End time', 'Giờ kết thúc')}
+                        day={endDay}
+                        value={endHour}
+                        boundary='end'
+                        start={start}
+                        conflicts={conflicts}
+                        now={clock}
+                        disabled={
+                          busy ||
+                          !start ||
+                          (!wholeWorkspace && !selected.length) ||
+                          targets.isPending ||
+                          targets.isError ||
+                          reservations.isPending ||
+                          reservations.isError
+                        }
+                        onOpen={() => {
+                          void reservations.refetch();
+                        }}
+                        onChange={(time) => {
+                          setEndHour(time);
+                          setError('');
+                        }}
+                      />
+                    </>
+                  )}
+                </div>
               </div>
               <p className='text-xs leading-relaxed text-muted-foreground'>
-                {c(
-                  'Through the end of the selected date. Starting today takes effect immediately.',
-                  'Bảo trì đến hết ngày kết thúc. Chọn hôm nay sẽ áp dụng từ lúc tạo lịch.'
-                )}
+                {timeMode === 'day'
+                  ? c(
+                      'Through the end of the selected date. Starting today takes effect immediately.',
+                      'Bảo trì đến hết ngày kết thúc. Chọn hôm nay sẽ áp dụng từ lúc tạo lịch.'
+                    )
+                  : c(
+                      'Choose exact times, including overnight. Only free intervals can be saved.',
+                      'Chọn giờ chính xác, có thể qua đêm. Chỉ lưu được khoảng không trùng lịch.'
+                    )}
               </p>
+              {(wholeWorkspace || selected.length > 0) &&
+                reservations.data &&
+                !reservations.isError && (
+                  <p
+                    role='status'
+                    className='flex items-center gap-1.5 text-xs text-muted-foreground'
+                  >
+                    <span className='size-1.5 rounded-full bg-emerald-500' />
+                    {reservations.isFetching
+                      ? c('Refreshing availability…', 'Đang cập nhật lịch…')
+                      : c('Availability refreshes every 3 seconds', 'Lịch tự cập nhật mỗi 3 giây')}
+                  </p>
+                )}
               {periodError && (
                 <p role='alert' className='text-xs leading-relaxed text-destructive'>
                   {periodError}
@@ -504,12 +695,21 @@ function MaintenanceWorkspace({
                           setSelected(
                             s.wholeWorkspace ? all.map((t) => t.key) : (s.targetKeys ?? [])
                           );
-                          setStartDay(
-                            s.startTime.slice(0, 10) < today ? today : s.startTime.slice(0, 10)
-                          );
-                          const last = new Date(s.endTime ?? s.startTime);
-                          last.setDate(last.getDate() - 1);
-                          setEndDay(localDate(last));
+                          // Preserve exact stored boundaries; date-only conversion loses partial days.
+                          const editStart =
+                            Date.parse(s.startTime) < Date.now()
+                              ? localTimestamp(
+                                  new Date(Math.ceil(Date.now() / 60000) * 60000 + 60000)
+                                )
+                              : s.startTime;
+                          setTimeMode('hours');
+                          setStartDay(editStart.slice(0, 10));
+                          const startTime = editStart.slice(11, 19);
+                          setStartHour(startTime.length === 5 ? startTime + ':00' : startTime);
+                          setEndDay((s.endTime ?? editStart).slice(0, 10));
+                          const finishTime = s.endTime?.slice(11, 19) ?? '';
+                          setEndHour(finishTime.length === 5 ? finishTime + ':00' : finishTime);
+                          setError('');
                           setReason(s.reason);
                           document
                             .getElementById('maintenance-form')
@@ -532,10 +732,8 @@ function MaintenanceWorkspace({
                     </Button>
                   </div>
                   <p className='mt-3 text-xs tabular-nums'>
-                    {formatDate(s.startTime)} →{' '}
-                    {s.endTime
-                      ? formatDate(new Date(Date.parse(s.endTime) - 1))
-                      : c('Until removed', 'Đến khi gỡ lịch')}
+                    {formatDateTime(s.startTime)} →{' '}
+                    {s.endTime ? formatDateTime(s.endTime) : c('Until removed', 'Đến khi gỡ lịch')}
                   </p>
                   <p className='mt-2 whitespace-pre-wrap break-words text-sm text-muted-foreground'>
                     {s.reason}

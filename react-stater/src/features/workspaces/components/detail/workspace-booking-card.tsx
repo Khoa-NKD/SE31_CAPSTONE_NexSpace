@@ -24,6 +24,7 @@ import type { CustomerFloor, MapResource } from './public-floor-map';
 import type { ResourceAvailabilityItem } from '@/features/workspaces/api/booking-types';
 import { useCurrentPendingBooking } from '@/features/payments/api';
 import { cn } from '@/lib/utils';
+import { customerResourceStatus } from '../../utils/customer-resource-status';
 
 interface WorkspaceBookingCardProps {
   workspace?: PublicWorkspaceDetail;
@@ -61,24 +62,35 @@ export function WorkspaceBookingCard({
       (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id)))
   );
 
-  const isSelectedResourceAvailable = useMemo(() => {
-    if (!selectedResource) return true;
-    const avail = availabilityMap?.get(selectedResource.id);
-    const isHeldByMe = Boolean(
-      avail?.isOccupiedByMe ||
-      (holdData?.resourceId && Number(holdData.resourceId) === Number(selectedResource.id))
-    );
-    const isBooked = avail?.state === 'BOOKED';
-    const isLocked = (avail?.state === 'LOCKED' || avail?.state === 'HOLDING') && !isHeldByMe;
-    const isMaintenance =
-      avail?.state === 'MAINTENANCE' || (!selectedResource.selectable && !isHeldByMe);
-    return (
-      (!avail || avail.state === 'AVAILABLE' || isHeldByMe) &&
-      !isBooked &&
-      !isLocked &&
-      !isMaintenance
-    );
-  }, [selectedResource, availabilityMap, holdData]);
+  const selectedStatus = selectedResource
+    ? customerResourceStatus(
+        selectedResource,
+        availabilityMap?.get(selectedResource.id),
+        isSelectedHeldByMe
+      )
+    : undefined;
+  const isSelectedResourceAvailable = selectedStatus?.available ?? true;
+  const unavailableLabel = selectedStatus?.maintenance
+    ? language === 'vi'
+      ? 'Đang bảo trì'
+      : 'Under maintenance'
+    : selectedStatus?.disabled
+      ? language === 'vi'
+        ? 'Ngừng nhận đặt'
+        : 'Not accepting bookings'
+      : selectedStatus?.locked
+        ? language === 'vi'
+          ? 'Đang được giữ chỗ'
+          : 'Held by another customer'
+        : selectedStatus?.booked
+          ? language === 'vi'
+            ? 'Đã có người đặt'
+            : 'Already booked'
+          : language === 'vi'
+            ? 'Chưa thể đặt'
+            : 'Unavailable';
+  const unavailableMessage =
+    unavailableLabel + (language === 'vi' ? ' trong khung giờ đã chọn' : ' for the selected time');
 
   // Compute lowest starting hourly price from floor resources if workspace.pricePerHour is not present
   const floorStartingHourlyPrice = useMemo(() => {
@@ -211,9 +223,7 @@ export function WorkspaceBookingCard({
                 </div>
                 {!isSelectedResourceAvailable ? (
                   <p className='text-[11px] font-semibold text-rose-600 dark:text-rose-400 mt-1'>
-                    {language === 'vi'
-                      ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
-                      : 'This space is unavailable for the selected time'}
+                    {unavailableMessage}
                   </p>
                 ) : (
                   <div className='mt-1 flex items-center gap-2 text-[11px] text-slate-600 dark:text-slate-400'>
@@ -388,16 +398,10 @@ export function WorkspaceBookingCard({
               type='button'
               disabled
               className='w-full py-3.5 px-5 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-sm rounded-xl cursor-not-allowed border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2 select-none'
-              title={
-                language === 'vi'
-                  ? 'Vị trí này đã kín chỗ trong khung giờ đã chọn'
-                  : 'This space is fully booked in this time slot'
-              }
+              title={unavailableMessage}
             >
               <span>
-                {language === 'vi'
-                  ? `${selectedResource.code} đã kín chỗ`
-                  : `${selectedResource.code} is unavailable`}
+                {selectedResource.code} · {unavailableLabel}
               </span>
             </button>
           ) : !schedule ? (
@@ -515,7 +519,7 @@ export function WorkspaceBookingCard({
               disabled
               className='shrink-0 px-5 py-3 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 font-bold text-xs sm:text-sm rounded-xl cursor-not-allowed border border-slate-200 dark:border-slate-700 flex items-center gap-1.5 select-none'
             >
-              <span>{language === 'vi' ? 'Đã kín chỗ' : 'Unavailable'}</span>
+              <span>{unavailableLabel}</span>
             </button>
           ) : !schedule ? (
             <button
