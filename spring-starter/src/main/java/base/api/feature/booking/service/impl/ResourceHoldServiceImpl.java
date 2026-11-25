@@ -437,12 +437,20 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                     continue;
                 }
 
-                // Cập nhật các giao dịch PENDING sang EXPIRED nếu có (giữ nguyên link PayOS để khách vẫn có thể thanh toán trễ)
+                // Hủy các giao dịch PENDING và PayOS payment link nếu có
                 for (PaymentTransactionModel tx : txs) {
                     if (tx.getStatus() == PaymentStatus.PENDING) {
                         tx.setStatus(PaymentStatus.EXPIRED);
                         tx.setFailureReason("Giao dịch hết hạn thanh toán (quá thời gian giữ chỗ)");
                         paymentTransactionRepository.save(tx);
+
+                        if (payOS != null && tx.getOrderCode() != null) {
+                            try {
+                                payOS.paymentRequests().cancel(tx.getOrderCode(), "Hết hạn thanh toán");
+                            } catch (Exception e) {
+                                log.debug("PayOS link cancel note for orderCode {}: {}", tx.getOrderCode(), e.getMessage());
+                            }
+                        }
                     }
                 }
 

@@ -51,6 +51,15 @@ public class PaymentExpiryScheduler {
                 tx.setStatus(PaymentStatus.EXPIRED);
                 tx.setFailureReason("Giao dịch hết hạn thanh toán (quá 10 phút)");
                 paymentTransactionRepository.save(tx);
+
+                // Hủy link thanh toán trên PayOS nếu cổng hỗ trợ
+                if (payOS != null && tx.getOrderCode() != null) {
+                    try {
+                        payOS.paymentRequests().cancel(tx.getOrderCode(), "Hết hạn thanh toán");
+                    } catch (Exception e) {
+                        log.debug("PayOS link cancel note for orderCode {}: {}", tx.getOrderCode(), e.getMessage());
+                    }
+                }
             } catch (Exception e) {
                 log.error("Lỗi khi xử lý hết hạn giao dịch orderCode={}: {}", tx.getOrderCode(), e.getMessage(), e);
             }
