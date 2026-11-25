@@ -267,8 +267,18 @@ class WorkspaceServiceImplTest {
     @Test
     @DisplayName("Lấy danh sách không gian của Organizer thành công có phân trang")
     void getMyWorkspaces_success() {
+        var resources = mock(base.api.feature.resource.repository.IBookableResourceRepository.class);
+        var media = mock(base.api.feature.workspace.repository.IMediaRepository.class);
+        service = new WorkspaceServiceImpl(workspaceRepository, userRepository, operatingHourRepository,
+                bookingRepository, mock(base.api.feature.resource.service.BuildingService.class), null, resources, media);
+        when(resources.findMinPricePerHourByWorkspaceIds(List.of(100L), base.api.shared.enums.BookableResourceStatus.ACTIVE))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{100L, new BigDecimal("10000")}));
+        when(media.findCoverUrlsByWorkspaceIds(List.of(100L)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{100L, "https://example.com/cover.jpg"}));
+        when(bookingRepository.countBookingsByWorkspaceIds(List.of(100L)))
+                .thenReturn(java.util.Collections.singletonList(new Object[]{100L, 7L}));
         Page<WorkspaceModel> mockPage = new PageImpl<>(List.of(existingWorkspace));
-        when(workspaceRepository.searchByOrganizerEffective(eq(10L), eq("DRAFT"), eq("Old"), any(), any(), any(Pageable.class)))
+        when(workspaceRepository.searchByOrganizerEffective(eq(10L), eq("DRAFT"), eq("Old"), any(), any(), any(), any(Pageable.class)))
                 .thenReturn(mockPage);
 
         PageRequestDTO pageRequest = new PageRequestDTO();
@@ -282,6 +292,9 @@ class WorkspaceServiceImplTest {
         assertThat(result.getContent()).hasSize(1);
         assertThat(result.getContent().get(0).getName()).isEqualTo("Old Name");
         assertThat(result.getContent().get(0).getOrganizerId()).isEqualTo(10L);
+        assertThat(result.getContent().get(0).getCoverImageUrl()).isEqualTo("https://example.com/cover.jpg");
+        assertThat(result.getContent().get(0).getPricePerHour()).isEqualByComparingTo("10000");
+        assertThat(result.getContent().get(0).getBookingCount()).isEqualTo(7L);
     }
 
     @Test

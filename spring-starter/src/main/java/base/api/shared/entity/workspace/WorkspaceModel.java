@@ -81,6 +81,12 @@ public class WorkspaceModel extends BaseModel {
     @org.hibernate.annotations.BatchSize(size=50)
     private java.util.Set<String> holidayCodes = new java.util.LinkedHashSet<>();
 
+    @jakarta.persistence.ElementCollection
+    @jakarta.persistence.CollectionTable(name="workspace_holiday_schedule", joinColumns=@JoinColumn(name="workspace_id"))
+    @jakarta.persistence.MapKeyColumn(name="holiday_code", length=30)
+    @org.hibernate.annotations.BatchSize(size=50)
+    private java.util.Map<String, WorkspaceHolidayDates> holidaySchedules = new java.util.LinkedHashMap<>();
+
     @Enumerated(EnumType.STRING)
     @JdbcTypeCode(SqlTypes.VARCHAR)
     @Column(name = "booking_confirmation_mode", nullable = false, length = 20)

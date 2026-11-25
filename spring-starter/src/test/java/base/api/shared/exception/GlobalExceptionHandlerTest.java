@@ -26,6 +26,14 @@ class GlobalExceptionHandlerTest {
     }
 
     @Test
+    void removedEndpointReturnsNotFoundInsteadOfServerError() throws Exception {
+        mvc.perform(post("/api/v1/bookings/999/approve"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.statusCode").value(404));
+    }
+
+    @Test
     void organizerUploadLimitPreservesPayloadTooLargeContract() throws Exception {
         mvc.perform(post("/api/organizer/applications"))
                 .andExpect(status().isPayloadTooLarge())

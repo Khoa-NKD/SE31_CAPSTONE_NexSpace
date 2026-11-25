@@ -80,9 +80,5 @@ public interface IBookingService {
             LocalDate startDate,
             LocalDate endDate);
 
-    /** Organizer phê duyệt đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL) */
-    BookingResponseDto approveBooking(Long currentUserId, Long bookingId);
 
-    /** Organizer từ chối đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL) kèm lý do */
-    BookingResponseDto rejectBooking(Long currentUserId, Long bookingId, String rejectionReason);
 }

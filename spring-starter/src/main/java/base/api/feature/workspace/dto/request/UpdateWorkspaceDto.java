@@ -1,5 +1,6 @@
 package base.api.feature.workspace.dto.request;
 
+import base.api.feature.workspace.dto.WorkspaceHolidayScheduleDto;
 import base.api.shared.enums.BookingConfirmationMode;
 import base.api.shared.enums.WorkspaceCategory;
 import com.fasterxml.jackson.annotation.JsonAlias;
@@ -54,6 +55,10 @@ public class UpdateWorkspaceDto {
 
     @Size(max=6)
     private java.util.Set<@jakarta.validation.constraints.NotBlank String> holidayCodes;
+
+    @jakarta.validation.Valid
+    @Size(max=6)
+    private java.util.List<@jakarta.validation.constraints.NotNull WorkspaceHolidayScheduleDto> holidaySchedules;
 
     private BookingConfirmationMode bookingConfirmationMode;
 

@@ -31,6 +31,7 @@ public class WorkspaceDetailDto {
     BookingConfirmationMode bookingConfirmationMode;
     WorkspaceStatus status;
     java.util.Set<String> holidayCodes;
+    java.util.List<base.api.feature.workspace.dto.WorkspaceHolidayScheduleDto> holidaySchedules;
     java.util.List<base.api.feature.workspace.service.VietnamHolidays.Period> holidayPeriods;
     base.api.feature.workspace.service.VietnamHolidays.Closure holidayClosure;
     Integer holidayCalendarThroughYear;

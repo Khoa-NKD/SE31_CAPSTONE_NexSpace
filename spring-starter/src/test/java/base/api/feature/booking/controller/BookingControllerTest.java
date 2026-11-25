@@ -466,50 +466,19 @@ class BookingControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/bookings/{id}/approve - Phê duyệt đơn đặt chỗ thành công")
-    void testApproveBooking_Success() throws Exception {
-        when(currentUserProvider.getCurrentUserId()).thenReturn(200L);
-
-        BookingResponseDto approved = BookingResponseDto.builder()
-                .id(999L)
-                .bookingCode("BK-APP-001")
-                .status(BookingStatus.PENDING_PAYMENT)
-                .workspaceId(1L)
-                .workspaceName("NexSpace Saigon")
-                .build();
-
-        when(bookingService.approveBooking(200L, 999L)).thenReturn(approved);
-
+    @DisplayName("Removed approval endpoint returns 404 without mutating bookings")
+    void testApproveBooking_EndpointRemoved() throws Exception {
         mockMvc.perform(post("/api/v1/bookings/999/approve"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.bookingCode").value("BK-APP-001"))
-                .andExpect(jsonPath("$.data.status").value("PENDING_PAYMENT"));
+                .andExpect(status().isNotFound());
+        org.mockito.Mockito.verifyNoInteractions(bookingService, currentUserProvider);
     }
 
     @Test
-    @DisplayName("POST /api/v1/bookings/{id}/reject - Từ chối duyệt đơn đặt chỗ thành công")
-    void testRejectBooking_Success() throws Exception {
-        when(currentUserProvider.getCurrentUserId()).thenReturn(200L);
-
-        BookingResponseDto rejected = BookingResponseDto.builder()
-                .id(999L)
-                .bookingCode("BK-APP-001")
-                .status(BookingStatus.CANCELLED)
-                .cancelReason("Phòng đang bảo trì đột xuất")
-                .workspaceId(1L)
-                .workspaceName("NexSpace Saigon")
-                .build();
-
-        when(bookingService.rejectBooking(200L, 999L, "Phòng đang bảo trì đột xuất")).thenReturn(rejected);
-
-        mockMvc.perform(post("/api/v1/bookings/999/reject")
-                        .param("reason", "Phòng đang bảo trì đột xuất"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.data.bookingCode").value("BK-APP-001"))
-                .andExpect(jsonPath("$.data.status").value("CANCELLED"))
-                .andExpect(jsonPath("$.data.cancelReason").value("Phòng đang bảo trì đột xuất"));
+    @DisplayName("Removed rejection endpoint returns 404 without mutating bookings")
+    void testRejectBooking_EndpointRemoved() throws Exception {
+        mockMvc.perform(post("/api/v1/bookings/999/reject"))
+                .andExpect(status().isNotFound());
+        org.mockito.Mockito.verifyNoInteractions(bookingService, currentUserProvider);
     }
 
     @Test

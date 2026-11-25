@@ -292,9 +292,6 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         log.info("Booking created successfully: code={}, customerId={}, resourceId={}, status={}",
                 savedBooking.getBookingCode(), customerId, resource.getId(), savedBooking.getStatus());
 
-        if (initialStatus == BookingStatus.PENDING_APPROVAL) {
-            notificationService.sendBookingPendingApprovalToOrganizerNotification(savedBooking);
-        }
 
         return enrichBookingDto(savedBooking);
     }
@@ -825,113 +822,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         return BookingMapper.toDto(updated, refundPercent, refundAmount);
     }
 
-    @Override
-    @Transactional
-    public BookingResponseDto approveBooking(Long currentUserId, Long bookingId) {
-        BookingModel booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
 
-        boolean isAdmin = isCallerAdmin(currentUserId);
-        boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
-                && booking.getWorkspace().getOrganizer().getId().equals(currentUserId);
 
-        if (!isHost && !isAdmin) {
-            throw new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId);
-        }
 
-        if (booking.getStatus() != BookingStatus.PENDING_APPROVAL) {
-            throw new BadRequestException("Chỉ có thể phê duyệt đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL). Trạng thái hiện tại: " + booking.getStatus());
-        }
-
-        BookingStatus targetStatus;
-        if (booking.getFinalPrice() == null || booking.getFinalPrice().compareTo(BigDecimal.ZERO) <= 0) {
-            targetStatus = BookingStatus.CONFIRMED;
-            booking.setHoldExpiresAt(null);
-        } else {
-            targetStatus = BookingStatus.PENDING_PAYMENT;
-            // Renewed hold window for customer to complete payment (reads DB setting or fallback to BOOKING_HOLD_MINUTES)
-            booking.setHoldExpiresAt(LocalDateTime.now().plusMinutes(getEffectiveHoldMinutes()));
-        }
-
-        booking.setStatus(targetStatus);
-        BookingModel updated = bookingRepository.save(booking);
-
-        UserModel actor = userRepository.findById(currentUserId).orElse(booking.getWorkspace().getOrganizer());
-        auditService.log(
-                actor,
-                "BOOKING",
-                "APPROVE",
-                "Booking",
-                updated.getId(),
-                "Organizer phê duyệt đơn đặt chỗ " + updated.getBookingCode() + " chuyển sang " + targetStatus
-        );
-
-        log.info("Booking approved successfully: id={}, code={}, newStatus={}",
-                updated.getId(), updated.getBookingCode(), targetStatus);
-
-        if (resourceStateSyncService != null) {
-            if (targetStatus == BookingStatus.CONFIRMED) {
-                resourceStateSyncService.syncOnBookingConfirmed(updated);
-            } else if (targetStatus == BookingStatus.PENDING_PAYMENT) {
-                resourceStateSyncService.syncOnHoldCreated(updated);
-            }
-        }
-
-        return BookingMapper.toDto(updated);
-    }
-
-    @Override
-    @Transactional
-    public BookingResponseDto rejectBooking(Long currentUserId, Long bookingId, String rejectionReason) {
-        BookingModel booking = bookingRepository.findById(bookingId)
-                .orElseThrow(() -> new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId));
-
-        boolean isAdmin = isCallerAdmin(currentUserId);
-        boolean isHost = booking.getWorkspace() != null && booking.getWorkspace().getOrganizer() != null
-                && booking.getWorkspace().getOrganizer().getId().equals(currentUserId);
-
-        if (!isHost && !isAdmin) {
-            throw new NotFoundException("Không tìm thấy đơn đặt chỗ với ID: " + bookingId);
-        }
-
-        if (booking.getStatus() != BookingStatus.PENDING_APPROVAL) {
-            throw new BadRequestException("Chỉ có thể từ chối đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL). Trạng thái hiện tại: " + booking.getStatus());
-        }
-
-        String reason = (rejectionReason != null && !rejectionReason.isBlank())
-                ? rejectionReason.trim()
-                : "Organizer từ chối duyệt đơn đặt chỗ";
-
-        booking.setStatus(BookingStatus.CANCELLED);
-        booking.setCancelSource(CancelSource.ORGANIZER);
-        booking.setCancelReason(reason);
-        booking.setCancelledAt(LocalDateTime.now());
-        booking.setHoldExpiresAt(null);
-
-        BookingModel updated = bookingRepository.save(booking);
-
-        UserModel actor = userRepository.findById(currentUserId).orElse(booking.getWorkspace().getOrganizer());
-        auditService.log(
-                actor,
-                "BOOKING",
-                "REJECT",
-                "Booking",
-                updated.getId(),
-                "Organizer từ chối đơn đặt chỗ " + updated.getBookingCode() + " (Lý do: " + reason + ")"
-        );
-
-        log.info("Booking rejected successfully: id={}, code={}, reason={}",
-                updated.getId(), updated.getBookingCode(), reason);
-
-        if (resourceStateSyncService != null) {
-            resourceStateSyncService.syncOnBookingCancelled(updated);
-        }
-
-        // Gửi thông báo từ chối đặt chỗ (In-App + Email)
-        notificationService.sendBookingCancelledNotification(updated, BigDecimal.ZERO, updated.getCancelReason());
-
-        return BookingMapper.toDto(updated);
-    }
 
     @Override
     @Transactional

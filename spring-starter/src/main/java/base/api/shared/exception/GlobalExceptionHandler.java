@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import org.springframework.web.servlet.NoHandlerFoundException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -117,7 +118,7 @@ public class GlobalExceptionHandler {
         return build("Access denied", req, HttpStatus.FORBIDDEN);
     }
 
-    @ExceptionHandler({NotFoundException.class, NoResourceFoundException.class})
+    @ExceptionHandler({NotFoundException.class, NoResourceFoundException.class, NoHandlerFoundException.class})
     public ResponseEntity<ApiResponse<Void>> handleNotFound(Exception ex, WebRequest req) {
         return build(ex.getMessage(), req, HttpStatus.NOT_FOUND);
     }
