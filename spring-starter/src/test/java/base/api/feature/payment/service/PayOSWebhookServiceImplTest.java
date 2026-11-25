@@ -370,5 +370,61 @@ class PayOSWebhookServiceImplTest {
         webhookService.confirmWebhook(url);
         verify(webhooksService).confirm(url);
     }
+
+    @Test
+    @DisplayName("processWebhook: booking is EXPIRED but payment succeeds - transitions to CONFIRMED successfully")
+    void processWebhook_expiredBooking_success() {
+        UserModel customer = createCustomer();
+        BookingModel booking = createBooking(customer);
+        booking.setStatus(BookingStatus.EXPIRED);
+        booking.setHoldExpiresAt(null);
+        booking.setCancelReason("Hết thời gian giữ chỗ 10 phút");
+
+        Long orderCode = 8821008L;
+        PaymentTransactionModel tx = createTransaction(booking, orderCode, BigDecimal.valueOf(255000));
+        tx.setStatus(PaymentStatus.EXPIRED);
+
+        WebhookData webhookData = new WebhookData();
+        webhookData.setOrderCode(orderCode);
+        webhookData.setAmount(255000L);
+        webhookData.setCode("00");
+        webhookData.setDesc("success");
+        webhookData.setReference("FT2611-LATE");
+
+        Webhook webhook = new Webhook();
+        webhook.setCode("00");
+        webhook.setDesc("success");
+        webhook.setSuccess(true);
+        webhook.setData(webhookData);
+        webhook.setSignature("valid_sig");
+
+        when(webhooksService.verify(webhook)).thenReturn(webhookData);
+        when(paymentTransactionRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(tx));
+        when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
+        when(paymentTransactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+
+        WebhookProcessResultDTO result = webhookService.processWebhook(webhook, "{\"raw\":\"payload\"}");
+
+        assertThat(result.getStatus()).isEqualTo("SUCCESS");
+        assertThat(tx.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
+        assertThat(tx.getReconciliationStatus()).isEqualTo(ReconciliationStatus.MATCHED);
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
+        assertThat(booking.getQrTokenHash()).isNotNull();
+        assertThat(booking.getCancelReason()).isNull();
+
+        verify(auditService).log(
+                eq(customer),
+                eq(AuditActorType.PAYMENT_WEBHOOK),
+                eq("PAYMENT"),
+                eq("BOOKING_CONFIRMED"),
+                eq("Booking"),
+                eq(500L),
+                eq("EXPIRED"),
+                eq("CONFIRMED"),
+                contains("orderCode=" + orderCode),
+                isNull()
+        );
+    }
 }
 

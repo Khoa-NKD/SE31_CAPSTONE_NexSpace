@@ -128,9 +128,11 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
 
                 if (booking != null) {
                     booking = bookingRepository.findByIdForUpdate(booking.getId()).orElse(booking);
-                    if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                    if (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.EXPIRED) {
                         booking.setStatus(BookingStatus.CONFIRMED);
                         booking.setHoldExpiresAt(null);
+                        booking.setCancelledAt(null);
+                        booking.setCancelReason(null);
                         booking.setQrTokenHash("NXQR-" + booking.getBookingCode() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase());
                         bookingRepository.save(booking);
 
