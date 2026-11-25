@@ -168,10 +168,15 @@ public class PaymentServiceImpl implements IPaymentService {
             bookingRepository.save(booking);
         }
 
-        // Calculate epoch seconds for PayOS link expiration (must be at least 60s in the future for PayOS API)
+        // Calculate epoch seconds for PayOS link expiration (cho phép link PayOS mở rộng tối thiểu 24h hoặc đến giờ bắt đầu booking)
         long nowEpochSeconds = System.currentTimeMillis() / 1000;
-        long targetEpochSeconds = expiresAt.atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
-        long payosExpiredAt = Math.max(nowEpochSeconds + 60, targetEpochSeconds);
+        long payosExpiredAt = nowEpochSeconds + 86400;
+        if (booking.getStartTime() != null) {
+            long bookingStartEpoch = booking.getStartTime().atZone(java.time.ZoneId.systemDefault()).toEpochSecond();
+            if (bookingStartEpoch > nowEpochSeconds + 60) {
+                payosExpiredAt = Math.max(payosExpiredAt, bookingStartEpoch);
+            }
+        }
 
         // Sanitize transfer description (up to 25 chars, alphanumeric only)
         String description = sanitizeDescription("NX" + booking.getId() + " " + (orderCode % 10000));

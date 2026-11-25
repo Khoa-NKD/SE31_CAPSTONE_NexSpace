@@ -260,7 +260,8 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
             notificationService.sendPaymentSuccessNotification(tx, booking);
 
             if (booking != null) {
-                if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                if (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.EXPIRED) {
+                    BookingStatus previousStatus = booking.getStatus();
                     // Phòng vệ đa tầng cuối cùng (Last-mile Defense): Kiểm tra xem vị trí này đã bị đơn khác CONFIRMED trong cùng khung giờ chưa
                     boolean alreadyBooked = false;
                     if (booking.getResource() != null) {
@@ -306,6 +307,8 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
 
                     booking.setStatus(BookingStatus.CONFIRMED);
                     booking.setHoldExpiresAt(null);
+                    booking.setCancelledAt(null);
+                    booking.setCancelReason(null);
 
                     // Generate unique QR access token
                     String qrToken = "NXQR-" + booking.getBookingCode() + "-"
@@ -328,9 +331,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                             "BOOKING_CONFIRMED",
                             "Booking",
                             booking.getId(),
-                            BookingStatus.PENDING_PAYMENT.name(),
+                            previousStatus.name(),
                             BookingStatus.CONFIRMED.name(),
-                            "Thanh toán thành công qua PayOS (orderCode=" + orderCode + ")",
+                            "Thanh toán thành công qua PayOS (orderCode=" + orderCode + ")" + (previousStatus == BookingStatus.EXPIRED ? " sau khi hết hạn giữ chỗ" : ""),
                             null
                     );
 
@@ -351,7 +354,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                     // Khởi tạo bản ghi OrganizerPayout ở trạng thái HELD
                     createHeldPayoutForBooking(booking);
                 } else {
-                    // Late payment after cancellation/expiration
+                    // Late payment after cancellation
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
                     tx.setReconciliationNote("Nhận tiền thành công nhưng đơn đặt chỗ đã ở trạng thái " + booking.getStatus());
                     paymentTransactionRepository.save(tx);
