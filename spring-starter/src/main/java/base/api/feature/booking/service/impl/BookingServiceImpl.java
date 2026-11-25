@@ -1121,6 +1121,11 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         }
     }
 
+    /** The quote already includes selected amenities and their VAT; do not add them again. */
+    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource) {
+        return buildPricingSnapshot(priceCalc, resource, null);
+    }
+
     private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource, BigDecimal addonAmount) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("resourceId", resource.getId());
@@ -1132,7 +1137,9 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         map.put("addonAmount", priceCalc.getAddonAmount());
         map.put("addons", priceCalc.getAddons());
         map.put("vatPercent", priceCalc.getVatPercent());
-        map.put("addonAmount", addonAmount != null ? addonAmount : BigDecimal.ZERO);
+        if (addonAmount != null) {
+            map.put("addonAmount", addonAmount);
+        }
         map.put("taxAmount", priceCalc.getTaxAmount());
         map.put("serviceFeeAmount", priceCalc.getServiceFeeAmount());
         map.put("discountAmount", priceCalc.getDiscountAmount());
