@@ -11,6 +11,8 @@ export interface BookingReviewSearch {
   date?: string;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
   autoOpen?: boolean;
+  addonAmount?: number;
+  addonName?: string;
 }
 
 export const Route = createFileRoute('/workspaces/review')({
@@ -32,6 +34,11 @@ export const Route = createFileRoute('/workspaces/review')({
     endTime: typeof search.endTime === 'string' ? search.endTime : undefined,
     date: typeof search.date === 'string' ? search.date : undefined,
     autoOpen: search.autoOpen === true || search.autoOpen === 'true' ? true : undefined,
+    addonAmount:
+      !isNaN(Number(search.addonAmount)) && Number(search.addonAmount) > 0
+        ? Number(search.addonAmount)
+        : undefined,
+    addonName: typeof search.addonName === 'string' ? search.addonName : undefined,
     priceType:
       search.priceType === 'DAILY' || search.priceType === 'MONTHLY'
         ? search.priceType

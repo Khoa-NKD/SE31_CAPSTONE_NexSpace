@@ -121,6 +121,8 @@ export function SeatDetailPage({
             <SeatSpecsGrid
               monitorAddonSelected={monitorAddonSelected}
               onToggleMonitorAddon={() => setMonitorAddonSelected(!monitorAddonSelected)}
+              currency='VND'
+              addonRatePerHour={35000}
             />
             <SeatProximityMap />
             <SeatReviewsBento />

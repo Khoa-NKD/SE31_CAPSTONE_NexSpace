@@ -1,16 +1,18 @@
 import React from 'react';
-import { Search, RotateCcw } from '@/components/ui/hugeicons';
+import { Search, RotateCcw, X } from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import { BookingStatus, BookingSummaryKpis } from '../data/mock-bookings';
+import { BookingStatus } from '../data/mock-bookings';
+import type { BookingKpiData } from './booking-kpi-grid';
 
 interface BookingsFilterBarProps {
   searchQuery: string;
   onSearchChange: (value: string) => void;
   statusFilter: BookingStatus | 'all';
   onStatusChange: (status: BookingStatus | 'all') => void;
-  kpis: BookingSummaryKpis;
+  kpis: BookingKpiData;
   onReset: () => void;
+  language?: 'vi' | 'en';
 }
 
 export function BookingsFilterBar({
@@ -19,14 +21,43 @@ export function BookingsFilterBar({
   statusFilter,
   onStatusChange,
   kpis,
-  onReset
+  onReset,
+  language = 'vi'
 }: BookingsFilterBarProps) {
+  const isVi = language === 'vi';
   const isFiltered = searchQuery !== '' || statusFilter !== 'all';
 
+  const filterTabs: Array<{
+    key: BookingStatus | 'all';
+    label: string;
+    count: number;
+  }> = [
+    {
+      key: 'all',
+      label: isVi ? 'Tất cả' : 'All',
+      count: kpis.totalCount
+    },
+    {
+      key: 'confirmed',
+      label: isVi ? 'Chờ nhận chỗ' : 'Confirmed',
+      count: kpis.confirmedCount
+    },
+    {
+      key: 'completed',
+      label: isVi ? 'Đã hoàn tất' : 'Completed',
+      count: kpis.completedCount
+    },
+    {
+      key: 'cancelled',
+      label: isVi ? 'Đã hủy' : 'Cancelled',
+      count: kpis.cancelledCount
+    }
+  ];
+
   return (
-    <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 bg-card rounded-xl border border-border shadow-2xs mb-6'>
-      {/* Left: Search Bar */}
-      <div className='relative flex-1 min-w-[280px] max-w-lg'>
+    <div className='flex flex-col lg:flex-row lg:items-center justify-between gap-3 p-3 sm:p-3.5 bg-card rounded-xl border border-border/70 shadow-2xs mb-5'>
+      {/* Left: Search Input with Quick Clear Button */}
+      <div className='relative flex-1 min-w-[260px] max-w-md'>
         <Search
           className='absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground pointer-events-none'
           aria-hidden='true'
@@ -35,84 +66,62 @@ export function BookingsFilterBar({
           type='text'
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder='Filter by Booking ID (#NX-...), Customer, Workspace...'
-          className='pl-9 h-10 text-xs sm:text-sm bg-background border-border shadow-none'
+          placeholder={
+            isVi
+              ? 'Tìm theo mã đơn (#NX-...), tên khách, không gian...'
+              : 'Search by Booking ID (#NX-...), customer, workspace...'
+          }
+          className='pl-9 pr-8 h-9 text-xs sm:text-sm bg-background border-border/80 shadow-none focus-visible:ring-1'
           aria-label='Filter bookings by ID, customer name, or workspace'
         />
+        {searchQuery && (
+          <button
+            type='button'
+            onClick={() => onSearchChange('')}
+            className='absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded text-muted-foreground hover:text-foreground'
+            title={isVi ? 'Xóa từ khóa' : 'Clear search'}
+            aria-label='Clear search'
+          >
+            <X className='size-3.5' />
+          </button>
+        )}
       </div>
 
-      {/* Right: Status Tabs */}
-      <div className='flex flex-wrap items-center gap-3'>
+      {/* Right: Segmented Status Pills + Reset Button */}
+      <div className='flex flex-wrap items-center gap-2'>
         <div
           role='tablist'
           aria-label='Filter bookings by status'
-          className='inline-flex p-1 bg-muted/60 rounded-lg border border-border'
+          className='inline-flex p-0.5 bg-muted/60 rounded-lg border border-border/70 text-xs'
         >
-          <button
-            type='button'
-            role='tab'
-            aria-selected={statusFilter === 'all'}
-            onClick={() => onStatusChange('all')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'all'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            All ({kpis.todayTotalBookings})
-          </button>
-          <button
-            type='button'
-            role='tab'
-            aria-selected={statusFilter === 'confirmed'}
-            onClick={() => onStatusChange('confirmed')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'confirmed'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Confirmed ({kpis.confirmedCount})
-          </button>
-          <button
-            type='button'
-            role='tab'
-            aria-selected={statusFilter === 'checked_in'}
-            onClick={() => onStatusChange('checked_in')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'checked_in'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Checked In (112)
-          </button>
-          <button
-            type='button'
-            role='tab'
-            aria-selected={statusFilter === 'completed'}
-            onClick={() => onStatusChange('completed')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'completed'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Completed ({kpis.completedCount})
-          </button>
-          <button
-            type='button'
-            role='tab'
-            aria-selected={statusFilter === 'cancelled'}
-            onClick={() => onStatusChange('cancelled')}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all ${
-              statusFilter === 'cancelled'
-                ? 'bg-card text-foreground shadow-2xs'
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            Cancelled ({kpis.cancelledCount})
-          </button>
+          {filterTabs.map((tab) => {
+            const isActive = statusFilter === tab.key;
+            return (
+              <button
+                key={tab.key}
+                type='button'
+                role='tab'
+                aria-selected={isActive}
+                onClick={() => onStatusChange(tab.key)}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-all ${
+                  isActive
+                    ? 'bg-card text-foreground shadow-2xs font-semibold'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-card/50'
+                }`}
+              >
+                <span>{tab.label}</span>
+                <span
+                  className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                    isActive
+                      ? 'bg-primary/10 text-primary font-bold'
+                      : 'bg-muted-foreground/15 text-muted-foreground'
+                  }`}
+                >
+                  {tab.count.toLocaleString('vi-VN')}
+                </span>
+              </button>
+            );
+          })}
         </div>
 
         {/* Reset button */}
@@ -122,10 +131,10 @@ export function BookingsFilterBar({
             variant='ghost'
             size='sm'
             onClick={onReset}
-            className='h-9 px-2.5 text-xs text-muted-foreground hover:text-foreground'
+            className='h-8 px-2 text-xs text-muted-foreground hover:text-foreground'
           >
-            <RotateCcw className='size-3.5 mr-1.5' aria-hidden='true' />
-            <span>Reset</span>
+            <RotateCcw className='size-3 mr-1' aria-hidden='true' />
+            <span>{isVi ? 'Đặt lại' : 'Reset'}</span>
           </Button>
         )}
       </div>

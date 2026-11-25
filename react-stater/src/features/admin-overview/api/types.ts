@@ -26,6 +26,9 @@ export interface AdminTriageItemDTO {
 
 export interface AdminOperationalTrendPointDTO {
   day: string;
+  date?: string;
+  formattedDate?: string;
+  fullDateLabel?: string;
   bookings: number;
   settlements: number; // in VND
   isPeak?: boolean;

@@ -152,6 +152,9 @@ export function SeatsPage({
   const [activeFloorId, setActiveFloorId] = useState<number | undefined>(initialFloorId);
   const [selectedResource, setSelectedResource] = useState<MapResource | null>(null);
   const [activeCategoryFilter, setActiveCategoryFilter] = useState<SpaceFilterType>('ALL');
+  const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
+  const [hasManuallyDeselected, setHasManuallyDeselected] = useState(false);
+  const hasScheduleSelected = Boolean(currentStartTime && currentEndTime);
 
   // Sync date/time from props if changed
   useEffect(() => {
@@ -198,18 +201,31 @@ export function SeatsPage({
     return apiFloors.length > 0 ? apiFloors : [];
   }, [apiFloors]);
 
-  // Ensure activeFloorId is initialized or synced
+  // Sync activeFloorId when initialFloorId from URL changes
   useEffect(() => {
     if (initialFloorId) {
       setActiveFloorId(initialFloorId);
-    } else if (apiFloors.length > 0 && !activeFloorId) {
-      setActiveFloorId((apiFloors.find((floor) => floor.resources.length > 0) ?? apiFloors[0]).id);
     }
-  }, [initialFloorId, apiFloors, activeFloorId]);
+  }, [initialFloorId]);
 
-  // If initialResourceId is provided, auto-select it once floors are loaded
+  // Default to first floor with resources once apiFloors are loaded if not set yet
   useEffect(() => {
-    if (initialResourceId && loadedFloors.length > 0 && !selectedResource) {
+    if (apiFloors.length > 0 && !activeFloorId) {
+      const defaultFloor = apiFloors.find((floor) => floor.resources.length > 0) ?? apiFloors[0];
+      if (defaultFloor) {
+        setActiveFloorId(defaultFloor.id);
+      }
+    }
+  }, [apiFloors, activeFloorId]);
+
+  // If initialResourceId is provided, auto-select it once floors are loaded (unless manually deselected)
+  useEffect(() => {
+    if (
+      initialResourceId &&
+      loadedFloors.length > 0 &&
+      !selectedResource &&
+      !hasManuallyDeselected
+    ) {
       for (const fl of loadedFloors) {
         const found = fl.resources?.find((r) => r.id === initialResourceId);
         if (found) {
@@ -219,7 +235,7 @@ export function SeatsPage({
         }
       }
     }
-  }, [initialResourceId, loadedFloors, selectedResource, activeFloorId]);
+  }, [initialResourceId, loadedFloors, selectedResource, activeFloorId, hasManuallyDeselected]);
 
   // 2. Fetch Real-time Resource Availability
   const { data: availabilityList } = useWorkspaceAvailabilityQuery(
@@ -355,6 +371,42 @@ export function SeatsPage({
       setSelectedResource(null); // Reset selection on time shift
     }
   };
+
+  const handleSelectResource = useCallback(
+    (res: MapResource | null) => {
+      if (!res || (selectedResource && selectedResource.id === res.id)) {
+        setSelectedResource(null);
+        setHasManuallyDeselected(true);
+      } else {
+        setSelectedResource(res);
+        setHasManuallyDeselected(false);
+      }
+    },
+    [selectedResource]
+  );
+
+  const handleFloorChange = useCallback(
+    (newFloorId: number) => {
+      setActiveFloorId(newFloorId);
+      // If currently selected resource is not on the new floor, deselect it
+      if (selectedResource) {
+        const targetFloor = loadedFloors.find((f) => f.id === newFloorId);
+        const existsOnNewFloor = targetFloor?.resources?.some((r) => r.id === selectedResource.id);
+        if (!existsOnNewFloor) {
+          setSelectedResource(null);
+        }
+      }
+      (navigate as any)({
+        to: '/workspaces/seats',
+        search: (prev: Record<string, unknown>) => ({
+          ...prev,
+          floorId: newFloorId
+        }),
+        replace: true
+      });
+    },
+    [selectedResource, loadedFloors, navigate]
+  );
 
   const handleViewDetail = (res: MapResource) => {
     const isMatchingHold =
@@ -519,7 +571,10 @@ export function SeatsPage({
         }
       });
     } catch (err: unknown) {
-      const errorObj = err as { message?: string; response?: { data?: { message?: string } } };
+      const errorObj = err as {
+        message?: string;
+        response?: { data?: { message?: string } };
+      };
       const msg =
         errorObj?.response?.data?.message ||
         errorObj?.message ||
@@ -527,7 +582,9 @@ export function SeatsPage({
           'This seat is currently held or booked by someone else. Please select another seat.',
           'Vị trí này hiện đang được giữ chỗ hoặc đã có người đặt trong khung giờ này. Vui lòng chọn vị trí khác.'
         );
-      toast.error(c('Cannot hold seat', 'Không thể giữ chỗ'), { description: msg });
+      toast.error(c('Cannot hold seat', 'Không thể giữ chỗ'), {
+        description: msg
+      });
       setSelectedResource(null);
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
       queryClient.invalidateQueries({ queryKey: ['availability'] });
@@ -548,8 +605,18 @@ export function SeatsPage({
 
   const estimatedCost = resourceHourlyRate * durationHours;
 
-  const filterTabs: { id: SpaceFilterType; label: string; icon: typeof Chair; count: number }[] = [
-    { id: 'ALL', label: c('All Spaces', 'Tất cả'), icon: Sparkles, count: categoryCounts.all },
+  const filterTabs: {
+    id: SpaceFilterType;
+    label: string;
+    icon: typeof Chair;
+    count: number;
+  }[] = [
+    {
+      id: 'ALL',
+      label: c('All Spaces', 'Tất cả'),
+      icon: Sparkles,
+      count: categoryCounts.all
+    },
     {
       id: 'DESK',
       label: c('Desks', 'Bàn làm việc'),
@@ -616,6 +683,8 @@ export function SeatsPage({
                   workspaceName={workspace?.name}
                   operatingHours={workspace?.operatingHours}
                   pricePerHour={workspace?.pricePerHour}
+                  open={isScheduleModalOpen}
+                  onOpenChange={setIsScheduleModalOpen}
                   initialDate={currentStartTime ? currentStartTime.split('T')[0] : undefined}
                   initialStartTime={currentStartTime ? currentStartTime.split('T')[1] : undefined}
                   initialEndTime={currentEndTime ? currentEndTime.split('T')[1] : undefined}
@@ -739,14 +808,17 @@ export function SeatsPage({
                 {/* Interactive SVG Floor Map */}
                 <PublicFloorMap
                   workspaceId={workspaceId}
-                  onSelect={(res) => setSelectedResource(res)}
+                  onSelect={handleSelectResource}
+                  onSelectResource={handleSelectResource}
                   onViewDetail={handleViewDetail}
-                  selectedResourceId={selectedResource?.id ?? initialResourceId}
+                  selectedResourceId={selectedResource ? selectedResource.id : null}
                   availabilityMap={availabilityMap}
                   activeFloorId={activeFloorId}
-                  onFloorChange={(floorId) => setActiveFloorId(floorId)}
+                  onFloorChange={handleFloorChange}
                   filterCategory={activeCategoryFilter}
                   showResourceInspector={false}
+                  hasScheduleSelected={hasScheduleSelected}
+                  onRequestSelectSchedule={() => setIsScheduleModalOpen(true)}
                 />
 
                 {/* Interactive Guidance when No Resource is Selected */}
@@ -779,8 +851,8 @@ export function SeatsPage({
                 currentEndTime={currentEndTime}
                 durationHours={durationHours}
                 filterCategory={activeCategoryFilter}
-                selectedResourceId={selectedResource?.id ?? initialResourceId}
-                onSelectResource={(res) => setSelectedResource(res)}
+                selectedResourceId={selectedResource ? selectedResource.id : undefined}
+                onSelectResource={handleSelectResource}
                 onViewDetail={handleViewDetail}
                 onHoldAndReview={(res) => handleProceedToReview(res)}
                 isHolding={createBookingMutation.isPending}

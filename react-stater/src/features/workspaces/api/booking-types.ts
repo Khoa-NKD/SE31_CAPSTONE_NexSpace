@@ -6,6 +6,7 @@ export interface CreateBookingPayload {
   partySize?: number;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
   notes?: string;
+  addonAmount?: number;
 }
 
 export interface CalculatePricePayload {

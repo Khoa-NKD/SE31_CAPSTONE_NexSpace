@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ArrowRight, Building2, MapPin, Star, Zap } from '@/components/ui/hugeicons';
+import { ArrowRight, Building2, MapPin, Sparkles, Star, Zap } from '@/components/ui/hugeicons';
 import { useLanguage } from '../context/language-context';
 import { useCurrency } from '../context/currency-context';
 import type { CanonicalWorkspace, PublicWorkspaceSummary } from '@/features/workspaces/api/types';
@@ -9,6 +9,7 @@ export type LandingWorkspaceCardData = CanonicalWorkspace | PublicWorkspaceSumma
 
 interface WorkspaceCardProps {
   workspace: LandingWorkspaceCardData;
+  isPreferenceMatch?: boolean;
 }
 
 function formatCategoryLabel(category: string | undefined, language: 'en' | 'vi'): string {
@@ -31,7 +32,7 @@ function formatCategoryLabel(category: string | undefined, language: 'en' | 'vi'
   return language === 'vi' ? 'Không gian linh hoạt' : 'Flexible Workspace';
 }
 
-export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
+export function WorkspaceCard({ workspace, isPreferenceMatch }: WorkspaceCardProps) {
   const { language, t } = useLanguage();
   const { formatPrice } = useCurrency();
   const [imgError, setImgError] = useState(false);
@@ -117,6 +118,12 @@ export function WorkspaceCard({ workspace }: WorkspaceCardProps) {
             <span className='inline-flex items-center gap-1 rounded-lg bg-emerald-500/90 px-2 py-1 text-[11px] font-semibold text-white backdrop-blur-md'>
               <Zap className='h-3 w-3 fill-current' />
               <span>{t('market.instantBook')}</span>
+            </span>
+          )}
+          {isPreferenceMatch && (
+            <span className='inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-indigo-600/95 to-violet-600/95 px-2.5 py-1 text-[11px] font-semibold text-white shadow-xs backdrop-blur-md border border-indigo-400/40'>
+              <Sparkles className='h-3 w-3 text-amber-300' />
+              <span>{language === 'vi' ? 'Gợi ý cho bạn' : 'For You'}</span>
             </span>
           )}
         </div>

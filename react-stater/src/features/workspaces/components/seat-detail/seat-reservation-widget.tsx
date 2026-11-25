@@ -10,7 +10,8 @@ import {
   ShieldCheck,
   CalendarCheck,
   QrCode,
-  ShieldAlert
+  ShieldAlert,
+  Monitor
 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useCalculatePriceQuery, useCreateBookingMutation } from '../../api/booking-queries';
@@ -111,7 +112,13 @@ export function SeatReservationWidget({
   const hours = useMemo(() => computeHours(startTime, endTime, 2), [startTime, endTime]);
   const standardTotal = quote?.baseAmount ?? 0;
   const vatAmount = quote?.taxAmount ?? 0;
-  const totalDue = quote?.finalPrice ?? 0;
+
+  // Addon calculations
+  const isVnd = quote?.currency === 'VND' || (!quote?.currency && hourlyRate > 1000);
+  const addonRatePerHour = isVnd ? 35000 : 1.5;
+  const addonTotal = monitorAddonSelected ? addonRatePerHour * hours : 0;
+  const totalDue = (quote?.finalPrice ?? 0) + addonTotal;
+  const addonName = isVi ? 'Màn hình phụ Dell 27" 4K' : 'Dell 27" 4K Monitor Add-on';
 
   const displayDate = formatDateLabel(date || '19/11/2026');
   const displayStartTime = formatDisplayTime(startTime) || '09:00';
@@ -195,7 +202,9 @@ export function SeatReservationWidget({
           startTime: startTime || undefined,
           endTime: endTime || undefined,
           date: displayDate,
-          priceType: 'HOURLY'
+          priceType: 'HOURLY',
+          addonAmount: monitorAddonSelected ? addonTotal : undefined,
+          addonName: monitorAddonSelected ? addonName : undefined
         }
       });
       return;
@@ -222,7 +231,9 @@ export function SeatReservationWidget({
         startTime: targetStartTime,
         endTime: targetEndTime,
         priceType: 'HOURLY',
-        partySize: resource.capacity || 1
+        partySize: resource.capacity || 1,
+        addonAmount: monitorAddonSelected ? addonTotal : undefined,
+        notes: monitorAddonSelected ? `Kèm tiện ích: ${addonName}` : undefined
       });
 
       toast.success(
@@ -241,7 +252,9 @@ export function SeatReservationWidget({
           startTime: targetStartTime,
           endTime: targetEndTime,
           date: displayDate,
-          priceType: 'HOURLY'
+          priceType: 'HOURLY',
+          addonAmount: monitorAddonSelected ? addonTotal : undefined,
+          addonName: monitorAddonSelected ? addonName : undefined
         }
       });
     } catch (err: unknown) {
@@ -331,9 +344,14 @@ export function SeatReservationWidget({
 
         {/* Monitor Add-on Item if Selected */}
         {monitorAddonSelected && (
-          <div className='border-border/70 bg-primary/5 flex items-center justify-between rounded-lg border p-2.5 text-xs'>
-            <span className='text-foreground font-medium'>Màn hình phụ 4K 27" ({hours}h)</span>
-            <span className='text-muted-foreground'>Chưa tính dịch vụ mua thêm</span>
+          <div className='border-primary/40 bg-primary/5 flex items-center justify-between rounded-lg border p-2.5 text-xs animate-in fade-in'>
+            <div className='flex items-center gap-2'>
+              <Monitor className='text-primary h-4 w-4 shrink-0' />
+              <span className='text-foreground font-semibold'>
+                {addonName} ({hours}h)
+              </span>
+            </div>
+            <span className='text-primary font-bold'>+{formatPrice(addonTotal)}</span>
           </div>
         )}
 
@@ -341,10 +359,20 @@ export function SeatReservationWidget({
         <div className='border-border/60 space-y-2 border-b pb-4 text-xs'>
           <div className='flex justify-between text-muted-foreground'>
             <span>
-              Đơn giá tiêu chuẩn ({hours}h × {formatPrice(hourlyRate)})
+              {isVi ? 'Đơn giá tiêu chuẩn' : 'Standard Rate'} ({hours}h × {formatPrice(hourlyRate)})
             </span>
             <span className='text-foreground font-medium'>{formatPrice(standardTotal)}</span>
           </div>
+
+          {monitorAddonSelected && (
+            <div className='flex justify-between text-muted-foreground animate-in fade-in'>
+              <span className='flex items-center gap-1.5'>
+                <span>{isVi ? 'Tiện ích bổ sung' : 'Add-on service'} ({hours}h × {formatPrice(addonRatePerHour)})</span>
+                <Info className='h-3 w-3' />
+              </span>
+              <span className='text-primary font-bold'>+{formatPrice(addonTotal)}</span>
+            </div>
+          )}
 
           <div className='flex justify-between text-muted-foreground'>
             <span>Phí dịch vụ khách</span>
