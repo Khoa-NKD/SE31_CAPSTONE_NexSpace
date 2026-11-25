@@ -111,7 +111,9 @@ export const workspaceService = {
   /**
    * Public marketplace query: returns only approved, active workspaces with public-safe projections.
    */
-  async getPublicWorkspaces(params?: PublicWorkspaceFilterParams): Promise<PublicWorkspaceListResponse> {
+  async getPublicWorkspaces(
+    params?: PublicWorkspaceFilterParams
+  ): Promise<PublicWorkspaceListResponse> {
     const queryParams: Record<string, string | number | boolean | undefined> = {};
 
     if (params) {
@@ -183,7 +185,9 @@ export const workspaceService = {
    */
   async getPublicWorkspaceById(id: string): Promise<PublicWorkspaceDetail> {
     const resolvedId = resolveWorkspaceId(id);
-    return apiClient.get<PublicWorkspaceDetail>(`/public/workspaces/${encodeURIComponent(resolvedId)}`);
+    return apiClient.get<PublicWorkspaceDetail>(
+      `/public/workspaces/${encodeURIComponent(resolvedId)}`
+    );
   },
 
   /**
@@ -230,8 +234,7 @@ export const workspaceService = {
     }
 
     const isAdmin =
-      params?.role?.toLowerCase() === 'administrator' ||
-      params?.role?.toLowerCase() === 'admin';
+      params?.role?.toLowerCase() === 'administrator' || params?.role?.toLowerCase() === 'admin';
     const endpoint = isAdmin ? '/admin/workspaces' : '/workspaces';
 
     return apiClient.get<WorkspaceListResponse>(endpoint, {
@@ -337,10 +340,9 @@ export const workspaceService = {
       'x-mock-role': 'Organizer',
       'x-organizer-id': options?.organizerId || 'USR-9432'
     };
-    return apiClient.delete<CanonicalWorkspace>(
-      '/workspaces/' + encodeURIComponent(resolvedId),
-      { headers }
-    );
+    return apiClient.delete<CanonicalWorkspace>('/workspaces/' + encodeURIComponent(resolvedId), {
+      headers
+    });
   },
 
   /**
@@ -426,7 +428,10 @@ export const workspaceService = {
    * Uploads a local binary image (JPEG/PNG/WebP) to the media storage service.
    * Returns durable media URL.
    */
-  async uploadMedia(file: File | Blob, filename?: string): Promise<{
+  async uploadMedia(
+    file: File | Blob,
+    filename?: string
+  ): Promise<{
     id: string;
     filename: string;
     originalName: string;
@@ -444,7 +449,7 @@ export const workspaceService = {
    */
   async deleteMedia(publicIdOrId: string): Promise<void> {
     return apiClient.delete('/media/delete', {
-      params: { publicId: publicIdOrId },
+      params: { publicId: publicIdOrId }
     });
   },
 
@@ -509,7 +514,8 @@ export const workspaceService = {
    * Retrieves all amenities assigned to a workspace.
    */
   async getWorkspaceAmenities(workspaceId: number | string): Promise<WorkspaceAmenityDto[]> {
-    const numericId = typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    const numericId =
+      typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
     return apiClient.get<WorkspaceAmenityDto[]>(`/workspaces/${numericId}/amenities`);
   },
 
@@ -520,7 +526,8 @@ export const workspaceService = {
     workspaceId: number | string,
     payload: AssignWorkspaceAmenitiesPayload
   ): Promise<WorkspaceAmenityDto[]> {
-    const numericId = typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    const numericId =
+      typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
     return apiClient.put<WorkspaceAmenityDto[]>(`/workspaces/${numericId}/amenities`, payload);
   },
 
@@ -616,7 +623,10 @@ export const workspaceService = {
     logId: number | string,
     payload: UpdateMaintenanceLogPayload
   ): Promise<MaintenanceLogDto> {
-    return apiClient.patch(`/workspaces/${workspaceId}/assets/${assetId}/maintenance/${logId}`, payload);
+    return apiClient.patch(
+      `/workspaces/${workspaceId}/assets/${assetId}/maintenance/${logId}`,
+      payload
+    );
   },
 
   /**
@@ -633,14 +643,19 @@ export const workspaceService = {
     workspaceId: string | number,
     hours: WorkspaceOperatingHour[]
   ): Promise<WorkspaceOperatingHour[]> {
-    return apiClient.put<WorkspaceOperatingHour[]>(`/workspaces/${workspaceId}/operating-hours`, hours);
+    return apiClient.put<WorkspaceOperatingHour[]>(
+      `/workspaces/${workspaceId}/operating-hours`,
+      hours
+    );
   },
 
   /**
    * Retrieves public operating hours for an active workspace.
    */
   async getPublicOperatingHours(workspaceId: string | number): Promise<WorkspaceOperatingHour[]> {
-    return apiClient.get<WorkspaceOperatingHour[]>(`/public/workspaces/${workspaceId}/operating-hours`);
+    return apiClient.get<WorkspaceOperatingHour[]>(
+      `/public/workspaces/${workspaceId}/operating-hours`
+    );
   },
 
   /**
@@ -675,7 +690,9 @@ export const workspaceService = {
    * Xem trước chính sách hủy và số tiền hoàn dự kiến trước khi hủy.
    */
   async getCancellationPreview(bookingId: number | string): Promise<BookingCancellationPreviewDto> {
-    return apiClient.get<BookingCancellationPreviewDto>(`/bookings/${bookingId}/cancellation-preview`);
+    return apiClient.get<BookingCancellationPreviewDto>(
+      `/bookings/${bookingId}/cancellation-preview`
+    );
   },
 
   /**
@@ -699,28 +716,19 @@ export const workspaceService = {
   },
 
   /**
-   * Organizer phê duyệt đơn đặt chỗ đang ở trạng thái chờ duyệt (PENDING_APPROVAL).
-   */
-  async approveBooking(bookingId: number | string): Promise<BookingDto> {
-    return apiClient.post<BookingDto>(`/bookings/${bookingId}/approve`);
-  },
-
-  /**
-   * Organizer từ chối duyệt đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL) kèm lý do.
-   */
-  async rejectBooking(bookingId: number | string, reason?: string): Promise<BookingDto> {
-    const url = `/bookings/${bookingId}/reject${reason ? `?reason=${encodeURIComponent(reason)}` : ''}`;
-    return apiClient.post<BookingDto>(url);
-  },
-
-  /**
    * Lấy danh sách lịch sử đặt chỗ của khách hàng đang đăng nhập với bộ lọc trạng thái và phân trang.
    */
   async getMyBookings(params?: {
     status?: string;
     page?: number;
     size?: number;
-  }): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number; page: number; size: number }> {
+  }): Promise<{
+    content: BookingDto[];
+    totalElements: number;
+    totalPages: number;
+    page: number;
+    size: number;
+  }> {
     return apiClient.get('/bookings/my', {
       params: {
         status: params?.status === 'ALL' ? undefined : params?.status,
@@ -742,7 +750,13 @@ export const workspaceService = {
     search?: string;
     page?: number;
     size?: number;
-  }): Promise<{ content: BookingDto[]; totalElements: number; totalPages: number; page: number; size: number }> {
+  }): Promise<{
+    content: BookingDto[];
+    totalElements: number;
+    totalPages: number;
+    page: number;
+    size: number;
+  }> {
     return apiClient.get('/bookings/organizer', {
       params: {
         workspaceId: params?.workspaceId && params.workspaceId > 0 ? params.workspaceId : undefined,
@@ -817,9 +831,12 @@ export const workspaceService = {
       endTime
     };
     if (floorId !== undefined) params.floorId = floorId;
-    return apiClient.get<ResourceAvailabilityItem[]>(`/public/workspaces/${workspaceId}/availability`, {
-      params
-    });
+    return apiClient.get<ResourceAvailabilityItem[]>(
+      `/public/workspaces/${workspaceId}/availability`,
+      {
+        params
+      }
+    );
   },
 
   /**

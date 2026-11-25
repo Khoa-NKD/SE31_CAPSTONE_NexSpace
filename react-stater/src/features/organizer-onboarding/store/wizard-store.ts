@@ -60,6 +60,7 @@ export const INITIAL_OPERATING_HOURS: OperatingHoursValues = {
   schedule: INITIAL_SCHEDULE,
   blockHolidays: true,
   holidayCodes: [],
+  holidaySchedules: [],
   allowGracePeriod: false
 };
 

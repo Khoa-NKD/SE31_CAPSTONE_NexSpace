@@ -1,3 +1,4 @@
+import { hydrateHolidaySchedules } from '../../workspaces/utils/workspace-holiday-schedules.ts';
 import { defaultCancellationRules } from '../../workspaces/utils/cancellation-policy.ts';
 import type {
   CanonicalWorkspace,
@@ -247,6 +248,9 @@ export function mapWizardStateToCreateDto(
     amenities: state.amenities || [],
     operatingHours,
     holidayCodes: state.operatingHours.holidayCodes ?? [],
+    holidaySchedules: (state.operatingHours.holidaySchedules ?? []).map(
+      ({ code, startDate, endDate }) => ({ code, startDate, endDate })
+    ),
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     clientDraftKey: state.clientDraftKey,
     ...floorPlanMeta
@@ -281,6 +285,9 @@ export function mapWizardStateToUpdateDto(
     description: state.basicInfo.description,
     operatingHours,
     holidayCodes: state.operatingHours.holidayCodes ?? [],
+    holidaySchedules: (state.operatingHours.holidaySchedules ?? []).map(
+      ({ code, startDate, endDate }) => ({ code, startDate, endDate })
+    ),
     receptionHours: state.operatingHours.is247 ? '24/7 Access' : '08:00 – 20:00 Weekdays',
     amenities: state.amenities,
     totalFloors: floorPlanMeta.totalFloors,
@@ -369,6 +376,7 @@ export function mapCanonicalToWizardState(
         schedules.length > 0 ? schedules : existingLocalState?.operatingHours?.schedule || [],
       blockHolidays: cw.autoBlockPublicHolidays ?? true,
       holidayCodes: cw.holidayCodes ?? [],
+      holidaySchedules: hydrateHolidaySchedules(cw),
       allowGracePeriod: (cw.checkInLeadMinutes || 0) > 0
     },
     amenities:

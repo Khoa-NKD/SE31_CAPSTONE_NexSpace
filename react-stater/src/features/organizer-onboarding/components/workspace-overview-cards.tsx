@@ -1,3 +1,4 @@
+import { formatHolidayDates } from '@/features/workspaces/utils/workspace-holiday-schedules';
 import { WORKSPACE_HOLIDAYS } from '../../workspaces/utils/workspace-holidays';
 import type { ReactNode } from 'react';
 import { Link } from '@tanstack/react-router';
@@ -35,13 +36,18 @@ export function overviewChangedSections(
     ['name', 'description'],
     ['address', 'city', 'ward', 'latitude', 'longitude'],
     ['floors'],
-    ['is247', 'schedule', 'entryNotes', 'holidayCodes'],
+    ['is247', 'schedule', 'entryNotes', 'holidayCodes', 'holidaySchedules'],
     ['amenities'],
     ['media']
   ] as const;
   return groups.map((keys) =>
     keys.some((key) =>
-      editValueChanged(key === 'holidayCodes' ? (original[key] ?? []) : original[key], current[key])
+      editValueChanged(
+        key === 'holidayCodes' || key === 'holidaySchedules'
+          ? (original[key] ?? [])
+          : original[key],
+        current[key]
+      )
     )
   );
 }
@@ -91,12 +97,13 @@ function Section({
   children: ReactNode;
 }) {
   return (
-    <section className='overview-card' data-changed={changed}>
+    <section id={'overview-section-' + step} className='overview-card' data-changed={changed}>
       <header>
         <span className='overview-section-icon'>
           <Icon className='size-4' />
         </span>
         <h2>{title}</h2>
+        <span className='overview-section-index'>{String(step).padStart(2, '0')}</span>
         {changed && <span className='overview-change-label'>Có thay đổi</span>}
         {editable && (
           <Link
@@ -116,6 +123,18 @@ function Section({
       </header>
       <div className='overview-card-body'>{children}</div>
     </section>
+  );
+}
+
+function describeHolidays(snapshot: WorkspaceEditSnapshot) {
+  return (
+    (snapshot.holidayCodes ?? [])
+      .map((code) => {
+        const name = WORKSPACE_HOLIDAYS.find((item) => item.code === code)?.name ?? code;
+        const dates = snapshot.holidaySchedules?.find((item) => item.code === code);
+        return name + (dates ? ' · ' + formatHolidayDates(dates) : ' · Theo lịch đã có');
+      })
+      .join('\n') || 'Không chọn ngày nghỉ lễ'
   );
 }
 
@@ -256,17 +275,13 @@ export function WorkspaceOverviewCards({
         <dl className='mt-4 border-t pt-3'>
           <Field
             label='Ngày nghỉ lễ'
-            value={
-              (value.holidayCodes ?? [])
-                .map((code) => WORKSPACE_HOLIDAYS.find((h) => h.code === code)?.name ?? code)
-                .join(', ') || 'Không chọn nghỉ lễ tự động'
+            value={describeHolidays(value)}
+            before={original ? describeHolidays(original) : ''}
+            changed={
+              changed('holidayCodes') ||
+              (!!original &&
+                editValueChanged(original.holidaySchedules ?? [], value.holidaySchedules))
             }
-            before={
-              (original?.holidayCodes ?? [])
-                .map((code) => WORKSPACE_HOLIDAYS.find((h) => h.code === code)?.name ?? code)
-                .join(', ') || 'Không chọn nghỉ lễ tự động'
-            }
-            changed={changed('holidayCodes')}
           />
         </dl>
         <dl className='mt-4 border-t pt-3'>

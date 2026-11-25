@@ -9,7 +9,10 @@ export const WORKSPACE_HOLIDAYS = [
 ] as const;
 export function holidayBookingError(
   workspace:
-    | Pick<PublicWorkspaceSummary, 'holidayPeriods' | 'holidayCodes' | 'holidayCalendarThroughYear'>
+    | Pick<
+        PublicWorkspaceSummary,
+        'holidayPeriods' | 'holidayCodes' | 'holidaySchedules' | 'holidayCalendarThroughYear'
+      >
     | null
     | undefined,
   start: string,
@@ -23,8 +26,10 @@ export function holidayBookingError(
     if (from < +new Date(period.end + '+07:00') && to > +new Date(period.start + '+07:00'))
       return `Không gian nghỉ ${period.name} trong khoảng đã chọn.`;
   if (
-    workspace?.holidayCodes?.some((code) =>
-      ['LUNAR_NEW_YEAR', 'HUNG_KINGS', 'NATIONAL_DAY'].includes(code)
+    workspace?.holidayCodes?.some(
+      (code) =>
+        ['LUNAR_NEW_YEAR', 'HUNG_KINGS', 'NATIONAL_DAY'].includes(code) &&
+        !workspace.holidaySchedules?.some((item) => item.code === code)
     ) &&
     workspace.holidayCalendarThroughYear &&
     new Date(to - 1).getFullYear() > workspace.holidayCalendarThroughYear

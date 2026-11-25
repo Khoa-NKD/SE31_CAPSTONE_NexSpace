@@ -1,3 +1,4 @@
+import { holidayScheduleError } from '@/features/workspaces/utils/workspace-holiday-schedules';
 import { workspaceSiteOptions } from '@/features/organizer-resources/api/buildings';
 import { workspaceEditSnapshot } from '../utils/workspace-edit-snapshot';
 import { amenityQueries } from '@/features/amenities/api/queries';
@@ -55,6 +56,14 @@ export function useWizardDraftSync() {
       commitEdit?: boolean;
     }): Promise<CanonicalWorkspace | null> => {
       const currentState = useWizardStore.getState();
+      const holidayError = holidayScheduleError(
+        currentState.operatingHours.holidayCodes,
+        currentState.operatingHours.holidaySchedules
+      );
+      if (holidayError) {
+        toast.error(holidayError);
+        return null;
+      }
       if (!currentState.canonicalWorkspaceId && !currentState.basicInfo.name.trim()) {
         toast.error(
           c(

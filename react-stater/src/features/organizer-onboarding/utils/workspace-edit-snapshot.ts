@@ -43,6 +43,9 @@ export function workspaceEditSnapshot(
       .sort((a, b) => a.floorNumber - b.floorNumber),
     is247: state.operatingHours.is247,
     holidayCodes: [...(state.operatingHours.holidayCodes ?? [])].sort(),
+    holidaySchedules: (state.operatingHours.holidaySchedules ?? [])
+      .map(({ code, startDate, endDate }) => ({ code, startDate, endDate }))
+      .sort((a, b) => a.code.localeCompare(b.code)),
     schedule: state.operatingHours.schedule.map((d) => ({
       day: d.day,
       isOpen: state.operatingHours.is247 || d.isOpen,

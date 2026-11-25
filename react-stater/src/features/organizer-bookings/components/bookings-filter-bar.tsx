@@ -1,6 +1,13 @@
 import { DateInput } from '@/components/ui/date-input';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
-import { Search, Calendar, Filter, ChevronDown, RotateCcw, Building2 } from '@/components/ui/hugeicons';
+import {
+  Search,
+  Calendar,
+  Filter,
+  ChevronDown,
+  RotateCcw,
+  Building2
+} from '@/components/ui/hugeicons';
 import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
@@ -32,7 +39,6 @@ export interface BookingsFilterBarProps {
   onWorkspaceChange?: (workspaceId: number | string | 'ALL') => void;
   totalCount: number;
   confirmedCount: number;
-  pendingApprovalCount?: number;
   pendingCount: number;
   completedCount?: number;
   cancelledCount: number;
@@ -64,7 +70,6 @@ export function BookingsFilterBar({
   onWorkspaceChange,
   totalCount = 0,
   confirmedCount = 0,
-  pendingApprovalCount = 0,
   pendingCount = 0,
   completedCount = 0,
   cancelledCount = 0,
@@ -105,13 +110,6 @@ export function BookingsFilterBar({
       label: c('All', 'Tất cả'),
       count: totalCount,
       activeClass: 'bg-primary text-primary-foreground shadow-2xs'
-    },
-    {
-      key: 'PENDING_APPROVAL',
-      label: c('Needs Approval', 'Chờ duyệt'),
-      count: pendingApprovalCount,
-      activeClass:
-        'bg-purple-500/15 text-purple-700 dark:text-purple-400 border border-purple-500/30'
     },
     {
       key: 'CONFIRMED',

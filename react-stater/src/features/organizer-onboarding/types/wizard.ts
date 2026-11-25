@@ -55,6 +55,9 @@ export interface OperatingHoursValues {
   schedule: DaySchedule[];
   blockHolidays: boolean;
   holidayCodes?: string[];
+  holidaySchedules?: (import('@/features/workspaces/api/types').WorkspaceHolidaySchedule & {
+    mode?: 'SINGLE_DAY' | 'DATE_RANGE';
+  })[];
   allowGracePeriod: boolean;
 }
 

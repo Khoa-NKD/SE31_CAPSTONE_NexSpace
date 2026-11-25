@@ -1,7 +1,7 @@
 import { WorkspaceStatusBadge } from './workspace-status-badge';
+import { WorkspaceFacts } from './workspace-facts';
 import { useWizardStore } from '@/features/organizer-onboarding/store/wizard-store';
 import { useOrganizerCopy, type OrganizerCopy } from '@/hooks/use-organizer-copy';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -19,14 +19,10 @@ import {
   MoreHorizontal,
   Eye,
   PlayCircle,
-  PauseCircle,
   Wrench,
-  Archive,
   ExternalLink,
   MapPin,
   Building2,
-  Users,
-  Star,
   Edit
 } from '@/components/ui/hugeicons';
 import type { OrganizerWorkspace, WorkspaceStatus } from '../types';
@@ -62,11 +58,10 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
         <DropdownMenuGroup>
           <DropdownMenuLabel>{c('Actions', 'Thao tác')}</DropdownMenuLabel>
           {isDraft ? (
-            <DropdownMenuItem asChild>
+            <DropdownMenuItem asChild onSelect={() => useWizardStore.getState().resetDraft()}>
               <Link
                 to={resumeRoute}
                 search={{ id: workspace.id }}
-                onClick={() => useWizardStore.getState().resetDraft()}
                 className='cursor-pointer flex items-center text-amber-600 font-medium'
               >
                 <PlayCircle className='mr-2 h-4 w-4 text-amber-600' />
@@ -75,11 +70,10 @@ export function WorkspaceCellAction({ workspace, onStatusChange }: WorkspaceCell
             </DropdownMenuItem>
           ) : (
             workspace.status !== 'ARCHIVED' && (
-              <DropdownMenuItem asChild>
+              <DropdownMenuItem asChild onSelect={() => useWizardStore.getState().resetDraft()}>
                 <Link
                   to='/dashboard/organizer/workspaces/create'
                   search={{ id: workspace.id, mode: 'edit' }}
-                  onClick={() => useWizardStore.getState().resetDraft()}
                   className='cursor-pointer flex items-center text-indigo-600 dark:text-indigo-400 font-medium'
                 >
                   <Edit className='mr-2 h-4 w-4' />
@@ -159,18 +153,10 @@ export function getWorkspaceColumns(
   c: OrganizerCopy,
   onStatusChange?: (id: string, status: WorkspaceStatus) => void
 ): ColumnDef<OrganizerWorkspace>[] {
-  const statusLabels: Record<WorkspaceStatus, string> = {
-    HOLIDAY: 'Nghỉ lễ',
-    ACTIVE: c('Active', 'Đang hoạt động'),
-    INACTIVE: c('Inactive', 'Ngưng hoạt động'),
-    PENDING: c('Pending', 'Đang xử lý'),
-    MAINTENANCE: c('Maintenance', 'Đang bảo trì'),
-    DRAFT: c('Draft', 'Bản nháp'),
-    ARCHIVED: c('Archived', 'Đã lưu trữ')
-  };
   return [
     {
       id: 'workspace',
+      size: 460,
       accessorKey: 'name',
       header: ({ column }: { column: Column<OrganizerWorkspace, unknown> }) => (
         <DataTableColumnHeader column={column} title={c('Workspace', 'Không gian')} />
@@ -179,30 +165,39 @@ export function getWorkspaceColumns(
         const ws = row.original;
         const address = ws.address || [ws.district, ws.city].filter(Boolean).join(', ');
         return (
-          <div className='flex min-w-0 items-center gap-3 py-2'>
+          <div className='flex min-w-0 items-center gap-2.5'>
             {ws.imageUrl ? (
               <img
                 src={ws.imageUrl}
                 alt={ws.name}
                 loading='lazy'
-                className='h-14 w-20 shrink-0 rounded-xl border object-cover'
+                className='h-12 w-16 shrink-0 rounded-lg border object-cover'
               />
             ) : (
-              <div className='flex h-14 w-20 shrink-0 items-center justify-center rounded-xl border bg-muted/25 text-muted-foreground/60'>
-                <Building2 className='size-6' />
+              <div className='flex h-12 w-16 shrink-0 items-center justify-center rounded-lg border border-primary/10 bg-primary/5 text-primary/45'>
+                <Building2 className='size-5' />
               </div>
             )}
             <div className='min-w-0'>
               <Link
                 to='/dashboard/organizer/workspaces/lifecycle'
                 search={{ id: ws.id }}
-                className='block truncate text-sm font-semibold hover:text-primary'
+                title={ws.name}
+                className='block truncate text-sm font-semibold leading-tight tracking-tight transition-colors hover:text-primary'
               >
                 {ws.name}
               </Link>
-              <p className='mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground'>
+              {ws.description && (
+                <p
+                  className='mt-0.5 line-clamp-1 text-[11px] leading-tight text-muted-foreground'
+                  title={ws.description}
+                >
+                  {ws.description}
+                </p>
+              )}
+              <p className='mt-1 flex items-start gap-1 text-[11px] leading-tight text-muted-foreground'>
                 <MapPin className='mt-0.5 size-3 shrink-0' />
-                <span className='line-clamp-2'>
+                <span className='line-clamp-1' title={address}>
                   {address || c('Address not set', 'Chưa thiết lập địa chỉ')}
                 </span>
               </p>
@@ -213,7 +208,15 @@ export function getWorkspaceColumns(
       enableSorting: true
     },
     {
+      id: 'details',
+      size: 290,
+      header: c('Basic information', 'Thông tin cơ bản'),
+      cell: ({ row }) => <WorkspaceFacts workspace={row.original} />,
+      enableSorting: false
+    },
+    {
       id: 'status',
+      size: 180,
       accessorKey: 'status',
       header: ({ column }: { column: Column<OrganizerWorkspace, unknown> }) => (
         <DataTableColumnHeader column={column} title={c('Status', 'Trạng thái')} />
@@ -224,38 +227,28 @@ export function getWorkspaceColumns(
       enableSorting: true
     },
     {
-      id: 'capacity',
-      header: c('Capacity & Units', 'Sức chứa và số chỗ'),
-      cell: ({ row }) => {
-        const ws = row.original;
-        return (
-          <div className='flex flex-col text-xs text-muted-foreground gap-0.5'>
-            <span className='text-foreground font-medium flex items-center gap-1'>
-              <Users className='size-3 text-muted-foreground' />
-              {ws.desksCount != null ? (
-                <>
-                  {ws.desksCount} {c('desks', 'ghế')}
-                </>
-              ) : (
-                '—'
-              )}
-            </span>
-            <span>
-              {ws.meetingRoomsCount != null ? (
-                <>
-                  {ws.meetingRoomsCount} {c('meeting rooms', 'phòng họp')}
-                </>
-              ) : null}
-            </span>
-          </div>
-        );
-      }
-    },
-    {
       id: 'actions',
+      size: 105,
       header: c('Actions', 'Thao tác'),
       cell: ({ row }) => (
-        <WorkspaceCellAction workspace={row.original} onStatusChange={onStatusChange} />
+        <div className='flex items-center justify-end gap-1'>
+          <Button
+            asChild
+            variant='outline'
+            size='icon'
+            className='size-8 rounded-lg'
+            title={c('View details', 'Xem chi tiết')}
+          >
+            <Link
+              to='/dashboard/organizer/workspaces/lifecycle'
+              search={{ id: row.original.id }}
+              aria-label={c('View workspace details', 'Xem chi tiết không gian')}
+            >
+              <Eye className='size-4' />
+            </Link>
+          </Button>
+          <WorkspaceCellAction workspace={row.original} onStatusChange={onStatusChange} />
+        </div>
       ),
       enableSorting: false
     }

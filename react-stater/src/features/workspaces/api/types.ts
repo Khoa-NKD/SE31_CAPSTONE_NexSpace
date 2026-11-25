@@ -1,3 +1,10 @@
+/** Inclusive calendar dates in the workspace's Vietnam time zone. */
+export interface WorkspaceHolidaySchedule {
+  code: string;
+  startDate: string;
+  endDate: string;
+}
+
 export interface CancellationRule {
   minHoursBeforeStart: number;
   refundPercent: number;
@@ -62,6 +69,7 @@ export interface WorkspaceFloorSummary {
 
 export interface CanonicalWorkspace {
   holidayCodes?: string[];
+  holidaySchedules?: WorkspaceHolidaySchedule[];
   holidayPeriods?: { code: string; name: string; start: string; end: string }[];
   holidayClosure?: { names: string[]; start: string; end: string; reopensAt: string | null } | null;
   holidayCalendarThroughYear?: number;
@@ -205,6 +213,7 @@ export interface WorkspaceListResponse {
 
 export interface PublicWorkspaceSummary {
   holidayCodes?: string[];
+  holidaySchedules?: WorkspaceHolidaySchedule[];
   holidayPeriods?: { code: string; name: string; start: string; end: string }[];
   holidayClosure?: { names: string[]; start: string; end: string; reopensAt: string | null } | null;
   holidayCalendarThroughYear?: number;
@@ -346,6 +355,7 @@ export interface WorkspaceSuggestionsResponse {
 
 export interface CreateWorkspaceDto {
   holidayCodes?: string[];
+  holidaySchedules?: WorkspaceHolidaySchedule[];
   name: string;
   category?: WorkspaceCategory;
   streetAddress?: string;
@@ -387,6 +397,7 @@ export interface CreateWorkspaceDto {
  */
 export interface UpdateWorkspaceDto {
   holidayCodes?: string[];
+  holidaySchedules?: WorkspaceHolidaySchedule[];
   name?: string;
   category?: WorkspaceCategory;
   streetAddress?: string;

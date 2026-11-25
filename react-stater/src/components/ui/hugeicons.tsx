@@ -1,3 +1,6 @@
+import FlagIconData from '@hugeicons/core-free-icons/Flag01Icon';
+import LanternIconData from '@hugeicons/core-free-icons/LanternIcon';
+import FireworksIconData from '@hugeicons/core-free-icons/FireworksIcon';
 import MagicWand01IconData from '@hugeicons/core-free-icons/MagicWand01Icon';
 import HeartHandshakeIconData from '@hugeicons/core-free-icons/HeartHandshakeIcon';
 // Named adapters preserve existing call sites while using Hugeicons Stroke Rounded artwork.
@@ -876,3 +879,9 @@ export const HeartHandshake = /* @__PURE__ */ createAppIcon(
   HeartHandshakeIconData,
   'HeartHandshake'
 );
+
+export const Fireworks = /* @__PURE__ */ createAppIcon(FireworksIconData, 'Fireworks');
+
+export const Lantern = /* @__PURE__ */ createAppIcon(LanternIconData, 'Lantern');
+
+export const Flag = /* @__PURE__ */ createAppIcon(FlagIconData, 'Flag');

@@ -35,11 +35,15 @@ export function mapCanonicalToOrganizerWorkspace(cw: CanonicalWorkspace): Organi
   }
 
   const isDraft = status === 'DRAFT';
-  const bookingsCount = Number(cw.bookingCount ?? cw.totalBookings ?? cw.totalBookingsMtd ?? 0);
+  const rawBookingCount = cw.bookingCount ?? cw.totalBookings ?? cw.totalBookingsMtd;
+  const bookingsCount = rawBookingCount == null ? undefined : Number(rawBookingCount);
 
   return {
     id: String(cw.id),
     name: cw.name ?? '',
+    description: cw.shortDescription?.trim() || cw.description?.trim() || undefined,
+    areaSqm: Number(cw.usableAreaSqm) > 0 ? Number(cw.usableAreaSqm) : undefined,
+    startingPricePerHour: Number(cw.pricePerHour) > 0 ? Number(cw.pricePerHour) : undefined,
     address: cw.streetAddress || (cw as unknown as { address?: string }).address || '',
     district: cw.district ?? '',
     city: cw.city ?? '',

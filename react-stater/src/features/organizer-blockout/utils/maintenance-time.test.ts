@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 import {
   maintenanceConflicts,
   maintenanceTimeChoices,
-  maintenanceTimeConflict
+  maintenanceTimeConflict,
+  maintenanceChoiceIssue,
+  maintenancePeriodIssue
 } from './maintenance-time.ts';
 import type { MaintenanceTarget } from '../api';
 import type { BookingDto } from '../../workspaces/api/booking-types';
@@ -169,5 +171,111 @@ test('date-only maintenance includes the entire end date', () => {
   assert.equal(
     maintenanceTimeConflict('2099-01-03T00:00:00', '2099-01-04T00:00:00', conflicts),
     undefined
+  );
+});
+
+test('hourly choices allow adjacent boundaries but never bridge a reserved gap', () => {
+  const conflicts = maintenanceConflicts(targets, ['RESOURCE:1'], [booking(2)], [], [], now);
+  assert.equal(maintenanceChoiceIssue('start', '2099-01-01T09:00', '', conflicts, now), undefined);
+  assert.equal(
+    maintenanceChoiceIssue('start', '2099-01-01T10:00', '', conflicts, now)?.code,
+    'conflict'
+  );
+  assert.equal(maintenanceChoiceIssue('start', '2099-01-01T12:00', '', conflicts, now), undefined);
+  assert.equal(
+    maintenanceChoiceIssue('end', '2099-01-01T10:00', '2099-01-01T09:00', conflicts, now),
+    undefined
+  );
+  assert.equal(
+    maintenanceChoiceIssue('end', '2099-01-01T13:00', '2099-01-01T09:00', conflicts, now)?.code,
+    'conflict'
+  );
+});
+
+test('custom seconds, overnight intervals, past times and reversed intervals are validated', () => {
+  const conflicts = [
+    {
+      start: '2099-01-02T00:17:30',
+      end: '2099-01-02T00:23:10',
+      kind: 'blocked' as const,
+      name: 'Event'
+    }
+  ];
+  assert.equal(
+    maintenancePeriodIssue('2099-01-01T23:00', '2099-01-02T00:17:30', conflicts, now),
+    undefined
+  );
+  assert.equal(
+    maintenancePeriodIssue('2099-01-02T00:23:10', '2099-01-02T01:00', conflicts, now),
+    undefined
+  );
+  assert.equal(
+    maintenancePeriodIssue('2099-01-01T23:00', '2099-01-02T01:00', conflicts, now)?.code,
+    'conflict'
+  );
+  assert.equal(
+    maintenancePeriodIssue('2099-01-01T10:00', '2099-01-01T10:00', [], now)?.code,
+    'order'
+  );
+  assert.equal(maintenancePeriodIssue('2099-01-01T10:00', '', [], now)?.code, 'missing');
+  assert.equal(
+    maintenanceChoiceIssue('start', '2099-01-01T10:00', '', [], Date.parse('2099-01-01T10:00:01'))
+      ?.code,
+    'past'
+  );
+});
+
+test('a new live hold invalidates a previously free interval and expiry frees it again', () => {
+  const start = '2099-01-01T09:00';
+  const end = '2099-01-01T11:00';
+  assert.equal(maintenancePeriodIssue(start, end, [], now), undefined);
+  const held = booking(1, 'PENDING_PAYMENT', '2099-01-01T08:45:00');
+  const live = maintenanceConflicts(
+    targets,
+    ['RESOURCE:1'],
+    [held],
+    [],
+    [],
+    Date.parse('2099-01-01T08:40:00')
+  );
+  assert.equal(maintenancePeriodIssue(start, end, live, now)?.code, 'conflict');
+  const expired = maintenanceConflicts(
+    targets,
+    ['RESOURCE:1'],
+    [held],
+    [],
+    [],
+    Date.parse('2099-01-01T08:45:00')
+  );
+  assert.equal(maintenancePeriodIssue(start, end, expired, now), undefined);
+});
+
+const maintenanceSchedule = (key: string) => ({
+  key: 'GROUP:1',
+  targetKey: 'GROUP:1',
+  targetKeys: [key],
+  kind: 'GROUP' as const,
+  floorNumber: null,
+  name: 'Repair',
+  reason: 'Repair',
+  startTime: '2099-01-01T10:00:00',
+  endTime: '2099-01-01T12:00:00'
+});
+
+test('parent room maintenance blocks a child seat and room selection includes child maintenance', () => {
+  assert.equal(
+    maintenanceConflicts(targets, ['RESOURCE:2'], [], [maintenanceSchedule('RESOURCE:1')], [], now)
+      .length,
+    1
+  );
+  assert.equal(
+    maintenanceConflicts(targets, ['RESOURCE:1'], [], [maintenanceSchedule('RESOURCE:2')], [], now)
+      .length,
+    1
+  );
+  assert.equal(
+    maintenanceConflicts(targets, ['RESOURCE:3'], [], [maintenanceSchedule('RESOURCE:1')], [], now)
+      .length,
+    0
   );
 });
