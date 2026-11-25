@@ -159,7 +159,7 @@ class OrganizerPayoutServiceImplTest {
         released.setStatus(PayoutStatus.RELEASED);
         released.setPayoutAmount(new BigDecimal("100000.00"));
 
-        when(payoutRepository.findByOrganizerIdAndStatusAndWithdrawalBatchIsNull(10L, PayoutStatus.RELEASED))
+        when(payoutRepository.findWithdrawableForUpdate(10L))
                 .thenReturn(List.of(released));
 
         ManualWithdrawalRequestDto req = new ManualWithdrawalRequestDto();
@@ -187,7 +187,7 @@ class OrganizerPayoutServiceImplTest {
         p2.setStatus(PayoutStatus.RELEASED);
         p2.setPayoutAmount(new BigDecimal("200000.00"));
 
-        when(payoutRepository.findByOrganizerIdAndStatusAndWithdrawalBatchIsNull(10L, PayoutStatus.RELEASED))
+        when(payoutRepository.findWithdrawableForUpdate(10L))
                 .thenReturn(List.of(p1, p2));
 
         when(withdrawalBatchRepository.save(any())).thenAnswer(invocation -> {
@@ -245,6 +245,7 @@ class OrganizerPayoutServiceImplTest {
     @DisplayName("releaseEligibleHeldPayouts: Chuyển các khoản HELD quá hạn không khiếu nại sang RELEASED")
     void testReleaseEligibleHeldPayouts() {
         OrganizerPayoutModel p1 = new OrganizerPayoutModel();
+        var booking=new base.api.shared.entity.booking.BookingModel();booking.setId(55L);p1.setBooking(booking);
         p1.setStatus(PayoutStatus.HELD);
         p1.setEligibleAt(LocalDateTime.now().minusHours(2));
 

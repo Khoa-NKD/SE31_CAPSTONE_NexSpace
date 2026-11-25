@@ -209,7 +209,7 @@ class OrganizerOperationsIntegrationTest {
         assertThat(service.pricing(owner.getId(),workspace.getId()).rules()).hasSize(1);
         assertThatThrownBy(()->service.deleteRule(owner.getId()+1,workspace.getId(),saved.id())).isInstanceOf(NotFoundException.class);
     }
-    @Test void unifiedScheduleHandlesAllTargetsAndCancelsIndependently() {
+    @Test void unifiedScheduleGroupsAllTargetsAndCancelsTogether() {
         var floor = room.getFloorPlan();
         room.setPosX(BigDecimal.ZERO); room.setPosY(BigDecimal.ZERO);
         room.setWidth(new BigDecimal("500")); room.setHeight(new BigDecimal("500"));
@@ -227,10 +227,12 @@ class OrganizerOperationsIntegrationTest {
         });
         var result = unified.create(owner.getId(), workspace.getId(), new base.api.feature.operations.dto.MaintenanceDtos.Input(
                 List.of("RESOURCE:" + desk.getId(), "ASSET:" + asset.getId(), furniture), start, start.plusHours(1), "Repair"));
-        assertThat(result).hasSize(3);
-        var equipment = result.stream().filter(r -> r.kind().equals("ASSET")).findFirst().orElseThrow();
-        unified.remove(owner.getId(), workspace.getId(), equipment.key());
-        assertThat(unified.list(owner.getId(), workspace.getId(), start, start.plusHours(1))).hasSize(2);
+        assertThat(result).hasSize(1);
+        var group = result.get(0);
+        assertThat(group.kind()).isEqualTo("GROUP");
+        assertThat(group.targetKeys()).containsExactlyInAnyOrder("RESOURCE:" + desk.getId(), "ASSET:" + asset.getId(), furniture);
+        unified.remove(owner.getId(), workspace.getId(), group.key());
+        assertThat(unified.list(owner.getId(), workspace.getId(), start, start.plusHours(1))).isEmpty();
         assertThat(asset.getStatus()).isEqualTo(AssetStatus.IN_USE);
         assertThat(unified.list(owner.getId(), workspace.getId(), start.plusHours(1), start.plusHours(2))).isEmpty();
     }
