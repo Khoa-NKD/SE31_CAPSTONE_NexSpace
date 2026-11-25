@@ -674,6 +674,7 @@ class BookingServiceTest {
         assertThat(result).isNotNull();
         assertThat(result.getStatus()).isEqualTo(BookingStatus.PENDING_PAYMENT);
         assertThat(result.getHoldExpiresAt()).isNotNull();
+        verify(notificationService, never()).sendBookingPendingApprovalToOrganizerNotification(any());
     }
 
     @Test
@@ -1076,94 +1077,4 @@ class BookingServiceTest {
         mockWorkspace.setOrganizer(mockHost); // restore
     }
 
-    @Test
-    @DisplayName("approveBooking - Phê duyệt đơn đặt chỗ có phí thành công chuyển sang PENDING_PAYMENT")
-    void testApproveBooking_Success_PaidBooking() {
-        BookingModel booking = new BookingModel();
-        booking.setId(901L);
-        booking.setBookingCode("BK-APP-TEST-01");
-        booking.setCustomer(mockCustomer);
-        booking.setWorkspace(mockWorkspace);
-        booking.setResource(mockResource);
-        booking.setStatus(BookingStatus.PENDING_APPROVAL);
-        booking.setStartTime(futureMondayStart);
-        booking.setEndTime(futureMondayEnd);
-        booking.setFinalPrice(new BigDecimal("200000.00"));
-
-        when(bookingRepository.findById(901L)).thenReturn(Optional.of(booking));
-        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(i -> i.getArgument(0));
-
-        BookingResponseDto result = bookingService.approveBooking(mockHost.getId(), 901L);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(BookingStatus.PENDING_PAYMENT);
-        assertThat(result.getHoldExpiresAt()).isNotNull();
-    }
-
-    @Test
-    @DisplayName("approveBooking - Phê duyệt đơn đặt chỗ miễn phí thành công chuyển thẳng sang CONFIRMED")
-    void testApproveBooking_Success_FreeBooking() {
-        BookingModel booking = new BookingModel();
-        booking.setId(902L);
-        booking.setBookingCode("BK-APP-TEST-02");
-        booking.setCustomer(mockCustomer);
-        booking.setWorkspace(mockWorkspace);
-        booking.setResource(mockResource);
-        booking.setStatus(BookingStatus.PENDING_APPROVAL);
-        booking.setStartTime(futureMondayStart);
-        booking.setEndTime(futureMondayEnd);
-        booking.setFinalPrice(BigDecimal.ZERO);
-
-        when(bookingRepository.findById(902L)).thenReturn(Optional.of(booking));
-        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(i -> i.getArgument(0));
-
-        BookingResponseDto result = bookingService.approveBooking(mockHost.getId(), 902L);
-
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
-        assertThat(result.getHoldExpiresAt()).isNull();
-    }
-
-    @Test
-    @DisplayName("approveBooking - Ném BadRequestException khi trạng thái không phải PENDING_APPROVAL")
-    void testApproveBooking_ThrowsBadRequest_WhenNotPendingApproval() {
-        BookingModel booking = new BookingModel();
-        booking.setId(903L);
-        booking.setBookingCode("BK-APP-TEST-03");
-        booking.setCustomer(mockCustomer);
-        booking.setWorkspace(mockWorkspace);
-        booking.setStatus(BookingStatus.CONFIRMED); // Đã confirmed
-
-        when(bookingRepository.findById(903L)).thenReturn(Optional.of(booking));
-
-        assertThatThrownBy(() -> bookingService.approveBooking(mockHost.getId(), 903L))
-                .isInstanceOf(BadRequestException.class)
-                .hasMessageContaining("Chỉ có thể phê duyệt đơn đặt chỗ đang chờ duyệt (PENDING_APPROVAL)");
-    }
-
-    @Test
-    @DisplayName("rejectBooking - Từ chối duyệt đơn đặt chỗ thành công chuyển sang CANCELLED và ghi nhận lý do")
-    void testRejectBooking_Success() {
-        BookingModel booking = new BookingModel();
-        booking.setId(904L);
-        booking.setBookingCode("BK-REJ-TEST-04");
-        booking.setCustomer(mockCustomer);
-        booking.setWorkspace(mockWorkspace);
-        booking.setResource(mockResource);
-        booking.setStatus(BookingStatus.PENDING_APPROVAL);
-        booking.setStartTime(futureMondayStart);
-        booking.setEndTime(futureMondayEnd);
-        booking.setFinalPrice(new BigDecimal("300000.00"));
-
-        when(bookingRepository.findById(904L)).thenReturn(Optional.of(booking));
-        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(i -> i.getArgument(0));
-
-        BookingResponseDto result = bookingService.rejectBooking(mockHost.getId(), 904L, "Phòng cần sửa chữa đột xuất");
-
-        assertThat(result).isNotNull();
-        assertThat(result.getStatus()).isEqualTo(BookingStatus.CANCELLED);
-        assertThat(result.getCancelReason()).isEqualTo("Phòng cần sửa chữa đột xuất");
-        assertThat(result.getCancelSource()).isEqualTo("ORGANIZER");
-        assertThat(result.getHoldExpiresAt()).isNull();
-    }
 }

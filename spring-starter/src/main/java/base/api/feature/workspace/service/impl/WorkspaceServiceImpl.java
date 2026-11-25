@@ -126,7 +126,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         workspace.setStatus(WorkspaceStatus.DRAFT);
 
         WorkspaceModel saved = workspaceRepository.save(workspace);
-        holidays.saveSelection(saved,dto.getHolidayCodes());
+        holidays.saveSelection(saved,dto.getHolidayCodes(),dto.getHolidaySchedules());
         if (dto.getOperatingHours() != null) saveOperatingHoursInternal(saved, dto.getOperatingHours());
         List<WorkspaceOperatingHourModel> hours = operatingHourRepository.findByWorkspaceIdOrderByDayOfWeekAsc(saved.getId());
         return policyDetail(WorkspaceMapper.toDetailDto(saved, hours), saved);
@@ -146,7 +146,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new BadRequestException("Không thể cập nhật không gian làm việc đã bị lưu trữ");
         }
 
-        holidays.saveSelection(workspace,dto.getHolidayCodes());
+        holidays.saveSelection(workspace,dto.getHolidayCodes(),dto.getHolidaySchedules());
         validateBasicInfo(dto.getName(),dto.getDescription());
         buildings.syncWorkspaceLocation(workspace, false);
         if (dto.getName() != null && !dto.getName().isBlank()) {
@@ -278,9 +278,13 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                 : PageRequest.of(0, 20, Sort.by(Sort.Direction.DESC, "createdAt"));
         String search = pageRequest != null ? pageRequest.normalizedSearch() : null;
 
-        Page<WorkspaceModel> page = workspaceRepository.searchByOrganizerEffective(organizerId, status == null ? null : status.name(), search, LocalDateTime.now(), base.api.feature.workspace.service.VietnamHolidays.activeCodes(java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE)), pageable);
+        var policyNow = LocalDateTime.now(base.api.feature.workspace.service.VietnamHolidays.ZONE);
+        Page<WorkspaceModel> page = workspaceRepository.searchByOrganizerEffective(organizerId, status == null ? null : status.name(), search, policyNow, base.api.feature.workspace.service.VietnamHolidays.activeCodes(policyNow.toLocalDate()), policyNow.toLocalDate(), pageable);
         Map<Long, Long> bookingCounts = getBookingCountsForPage(page.getContent());
-        return page.map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L)));
+        Map<Long, java.math.BigDecimal> startingPrices = getStartingPricesForPage(page.getContent());
+        Map<Long, String> coverUrls = getCoverUrlsForPage(page.getContent());
+        return page.map(w -> WorkspaceMapper.toDto(w, null, bookingCounts.getOrDefault(w.getId(), 0L),
+                startingPrices.get(w.getId()), null, 0L, coverUrls.get(w.getId())));
     }
 
     @Override

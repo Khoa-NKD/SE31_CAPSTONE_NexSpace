@@ -122,24 +122,6 @@ public class BookingController extends BaseAPIController {
         return success(updated, "Cập nhật thông tin tài khoản nhận tiền hoàn thành công");
     }
 
-    @Operation(summary = "Organizer phê duyệt đơn đặt chỗ (khi workspace bật chế độ duyệt thủ công)")
-    @PostMapping("/{id}/approve")
-    @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<BookingResponseDto>> approveBooking(@PathVariable Long id) {
-        BookingResponseDto response = bookingService.approveBooking(getCurrentUserId(), id);
-        return success(response, "Đơn đặt chỗ đã được phê duyệt thành công.");
-    }
-
-    @Operation(summary = "Organizer từ chối duyệt đơn đặt chỗ (khi workspace bật chế độ duyệt thủ công)")
-    @PostMapping("/{id}/reject")
-    @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")
-    public ResponseEntity<ApiResponse<BookingResponseDto>> rejectBooking(
-            @PathVariable Long id,
-            @RequestParam(required = false) String reason) {
-        BookingResponseDto response = bookingService.rejectBooking(getCurrentUserId(), id, reason);
-        return success(response, "Đơn đặt chỗ đã bị từ chối và vị trí chỗ ngồi đã được giải phóng.");
-    }
-
     @Operation(summary = "Organizer xem danh sách booking theo workspace, ngày và trạng thái")
     @GetMapping("/organizer")
     @PreAuthorize("hasAnyRole('ORGANIZER', 'ADMIN')")

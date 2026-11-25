@@ -72,7 +72,7 @@ public final class WorkspaceMapper {
         }
 
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
-        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace.getHolidayCodes());
+        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace);
         if (status == WorkspaceStatus.ACTIVE && holiday != null) status=WorkspaceStatus.HOLIDAY;
         String reviewStatus;
         String operatingStatus;
@@ -140,7 +140,8 @@ public final class WorkspaceMapper {
                 .bookingConfirmationMode(workspace.getBookingConfirmationMode())
                 .status(status)
                 .holidayCodes(workspace.getHolidayCodes())
-                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace.getHolidayCodes(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
+                .holidaySchedules(base.api.feature.workspace.service.VietnamHolidays.schedules(workspace))
+                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace,java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
                 .holidayClosure(holiday)
                 .holidayCalendarThroughYear(base.api.feature.workspace.service.VietnamHolidays.publishedThroughYear())
                 .reviewStatus(reviewStatus)
@@ -190,7 +191,7 @@ public final class WorkspaceMapper {
         }
 
         WorkspaceStatus status = workspace.getStatus() != null ? workspace.getStatus() : WorkspaceStatus.DRAFT;
-        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace.getHolidayCodes());
+        var holiday = base.api.feature.workspace.service.VietnamHolidays.current(workspace);
         if (status == WorkspaceStatus.ACTIVE && holiday != null) status=WorkspaceStatus.HOLIDAY;
         String reviewStatus;
         String operatingStatus;
@@ -260,7 +261,8 @@ public final class WorkspaceMapper {
                 .bookingConfirmationMode(workspace.getBookingConfirmationMode())
                 .status(status)
                 .holidayCodes(workspace.getHolidayCodes())
-                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace.getHolidayCodes(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
+                .holidaySchedules(base.api.feature.workspace.service.VietnamHolidays.schedules(workspace))
+                .holidayPeriods(base.api.feature.workspace.service.VietnamHolidays.periods(workspace,java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear(),java.time.LocalDate.now(base.api.feature.workspace.service.VietnamHolidays.ZONE).getYear()+1,false))
                 .holidayClosure(holiday)
                 .holidayCalendarThroughYear(base.api.feature.workspace.service.VietnamHolidays.publishedThroughYear())
                 .reviewStatus(reviewStatus)

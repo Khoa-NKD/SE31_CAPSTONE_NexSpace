@@ -74,6 +74,39 @@ class BookingMaintenanceAvailabilityTest {
         assertThat(result.get(0).isSelectable()).isFalse();
     }
 
+    @Test void maintenanceOnlyBlocksItsIntervalAndPreservesManualActivationOutsideIt() {
+        var maintenanceStart = start.plusHours(2);
+        var maintenanceEnd = start.plusHours(3);
+        when(resourceUsageRepository.occupancy(eq(11L), eq(start), eq(maintenanceStart), any()))
+                .thenReturn(Map.of());
+        when(resourceUsageRepository.occupancy(eq(11L), eq(maintenanceStart), eq(maintenanceEnd), any()))
+                .thenReturn(Map.of(room.getId(), Set.of(AvailabilityState.MAINTENANCE)));
+        when(resourceUsageRepository.occupancy(eq(11L), eq(maintenanceEnd), eq(maintenanceEnd.plusHours(1)), any()))
+                .thenReturn(Map.of());
+
+        var before = service.getFloorAvailability(1L, 11L, start, maintenanceStart);
+        assertThat(before.get(0).getState()).isEqualTo(AvailabilityState.AVAILABLE);
+        assertThat(before.get(0).isSelectable()).isTrue();
+        var during = service.getFloorAvailability(1L, 11L, maintenanceStart, maintenanceEnd);
+        assertThat(during).allSatisfy(item -> {
+            assertThat(item.getState()).isEqualTo(AvailabilityState.MAINTENANCE);
+            assertThat(item.isSelectable()).isFalse();
+        });
+        var after = service.getFloorAvailability(1L, 11L, maintenanceEnd, maintenanceEnd.plusHours(1));
+        assertThat(after.get(0).getState()).isEqualTo(AvailabilityState.AVAILABLE);
+        assertThat(after.get(0).isSelectable()).isTrue();
+        assertThat(room.getStatus()).isEqualTo(BookableResourceStatus.ACTIVE);
+        assertThat(desk.getStatus()).isEqualTo(BookableResourceStatus.ACTIVE);
+
+        room.setStatus(BookableResourceStatus.DISABLED);
+        var manuallyDisabled = service.getFloorAvailability(1L, 11L, maintenanceEnd, maintenanceEnd.plusHours(1));
+        assertThat(manuallyDisabled).allSatisfy(item -> {
+            assertThat(item.getState()).isEqualTo(AvailabilityState.DISABLED);
+            assertThat(item.isSelectable()).isFalse();
+        });
+        assertThat(room.getStatus()).isEqualTo(BookableResourceStatus.DISABLED);
+    }
+
     @Test void publishedDraftRoomAndSeatsKeepMaintenanceSignalsWhileNewDraftsStayPrivate() {
         for (var item : List.of(room, desk)) {
             item.setPosX(java.math.BigDecimal.ZERO); item.setPosY(java.math.BigDecimal.ZERO);
