@@ -739,3 +739,53 @@ export interface CreateSavedSearchFilterPayload {
   name: string;
   criteria: SavedSearchCriteria;
 }
+
+export interface PublicResourceDetail {
+  id: number;
+  code: string;
+  name: string;
+  category: 'DESK' | 'ROOM' | string;
+  capacity: number;
+  pricePerHour: number;
+  zoneName?: string;
+  noiseLevel?: string;
+  typeId?: number;
+  typeName?: string;
+  typeDescription?: string;
+  photos: string[];
+  floorPlanId?: number;
+  floorName?: string;
+  floorNumber?: number;
+  posX?: number;
+  posY?: number;
+  width?: number;
+  height?: number;
+  posXM?: number;
+  posYM?: number;
+}
+
+export interface ReviewItem {
+  id: number;
+  authorName: string;
+  avatarUrl?: string;
+  rating: number;
+  content: string;
+  dimensionRatings?: Record<string, number>;
+  photoUrls?: string[];
+  organizerReply?: string;
+  repliedAt?: string;
+  createdAt: string;
+  resourceId?: number;
+  resourceName?: string;
+  resourceCode?: string;
+  helpfulCount: number;
+  userHasReacted: boolean;
+}
+
+export interface ReviewSummaryResponse {
+  averageRating: number;
+  totalReviews: number;
+  dimensionAverages: Record<string, number>;
+  reviews: ReviewItem[];
+}
+

@@ -376,7 +376,7 @@ const BlurText = ({
     phase === 'in' ? animateKeyframes : phase === 'out' ? exitSnapshot : phase === 'rest' ? restSnapshot : fromSnapshot;
   const tinted = Boolean(fromColor) && (phase === 'from' || phase === 'out');
   const dim = Math.min(6, Math.max(2, blur * 0.3));
-  const pieceStyle: MotionStyle = fx.origin && !custom ? { ...PIECE_STYLE, ...fx.origin } : PIECE_STYLE;
+  const pieceStyle = (fx.origin && !custom ? { ...PIECE_STYLE, ...fx.origin } : PIECE_STYLE) as MotionStyle;
 
   const renderPiece = (index: number): ReactNode => {
     const piece = pieces[index];

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { WorkspaceHeader } from '../workspace-header';
 import { Footer } from '@/features/landing/components/footer';
@@ -9,7 +9,12 @@ import { SeatSpecsGrid } from './seat-specs-grid';
 import { SeatProximityMap } from './seat-proximity-map';
 import { SeatReviewsBento } from './seat-reviews-bento';
 import { SeatReservationWidget } from './seat-reservation-widget';
-import { usePublicWorkspaceDetailQuery } from '../../api/queries';
+import { SeatDetailSkeleton } from './seat-detail-skeleton';
+import {
+  usePublicWorkspaceDetailQuery,
+  usePublicResourceDetailQuery,
+  useWorkspaceAmenitiesQuery
+} from '../../api/queries';
 import { backendRequest } from '@/features/auth/api/session';
 import type { CustomerFloor } from '../detail/public-floor-map';
 import type { ScheduleSelection } from '../detail/date-time-picker-modal';
@@ -25,6 +30,19 @@ export interface SeatDetailPageProps {
   bookingCode?: string;
 }
 
+function getDefaultSchedule() {
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, '0');
+  const dd = String(now.getDate()).padStart(2, '0');
+  const today = `${yyyy}-${mm}-${dd}`;
+  return {
+    defaultDate: today,
+    defaultStartIso: `${today}T09:00:00`,
+    defaultEndIso: `${today}T11:00:00`
+  };
+}
+
 export function SeatDetailPage({
   workspaceId = 1,
   resourceId,
@@ -36,32 +54,35 @@ export function SeatDetailPage({
   bookingCode
 }: SeatDetailPageProps) {
   const [monitorAddonSelected, setMonitorAddonSelected] = useState(false);
+  const [scheduleOverride, setScheduleOverride] = useState<ScheduleSelection | null>(null);
+  const [defaultSchedule] = useState(getDefaultSchedule);
 
-  const [currentDate, setCurrentDate] = useState<string>(date || 'Nov 19, 2026');
-  const [currentStartTime, setCurrentStartTime] = useState<string>(startTime || '2026-11-19T09:00:00');
-  const [currentEndTime, setCurrentEndTime] = useState<string>(endTime || '2026-11-19T11:00:00');
-
-  useEffect(() => {
-    if (date) setCurrentDate(date);
-    if (startTime) setCurrentStartTime(startTime);
-    if (endTime) setCurrentEndTime(endTime);
-  }, [date, startTime, endTime]);
+  const currentDate = scheduleOverride?.date || date || defaultSchedule.defaultDate;
+  const currentStartTime = scheduleOverride?.isoStartTime || startTime || defaultSchedule.defaultStartIso;
+  const currentEndTime = scheduleOverride?.isoEndTime || endTime || defaultSchedule.defaultEndIso;
 
   const handleScheduleChange = (schedule: ScheduleSelection) => {
     if (schedule.isoStartTime && schedule.isoEndTime) {
-      setCurrentStartTime(schedule.isoStartTime);
-      setCurrentEndTime(schedule.isoEndTime);
-      setCurrentDate(schedule.date);
+      setScheduleOverride(schedule);
     }
   };
 
   // 1. Fetch Workspace Details
-  const { data: workspace } = usePublicWorkspaceDetailQuery(
+  const { data: workspace, isLoading: loadingWorkspace } = usePublicWorkspaceDetailQuery(
     workspaceId ? String(workspaceId) : '1'
   );
 
-  // 2. Fetch Floor Maps & Resources
-  const { data: floors } = useQuery<CustomerFloor[]>({
+  // 2. Fetch Public Resource Details & Photos
+  const { data: resourceDetail, isLoading: loadingResource } = usePublicResourceDetailQuery(
+    workspaceId,
+    resourceId
+  );
+
+  // 3. Fetch Workspace Amenities
+  const { data: amenities } = useWorkspaceAmenitiesQuery(workspaceId);
+
+  // 4. Fetch Floor Maps & Resources
+  const { data: floors, isLoading: loadingFloors } = useQuery<CustomerFloor[]>({
     queryKey: ['public-floor-maps', workspaceId],
     refetchInterval: 3000,
     enabled: Number.isSafeInteger(workspaceId) && Number(workspaceId) > 0,
@@ -95,6 +116,19 @@ export function SeatDetailPage({
     );
   }, [floors, resourceId]);
 
+  const isLoading =
+    loadingWorkspace || loadingFloors || (Boolean(resourceId) && loadingResource);
+
+  if (isLoading) {
+    return (
+      <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
+        <WorkspaceHeader />
+        <SeatDetailSkeleton />
+        <Footer />
+      </div>
+    );
+  }
+
   return (
     <div className='bg-background text-foreground flex min-h-screen flex-col antialiased selection:bg-primary/20'>
       {/* Top Application Bar */}
@@ -112,20 +146,35 @@ export function SeatDetailPage({
         <div className='grid grid-cols-1 items-start gap-8 lg:grid-cols-12'>
           {/* Left Column: 65% (8 cols) */}
           <section className='flex flex-col gap-8 lg:col-span-8'>
-            <SeatPhotoGallery />
+            <SeatPhotoGallery
+              photos={resourceDetail?.photos}
+              resource={resourceDetail || effectiveResource}
+              floor={effectiveFloor}
+              workspaceCover={workspace?.coverImageUrl}
+            />
             <SeatMetaStrip
               resource={effectiveResource}
               workspace={workspace}
               floor={effectiveFloor}
             />
             <SeatSpecsGrid
+              amenities={amenities}
+              resource={resourceDetail}
               monitorAddonSelected={monitorAddonSelected}
               onToggleMonitorAddon={() => setMonitorAddonSelected(!monitorAddonSelected)}
               currency='VND'
               addonRatePerHour={35000}
             />
-            <SeatProximityMap />
-            <SeatReviewsBento />
+            <SeatProximityMap
+              resource={resourceDetail || effectiveResource}
+              floor={effectiveFloor}
+            />
+            <SeatReviewsBento
+              workspaceId={workspaceId}
+              resourceId={resourceId}
+              resourceName={resourceDetail?.name || effectiveResource?.name}
+              resourceCode={resourceDetail?.code || effectiveResource?.code}
+            />
           </section>
 
           {/* Right Column: 35% (4 cols) - Sticky Reservation Widget that stays in view on scroll */}
