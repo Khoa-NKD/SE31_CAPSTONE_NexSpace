@@ -404,3 +404,19 @@ export function useOperatingHoursQuery(workspaceId: string | number | null | und
 export function usePublicOperatingHoursQuery(workspaceId: string | number | null | undefined) {
   return useQuery(publicOperatingHoursQueryOptions(workspaceId));
 }
+
+/** Active only while a picker is mounted; refresh stale reservation and operating-hour snapshots. */
+export function useSearchCalendarQuery(
+  params: import('./types').SearchCalendarParams,
+  enabled: boolean
+) {
+  return useQuery({
+    queryKey: [...workspaceQueryKeys.all, 'search-calendar', params],
+    queryFn: ({ signal }) => workspaceService.getSearchCalendar(params, signal),
+    enabled,
+    staleTime: 5000,
+    refetchInterval: 15000,
+    refetchOnWindowFocus: true,
+    retry: 1
+  });
+}

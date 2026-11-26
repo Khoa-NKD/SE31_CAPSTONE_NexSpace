@@ -1,5 +1,5 @@
 import { formatDateLabel } from '@/lib/format';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import {
   Calendar,
@@ -53,6 +53,9 @@ export function WorkspaceBookingCard({
 }: WorkspaceBookingCardProps) {
   const { language } = useLanguage();
   const { formatPrice } = useCurrency();
+  const [internalPickerOpen, setInternalPickerOpen] = useState(false);
+  const pickerOpen = isDatePickerOpen ?? internalPickerOpen;
+  const setPickerOpen = onDatePickerOpenChange ?? setInternalPickerOpen;
 
   const { data: holdData } = useCurrentPendingBooking();
 
@@ -286,8 +289,8 @@ export function WorkspaceBookingCard({
             initialStartTime={schedule?.startTime}
             initialEndTime={schedule?.endTime}
             onConfirm={onScheduleChange}
-            open={isDatePickerOpen}
-            onOpenChange={onDatePickerOpenChange}
+            open={pickerOpen}
+            onOpenChange={setPickerOpen}
           >
             <div
               role='button'
@@ -407,7 +410,7 @@ export function WorkspaceBookingCard({
           ) : !schedule ? (
             <button
               type='button'
-              onClick={() => onDatePickerOpenChange?.(true)}
+              onClick={() => setPickerOpen(true)}
               className='w-full py-3.5 px-5 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-sm rounded-xl shadow-md shadow-primary/20 transition-all flex items-center justify-center gap-2 group cursor-pointer active:scale-[0.99]'
             >
               <Calendar className='size-4' />
@@ -484,33 +487,20 @@ export function WorkspaceBookingCard({
               </div>
             )}
 
-            <DateTimePickerModal
-              workspaceId={workspace?.id}
-              workspaceName={workspace?.name}
-              operatingHours={workspace?.operatingHours}
-              pricePerHour={effectiveHourlyRate}
-              initialDate={schedule?.isoDate || schedule?.date}
-              initialDay={schedule?.day}
-              initialStartTime={schedule?.startTime}
-              initialEndTime={schedule?.endTime}
-              onConfirm={onScheduleChange}
-              open={isDatePickerOpen}
-              onOpenChange={onDatePickerOpenChange}
+            <button
+              type='button'
+              onClick={() => setPickerOpen(true)}
+              className='inline-flex items-center gap-1 text-xs font-semibold text-primary underline underline-offset-2 truncate max-w-[190px] cursor-pointer'
             >
-              <button
-                type='button'
-                className='inline-flex items-center gap-1 text-xs font-semibold text-primary underline underline-offset-2 truncate max-w-[190px] cursor-pointer'
-              >
-                <Calendar className='size-3 shrink-0' />
-                <span className='truncate'>
-                  {schedule
-                    ? `${formatDateLabel(schedule.date)} · ${schedule.startTime}`
-                    : language === 'vi'
-                      ? 'Chọn ngày & giờ'
-                      : 'Select date & time'}
-                </span>
-              </button>
-            </DateTimePickerModal>
+              <Calendar className='size-3 shrink-0' />
+              <span className='truncate'>
+                {schedule
+                  ? `${formatDateLabel(schedule.date)} · ${schedule.startTime}`
+                  : language === 'vi'
+                    ? 'Chọn ngày & giờ'
+                    : 'Select date & time'}
+              </span>
+            </button>
           </div>
 
           {selectedResource && !isSelectedResourceAvailable ? (
@@ -524,7 +514,7 @@ export function WorkspaceBookingCard({
           ) : !schedule ? (
             <button
               type='button'
-              onClick={() => onDatePickerOpenChange?.(true)}
+              onClick={() => setPickerOpen(true)}
               className='shrink-0 px-5 py-3 bg-primary hover:bg-primary/90 text-primary-foreground font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-primary/20 flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer'
             >
               <Calendar className='size-3.5' />

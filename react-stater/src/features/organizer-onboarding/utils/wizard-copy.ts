@@ -21,7 +21,6 @@ const validationCopy: Record<string, string> = {
     'Tên không gian phải có ít nhất 3 ký tự.',
   'Workspace name cannot exceed 100 characters': 'Tên không gian không được vượt quá 100 ký tự.',
   'Please select a space category': 'Vui lòng chọn loại hình không gian.',
-  'Description cannot exceed 200 characters': 'Mô tả không được vượt quá 200 ký tự.',
   'Please enter a valid booking hotline number':
     'Vui lòng nhập số điện thoại hỗ trợ đặt chỗ hợp lệ.',
   'Please enter a valid venue support email address': 'Vui lòng nhập email hỗ trợ hợp lệ.',
