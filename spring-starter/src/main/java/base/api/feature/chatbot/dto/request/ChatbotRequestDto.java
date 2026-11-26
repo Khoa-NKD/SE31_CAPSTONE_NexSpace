@@ -32,4 +32,8 @@ public class ChatbotRequestDto {
 
     @Schema(description = "Mã không gian đang xem (nếu người dùng đang ở trang chi tiết workspace)", example = "1")
     private Long workspaceId;
+
+    @Size(max = 200, message = "Đường dẫn trang hiện tại không hợp lệ")
+    @Schema(description = "Đường dẫn trang hiện tại trên frontend để NexBot hướng dẫn theo ngữ cảnh", example = "/workspaces/1")
+    private String currentPath;
 }

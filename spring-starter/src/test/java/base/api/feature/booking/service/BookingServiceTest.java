@@ -1077,4 +1077,43 @@ class BookingServiceTest {
         mockWorkspace.setOrganizer(mockHost); // restore
     }
 
+    @Test
+    @DisplayName("createBooking với amenityIds tính addon server-authoritative kèm VAT, không cộng đúp")
+    void createBooking_withAmenityIds_computesServerAuthoritativeAddons() throws Exception {
+        mockQuoteOperatingHours();
+        CreateBookingRequestDto dto = CreateBookingRequestDto.builder()
+                .workspaceId(mockWorkspace.getId())
+                .resourceId(mockResource.getId())
+                .startTime(futureMondayStart)
+                .endTime(futureMondayEnd)
+                .partySize(1)
+                .priceType(PriceType.HOURLY)
+                .amenityIds(List.of(4L))
+                .build();
+
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(workspaceRepository.findById(mockWorkspace.getId())).thenReturn(Optional.of(mockWorkspace));
+        when(resourceRepository.findByIdForUpdate(mockResource.getId())).thenReturn(Optional.of(mockResource));
+        when(bookingRepository.findConflictingBookingsWithHold(any(), any(), any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(blockedSlotRepository.findConflictingBlockedSlots(any(), any(), any()))
+                .thenReturn(Collections.emptyList());
+        when(addons.quote(mockWorkspace.getId(), List.of(4L), futureMondayStart, futureMondayEnd))
+                .thenReturn(List.of(new base.api.feature.booking.service.BookingAddons.Item(
+                        4L, "Projector", new BigDecimal("25000"), new BigDecimal("100000.00"))));
+        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(inv -> {
+            BookingModel b = inv.getArgument(0);
+            b.setId(991L);
+            return b;
+        });
+
+        BookingResponseDto response = bookingService.createBooking(mockCustomer.getId(), dto);
+
+        // 4h * 50,000 = 200,000 base + 100,000 addon = 300,000 taxable; 8% VAT = 24,000; final = 324,000
+        assertThat(response.getAddonAmount()).isEqualByComparingTo("100000.00");
+        assertThat(response.getTaxAmount()).isEqualByComparingTo("24000.00");
+        assertThat(response.getFinalPrice()).isEqualByComparingTo("324000.00");
+        assertThat(response.getPricingSnapshot()).contains("\"addonAmount\":100000.00");
+    }
+
 }

@@ -128,9 +128,16 @@ public class GlobalExceptionHandler {
         return build(ex.getMessage(), req, HttpStatus.METHOD_NOT_ALLOWED);
     }
 
-    @ExceptionHandler(ConflictException.class)
-    public ResponseEntity<ApiResponse<Void>> handleConflict(ConflictException ex, WebRequest req) {
-        return build(ex.getMessage(), req, HttpStatus.CONFLICT);
+    @ExceptionHandler({
+            ConflictException.class,
+            jakarta.persistence.OptimisticLockException.class,
+            org.springframework.orm.ObjectOptimisticLockingFailureException.class
+    })
+    public ResponseEntity<ApiResponse<Void>> handleConflict(Exception ex, WebRequest req) {
+        String message = ex instanceof ConflictException
+                ? ex.getMessage()
+                : "Dữ liệu đã được cập nhật bởi phiên làm việc khác. Vui lòng tải lại trước khi lưu.";
+        return build(message, req, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(Exception.class)

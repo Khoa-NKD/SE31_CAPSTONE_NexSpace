@@ -147,6 +147,10 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             throw new BadRequestException("Không thể cập nhật không gian làm việc đã bị lưu trữ");
         }
 
+        if (dto.getExpectedVersion() != null && !Objects.equals(workspace.getVersion(), dto.getExpectedVersion())) {
+            throw new ConflictException("Không gian làm việc đã được cập nhật bởi phiên khác. Vui lòng tải lại dữ liệu mới nhất.");
+        }
+
         holidays.saveSelection(workspace,dto.getHolidayCodes(),dto.getHolidaySchedules());
         validateWorkspaceName(dto.getName());
         buildings.syncWorkspaceLocation(workspace, false);
@@ -205,6 +209,10 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         // Strict Ownership Defense
         if (workspace.getOrganizer() == null || !workspace.getOrganizer().getId().equals(organizerId)) {
             throw new NotFoundException("Không tìm thấy không gian làm việc với ID: " + workspaceId);
+        }
+
+        if (dto.getExpectedVersion() != null && !Objects.equals(workspace.getVersion(), dto.getExpectedVersion())) {
+            throw new ConflictException("Không gian làm việc đã được cập nhật bởi phiên khác. Vui lòng tải lại dữ liệu mới nhất.");
         }
 
         if (dto.getAction() == null) {

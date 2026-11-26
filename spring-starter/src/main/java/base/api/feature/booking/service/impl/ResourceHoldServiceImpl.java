@@ -85,6 +85,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
     private final IResourceStateSyncService resourceStateSyncService;
     private final PayOS payOS;
     private final INotificationService notificationService;
+    private final base.api.feature.booking.service.BookingAddons addons;
 
     @Value("${app.booking.max-hold-lifetime-minutes:15}")
     private int maxHoldLifetimeMinutes = 15;
@@ -225,11 +226,12 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         // 6. Thẩm định giờ hoạt động của Workspace
         validateOperatingHours(workspace.getId(), startTime, endTime);
 
-        // 7. Tính toán giá và phí nền tảng
-        PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType());
+        // 7. Tính toán giá và phí nền tảng (server-authoritative, bao gồm addons nếu có)
+        PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType(), dto.getAmenityIds());
 
         BigDecimal platformCommissionPercent = getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT);
-        BigDecimal platformFeeAmount = priceCalc.getBaseAmount()
+        BigDecimal platformFeeAmount = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount())
+                .add(priceCalc.getAddonAmount() != null ? priceCalc.getAddonAmount() : BigDecimal.ZERO)
                 .multiply(platformCommissionPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
 
@@ -239,12 +241,8 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         String bookingCode = generateUniqueBookingCode();
         String qrTokenHash = generateQrTokenHash(bookingCode, customer.getId());
 
-        BigDecimal addonAmount = dto.getAddonAmount() != null && dto.getAddonAmount().compareTo(BigDecimal.ZERO) > 0
-                ? dto.getAddonAmount()
-                : BigDecimal.ZERO;
-
         // 9. Tạo snapshot giá và chính sách hủy
-        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource, addonAmount);
+        String pricingSnapshot = buildPricingSnapshot(priceCalc, resource);
         String cancellationPolicySnapshot = buildCancellationPolicySnapshot(workspace.getId());
 
         // 10. Xác định trạng thái khởi tạo (Chỉ sử dụng INSTANT -> PENDING_PAYMENT)
@@ -263,11 +261,11 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         booking.setPriceType(dto.getPriceType() != null ? dto.getPriceType() : PriceType.HOURLY);
         booking.setBaseAmount(priceCalc.getBaseAmount());
         booking.setSurchargeAmount(priceCalc.getSurchargeAmount());
-        booking.setAddonAmount(addonAmount);
+        booking.setAddonAmount(priceCalc.getAddonAmount() != null ? priceCalc.getAddonAmount() : BigDecimal.ZERO);
         booking.setDiscountAmount(priceCalc.getDiscountAmount());
         booking.setTaxAmount(priceCalc.getTaxAmount());
         booking.setServiceFeeAmount(priceCalc.getServiceFeeAmount());
-        booking.setFinalPrice(priceCalc.getFinalPrice().add(addonAmount));
+        booking.setFinalPrice(priceCalc.getFinalPrice());
         booking.setPlatformFeeAmount(platformFeeAmount);
         booking.setQuotaUsedAmount(BigDecimal.ZERO);
         booking.setStatus(initialStatus);
@@ -586,7 +584,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
     private PriceCalculationResponseDto computePrice(
             WorkspaceModel workspace, BookableResourceModel resource,
-            LocalDateTime startTime, LocalDateTime endTime, PriceType priceType) {
+            LocalDateTime startTime, LocalDateTime endTime, PriceType priceType, List<Long> amenityIds) {
 
         var baseQuote = base.api.feature.pricing.service.BookingBaseRates.quote(resource, startTime, endTime, priceType);
         PriceType effectivePriceType = baseQuote.priceType();
@@ -599,7 +597,14 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
 
         BigDecimal discountAmount = BigDecimal.ZERO;
 
-        BigDecimal taxableBase = baseAmount.add(surchargeAmount);
+        var selectedAddons = addons != null
+                ? addons.quote(workspace.getId(), amenityIds, startTime, endTime)
+                : List.<base.api.feature.booking.service.BookingAddons.Item>of();
+        BigDecimal addonAmount = selectedAddons.stream()
+                .map(base.api.feature.booking.service.BookingAddons.Item::amount)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        BigDecimal taxableBase = baseAmount.add(surchargeAmount).add(addonAmount);
         BigDecimal vatPercent = getDecimalSetting("payment.vat_percent", DEFAULT_VAT_PERCENT);
         BigDecimal taxAmount = taxableBase.multiply(vatPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
@@ -616,6 +621,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         if (resource.getResourceType() != null && resource.getResourceType().getCurrency() != null) {
             currency = resource.getResourceType().getCurrency().name();
         }
+        if (addonAmount.signum() > 0 && !"VND".equals(currency)) {
+            throw new BadRequestException("Tiện ích VND chỉ áp dụng cho đơn VND.");
+        }
 
         return PriceCalculationResponseDto.builder()
                 .resourceId(resource.getId())
@@ -626,6 +634,9 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
                 .durationHours(durationHours)
                 .baseAmount(baseAmount)
                 .surchargeAmount(surchargeAmount)
+                .addonAmount(addonAmount)
+                .addons(selectedAddons)
+                .vatPercent(vatPercent)
                 .taxAmount(taxAmount)
                 .serviceFeeAmount(serviceFeeAmount)
                 .discountAmount(discountAmount)
@@ -663,7 +674,7 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         }
     }
 
-    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource, BigDecimal addonAmount) {
+    private String buildPricingSnapshot(PriceCalculationResponseDto priceCalc, BookableResourceModel resource) {
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("resourceId", resource.getId());
         map.put("resourceCode", resource.getLabel());
@@ -671,12 +682,13 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         map.put("durationHours", priceCalc.getDurationHours());
         map.put("baseAmount", priceCalc.getBaseAmount());
         map.put("surchargeAmount", priceCalc.getSurchargeAmount());
-        map.put("addonAmount", addonAmount != null ? addonAmount : BigDecimal.ZERO);
+        map.put("addonAmount", priceCalc.getAddonAmount() != null ? priceCalc.getAddonAmount() : BigDecimal.ZERO);
+        map.put("addons", priceCalc.getAddons());
+        map.put("vatPercent", priceCalc.getVatPercent());
         map.put("taxAmount", priceCalc.getTaxAmount());
         map.put("serviceFeeAmount", priceCalc.getServiceFeeAmount());
         map.put("discountAmount", priceCalc.getDiscountAmount());
-        BigDecimal finalPrice = priceCalc.getFinalPrice().add(addonAmount != null ? addonAmount : BigDecimal.ZERO);
-        map.put("finalPrice", finalPrice);
+        map.put("finalPrice", priceCalc.getFinalPrice());
         map.put("currency", priceCalc.getCurrency());
         try {
             return objectMapper.writeValueAsString(map);
