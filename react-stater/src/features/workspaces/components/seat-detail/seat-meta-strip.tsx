@@ -1,6 +1,5 @@
 import {
   Star,
-  VolumeX,
   Sunset,
   Wifi,
   QrCode,
@@ -25,15 +24,28 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
   const isRoom = resource?.category === 'ROOM';
   const isOffice = resource ? isResourceOffice(resource) : false;
   const capacity = resource?.capacity || (isRoom ? (isOffice ? 4 : 6) : 1);
-  const hourlyRate = resource?.pricePerHour || 35000;
+  const hourlyRate = resource?.pricePerHour || 0;
 
   const zoneTag =
     resource?.zoneName?.toUpperCase() || (isRoom ? 'KHU PHÒNG HỌP' : 'KHU BÀN LÀM VIỆC');
-  const seatId = resource?.code ? `MÃ #${resource.code}` : 'Seat ID #CT14-A04';
+  const seatId = resource?.code ? `MÃ #${resource.code}` : (resource?.name || '');
   const title = resource?.name
-    ? `${resource.name} (${resource.code})`
-    : 'Desk A-04 — Executive Ergonomic Hot Desk';
-  const locationDesc = `${workspace?.name || 'NexSpace Enouvo'}, ${floor?.name || 'Tầng 2'} — ${resource?.typeName || (isRoom ? 'Phòng họp & làm việc cách âm tiêu chuẩn' : 'Bàn làm việc Focus tiêu chuẩn')}`;
+    ? resource.code
+      ? `${resource.name} (${resource.code})`
+      : resource.name
+    : resource?.code || (isRoom ? 'Phòng làm việc' : 'Bàn làm việc');
+
+  const locationParts = [workspace?.name, floor?.name, resource?.typeName].filter(Boolean);
+  const locationDesc =
+    locationParts.length > 0
+      ? locationParts.join(' • ')
+      : isRoom
+        ? 'Phòng họp & làm việc tiêu chuẩn'
+        : 'Bàn làm việc Focus tiêu chuẩn';
+
+  const hasReviews = typeof workspace?.rating === 'number' && workspace.rating > 0;
+  const ratingValue = hasReviews ? Number(workspace.rating).toFixed(1) : null;
+  const reviewsCount = workspace?.reviewsCount ?? 0;
 
   const metaBadges = [
     {
@@ -44,12 +56,12 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
     {
       icon: Sunset,
       label: 'ĐƠN GIÁ',
-      value: `${formatPrice(hourlyRate)} / giờ`
+      value: hourlyRate > 0 ? `${formatPrice(hourlyRate)} / giờ` : 'Liên hệ báo giá'
     },
     {
       icon: Wifi,
       label: 'KẾT NỐI MẠNG',
-      value: '1,000 Mbps WiFi 6'
+      value: 'WiFi & Internet tốc độ cao'
     },
     {
       icon: QrCode,
@@ -67,7 +79,9 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
             <span className='bg-primary/10 text-primary rounded-full px-2.5 py-0.5 text-xs font-semibold'>
               {zoneTag}
             </span>
-            <span className='text-muted-foreground text-xs font-medium font-mono'>{seatId}</span>
+            {seatId && (
+              <span className='text-muted-foreground text-xs font-medium font-mono'>{seatId}</span>
+            )}
           </div>
           <h1 className='text-foreground font-sans text-xl font-bold tracking-tight sm:text-2xl'>
             {title}
@@ -76,15 +90,17 @@ export function SeatMetaStrip({ resource, workspace, floor }: SeatMetaStripProps
         </div>
 
         {/* Rating Block */}
-        <div className='flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50/80 px-3 py-1.5 dark:border-amber-500/30 dark:bg-amber-500/10 sm:flex-col sm:items-end'>
+        <div className='flex items-center gap-1.5 rounded-lg border border-border bg-muted/40 px-3 py-1.5 sm:flex-col sm:items-end'>
           <div className='flex items-center gap-1'>
-            <Star className='h-4 w-4 fill-amber-500 text-amber-500' />
+            <Star
+              className={`h-4 w-4 ${hasReviews ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground/60'}`}
+            />
             <span className='font-sans text-base font-bold text-foreground'>
-              {workspace?.rating ? Number(workspace.rating).toFixed(1) : '4.9'}
+              {ratingValue ?? 'Mới'}
             </span>
           </div>
           <span className='text-muted-foreground text-xs'>
-            ({workspace?.reviewsCount || 42} đánh giá)
+            ({reviewsCount} đánh giá)
           </span>
         </div>
       </div>

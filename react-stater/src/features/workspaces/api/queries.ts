@@ -18,6 +18,10 @@ export const workspaceQueryKeys = {
   detail: (id: string) => [...workspaceQueryKeys.details(), id] as const,
   media: (id: string | number) => [...workspaceQueryKeys.all, 'media', String(id)] as const,
   amenities: (id: string | number) => [...workspaceQueryKeys.all, 'amenities', String(id)] as const,
+  reviews: (workspaceId: string | number, resourceId?: string | number) =>
+    [...workspaceQueryKeys.all, 'reviews', String(workspaceId), resourceId ? String(resourceId) : 'all'] as const,
+  resourceDetail: (workspaceId: string | number, resourceId: string | number) =>
+    [...workspaceQueryKeys.all, 'resource-detail', String(workspaceId), String(resourceId)] as const,
   assets: (workspaceId: string | number, params?: WorkspaceAssetFilterParams) =>
     [...workspaceQueryKeys.all, 'assets', String(workspaceId), params] as const,
   assetDetail: (workspaceId: string | number, assetId: string | number) =>
@@ -222,6 +226,57 @@ export const workspaceAmenitiesQueryOptions = (workspaceId: number | string | nu
  */
 export function useWorkspaceAmenitiesQuery(workspaceId: number | string | null | undefined) {
   return useQuery(workspaceAmenitiesQueryOptions(workspaceId));
+}
+
+/**
+ * TanStack Query options for public resource detail.
+ */
+export const publicResourceDetailQueryOptions = (
+  workspaceId: number | string | null | undefined,
+  resourceId: number | string | null | undefined
+) =>
+  queryOptions({
+    queryKey:
+      workspaceId && resourceId
+        ? workspaceQueryKeys.resourceDetail(workspaceId, resourceId)
+        : [...workspaceQueryKeys.all, 'resource-detail', 'none'],
+    queryFn: () =>
+      workspaceId && resourceId
+        ? workspaceService.getPublicResourceDetail(workspaceId, resourceId)
+        : null,
+    enabled: Boolean(workspaceId && resourceId)
+  });
+
+export function usePublicResourceDetailQuery(
+  workspaceId: number | string | null | undefined,
+  resourceId: number | string | null | undefined
+) {
+  return useQuery(publicResourceDetailQueryOptions(workspaceId, resourceId));
+}
+
+/**
+ * TanStack Query options for public workspace reviews.
+ */
+export const publicWorkspaceReviewsQueryOptions = (
+  workspaceId: number | string | null | undefined,
+  resourceId?: number | string | null | undefined
+) =>
+  queryOptions({
+    queryKey: workspaceId
+      ? workspaceQueryKeys.reviews(workspaceId, resourceId ?? undefined)
+      : [...workspaceQueryKeys.all, 'reviews', 'none'],
+    queryFn: () =>
+      workspaceId
+        ? workspaceService.getPublicWorkspaceReviews(workspaceId, resourceId ?? undefined)
+        : null,
+    enabled: Boolean(workspaceId)
+  });
+
+export function usePublicWorkspaceReviewsQuery(
+  workspaceId: number | string | null | undefined,
+  resourceId?: number | string | null | undefined
+) {
+  return useQuery(publicWorkspaceReviewsQueryOptions(workspaceId, resourceId));
 }
 
 /**

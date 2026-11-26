@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { Link } from '@tanstack/react-router';
 import { Timer, AlertTriangle, XCircle, RotateCcw, ShieldAlert } from '@/components/ui/hugeicons';
 import { useReleaseHoldMutation } from '@/features/resource-availability';
 import { toast } from 'sonner';
@@ -207,14 +208,13 @@ export function HoldUrgencyBanner({
           </div>
 
           <div className='z-10 flex items-center gap-2 pl-13 sm:self-center sm:pl-0'>
-            <button
-              type='button'
-              onClick={() => window.history.back()}
+            <Link
+              to='/workspaces/my-bookings'
               className='inline-flex items-center gap-1.5 rounded-lg border border-red-300 bg-card px-3.5 py-1.5 text-xs font-semibold text-red-800 shadow-xs transition-colors hover:bg-red-50 dark:border-red-500/30 dark:bg-card/60 dark:text-red-300 dark:hover:bg-red-950/40 cursor-pointer'
             >
               <RotateCcw className='h-3.5 w-3.5' />
-              <span>Chọn lại chỗ khác</span>
-            </button>
+              <span>Xem đơn của tôi</span>
+            </Link>
           </div>
         </div>
       </div>

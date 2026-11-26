@@ -138,20 +138,13 @@ export function BookingReviewPage({
   const handleHoldExpired = useCallback(() => {
     toast.error(
       language === 'vi'
-        ? 'Phiên giữ chỗ của bạn đã hết hạn. Đang chuyển về trang thông tin không gian...'
-        : 'Your seat hold has expired. Redirecting to workspace details...'
+        ? 'Phiên giữ chỗ của bạn đã hết hạn. Đang chuyển về trang đơn đặt chỗ của bạn để theo dõi...'
+        : 'Your seat hold has expired. Redirecting to your bookings page to track status...'
     );
     setTimeout(() => {
-      if (workspaceId) {
-        navigate({
-          to: '/workspaces/$workspaceId',
-          params: { workspaceId: String(workspaceId) }
-        });
-      } else {
-        navigate({ to: '/workspaces' });
-      }
+      navigate({ to: '/workspaces/my-bookings' });
     }, 1500);
-  }, [language, workspaceId, navigate]);
+  }, [language, navigate]);
 
   // Tự động out khi đơn booking bị phát hiện đã EXPIRED từ server
   useEffect(() => {
