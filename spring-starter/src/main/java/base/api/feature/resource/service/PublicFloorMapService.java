@@ -26,6 +26,7 @@ public class PublicFloorMapService {
     private final base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     private final IResourceBlockedSlotRepository blocks;
     private final IDecorationMaintenanceRepository decorationMaintenance;
+    private final base.api.feature.workspace.repository.IMediaRepository media;
 
     public record ObjectView(
             Long id,
@@ -189,5 +190,67 @@ public class PublicFloorMapService {
                                          ? base.api.shared.entity.resource.MetricGeometry.PIXELS_PER_METRE : null);
                         })
                 .toList();
+    }
+
+    public base.api.feature.resource.dto.response.PublicResourceDetailDto resourceDetail(Long workspaceId, Long resourceId) {
+        var resource = resources.findDetailedById(resourceId)
+                .orElseThrow(() -> new NotFoundException("Resource not found: " + resourceId));
+        if (resource.getFloorPlan() == null || resource.getFloorPlan().getWorkspace() == null
+                || !resource.getFloorPlan().getWorkspace().getId().equals(workspaceId)) {
+            throw new NotFoundException("Resource not found in workspace: " + resourceId);
+        }
+
+        List<String> photoUrls = new java.util.ArrayList<>(
+                media.findByResourceIdOrderByDisplayOrderAsc(resourceId).stream()
+                        .map(base.api.shared.entity.workspace.MediaModel::getUrl)
+                        .toList()
+        );
+
+        if (resource.getResourceType() != null && resource.getResourceType().getPhotos() != null) {
+            for (var p : resource.getResourceType().getPhotos()) {
+                if (p != null && p.url() != null && !photoUrls.contains(p.url())) {
+                    photoUrls.add(p.url());
+                }
+            }
+        }
+
+        if (photoUrls.isEmpty()) {
+            photoUrls.addAll(
+                    media.findByWorkspaceIdOrderByDisplayOrderAsc(workspaceId).stream()
+                            .map(base.api.shared.entity.workspace.MediaModel::getUrl)
+                            .toList()
+            );
+        }
+
+        var fp = resource.getFloorPlan();
+        var rt = resource.getResourceType();
+        Integer capacity = resource.getCapacityOverride() != null ? resource.getCapacityOverride()
+                : (rt != null ? rt.getCapacity() : 1);
+        BigDecimal pricePerHour = resource.getPricePerHour() != null ? resource.getPricePerHour()
+                : (rt != null ? rt.getPricePerHour() : BigDecimal.ZERO);
+
+        return base.api.feature.resource.dto.response.PublicResourceDetailDto.builder()
+                .id(resource.getId())
+                .code(resource.getLabel())
+                .name(resource.getName() != null ? resource.getName() : resource.getLabel())
+                .category(rt != null ? rt.getCategory() : null)
+                .capacity(capacity)
+                .pricePerHour(pricePerHour)
+                .zoneName(resource.getZoneName())
+                .noiseLevel(resource.getNoiseLevel())
+                .typeId(rt != null ? rt.getId() : null)
+                .typeName(rt != null ? rt.getName() : null)
+                .typeDescription(rt != null ? rt.getDescription() : null)
+                .photos(photoUrls)
+                .floorPlanId(fp.getId())
+                .floorName(fp.getName())
+                .floorNumber(fp.getFloorNumber())
+                .posX(resource.getPosX())
+                .posY(resource.getPosY())
+                .width(resource.getWidth())
+                .height(resource.getHeight())
+                .posXM(resource.getPosXM())
+                .posYM(resource.getPosYM())
+                .build();
     }
 }

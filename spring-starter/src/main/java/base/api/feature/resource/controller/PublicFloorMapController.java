@@ -27,6 +27,13 @@ public class PublicFloorMapController extends BaseAPIController {
         return success(service.maps(workspaceId));
     }
 
+    @GetMapping("/{workspaceId}/resources/{resourceId}")
+    public ResponseEntity<ApiResponse<base.api.feature.resource.dto.response.PublicResourceDetailDto>> resourceDetail(
+            @PathVariable @Positive Long workspaceId,
+            @PathVariable @Positive Long resourceId) {
+        return success(service.resourceDetail(workspaceId, resourceId), "Lấy chi tiết chỗ ngồi thành công");
+    }
+
     @ExceptionHandler(jakarta.validation.ConstraintViolationException.class)
     public ResponseEntity<ApiResponse<Void>> invalidIdentifier() {
         return ResponseEntity.badRequest().body(new ApiResponse<>(false, null,

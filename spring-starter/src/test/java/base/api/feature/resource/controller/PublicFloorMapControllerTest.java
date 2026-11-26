@@ -122,4 +122,33 @@ class PublicFloorMapControllerTest {
 
         verify(floorMapService).maps(999L);
     }
+
+    @Test
+    @DisplayName("GET /api/v1/public/workspaces/{id}/resources/{resourceId} - Lấy chi tiết chỗ ngồi và ảnh thành công")
+    void testGetResourceDetail_Success() throws Exception {
+        var detail = base.api.feature.resource.dto.response.PublicResourceDetailDto.builder()
+                .id(27L)
+                .code("A06")
+                .name("Bàn cửa sổ A06")
+                .category(ResourceCategory.DESK)
+                .capacity(1)
+                .pricePerHour(new BigDecimal("11500.00"))
+                .zoneName("Khu cửa sổ")
+                .photos(List.of("https://example.com/photo1.jpg"))
+                .floorPlanId(1L)
+                .floorName("Tầng 1 Open Workspace")
+                .build();
+
+        when(floorMapService.resourceDetail(1L, 27L)).thenReturn(detail);
+
+        mockMvc.perform(get("/api/v1/public/workspaces/1/resources/27")
+                        .accept(MediaType.APPLICATION_JSON))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.data.id").value(27))
+                .andExpect(jsonPath("$.data.code").value("A06"))
+                .andExpect(jsonPath("$.data.photos[0]").value("https://example.com/photo1.jpg"));
+
+        verify(floorMapService).resourceDetail(1L, 27L);
+    }
 }
