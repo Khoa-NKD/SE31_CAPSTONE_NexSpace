@@ -329,12 +329,6 @@ export function useWizardDraftSync() {
         });
         state.markDraftSynced(true);
         setLastSavedTime(canonical.updatedAt);
-        toast.info(c('Workspace Hydrated from Server', 'Đã tải thông tin không gian'), {
-          description: c(
-            `Loaded "${canonical.name}" (#${canonical.id}) v${canonical.version}.`,
-            `Đã tải "${canonical.name}" (#${canonical.id}) v${canonical.version}.`
-          )
-        });
       } catch (err: unknown) {
         if (sequence !== loadSequenceRef.current) return;
         const msg =

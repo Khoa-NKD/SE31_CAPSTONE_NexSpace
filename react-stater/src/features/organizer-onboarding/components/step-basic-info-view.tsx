@@ -75,14 +75,10 @@ export function StepBasicInfoView(_props: { routeWorkspaceId?: string } = {}) {
                 Giới thiệu ngắn{' '}
                 <span className='font-normal text-muted-foreground'>(tùy chọn)</span>
               </label>
-              <span className='text-[11px] tabular-nums text-muted-foreground'>
-                {basic.description.length}/200
-              </span>
             </div>
             <Textarea
               id='workspace-description'
               rows={4}
-              maxLength={200}
               value={basic.description}
               placeholder='Điểm nổi bật, không khí làm việc hoặc vị trí thuận tiện…'
               onChange={(e) => setBasic({ description: e.target.value })}

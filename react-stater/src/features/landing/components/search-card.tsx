@@ -1,3 +1,5 @@
+import { toast } from 'sonner';
+import { workspaceService } from '@/features/workspaces/api/service';
 import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -101,6 +103,8 @@ export function SearchCard({
   const [internalLocation, setInternalLocation] = useState('');
   const [internalDateTime, setInternalDateTime] = useState('today-flexible');
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleSelection | null>(null);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [checkingSearch, setCheckingSearch] = useState(false);
   const [internalCapacity, setInternalCapacity] = useState('1 - 4 People');
   const [showMoreOptions, setShowMoreOptions] = useState(false);
 
@@ -140,8 +144,37 @@ export function SearchCard({
     notifyFilterChange({ location: val });
   };
 
-  const handleSearch = (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (checkingSearch) return;
+    if (selectedSchedule) {
+      if (!selectedSchedule.isoStartTime || !selectedSchedule.isoEndTime) {
+        toast.error('Vui lòng chọn lại ngày và giờ tìm kiếm.');
+        setScheduleOpen(true);
+        return;
+      }
+      setCheckingSearch(true);
+      try {
+        const check = await workspaceService.getPublicWorkspaces({
+          search: location.trim() || undefined,
+          category: modeOptions.find((item) => item.id === activeMode)?.categoryParam,
+          startTime: selectedSchedule.isoStartTime,
+          endTime: selectedSchedule.isoEndTime,
+          page: 1,
+          limit: 1
+        });
+        if (!check.content?.length) {
+          toast.error('Không còn không gian phù hợp với khoảng thời gian này. Vui lòng chọn lại.');
+          setScheduleOpen(true);
+          return;
+        }
+      } catch {
+        toast.error('Chưa kiểm tra được lịch mới nhất. Vui lòng thử lại.');
+        return;
+      } finally {
+        setCheckingSearch(false);
+      }
+    }
     highlightSearchCard();
     const criteria: SearchCriteria = {
       mode: activeMode,
@@ -169,6 +202,7 @@ export function SearchCard({
       if (selectedSchedule.date) searchParams.date = selectedSchedule.date;
       if (selectedSchedule.startTime) searchParams.startTime = selectedSchedule.startTime;
       if (selectedSchedule.endTime) searchParams.endTime = selectedSchedule.endTime;
+      if (selectedSchedule.priceType) searchParams.priceType = selectedSchedule.priceType;
       if (selectedSchedule.isoStartTime) searchParams.isoStartTime = selectedSchedule.isoStartTime;
       if (selectedSchedule.isoEndTime) searchParams.isoEndTime = selectedSchedule.isoEndTime;
     }
@@ -186,7 +220,10 @@ export function SearchCard({
     >
       {/* Primary Horizontal Search Form */}
       <span data-search-orbit aria-hidden='true' className='ns-search-orbit' />
-      <form onSubmit={handleSearch} className='flex flex-col md:flex-row md:items-end gap-3'>
+      <form
+        onSubmit={(event) => void handleSearch(event)}
+        className='flex flex-col md:flex-row md:items-end gap-3'
+      >
         {/* 1. Location */}
         <div className='flex-[1.4] min-w-0 space-y-1.5'>
           <label
@@ -229,9 +266,20 @@ export function SearchCard({
           <div className='relative flex items-center'>
             <Calendar className='pointer-events-none absolute left-3.5 h-4 w-4 text-slate-400 z-10' />
             <DateTimePickerModal
+              open={scheduleOpen}
+              onOpenChange={setScheduleOpen}
+              initialDate={selectedSchedule?.isoDate}
+              initialStartTime={selectedSchedule?.startTime}
+              initialEndTime={selectedSchedule?.endTime}
+              searchFilters={{
+                search: location.trim() || undefined,
+                category: modeOptions.find((item) => item.id === activeMode)?.categoryParam
+              }}
               onConfirm={(schedule) => {
                 setSelectedSchedule(schedule);
-                notifyFilterChange({ dateTime: `${schedule.date}, ${schedule.startTime} - ${schedule.endTime}` });
+                notifyFilterChange({
+                  dateTime: `${schedule.date}, ${schedule.startTime} - ${schedule.endTime}`
+                });
               }}
             >
               <button
@@ -239,10 +287,17 @@ export function SearchCard({
                 id='search-datetime'
                 className='h-11 w-full cursor-pointer flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/60 pl-10 pr-3 text-sm text-slate-900 transition-colors hover:border-[#4b41e1] hover:bg-white focus:border-[#4b41e1] focus:bg-white focus:ring-2 focus:ring-[#4b41e1]/20 focus:outline-none dark:border-slate-800 dark:bg-slate-950/60 dark:text-white dark:hover:border-[#4b41e1] dark:focus:bg-slate-950'
               >
-                <span className={cn('truncate font-medium text-xs sm:text-sm text-left', !selectedSchedule && 'text-slate-500 dark:text-slate-400')}>
+                <span
+                  className={cn(
+                    'truncate font-medium text-xs sm:text-sm text-left',
+                    !selectedSchedule && 'text-slate-500 dark:text-slate-400'
+                  )}
+                >
                   {selectedSchedule
                     ? `${selectedSchedule.date}, ${selectedSchedule.startTime} - ${selectedSchedule.endTime}`
-                    : (language === 'vi' ? 'Hôm nay, Giờ linh hoạt' : 'Today, Flexible hours')}
+                    : language === 'vi'
+                      ? 'Hôm nay, Giờ linh hoạt'
+                      : 'Today, Flexible hours'}
                 </span>
                 <ChevronDown className='h-4 w-4 text-slate-400 shrink-0 ml-1' />
               </button>
@@ -286,6 +341,7 @@ export function SearchCard({
           </span>
           <Button
             type='submit'
+            disabled={checkingSearch}
             className='group h-11 w-full md:w-auto cursor-pointer rounded-xl bg-[#4b41e1] hover:bg-[#3f36c8] px-6 text-sm font-bold text-white shadow-md shadow-[#4b41e1]/25 transition-all duration-150 active:scale-[0.98] flex items-center justify-center gap-2'
           >
             <Search className='h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-110' />

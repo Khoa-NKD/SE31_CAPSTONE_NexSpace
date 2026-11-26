@@ -43,7 +43,11 @@ export function WorkspacesPage() {
         const startM = parseTimeToMinutes(startTime);
         const endM = parseTimeToMinutes(endTime);
         const diffM = endM > startM ? endM - startM : endM + 1440 - startM;
-        durationHours = Math.max(1, Math.round((diffM / 60) * 10) / 10);
+        const actualMinutes =
+          isoStartTime && isoEndTime
+            ? (+new Date(isoEndTime) - +new Date(isoStartTime)) / 60000
+            : diffM;
+        durationHours = Math.max(0.5, Math.round((actualMinutes / 60) * 100) / 100);
       } catch {
         durationHours = 1;
       }

@@ -739,3 +739,21 @@ export interface CreateSavedSearchFilterPayload {
   name: string;
   criteria: SavedSearchCriteria;
 }
+
+export interface SearchCalendarParams {
+  from: string;
+  to: string;
+  workspaceId?: string | number;
+  search?: string;
+  city?: string;
+  district?: string;
+  category?: string;
+  resourceCategories?: string[];
+}
+export interface SearchCalendarResponse {
+  from: string;
+  to: string;
+  timezone: string;
+  generatedAt: string;
+  intervals: { start: string; end: string }[];
+}

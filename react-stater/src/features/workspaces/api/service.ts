@@ -108,6 +108,15 @@ export function resolveWorkspaceId(aliasOrId: unknown): string {
 }
 
 export const workspaceService = {
+  getSearchCalendar(params: import('./types').SearchCalendarParams, signal?: AbortSignal) {
+    return apiClient.get<import('./types').SearchCalendarResponse>(
+      '/public/workspaces/search-calendar',
+      {
+        params: { ...params, resourceCategories: params.resourceCategories?.join(',') },
+        signal
+      }
+    );
+  },
   /**
    * Public marketplace query: returns only approved, active workspaces with public-safe projections.
    */
@@ -718,11 +727,7 @@ export const workspaceService = {
   /**
    * Lấy danh sách lịch sử đặt chỗ của khách hàng đang đăng nhập với bộ lọc trạng thái và phân trang.
    */
-  async getMyBookings(params?: {
-    status?: string;
-    page?: number;
-    size?: number;
-  }): Promise<{
+  async getMyBookings(params?: { status?: string; page?: number; size?: number }): Promise<{
     content: BookingDto[];
     totalElements: number;
     totalPages: number;

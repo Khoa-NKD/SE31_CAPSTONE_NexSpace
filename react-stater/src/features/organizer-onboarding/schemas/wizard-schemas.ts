@@ -5,7 +5,7 @@ export const basicInfoSchema = z.object({
     .string()
     .min(3, 'Tên không gian cần ít nhất 3 ký tự')
     .max(100, 'Tên không gian tối đa 100 ký tự'),
-  description: z.string().max(200, 'Giới thiệu ngắn tối đa 200 ký tự').default('')
+  description: z.string().default('')
 });
 
 export const locationSchema = z.object({
