@@ -21,6 +21,17 @@ public final class OperatingHours {
 
     public static boolean covers(List<WorkspaceOperatingHourModel> hours, LocalDateTime start, LocalDateTime end) {
         if (start == null || end == null || !end.isAfter(start) || hours == null || hours.isEmpty()) return false;
+        LocalDateTime covered = start;
+        for (var window : windows(hours, start, end)) {
+            if (window.start().isAfter(covered)) break;
+            if (window.end().isAfter(covered)) covered = window.end();
+            if (!covered.isBefore(end)) return true;
+        }
+        return false;
+    }
+
+    public static List<Window> windows(List<WorkspaceOperatingHourModel> hours, LocalDateTime start, LocalDateTime end) {
+        if (hours == null || hours.isEmpty()) return List.of();
         var windows = new ArrayList<Window>();
         for (LocalDate date = start.toLocalDate().minusDays(1); !date.isAfter(end.toLocalDate()); date = date.plusDays(1)) {
             int day = date.getDayOfWeek().getValue();
@@ -35,14 +46,8 @@ public final class OperatingHours {
             }
         }
         windows.sort(Comparator.comparing(Window::start));
-        LocalDateTime covered = start;
-        for (var window : windows) {
-            if (window.start().isAfter(covered)) break;
-            if (window.end().isAfter(covered)) covered = window.end();
-            if (!covered.isBefore(end)) return true;
-        }
-        return false;
+        return windows;
     }
 
-    private record Window(LocalDateTime start, LocalDateTime end) {}
+    public record Window(LocalDateTime start, LocalDateTime end) {}
 }

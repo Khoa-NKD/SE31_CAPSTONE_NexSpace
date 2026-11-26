@@ -511,6 +511,22 @@ public interface IBookingRepository extends JpaRepository<BookingModel, Long> {
             @Param("activeStatuses") Collection<BookingStatus> activeStatuses,
             @Param("pendingStatus") BookingStatus pendingStatus);
 
+    @org.springframework.data.jpa.repository.Query("""
+            select distinct r.id from BookableResourceModel r
+            where r.floorPlan.workspace.id in :workspaceIds and exists (
+              select b.id from BookingModel b
+              where (b.resource = r or b.resource.parentRoom = r or b.resource = r.parentRoom)
+                and b.startTime < :endTime and b.endTime > :startTime
+                and (b.status in (base.api.shared.enums.BookingStatus.CONFIRMED, base.api.shared.enums.BookingStatus.CHECKED_IN)
+                  or (b.status in (base.api.shared.enums.BookingStatus.PENDING_PAYMENT, base.api.shared.enums.BookingStatus.PENDING_APPROVAL)
+                    and (b.holdExpiresAt is null or b.holdExpiresAt > :now))))
+            """)
+    Set<Long> findSearchOccupiedResourceIds(
+            @Param("workspaceIds") Collection<Long> workspaceIds,
+            @Param("startTime") LocalDateTime startTime,
+            @Param("endTime") LocalDateTime endTime,
+            @Param("now") LocalDateTime now);
+
     default Set<Long> findOccupiedResourceIds(
             LocalDateTime startTime,
             LocalDateTime endTime,

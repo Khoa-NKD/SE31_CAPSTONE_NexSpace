@@ -43,6 +43,7 @@ public interface IBookableResourceRepository
             WHERE r.floorPlan.workspace.id IN :workspaceIds
               AND r.status = :status
             """)
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths={"resourceType", "floorPlan.workspace", "parentRoom"})
     List<BookableResourceModel> findByFloorPlanWorkspaceIdInAndStatus(
             @org.springframework.data.repository.query.Param("workspaceIds") java.util.Collection<Long> workspaceIds,
             @org.springframework.data.repository.query.Param("status") BookableResourceStatus status);
