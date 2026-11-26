@@ -56,6 +56,14 @@ class GlobalExceptionHandlerTest {
                 .andExpect(jsonPath("$.statusCode").value(400));
     }
 
+    @Test
+    void optimisticLockExceptionReturnsConflict() throws Exception {
+        mvc.perform(post("/test/optimistic-lock"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.success").value(false))
+                .andExpect(jsonPath("$.statusCode").value(409));
+    }
+
     @RestController
     static class UploadController {
         @PostMapping({"/api/organizer/applications", "/api/media/upload"})
@@ -65,6 +73,11 @@ class GlobalExceptionHandlerTest {
 
         @PostMapping("/test/required-document")
         void requiredDocument(@RequestPart("businessLicense") MultipartFile document) {
+        }
+
+        @PostMapping("/test/optimistic-lock")
+        void optimisticLock() {
+            throw new jakarta.persistence.OptimisticLockException("stale row");
         }
     }
 }

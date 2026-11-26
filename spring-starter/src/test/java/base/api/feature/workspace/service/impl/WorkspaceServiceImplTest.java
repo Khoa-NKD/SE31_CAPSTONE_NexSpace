@@ -590,4 +590,34 @@ class WorkspaceServiceImplTest {
         request.setEndTime(request.getStartTime().minusMinutes(30));
         assertThatThrownBy(() -> service.getPublicWorkspaces(request)).isInstanceOf(BadRequestException.class);
     }
+
+    @Test
+    @DisplayName("OCC: updateWorkspace ném ConflictException khi expectedVersion lệch")
+    void updateWorkspace_versionMismatch_throwsConflict() {
+        existingWorkspace.setVersion(3);
+        when(workspaceRepository.findOwnedForResourceUpdate(100L, 10L)).thenReturn(Optional.of(existingWorkspace));
+
+        UpdateWorkspaceDto dto = UpdateWorkspaceDto.builder()
+                .name("Updated Name")
+                .expectedVersion(2)
+                .build();
+
+        assertThatThrownBy(() -> service.updateWorkspace(10L, 100L, dto))
+                .isInstanceOf(ConflictException.class);
+    }
+
+    @Test
+    @DisplayName("OCC: updateLifecycle ném ConflictException khi expectedVersion lệch")
+    void updateLifecycle_versionMismatch_throwsConflict() {
+        existingWorkspace.setVersion(5);
+        when(workspaceRepository.findById(100L)).thenReturn(Optional.of(existingWorkspace));
+
+        WorkspaceLifecycleDto dto = WorkspaceLifecycleDto.builder()
+                .action(WorkspaceLifecycleAction.ACTIVATE)
+                .expectedVersion(4)
+                .build();
+
+        assertThatThrownBy(() -> service.updateLifecycle(10L, 100L, dto))
+                .isInstanceOf(ConflictException.class);
+    }
 }

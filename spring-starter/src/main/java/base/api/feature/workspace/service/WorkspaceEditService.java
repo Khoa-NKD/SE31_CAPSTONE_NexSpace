@@ -36,6 +36,7 @@ public class WorkspaceEditService {
         if (input.amenities() != null) amenities.syncWorkspaceAmenities(id, actor, input.amenities());
         if (input.media() != null) media.syncMedia(id, input.media(), actor);
         workspace.setStatus(status);
-        return workspaceService.updateWorkspace(actor, id, new UpdateWorkspaceDto());
+        workspaces.saveAndFlush(workspace);
+        return workspaceService.getWorkspaceDetail(actor, id);
     }
 }

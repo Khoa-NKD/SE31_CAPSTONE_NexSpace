@@ -93,6 +93,7 @@ class ResourceHoldServiceTest {
     private ObjectMapper objectMapper = new ObjectMapper();
 
     @Mock private base.api.feature.workspace.service.WorkspaceHolidayService workspaceHolidays;
+    @Mock private base.api.feature.booking.service.BookingAddons addons;
 
     @InjectMocks
     private ResourceHoldServiceImpl holdService;
@@ -880,5 +881,42 @@ class ResourceHoldServiceTest {
             verify(bookingRepository, never()).save(any());
             verify(applicationEventPublisher, never()).publishEvent(any(ResourceHoldExpiredEvent.class));
         }
+    }
+
+    @Test
+    @DisplayName("holdResource tính giá addon từ BookingAddons server-authoritative kèm VAT")
+    void holdResource_computesServerAuthoritativeAddonsWithVat() throws Exception {
+        mockOperatingHours();
+        mockResource.setPricePerHour(new BigDecimal("100000"));
+        var vat = new base.api.shared.entity.governance.PlatformSettingModel();
+        vat.setSettingValue("8");
+        when(platformSettingRepository.findById(anyString())).thenAnswer(invocation ->
+                "payment.vat_percent".equals(invocation.getArgument(0)) ? Optional.of(vat) : Optional.empty());
+
+        var request = HoldResourceRequestDto.builder()
+                .resourceId(mockResource.getId())
+                .startTime(baseStartTime)
+                .endTime(baseStartTime.plusHours(2))
+                .priceType(PriceType.HOURLY)
+                .amenityIds(List.of(4L))
+                .build();
+
+        when(userRepository.findById(mockCustomer.getId())).thenReturn(Optional.of(mockCustomer));
+        when(resourceLockService.acquireResourceLock(mockResource.getId(), request.getStartTime(), request.getEndTime()))
+                .thenReturn(LockedResourceContext.builder().targetResource(mockResource).build());
+        when(addons.quote(mockWorkspace.getId(), List.of(4L), request.getStartTime(), request.getEndTime()))
+                .thenReturn(List.of(new base.api.feature.booking.service.BookingAddons.Item(
+                        4L, "Monitor", new BigDecimal("25000"), new BigDecimal("50000.00"))));
+        when(bookingRepository.save(any(BookingModel.class))).thenAnswer(invocation -> {
+            var b = invocation.getArgument(0, BookingModel.class);
+            b.setId(955L);
+            return b;
+        });
+
+        HoldResourceResponseDto response = holdService.holdResource(mockCustomer.getId(), request);
+
+        assertThat(response.getAddonAmount()).isEqualByComparingTo("50000.00");
+        // (200000 base + 50000 addon) * 1.08 = 270000.00
+        assertThat(response.getFinalPrice()).isEqualByComparingTo("270000.00");
     }
 }

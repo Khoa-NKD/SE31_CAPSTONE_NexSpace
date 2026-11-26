@@ -41,6 +41,7 @@ public class WorkspaceDto {
     LocalDateTime reviewedAt;
     LocalDateTime submittedAt;
     boolean isListingVisible;
+    Integer version;
     Integer featuredOrder;
     LocalDateTime featuredUntil;
     Long organizerId;

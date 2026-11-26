@@ -131,4 +131,8 @@ public class WorkspaceModel extends BaseModel {
 
     @Column(name = "featured_until")
     private LocalDateTime featuredUntil;
+
+    @jakarta.persistence.Version
+    @Column(nullable = false)
+    private Integer version = 0;
 }

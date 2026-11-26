@@ -64,5 +64,7 @@ public class UpdateWorkspaceDto {
     @jakarta.validation.Valid
     private java.util.List<base.api.feature.workspace.dto.response.WorkspaceOperatingHourDto> operatingHours;
     private java.util.List<base.api.feature.workspace.dto.response.CancellationRuleDto> cancellationRules;
+
+    private Integer expectedVersion;
 }
 
