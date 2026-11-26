@@ -14,6 +14,7 @@ export interface ChatbotRequestDto {
   history?: ChatMessageItem[];
   userRole?: string;
   workspaceId?: number;
+  currentPath?: string;
 }
 
 /**

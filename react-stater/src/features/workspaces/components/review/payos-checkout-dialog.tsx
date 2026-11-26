@@ -1,5 +1,5 @@
 import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import {
   X,
   Lock,
@@ -158,6 +158,18 @@ export function PayOSCheckoutDialog({
     }
   }, [isConfirmed, checkoutData, orderRef]);
 
+  const handleOpenChange = useCallback(
+    (isOpen: boolean) => {
+      if (!isOpen) {
+        setIsManualSuccess(false);
+        hasNotifiedSuccessRef.current = false;
+        hasNotifiedExpiryRef.current = false;
+      }
+      onOpenChange(isOpen);
+    },
+    [onOpenChange]
+  );
+
   // Notify when booking/payment expires
   useEffect(() => {
     if (isExpired && open && !hasNotifiedExpiryRef.current) {
@@ -171,16 +183,7 @@ export function PayOSCheckoutDialog({
       }, 1800);
       return () => clearTimeout(timer);
     }
-  }, [isExpired, open, navigate]);
-
-  const handleOpenChange = (isOpen: boolean) => {
-    if (!isOpen) {
-      setIsManualSuccess(false);
-      hasNotifiedSuccessRef.current = false;
-      hasNotifiedExpiryRef.current = false;
-    }
-    onOpenChange(isOpen);
-  };
+  }, [isExpired, open, navigate, handleOpenChange]);
 
   const handleCopy = (value: string, fieldName: string) => {
     navigator.clipboard?.writeText(value);

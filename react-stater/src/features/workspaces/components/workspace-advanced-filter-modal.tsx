@@ -1,5 +1,5 @@
 import { getAmenityIcon } from '@/features/amenities/components/amenity-icons';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -98,13 +98,15 @@ export function WorkspaceAdvancedFilterModal({
   onReset
 }: WorkspaceAdvancedFilterModalProps) {
   const [draft, setDraft] = useState<AdvancedFilterValues>(filters);
+  const [prevOpen, setPrevOpen] = useState(open);
 
-  // Sync draft when opened
-  useEffect(() => {
+  // Sync draft when dialog opens
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setDraft(filters);
     }
-  }, [open, filters]);
+  }
 
   // Load amenities from API
   const { data: amenitiesList } = useQuery(amenityQueries.available());
@@ -289,10 +291,11 @@ export function WorkspaceAdvancedFilterModal({
             {/* Custom Min / Max Input */}
             <div className='grid grid-cols-2 gap-3 pt-1'>
               <div>
-                <label className='text-[11px] font-semibold text-muted-foreground mb-1 block'>
+                <label htmlFor='adv-filter-min-price' className='text-[11px] font-semibold text-muted-foreground mb-1 block'>
                   Giá tối thiểu (VNĐ)
                 </label>
                 <Input
+                  id='adv-filter-min-price'
                   type='number'
                   placeholder='Từ 0 đ'
                   value={draft.minPrice ?? ''}
@@ -306,10 +309,11 @@ export function WorkspaceAdvancedFilterModal({
                 />
               </div>
               <div>
-                <label className='text-[11px] font-semibold text-muted-foreground mb-1 block'>
+                <label htmlFor='adv-filter-max-price' className='text-[11px] font-semibold text-muted-foreground mb-1 block'>
                   Giá tối đa (VNĐ)
                 </label>
                 <Input
+                  id='adv-filter-max-price'
                   type='number'
                   placeholder='Đến ... đ'
                   value={draft.maxPrice ?? ''}
@@ -336,10 +340,11 @@ export function WorkspaceAdvancedFilterModal({
             <div className='grid grid-cols-1 sm:grid-cols-2 gap-2.5'>
               {SEAT_TYPE_OPTIONS.map((seat) => {
                 const isSelected = draft.seatTypes.includes(seat.id);
+                const checkboxId = `adv-seat-type-${seat.id}`;
                 return (
-                  <div
+                  <label
                     key={seat.id}
-                    onClick={() => toggleSeatType(seat.id)}
+                    htmlFor={checkboxId}
                     className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'border-primary/60 bg-primary/5 shadow-2xs'
@@ -347,6 +352,7 @@ export function WorkspaceAdvancedFilterModal({
                     }`}
                   >
                     <Checkbox
+                      id={checkboxId}
                       checked={isSelected}
                       onCheckedChange={() => toggleSeatType(seat.id)}
                       className='mt-0.5'
@@ -357,7 +363,7 @@ export function WorkspaceAdvancedFilterModal({
                       </p>
                       <p className='text-[11px] text-muted-foreground'>{seat.desc}</p>
                     </div>
-                  </div>
+                  </label>
                 );
               })}
             </div>

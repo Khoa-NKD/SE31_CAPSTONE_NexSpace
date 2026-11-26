@@ -52,9 +52,18 @@ export function useCanvasMultiSelection({
     width: number;
     height: number;
   } | null>(null);
-  useEffect(() => {
+  const [prevHint, setPrevHint] = useState(selectionHint);
+  if (selectionHint !== prevHint) {
+    setPrevHint(selectionHint);
     if (selectionHint) setKeys(selectionHint);
-  }, [selectionHint]);
+  }
+  const [prevFloorId, setPrevFloorId] = useState(layout?.floor.id);
+  if (layout?.floor.id !== prevFloorId) {
+    setPrevFloorId(layout?.floor.id);
+    setKeys([]);
+    setMarquee(null);
+    setPendingDeletion([]);
+  }
   const latest = useRef({
     layout,
     enabled,
@@ -77,11 +86,6 @@ export function useCanvasMultiSelection({
       keys
     };
   });
-  useEffect(() => {
-    setKeys([]);
-    setMarquee(null);
-    setPendingDeletion([]);
-  }, [layout?.floor.id]);
   useEffect(() => {
     const svg = svgRef.current;
     if (!svg || !enabled) return;

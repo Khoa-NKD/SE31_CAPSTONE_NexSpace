@@ -86,7 +86,6 @@ export function ContractPanel({
     }
   }, [signed, applicationId, presentation, actor, router]);
   useEffect(() => {
-    setNow(Date.now());
     if (!contract?.resendAvailableAt || signed) return;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
@@ -366,7 +365,6 @@ export function ContractPanel({
                 SHA-256 · {contract.contentHash}
               </p>
               <div
-                tabIndex={0}
                 className='max-h-80 overflow-auto whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground'
               >
                 {contract.content}
@@ -464,7 +462,6 @@ export function ContractPanel({
               </div>
             </div>
             <div
-              tabIndex={0}
               aria-label={t('Nội dung hợp đồng', 'Agreement contents')}
               className='max-h-[440px] overflow-y-auto whitespace-pre-wrap break-words p-5 text-sm leading-7 text-foreground/85 sm:p-6'
             >

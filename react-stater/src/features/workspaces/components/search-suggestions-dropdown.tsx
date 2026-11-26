@@ -32,6 +32,11 @@ export function SearchSuggestionsDropdown({
 }: SearchSuggestionsDropdownProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const [selectedIndex, setSelectedIndex] = React.useState<number>(-1);
+  const [prevQuery, setPrevQuery] = React.useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setSelectedIndex(-1);
+  }
 
   // Flatten all navigable items
   const allItems = React.useMemo(() => {
@@ -46,11 +51,6 @@ export function SearchSuggestionsDropdown({
     suggestions.categories?.forEach((c) => items.push({ kind: 'category', data: c }));
     return items;
   }, [suggestions]);
-
-  // Reset selected index when query changes
-  useEffect(() => {
-    setSelectedIndex(-1);
-  }, [query]);
 
   // Click outside listener
   useEffect(() => {

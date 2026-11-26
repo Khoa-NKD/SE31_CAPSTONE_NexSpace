@@ -6,18 +6,13 @@ import {
   Monitor,
   Coffee,
   Wifi,
-  ShieldCheck,
-  Check
+  ShieldCheck
 } from '@/components/ui/hugeicons';
 import type { WorkspaceAmenityDto, PublicResourceDetail } from '../../api/types';
 
 interface SeatSpecsGridProps {
   amenities?: WorkspaceAmenityDto[];
   resource?: PublicResourceDetail | null;
-  monitorAddonSelected?: boolean;
-  onToggleMonitorAddon?: () => void;
-  addonRatePerHour?: number;
-  currency?: string;
 }
 
 const getAmenityIcon = (iconName?: string, name?: string) => {
@@ -32,11 +27,7 @@ const getAmenityIcon = (iconName?: string, name?: string) => {
 
 export function SeatSpecsGrid({
   amenities,
-  resource,
-  monitorAddonSelected = false,
-  onToggleMonitorAddon,
-  addonRatePerHour = 35000,
-  currency = 'VND'
+  resource
 }: SeatSpecsGridProps) {
   const hasAmenities = amenities && amenities.length > 0;
 
@@ -87,50 +78,17 @@ export function SeatSpecsGrid({
           </div>
         )}
 
-        {/* Item: Monitor Add-on Card with Interactive Toggle */}
-        <div
-          role='button'
-          tabIndex={0}
-          onClick={onToggleMonitorAddon}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              onToggleMonitorAddon?.();
-            }
-          }}
-          className={`col-span-full md:col-span-1 flex cursor-pointer items-start gap-3.5 rounded-xl border p-4 transition-all ${
-            monitorAddonSelected
-              ? 'border-primary bg-primary/5 ring-2 ring-primary/20 shadow-xs'
-              : 'border-border/80 bg-muted/20 hover:border-primary/60'
-          }`}
-        >
+        <div className='col-span-full md:col-span-1 flex items-start gap-3.5 rounded-xl border border-border/80 bg-muted/20 p-4'>
           <div className='flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary'>
             <Monitor className='h-5 w-5' />
           </div>
           <div className='w-full space-y-1'>
-            <div className='flex items-center justify-between'>
-              <h3 className='text-foreground text-xs font-bold sm:text-sm'>
-                Màn hình phụ 4K (Tùy chọn)
-              </h3>
-              <span className='text-primary text-xs font-bold'>
-                +{currency === 'VND'
-                  ? `${addonRatePerHour.toLocaleString('vi-VN')} đ/giờ`
-                  : `$${addonRatePerHour.toFixed(2)}/hr`}
-              </span>
-            </div>
+            <h3 className='text-foreground text-xs font-bold sm:text-sm'>
+              Tiện ích bổ sung theo không gian
+            </h3>
             <p className='text-muted-foreground text-xs leading-relaxed'>
-              Trang bị thêm màn hình 4K độ phân giải cao kèm cáp Type-C/HDMI cho công việc đa nhiệm.
+              Các tiện ích tính phí thêm (nếu không gian có cung cấp) sẽ hiển thị theo bảng giá thực tế ở bước xác nhận đơn.
             </p>
-            <div className='pt-1'>
-              <span
-                className={`inline-flex items-center gap-1 rounded text-[11px] font-semibold ${
-                  monitorAddonSelected ? 'text-primary' : 'text-muted-foreground'
-                }`}
-              >
-                <Check className={`h-3 w-3 ${monitorAddonSelected ? 'text-primary' : 'opacity-0'}`} />
-                {monitorAddonSelected ? 'Đã thêm vào đặt chỗ' : 'Bấm để thêm tiện ích'}
-              </span>
-            </div>
           </div>
         </div>
       </div>

@@ -32,9 +32,11 @@ export function SaveSearchModal({
 }: SaveSearchModalProps) {
   const [filterName, setFilterName] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [prevOpen, setPrevOpen] = useState(open);
 
   // Generate a smart suggested name when opening
-  React.useEffect(() => {
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (open) {
       setErrorMsg('');
       const parts: string[] = [];
@@ -61,7 +63,7 @@ export function SaveSearchModal({
       const suggested = parts.length > 0 ? parts.join(' • ') : 'Bộ lọc tìm kiếm mới';
       setFilterName(suggested);
     }
-  }, [open, criteria]);
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

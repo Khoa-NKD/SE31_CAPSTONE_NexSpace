@@ -158,14 +158,20 @@ export function SeatsPage({
   const hasScheduleSelected = Boolean(currentStartTime && currentEndTime);
 
   // Sync date/time from props if changed
-  useEffect(() => {
+  const [prevScheduleProps, setPrevScheduleProps] = useState({ startTime, endTime, date });
+  if (
+    prevScheduleProps.startTime !== startTime ||
+    prevScheduleProps.endTime !== endTime ||
+    prevScheduleProps.date !== date
+  ) {
+    setPrevScheduleProps({ startTime, endTime, date });
     if (startTime) setCurrentStartTime(startTime);
     if (endTime) setCurrentEndTime(endTime);
     if (date) setCurrentDateLabel(formatDateLabel(date));
     if (startTime && endTime) {
       setDurationHours(computeDurationHours(startTime, endTime, 4));
     }
-  }, [startTime, endTime, date]);
+  }
 
   const timeRangeLabel = useMemo(() => {
     const start = formatTimeSlot(currentStartTime);
@@ -203,24 +209,33 @@ export function SeatsPage({
   }, [apiFloors]);
 
   // Sync activeFloorId when initialFloorId from URL changes
-  useEffect(() => {
+  const [prevInitialFloorId, setPrevInitialFloorId] = useState(initialFloorId);
+  if (initialFloorId !== prevInitialFloorId) {
+    setPrevInitialFloorId(initialFloorId);
     if (initialFloorId) {
       setActiveFloorId(initialFloorId);
     }
-  }, [initialFloorId]);
+  }
 
   // Default to first floor with resources once apiFloors are loaded if not set yet
-  useEffect(() => {
+  const [prevApiFloors, setPrevApiFloors] = useState(apiFloors);
+  if (apiFloors !== prevApiFloors) {
+    setPrevApiFloors(apiFloors);
     if (apiFloors.length > 0 && !activeFloorId) {
       const defaultFloor = apiFloors.find((floor) => floor.resources.length > 0) ?? apiFloors[0];
       if (defaultFloor) {
         setActiveFloorId(defaultFloor.id);
       }
     }
-  }, [apiFloors, activeFloorId]);
+  }
 
   // If initialResourceId is provided, auto-select it once floors are loaded (unless manually deselected)
-  useEffect(() => {
+  const [prevAutoSelectKey, setPrevAutoSelectKey] = useState({ initialResourceId, loadedFloors });
+  if (
+    prevAutoSelectKey.initialResourceId !== initialResourceId ||
+    prevAutoSelectKey.loadedFloors !== loadedFloors
+  ) {
+    setPrevAutoSelectKey({ initialResourceId, loadedFloors });
     if (
       initialResourceId &&
       loadedFloors.length > 0 &&
@@ -236,7 +251,7 @@ export function SeatsPage({
         }
       }
     }
-  }, [initialResourceId, loadedFloors, selectedResource, activeFloorId, hasManuallyDeselected]);
+  }
 
   // 2. Fetch Real-time Resource Availability
   const { data: availabilityList } = useWorkspaceAvailabilityQuery(
