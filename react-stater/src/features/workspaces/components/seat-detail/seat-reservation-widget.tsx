@@ -24,6 +24,10 @@ import { DateTimePickerModal, type ScheduleSelection } from '../detail/date-time
 import type { MapResource, CustomerFloor } from '../detail/public-floor-map';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
+function getTodayIso() {
+  return new Date().toISOString().split('T')[0];
+}
+
 function computeHours(startIso?: string, endIso?: string, fallback = 2): number {
   if (!startIso || !endIso) return fallback;
   try {
@@ -120,12 +124,13 @@ export function SeatReservationWidget({
   const totalDue = (quote?.finalPrice ?? 0) + addonTotal;
   const addonName = isVi ? 'Màn hình phụ Dell 27" 4K' : 'Dell 27" 4K Monitor Add-on';
 
-  const displayDate = formatDateLabel(date || '19/11/2026');
+  const [todayIso] = useState(getTodayIso);
+  const displayDate = formatDateLabel(date || todayIso);
   const displayStartTime = formatDisplayTime(startTime) || '09:00';
   const displayEndTime = formatDisplayTime(endTime) || '11:00';
   const displaySeat = resource
-    ? `${resource.name} (${resource.code})`
-    : 'Desk A-04 (Executive Hot Desk)';
+    ? (resource.name ? `${resource.name} (${resource.code})` : resource.code)
+    : 'Vị trí làm việc';
 
   // Check if an existing valid hold matches this user and resource
   const existingHold = useMemo(() => {

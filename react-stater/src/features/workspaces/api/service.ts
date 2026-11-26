@@ -31,7 +31,9 @@ import type {
   WorkspaceSuggestionsResponse,
   SavedSearchFilterItem,
   CreateSavedSearchFilterPayload,
-  AssignWorkspaceAmenitiesPayload
+  AssignWorkspaceAmenitiesPayload,
+  PublicResourceDetail,
+  ReviewSummaryResponse
 } from './types';
 import type {
   CreateBookingPayload,
@@ -517,6 +519,56 @@ export const workspaceService = {
     const numericId =
       typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
     return apiClient.get<WorkspaceAmenityDto[]>(`/workspaces/${numericId}/amenities`);
+  },
+
+  /**
+   * Retrieves public resource details including photos, specifications, and layout coordinates.
+   */
+  async getPublicResourceDetail(
+    workspaceId: number | string,
+    resourceId: number | string
+  ): Promise<PublicResourceDetail> {
+    const numericWorkspaceId =
+      typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    const numericResourceId =
+      typeof resourceId === 'string' ? Number(resourceId.replace(/\D/g, '')) : resourceId;
+    return apiClient.get<PublicResourceDetail>(
+      `/public/workspaces/${numericWorkspaceId}/resources/${numericResourceId}`
+    );
+  },
+
+  /**
+   * Retrieves reviews and rating breakdown for a workspace and/or specific resource.
+   */
+  async getPublicWorkspaceReviews(
+    workspaceId: number | string,
+    resourceId?: number | string
+  ): Promise<ReviewSummaryResponse> {
+    const numericWorkspaceId =
+      typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    const params: Record<string, string | number> = {};
+    if (resourceId) {
+      params.resourceId =
+        typeof resourceId === 'string' ? Number(resourceId.replace(/\D/g, '')) : resourceId;
+    }
+    return apiClient.get<ReviewSummaryResponse>(
+      `/public/workspaces/${numericWorkspaceId}/reviews`,
+      { params }
+    );
+  },
+
+  /**
+   * Toggles helpful reaction on a customer review.
+   */
+  async toggleHelpfulReaction(
+    workspaceId: number | string,
+    reviewId: number | string
+  ): Promise<boolean> {
+    const numericWorkspaceId =
+      typeof workspaceId === 'string' ? Number(workspaceId.replace(/\D/g, '')) : workspaceId;
+    return apiClient.post<boolean>(
+      `/public/workspaces/${numericWorkspaceId}/reviews/${reviewId}/helpful`
+    );
   },
 
   /**

@@ -22,10 +22,15 @@ export function SeatDetailHeader({ resource, workspace, floor }: SeatDetailHeade
     }
   };
 
-  const workspaceName = workspace?.name || 'Enouvo Space 1 - Dragon Bridge Hub';
-  const floorName = floor?.name || 'Tầng 2 - Co-working & Hot Desks';
-  const resourceCode = resource?.code || 'Desk A-04';
-  const resourceName = resource?.name ? `${resource.name} (${resource.code})` : 'Desk A-04';
+  const workspaceName = workspace?.name || 'Không gian làm việc';
+  const floorName = floor?.name || 'Sơ đồ tầng';
+  const resourceCode = resource?.code || resource?.name || 'Vị trí';
+  const resourceName = resource?.name
+    ? resource.code
+      ? `${resource.name} (${resource.code})`
+      : resource.name
+    : resourceCode;
+  const cityName = workspace?.city || 'Không gian';
 
   return (
     <div className='w-full border-b border-border/60 bg-card py-3'>
@@ -46,7 +51,7 @@ export function SeatDetailHeader({ resource, workspace, floor }: SeatDetailHeade
             to='/workspaces'
             className='hover:text-primary transition-colors duration-150'
           >
-            {workspace?.city || 'Đà Nẵng'}
+            {cityName}
           </Link>
           <ChevronRight className='text-muted-foreground/60 h-3.5 w-3.5 shrink-0' />
           <Link
@@ -101,4 +106,3 @@ export function SeatDetailHeader({ resource, workspace, floor }: SeatDetailHeade
     </div>
   );
 }
-
