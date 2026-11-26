@@ -242,6 +242,7 @@ export function useDataTable<TData>(props: UseDataTableProps<TData>) {
     [debouncedSetFilterValues, filterableColumns, enableAdvancedFilter]
   );
 
+  // oxlint-disable-next-line react/incompatible-library
   const table = useReactTable({
     ...tableProps,
     columns,

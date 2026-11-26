@@ -996,14 +996,18 @@ interface KanbanOverlayProps extends Omit<React.ComponentProps<typeof DragOverla
     | ((params: { value: UniqueIdentifier; variant: 'column' | 'item' }) => React.ReactNode);
 }
 
+const emptySubscribe = () => () => {};
+
 function KanbanOverlay(props: KanbanOverlayProps) {
   const { container: containerProp, children, ...overlayProps } = props;
 
   const context = useKanbanContext(OVERLAY_NAME);
 
-  const [mounted, setMounted] = React.useState(false);
-
-  React.useLayoutEffect(() => setMounted(true), []);
+  const mounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
 
   const container = containerProp ?? (mounted ? globalThis.document?.body : null);
 

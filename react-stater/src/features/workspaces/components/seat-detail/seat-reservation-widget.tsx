@@ -10,8 +10,7 @@ import {
   ShieldCheck,
   CalendarCheck,
   QrCode,
-  ShieldAlert,
-  Monitor
+  ShieldAlert
 } from '@/components/ui/hugeicons';
 import { Button } from '@/components/ui/button';
 import { useCalculatePriceQuery, useCreateBookingMutation } from '../../api/booking-queries';
@@ -60,7 +59,6 @@ export interface SeatReservationWidgetProps {
   floorId?: number;
   bookingId?: number;
   bookingCode?: string;
-  monitorAddonSelected?: boolean;
   resource?: MapResource | null;
   workspace?: PublicWorkspaceDetail | null;
   floor?: CustomerFloor | null;
@@ -75,7 +73,6 @@ export function SeatReservationWidget({
   floorId,
   bookingId,
   bookingCode,
-  monitorAddonSelected = false,
   resource,
   workspace,
   floor,
@@ -116,13 +113,7 @@ export function SeatReservationWidget({
   const hours = useMemo(() => computeHours(startTime, endTime, 2), [startTime, endTime]);
   const standardTotal = quote?.baseAmount ?? 0;
   const vatAmount = quote?.taxAmount ?? 0;
-
-  // Addon calculations
-  const isVnd = quote?.currency === 'VND' || (!quote?.currency && hourlyRate > 1000);
-  const addonRatePerHour = isVnd ? 35000 : 1.5;
-  const addonTotal = monitorAddonSelected ? addonRatePerHour * hours : 0;
-  const totalDue = (quote?.finalPrice ?? 0) + addonTotal;
-  const addonName = isVi ? 'Màn hình phụ Dell 27" 4K' : 'Dell 27" 4K Monitor Add-on';
+  const totalDue = quote?.finalPrice ?? 0;
 
   const [todayIso] = useState(getTodayIso);
   const displayDate = formatDateLabel(date || todayIso);
@@ -207,9 +198,7 @@ export function SeatReservationWidget({
           startTime: startTime || undefined,
           endTime: endTime || undefined,
           date: displayDate,
-          priceType: 'HOURLY',
-          addonAmount: monitorAddonSelected ? addonTotal : undefined,
-          addonName: monitorAddonSelected ? addonName : undefined
+          priceType: 'HOURLY'
         }
       });
       return;
@@ -236,9 +225,7 @@ export function SeatReservationWidget({
         startTime: targetStartTime,
         endTime: targetEndTime,
         priceType: 'HOURLY',
-        partySize: resource.capacity || 1,
-        addonAmount: monitorAddonSelected ? addonTotal : undefined,
-        notes: monitorAddonSelected ? `Kèm tiện ích: ${addonName}` : undefined
+        partySize: resource.capacity || 1
       });
 
       toast.success(
@@ -257,9 +244,7 @@ export function SeatReservationWidget({
           startTime: targetStartTime,
           endTime: targetEndTime,
           date: displayDate,
-          priceType: 'HOURLY',
-          addonAmount: monitorAddonSelected ? addonTotal : undefined,
-          addonName: monitorAddonSelected ? addonName : undefined
+          priceType: 'HOURLY'
         }
       });
     } catch (err: unknown) {
@@ -347,19 +332,6 @@ export function SeatReservationWidget({
           <span className='text-emerald-600 dark:text-emerald-400 font-bold'>Đang chọn</span>
         </div>
 
-        {/* Monitor Add-on Item if Selected */}
-        {monitorAddonSelected && (
-          <div className='border-primary/40 bg-primary/5 flex items-center justify-between rounded-lg border p-2.5 text-xs animate-in fade-in'>
-            <div className='flex items-center gap-2'>
-              <Monitor className='text-primary h-4 w-4 shrink-0' />
-              <span className='text-foreground font-semibold'>
-                {addonName} ({hours}h)
-              </span>
-            </div>
-            <span className='text-primary font-bold'>+{formatPrice(addonTotal)}</span>
-          </div>
-        )}
-
         {/* Cost Breakdown List */}
         <div className='border-border/60 space-y-2 border-b pb-4 text-xs'>
           <div className='flex justify-between text-muted-foreground'>
@@ -368,16 +340,6 @@ export function SeatReservationWidget({
             </span>
             <span className='text-foreground font-medium'>{formatPrice(standardTotal)}</span>
           </div>
-
-          {monitorAddonSelected && (
-            <div className='flex justify-between text-muted-foreground animate-in fade-in'>
-              <span className='flex items-center gap-1.5'>
-                <span>{isVi ? 'Tiện ích bổ sung' : 'Add-on service'} ({hours}h × {formatPrice(addonRatePerHour)})</span>
-                <Info className='h-3 w-3' />
-              </span>
-              <span className='text-primary font-bold'>+{formatPrice(addonTotal)}</span>
-            </div>
-          )}
 
           <div className='flex justify-between text-muted-foreground'>
             <span>Phí dịch vụ khách</span>

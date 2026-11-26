@@ -266,7 +266,9 @@ function Counter({
     tabular
   };
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  useIsoLayoutEffect(() => {
+    settingsRef.current = settings;
+  });
 
   const paint = (item: Item) => {
     const el = item.el;
@@ -378,7 +380,9 @@ function Counter({
   };
 
   const kickRef = useRef(kick);
-  kickRef.current = kick;
+  useIsoLayoutEffect(() => {
+    kickRef.current = kick;
+  });
 
   useIsoLayoutEffect(() => {
     const e = engine.current;

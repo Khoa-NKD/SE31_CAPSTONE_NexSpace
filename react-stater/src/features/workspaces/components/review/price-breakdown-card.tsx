@@ -56,8 +56,6 @@ interface PriceBreakdownCardProps {
   autoOpen?: boolean;
   secondsRemaining?: number;
   onExpired?: () => void;
-  addonAmount?: number;
-  addonName?: string;
 }
 
 export function PriceBreakdownCard({
@@ -72,9 +70,7 @@ export function PriceBreakdownCard({
   onBookingCreated,
   autoOpen,
   secondsRemaining,
-  onExpired,
-  addonAmount: propAddonAmount,
-  addonName
+  onExpired
 }: PriceBreakdownCardProps) {
   const queryClient = useQueryClient();
   const { data: holdData } = useCurrentPendingBooking();
@@ -134,7 +130,6 @@ export function PriceBreakdownCard({
     dailyRate && unitPrice > 0 ? Math.round(baseRate / unitPrice) : durationHours;
   const vat = priceSource?.taxAmount ?? 0;
   const legacyCustomerFee = priceSource?.serviceFeeAmount ?? 0;
-  const effectiveAddonAmount = effectiveBooking?.addonAmount ?? propAddonAmount ?? 0;
   const addonAmount = Number(priceSource?.addonAmount ?? 0);
   const surcharge = priceSource?.surchargeAmount ?? 0;
   const discount = priceSource?.discountAmount ?? 0;
@@ -213,8 +208,7 @@ export function PriceBreakdownCard({
         startTime,
         endTime,
         priceType,
-        notes: customerNotes,
-        addonAmount: effectiveAddonAmount > 0 ? effectiveAddonAmount : undefined
+        notes: customerNotes
       });
 
       setCreatedBooking(booking);
@@ -388,7 +382,7 @@ export function PriceBreakdownCard({
                 ))
               ) : (
                 <div className='flex justify-between gap-4'>
-                  <span>{addonName || 'Tiện ích đã chọn'}</span>
+                  <span>Tiện ích đã chọn</span>
                   <span className='font-semibold tabular-nums'>{formatPrice(addonAmount)}</span>
                 </div>
               )}

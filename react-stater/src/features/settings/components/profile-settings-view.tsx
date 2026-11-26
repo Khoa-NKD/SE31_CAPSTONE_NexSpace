@@ -42,11 +42,15 @@ export function ProfileSettingsView() {
   const setUser = useAuthStore((state) => state.setUser);
   const clearAuth = useAuthStore((state) => state.clearAuth);
 
-  // Profile Form state
-  const [firstName, setFirstName] = useState(user?.firstName || '');
-  const [lastName, setLastName] = useState(user?.lastName || '');
-  const [phone, setPhone] = useState(user?.phone || '');
-  const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || user?.avatar || '');
+  // Profile Form state (null = inherit current user value until edited)
+  const [draftFirstName, setDraftFirstName] = useState<string | null>(null);
+  const [draftLastName, setDraftLastName] = useState<string | null>(null);
+  const [draftPhone, setDraftPhone] = useState<string | null>(null);
+  const [draftAvatarUrl, setDraftAvatarUrl] = useState<string | null>(null);
+  const firstName = draftFirstName ?? user?.firstName ?? '';
+  const lastName = draftLastName ?? user?.lastName ?? '';
+  const phone = draftPhone ?? user?.phone ?? '';
+  const avatarUrl = draftAvatarUrl ?? user?.avatarUrl ?? user?.avatar ?? '';
   const [isUpdatingProfile, startUpdateProfile] = useTransition();
 
   // Password Form state
@@ -57,16 +61,6 @@ export function ProfileSettingsView() {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isChangingPassword, startChangePassword] = useTransition();
-
-  // Sync state if user changes
-  useEffect(() => {
-    if (user) {
-      setFirstName(user.firstName || '');
-      setLastName(user.lastName || '');
-      setPhone(user.phone || '');
-      setAvatarUrl(user.avatarUrl || user.avatar || '');
-    }
-  }, [user]);
 
   // Load fresh profile from backend
   useEffect(() => {
@@ -92,6 +86,10 @@ export function ProfileSettingsView() {
         });
 
         setUser(updatedUser);
+        setDraftFirstName(null);
+        setDraftLastName(null);
+        setDraftPhone(null);
+        setDraftAvatarUrl(null);
         toast.success('Cập nhật thông tin hồ sơ thành công!');
       } catch (err: unknown) {
         if (err instanceof ApiError) {
@@ -243,26 +241,28 @@ export function ProfileSettingsView() {
               <CardContent className='space-y-5'>
                 <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                   <div>
-                    <label className='block text-xs font-medium text-foreground mb-1.5'>
+                    <label htmlFor='profile-first-name' className='block text-xs font-medium text-foreground mb-1.5'>
                       Họ đệm (First Name):
                     </label>
                     <input
+                      id='profile-first-name'
                       type='text'
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
+                      onChange={(e) => setDraftFirstName(e.target.value)}
                       placeholder='Nguyễn Văn'
                       className='w-full h-10 px-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-all'
                     />
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-foreground mb-1.5'>
+                    <label htmlFor='profile-last-name' className='block text-xs font-medium text-foreground mb-1.5'>
                       Tên (Last Name):
                     </label>
                     <input
+                      id='profile-last-name'
                       type='text'
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
+                      onChange={(e) => setDraftLastName(e.target.value)}
                       placeholder='An'
                       className='w-full h-10 px-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-all'
                     />
@@ -271,26 +271,28 @@ export function ProfileSettingsView() {
 
                 <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
                   <div>
-                    <label className='block text-xs font-medium text-foreground mb-1.5'>
+                    <label htmlFor='profile-phone' className='block text-xs font-medium text-foreground mb-1.5'>
                       Số điện thoại liên hệ:
                     </label>
                     <input
+                      id='profile-phone'
                       type='tel'
                       value={phone}
-                      onChange={(e) => setPhone(e.target.value)}
+                      onChange={(e) => setDraftPhone(e.target.value)}
                       placeholder='0987654321'
                       className='w-full h-10 px-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-all'
                     />
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-foreground mb-1.5'>
+                    <label htmlFor='profile-avatar-url' className='block text-xs font-medium text-foreground mb-1.5'>
                       Đường dẫn ảnh đại diện (Avatar URL):
                     </label>
                     <input
+                      id='profile-avatar-url'
                       type='url'
                       value={avatarUrl}
-                      onChange={(e) => setAvatarUrl(e.target.value)}
+                      onChange={(e) => setDraftAvatarUrl(e.target.value)}
                       placeholder='https://images.unsplash.com/...'
                       className='w-full h-10 px-3 text-sm bg-background border border-input rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-600 transition-all'
                     />
@@ -299,10 +301,11 @@ export function ProfileSettingsView() {
 
                 <div className='pt-2 border-t border-border/60 grid grid-cols-1 sm:grid-cols-2 gap-4'>
                   <div>
-                    <label className='block text-xs font-medium text-muted-foreground mb-1.5'>
+                    <label htmlFor='profile-username' className='block text-xs font-medium text-muted-foreground mb-1.5'>
                       Tên đăng nhập (Username - Khóa bảo mật):
                     </label>
                     <input
+                      id='profile-username'
                       type='text'
                       value={user?.userName || ''}
                       disabled
@@ -311,10 +314,11 @@ export function ProfileSettingsView() {
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-muted-foreground mb-1.5'>
+                    <label htmlFor='profile-email' className='block text-xs font-medium text-muted-foreground mb-1.5'>
                       Email định danh (Primary Email):
                     </label>
                     <input
+                      id='profile-email'
                       type='email'
                       value={user?.email || ''}
                       disabled
@@ -356,11 +360,12 @@ export function ProfileSettingsView() {
             <form onSubmit={handleChangePassword}>
               <CardContent className='space-y-4 max-w-lg'>
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='profile-old-password' className='block text-xs font-medium text-foreground mb-1.5'>
                     Mật khẩu hiện tại:
                   </label>
                   <div className='relative'>
                     <input
+                      id='profile-old-password'
                       type={showOldPassword ? 'text' : 'password'}
                       value={oldPassword}
                       onChange={(e) => setOldPassword(e.target.value)}
@@ -379,11 +384,12 @@ export function ProfileSettingsView() {
                 </div>
 
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='profile-new-password' className='block text-xs font-medium text-foreground mb-1.5'>
                     Mật khẩu mới (Tối thiểu 8 ký tự):
                   </label>
                   <div className='relative'>
                     <input
+                      id='profile-new-password'
                       type={showNewPassword ? 'text' : 'password'}
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
@@ -426,11 +432,12 @@ export function ProfileSettingsView() {
                 </div>
 
                 <div>
-                  <label className='block text-xs font-medium text-foreground mb-1.5'>
+                  <label htmlFor='profile-confirm-password' className='block text-xs font-medium text-foreground mb-1.5'>
                     Xác nhận mật khẩu mới:
                   </label>
                   <div className='relative'>
                     <input
+                      id='profile-confirm-password'
                       type={showConfirmPassword ? 'text' : 'password'}
                       value={confirmNewPassword}
                       onChange={(e) => setConfirmNewPassword(e.target.value)}

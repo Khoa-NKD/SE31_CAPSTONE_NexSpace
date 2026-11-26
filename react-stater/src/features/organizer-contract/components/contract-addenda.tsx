@@ -226,7 +226,7 @@ function AddendumCard({
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!item.canSign) return;
     const timer = window.setInterval(() => setNow(Date.now()), 1000);

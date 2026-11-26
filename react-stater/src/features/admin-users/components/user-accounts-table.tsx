@@ -237,20 +237,23 @@ export function UserAccountsTable({
                         </span>
                       </div>
                       {isOrg && !isDeleted && (
-                        <div onClick={(event) => event.stopPropagation()}>
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant='ghost' size='icon' aria-label={`Thao tác đối tác ${displayName}`}>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                aria-label={`Thao tác đối tác ${displayName}`}
+                                onClick={(event) => event.stopPropagation()}
+                              >
                                 <MoreHorizontal className='size-4' />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align='end'>
+                            <DropdownMenuContent align='end' onClick={(event) => event.stopPropagation()}>
                               <DropdownMenuItem asChild>
                                 <Link to='/dashboard/admin/organizer-partners' search={{ organizerId: String(user.id) }}>Xem đối tác</Link>
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
                       )}
                     </div>
                   </td>

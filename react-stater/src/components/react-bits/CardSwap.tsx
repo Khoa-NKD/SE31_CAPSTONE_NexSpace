@@ -329,7 +329,7 @@ const CardSwap = forwardRef<CardSwapHandle, CardSwapProps>(
       [cardWidth, cardHeight, cardDistance, verticalDistance, depth, skewAmount, visible, hoverSpread]
     );
 
-    settingsRef.current = {
+    const nextSettings = {
       width: cardWidth,
       height: cardHeight,
       dx: cardDistance,
@@ -350,6 +350,10 @@ const CardSwap = forwardRef<CardSwapHandle, CardSwapProps>(
       onCardClick,
       onChange
     };
+
+    useIsomorphicLayoutEffect(() => {
+      settingsRef.current = nextSettings;
+    });
 
     useImperativeHandle(
       ref,
@@ -904,10 +908,12 @@ const CardSwap = forwardRef<CardSwapHandle, CardSwapProps>(
     } as CSSProperties;
 
     return (
+      /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */
       <div
         ref={rootRef}
         className={`card-swap${className ? ` ${className}` : ''}`}
         style={rootStyle}
+        // oxlint-disable-next-line jsx-a11y/no-noninteractive-tabindex
         tabIndex={0}
         role="region"
         aria-roledescription="carousel"

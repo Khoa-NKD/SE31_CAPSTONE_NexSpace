@@ -129,9 +129,11 @@ export function WorkspaceFilterBar({
   const [priceMinDraft, setPriceMinDraft] = useState<number | undefined>(advancedFilters.minPrice);
   const [priceMaxDraft, setPriceMaxDraft] = useState<number | undefined>(advancedFilters.maxPrice);
 
-  React.useEffect(() => {
+  const [prevSearch, setPrevSearch] = useState(search);
+  if (search !== prevSearch) {
+    setPrevSearch(search);
     setLocalSearch(search);
-  }, [search]);
+  }
 
   React.useEffect(() => {
     const timer = setTimeout(() => {

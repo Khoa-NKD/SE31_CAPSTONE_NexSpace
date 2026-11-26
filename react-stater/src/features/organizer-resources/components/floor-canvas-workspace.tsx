@@ -1135,8 +1135,11 @@ export function FloorCanvasWorkspace({
     }
   };
   return (
+    /* oxlint-disable-next-line jsx-a11y/no-noninteractive-element-interactions */
     <div
       ref={container}
+      role='region'
+      aria-label={c('Interactive floor canvas workspace', 'Không gian chỉnh sửa sơ đồ tầng')}
       data-canvas-expanded={canvasFullscreen ? 'true' : undefined}
       onKeyDown={(event) => {
         if (

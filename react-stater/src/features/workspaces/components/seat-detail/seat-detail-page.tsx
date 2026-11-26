@@ -53,7 +53,6 @@ export function SeatDetailPage({
   bookingId,
   bookingCode
 }: SeatDetailPageProps) {
-  const [monitorAddonSelected, setMonitorAddonSelected] = useState(false);
   const [scheduleOverride, setScheduleOverride] = useState<ScheduleSelection | null>(null);
   const [defaultSchedule] = useState(getDefaultSchedule);
 
@@ -160,10 +159,6 @@ export function SeatDetailPage({
             <SeatSpecsGrid
               amenities={amenities}
               resource={resourceDetail}
-              monitorAddonSelected={monitorAddonSelected}
-              onToggleMonitorAddon={() => setMonitorAddonSelected(!monitorAddonSelected)}
-              currency='VND'
-              addonRatePerHour={35000}
             />
             <SeatProximityMap
               resource={resourceDetail || effectiveResource}
@@ -184,7 +179,6 @@ export function SeatDetailPage({
               floorId={floorId}
               bookingId={bookingId}
               bookingCode={bookingCode}
-              monitorAddonSelected={monitorAddonSelected}
               resource={effectiveResource}
               workspace={workspace}
               floor={effectiveFloor}

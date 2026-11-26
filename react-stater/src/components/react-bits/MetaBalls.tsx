@@ -249,7 +249,9 @@ const MetaBalls = ({
     dpr
   };
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  useEffect(() => {
+    settingsRef.current = settings;
+  });
   const introRef = useRef(intro);
   const engineRef = useRef<{ refresh: () => void } | null>(null);
 

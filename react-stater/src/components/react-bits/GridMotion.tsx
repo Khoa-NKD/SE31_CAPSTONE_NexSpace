@@ -143,7 +143,9 @@ const GridMotion = ({
     fade: clamp(fade, 0, 1)
   };
   const settingsRef = useRef(settings);
-  settingsRef.current = settings;
+  useEffect(() => {
+    settingsRef.current = settings;
+  });
 
   const layout = useMemo(() => {
     const { width, height } = size;

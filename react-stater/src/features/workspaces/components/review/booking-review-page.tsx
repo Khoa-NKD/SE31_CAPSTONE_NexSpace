@@ -31,8 +31,6 @@ export interface BookingReviewPageProps {
   date?: string;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
   autoOpen?: boolean;
-  addonAmount?: number;
-  addonName?: string;
 }
 
 function extractSeconds(source: unknown): number | undefined {
@@ -56,9 +54,7 @@ export function BookingReviewPage({
   endTime: propEndTime,
   date: propDate,
   priceType = 'HOURLY',
-  autoOpen,
-  addonAmount: propAddonAmount,
-  addonName: propAddonName
+  autoOpen
 }: BookingReviewPageProps) {
   const [customerNotes, setCustomerNotes] = useState('');
   const [activeBooking, setActiveBooking] = useState<BookingDto | null>(null);
@@ -71,17 +67,6 @@ export function BookingReviewPage({
   const initialBooking = heldBookingById || heldBookingByCode || null;
 
   const effectiveBooking = activeBooking || initialBooking || null;
-
-  const effectiveAddonAmount =
-    propAddonAmount ??
-    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0
-      ? effectiveBooking.addonAmount
-      : undefined);
-  const effectiveAddonName =
-    propAddonName ??
-    (effectiveBooking?.addonAmount && effectiveBooking.addonAmount > 0
-      ? 'Màn hình phụ Dell 27" 4K'
-      : undefined);
 
   // Resolve effective parameters with fallback to loaded booking
   const workspaceId = propWorkspaceId ?? effectiveBooking?.workspaceId;
@@ -319,7 +304,6 @@ export function BookingReviewPage({
               endTime={endTime}
               date={date}
               isLoading={isLoadingWorkspace || isLoadingFloors}
-              addonName={effectiveAddonName}
             />
             <BookerInfoCard notes={customerNotes} onNotesChange={setCustomerNotes} />
             <CancellationPolicyCard
@@ -345,8 +329,6 @@ export function BookingReviewPage({
               autoOpen={autoOpen}
               secondsRemaining={secondsRemaining}
               onExpired={handleHoldExpired}
-              addonAmount={effectiveAddonAmount}
-              addonName={effectiveAddonName}
             />
           </div>
         </div>
