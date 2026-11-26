@@ -563,4 +563,31 @@ class WorkspaceServiceImplTest {
         assertThat(result.getLocations()).isEmpty();
         assertThat(result.getCategories()).isEmpty();
     }
+
+    @Test
+    void timeFilteringHappensBeforePaginationAndCountsOnlyActualMatches() {
+        var availability = mock(base.api.feature.workspace.service.WorkspaceSearchAvailability.class);
+        org.springframework.test.util.ReflectionTestUtils.setField(service, "searchAvailability", availability);
+        var second = new WorkspaceModel(); second.setId(101L); second.setName("Second");
+        var third = new WorkspaceModel(); third.setId(102L); third.setName("Third");
+        var request = new PublicWorkspaceFilterRequestDto(); request.setPage(2); request.setSize(1);
+        request.setStartTime(java.time.LocalDateTime.parse("2026-11-25T23:30:00"));
+        request.setEndTime(java.time.LocalDateTime.parse("2026-11-26T00:00:00"));
+        when(workspaceRepository.searchPublic(eq(WorkspaceStatus.ACTIVE), isNull(), any(Pageable.class)))
+                .thenReturn(new PageImpl<>(List.of(existingWorkspace, second, third)));
+        when(availability.matching(any(), any(), any(), any())).thenReturn(java.util.Set.of(101L, 102L));
+        var result = service.getPublicWorkspaces(request);
+        assertThat(result.getContent()).extracting(WorkspaceDto::getId).containsExactly(102L);
+        assertThat(result.getTotalElements()).isEqualTo(2);
+        assertThat(result.getTotalPages()).isEqualTo(2);
+    }
+
+    @Test
+    void partialOrReversedSearchTimeNeverFallsBackToAnUnfilteredList() {
+        var request = new PublicWorkspaceFilterRequestDto();
+        request.setStartTime(java.time.LocalDateTime.parse("2026-11-25T23:30:00"));
+        assertThatThrownBy(() -> service.getPublicWorkspaces(request)).isInstanceOf(BadRequestException.class);
+        request.setEndTime(request.getStartTime().minusMinutes(30));
+        assertThatThrownBy(() -> service.getPublicWorkspaces(request)).isInstanceOf(BadRequestException.class);
+    }
 }

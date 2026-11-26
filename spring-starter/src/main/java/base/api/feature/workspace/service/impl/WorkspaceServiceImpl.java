@@ -67,6 +67,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
     @Autowired private base.api.feature.operations.repository.MaintenanceGroupRepository maintenanceGroups;
     @Autowired private base.api.feature.organizer.repository.IOrganizerProfileRepository organizerProfiles;
     @Autowired private base.api.feature.workspace.service.WorkspaceHolidayService holidays;
+    @Autowired private base.api.feature.workspace.service.WorkspaceSearchAvailability searchAvailability;
     private final IWorkspaceRepository workspaceRepository;
     private final IUserRepository userRepository;
     private final IWorkspaceOperatingHourRepository operatingHourRepository;
@@ -120,7 +121,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         UserModel organizer = userRepository.findById(organizerId)
                 .orElseThrow(() -> new NotFoundException("Organizer không tồn tại"));
 
-        validateBasicInfo(dto.getName(),dto.getDescription());
+        validateWorkspaceName(dto.getName());
         WorkspaceModel workspace = WorkspaceMapper.toModel(dto, organizer);
         workspace.setName(dto.getName().trim());
         workspace.setStatus(WorkspaceStatus.DRAFT);
@@ -147,7 +148,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         holidays.saveSelection(workspace,dto.getHolidayCodes(),dto.getHolidaySchedules());
-        validateBasicInfo(dto.getName(),dto.getDescription());
+        validateWorkspaceName(dto.getName());
         buildings.syncWorkspaceLocation(workspace, false);
         if (dto.getName() != null && !dto.getName().isBlank()) {
             workspace.setName(dto.getName().trim());
@@ -319,7 +320,12 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         String sortBy = filterRequest != null && filterRequest.getSortBy() != null ? filterRequest.getSortBy().trim() : null;
         String sortDir = filterRequest != null && filterRequest.getSortDir() != null ? filterRequest.getSortDir().trim() : "desc";
         int pageNumber = filterRequest != null && filterRequest.getPage() > 0 ? filterRequest.getPage() - 1 : 0;
-        int pageSize = filterRequest != null ? filterRequest.getSize() : 20;
+        int pageSize = filterRequest != null ? Math.min(100, Math.max(1, filterRequest.getSize())) : 20;
+        boolean hasTimeFilter = filterRequest != null && (filterRequest.getStartTime() != null || filterRequest.getEndTime() != null);
+        if (hasTimeFilter && (filterRequest.getStartTime() == null || filterRequest.getEndTime() == null
+                || !filterRequest.getEndTime().isAfter(filterRequest.getStartTime()))) {
+            throw new BadRequestException("Chọn đủ thời gian bắt đầu, kết thúc và để kết thúc sau bắt đầu.");
+        }
 
         String city = filterRequest != null && filterRequest.getCity() != null && !filterRequest.getCity().isBlank() ? filterRequest.getCity().trim() : null;
         String district = filterRequest != null && filterRequest.getDistrict() != null && !filterRequest.getDistrict().isBlank() ? filterRequest.getDistrict().trim() : null;
@@ -343,7 +349,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
 
         Page<WorkspaceModel> page;
         if ("pricePerHour".equalsIgnoreCase(sortBy) || "price".equalsIgnoreCase(sortBy)) {
-            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            Pageable pageable = hasTimeFilter ? Pageable.unpaged() : PageRequest.of(pageNumber, pageSize);
             if ("asc".equalsIgnoreCase(sortDir)) {
                 page = hasFilters
                         ? workspaceRepository.filterPublicOrderByPriceAsc(
@@ -360,7 +366,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                         : workspaceRepository.searchPublicOrderByPriceDesc(WorkspaceStatus.ACTIVE, search, pageable);
             }
         } else if ("rating".equalsIgnoreCase(sortBy)) {
-            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            Pageable pageable = hasTimeFilter ? Pageable.unpaged() : PageRequest.of(pageNumber, pageSize);
             page = hasFilters
                     ? workspaceRepository.filterPublicOrderByRatingDesc(
                             WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
@@ -368,7 +374,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                             hasResourceCatFilter, resourceCats, minRating, pageable)
                     : workspaceRepository.searchPublicOrderByRatingDesc(WorkspaceStatus.ACTIVE, search, pageable);
         } else if ("popular".equalsIgnoreCase(sortBy) || "totalBookings".equalsIgnoreCase(sortBy) || "bookingCount".equalsIgnoreCase(sortBy)) {
-            Pageable pageable = PageRequest.of(pageNumber, pageSize);
+            Pageable pageable = hasTimeFilter ? Pageable.unpaged() : PageRequest.of(pageNumber, pageSize);
             page = hasFilters
                     ? workspaceRepository.filterPublicOrderByPopular(
                             WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
@@ -379,6 +385,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             Pageable pageable = filterRequest != null
                     ? filterRequest.toPageable("createdAt", Sort.Direction.DESC, SORTABLE_FIELDS)
                     : PageRequest.of(pageNumber, pageSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+            if (hasTimeFilter) pageable = Pageable.unpaged(pageable.getSort());
             page = hasFilters
                     ? workspaceRepository.filterPublic(
                             WorkspaceStatus.ACTIVE, search, city, district, category, minPrice, maxPrice,
@@ -388,29 +395,12 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         }
 
         List<WorkspaceModel> workspaces = page.getContent();
-        Map<Long, Long> bookingCounts = getBookingCountsForPage(workspaces);
-        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(workspaces);
-        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(workspaces);
-        Map<Long, String> coverUrls = getCoverUrlsForPage(workspaces);
-
-        boolean hasTimeFilter = filterRequest != null && filterRequest.getStartTime() != null && filterRequest.getEndTime() != null;
-        Set<Long> workspaceIdsWithAvailableSeats = new HashSet<>();
-        if (hasTimeFilter && !workspaces.isEmpty()) {
-            LocalDateTime now = LocalDateTime.now();
-            Set<Long> occupiedResourceIds = bookingRepository.findOccupiedResourceIds(
-                    filterRequest.getStartTime(), filterRequest.getEndTime(), now);
-            List<Long> wsIds = workspaces.stream().map(WorkspaceModel::getId).toList();
-            List<base.api.shared.entity.resource.BookableResourceModel> availableResources =
-                    bookableResourceRepository.findAvailableResourcesByWorkspaceIds(wsIds);
-            var hoursByWorkspace = operatingHourRepository.findByWorkspaceIdIn(wsIds).stream().collect(Collectors.groupingBy(h -> h.getWorkspace().getId()));
-            var maintainedWorkspaceIds = wsIds.stream().filter(id -> maintenanceGroups.wholeWorkspaceOverlaps(id,filterRequest.getStartTime(),filterRequest.getEndTime())).collect(Collectors.toSet());
-            workspaceIdsWithAvailableSeats = availableResources.stream()
-                    .filter(r -> !occupiedResourceIds.contains(r.getId()))
-                    .filter(r -> base.api.feature.workspace.service.OperatingHours.covers(hoursByWorkspace.get(r.getFloorPlan().getWorkspace().getId()), filterRequest.getStartTime(),filterRequest.getEndTime()))
-                    .filter(r -> !maintainedWorkspaceIds.contains(r.getFloorPlan().getWorkspace().getId()))
-                    .map(r -> r.getFloorPlan().getWorkspace().getId())
-                    .collect(Collectors.toSet());
-        }
+        Set<Long> workspaceIdsWithAvailableSeats = hasTimeFilter
+                ? searchAvailability.matching(workspaces, filterRequest.getStartTime(), filterRequest.getEndTime(),
+                        filterRequest.getResourceCategories())
+                : Set.of();
+        if (hasTimeFilter) workspaces = workspaces.stream()
+                .filter(workspace -> workspaceIdsWithAvailableSeats.contains(workspace.getId())).toList();
 
         Double userLat = filterRequest != null ? filterRequest.getLat() : null;
         Double userLng = filterRequest != null ? filterRequest.getLng() : null;
@@ -450,6 +440,20 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
             });
         }
 
+        long total = page.getTotalElements();
+        Pageable resultPageable = page.getPageable();
+        if (hasTimeFilter) {
+            // Filter the entire matching set before slicing, so later pages and totals remain correct.
+            total = sortedWorkspaces.size();
+            resultPageable = PageRequest.of(pageNumber, pageSize);
+            int offset = (int) Math.min(resultPageable.getOffset(), sortedWorkspaces.size());
+            sortedWorkspaces = sortedWorkspaces.subList(offset, Math.min(offset + pageSize, sortedWorkspaces.size()));
+        }
+        Map<Long, Long> bookingCounts = getBookingCountsForPage(sortedWorkspaces);
+        Map<Long, RatingSummary> ratingSummaries = getRatingsForPage(sortedWorkspaces);
+        Map<Long, java.math.BigDecimal> minPrices = getStartingPricesForPage(sortedWorkspaces);
+        Map<Long, String> coverUrls = getCoverUrlsForPage(sortedWorkspaces);
+
         List<WorkspaceDto> dtoList = sortedWorkspaces.stream().map(w -> {
             Long bCount = bookingCounts.getOrDefault(w.getId(), 0L);
             RatingSummary rSummary = ratingSummaries.get(w.getId());
@@ -466,7 +470,7 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
                     coverUrl);
         }).toList();
 
-        return new PageImpl<>(dtoList, page.getPageable(), page.getTotalElements());
+        return new PageImpl<>(dtoList, resultPageable, total);
     }
 
     private double calculateDistanceKm(double lat1, double lon1, double lat2, double lon2) {
@@ -1019,9 +1023,8 @@ public class WorkspaceServiceImpl implements IWorkspaceService {
         return counts;
     }
 
-    private static void validateBasicInfo(String name,String description) {
+    private static void validateWorkspaceName(String name) {
         if (name != null && (name.trim().length() < 3 || name.trim().length() > 100)) throw new BadRequestException("Tên không gian từ 3 đến 100 ký tự.");
-        if (description != null && description.length() > 200) throw new BadRequestException("Mô tả ngắn tối đa 200 ký tự.");
     }
 
     private WorkspaceDetailDto policyDetail(WorkspaceDetailDto dto, WorkspaceModel workspace) {

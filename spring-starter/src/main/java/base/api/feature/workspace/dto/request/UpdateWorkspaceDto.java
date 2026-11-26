@@ -25,7 +25,6 @@ public class UpdateWorkspaceDto {
 
     private WorkspaceCategory category;
 
-    @Size(max = 200, message = "Mô tả ngắn tối đa 200 ký tự")
     private String description;
 
     @Size(max = 500, message = "Địa chỉ tối đa 500 ký tự")
