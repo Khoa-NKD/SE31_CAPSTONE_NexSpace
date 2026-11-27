@@ -739,7 +739,7 @@ public class NotificationServiceImpl implements INotificationService {
                 ? "Yêu cầu hoàn tiền bị từ chối - #" + bookingCode
                 : (refund.getSource() == base.api.shared.enums.RefundSource.PAYMENT_DISCREPANCY
                     ? "Đã tự động hoàn tiền 100% (Thanh toán sau khi hết giữ chỗ) - #" + bookingCode
-                    : "Hoàn tiền thành công về tài khoản - #" + bookingCode);
+                    : "Hoàn tiền hoàn tất về tài khoản - #" + bookingCode);
         String content = isRejected
                 ? String.format("[%s] Yêu cầu hoàn tiền cho đơn #%s tại %s đã bị từ chối. Lý do phản hồi: %s.",
                         sourceLabel, bookingCode, workspaceName,

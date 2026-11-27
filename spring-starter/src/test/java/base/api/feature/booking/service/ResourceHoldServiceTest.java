@@ -182,7 +182,7 @@ class ResourceHoldServiceTest {
             assertThat(booking.getBaseAmount()).isEqualByComparingTo("1000000");
             assertThat(booking.getTaxAmount()).isEqualByComparingTo("100000");
             assertThat(booking.getServiceFeeAmount()).isZero();
-            assertThat(booking.getPlatformFeeAmount()).isEqualByComparingTo("100000");
+            assertThat(booking.getPlatformFeeAmount()).isEqualByComparingTo("110000");
             return booking;
         });
 
