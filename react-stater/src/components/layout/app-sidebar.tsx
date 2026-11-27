@@ -407,13 +407,15 @@ export default function AppSidebar() {
                       <Icons.user className='mr-2 h-4 w-4 text-indigo-600' />
                       {language === 'vi' ? 'Hồ sơ cá nhân' : 'Profile Settings'}
                     </DropdownMenuItem>
-                    <DropdownMenuItem
-                      className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
-                      onClick={() => router.navigate({ to: '/dashboard/preferences' })}
-                    >
-                      <Icons.adjustments className='mr-2 h-4 w-4 text-primary' />
-                      {language === 'vi' ? 'Sở thích không gian' : 'Space Preferences'}
-                    </DropdownMenuItem>
+                    {isOrganizer && (
+                      <DropdownMenuItem
+                        className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
+                        onClick={() => router.navigate({ to: '/dashboard/organizer/business-profile' })}
+                      >
+                        <Icons.business className='mr-2 h-4 w-4 text-emerald-600' />
+                        {language === 'vi' ? 'Thông tin doanh nghiệp' : 'Business Profile'}
+                      </DropdownMenuItem>
+                    )}
                     <DropdownMenuItem
                       className='hover:bg-sidebar-accent focus:bg-sidebar-accent text-sidebar-foreground focus:text-sidebar-accent-foreground cursor-pointer'
                       onClick={() => router.navigate({ to: '/dashboard/notifications' })}

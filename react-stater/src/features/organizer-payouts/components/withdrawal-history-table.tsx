@@ -11,7 +11,6 @@ import {
   TableRow
 } from '@/components/ui/table';
 import {
-  Clock,
   CheckCircle2,
   AlertTriangle,
   ArrowDownLeft,
@@ -35,20 +34,20 @@ export const WithdrawalHistoryTable: React.FC<WithdrawalHistoryTableProps> = ({
   const items = history?.listObjects || history?.content || [];
 
   return (
-    <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-      <CardHeader className="bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800/80 pb-4">
+    <Card className="border border-border/70 shadow-sm rounded-2xl bg-card overflow-hidden">
+      <CardHeader className="bg-muted/30 border-b border-border/60 pb-4">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
+            <CardTitle className="text-base font-bold text-foreground">
               {language === 'vi' ? 'Lịch sử Rút tiền' : 'Withdrawal History'}
             </CardTitle>
-            <CardDescription className="text-xs text-slate-500 mt-1">
+            <CardDescription className="text-xs text-muted-foreground mt-0.5">
               {language === 'vi'
                 ? 'Danh sách các đợt rút tiền thủ công và tự động đã thực hiện về tài khoản ngân hàng.'
                 : 'List of manual and automatic payouts transferred to your bank account.'}
             </CardDescription>
           </div>
-          <Badge variant="outline" className="text-xs font-semibold">
+          <Badge variant="outline" className="text-xs font-semibold rounded-full border-border/70">
             {history?.totalRecords || items.length} {language === 'vi' ? 'giao dịch' : 'transactions'}
           </Badge>
         </div>

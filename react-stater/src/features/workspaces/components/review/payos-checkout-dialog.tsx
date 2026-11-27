@@ -95,7 +95,6 @@ export function PayOSCheckoutDialog({
 
   const isConfirmed =
     isManualSuccess ||
-    statusData?.paymentStatus === 'SUCCESS' ||
     statusData?.bookingStatus === 'CONFIRMED';
 
   // Countdown timer clock đồng bộ mốc thời gian máy chủ (chỉ chạy khi không được truyền secondsRemaining từ component cha)

@@ -45,7 +45,7 @@ export function GtvRevenueChart() {
           <div className='flex items-center gap-2'>
             <span className='size-2.5 rounded-full bg-emerald-500' />
             <span className='text-muted-foreground'>
-              {language === 'vi' ? 'Doanh thu hoa hồng sàn (TB 12.0%)' : 'Net Platform Revenue (Avg 12.0%)'}
+              {language === 'vi' ? 'Doanh thu hoa hồng sàn (TB 10.0%)' : 'Net Platform Revenue (Avg 10.0%)'}
             </span>
           </div>
         </div>

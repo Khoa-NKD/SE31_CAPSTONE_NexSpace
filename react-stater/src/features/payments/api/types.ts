@@ -10,6 +10,80 @@ export type BookingStatus =
   | 'EXPIRED'
   | 'NO_SHOW';
 
+export type RefundStatusType = 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED' | 'FAILED';
+
+export type RefundSourceType =
+  | 'CUSTOMER_CANCEL'
+  | 'ORGANIZER_CANCEL'
+  | 'PAYMENT_DISCREPANCY'
+  | 'ADMIN_DISPUTE';
+
+export interface CustomerRefundItemResponse {
+  id: number;
+  bookingId: number;
+  bookingCode: string;
+  bookingStatus?: BookingStatus | null;
+  bookingStartTime?: string | null;
+  bookingEndTime?: string | null;
+  customerId?: number | null;
+  customerName?: string | null;
+  customerEmail?: string | null;
+  workspaceId?: number | null;
+  workspaceName?: string | null;
+  workspaceAddress?: string | null;
+  seatCode?: string | null;
+  resourceName?: string | null;
+  paymentOrderCode?: number | null;
+  paidAt?: string | null;
+  originalPaidAmount?: number | null;
+  requestedAmount: number;
+  approvedAmount?: number | null;
+  status: RefundStatusType;
+  source: RefundSourceType;
+  sourceLabel?: string | null;
+  reason?: string | null;
+  bankName?: string | null;
+  bankBin?: string | null;
+  bankAccountNumber?: string | null;
+  bankAccountName?: string | null;
+  needsBankInfo?: boolean;
+  autoRefundSupportedBank?: boolean;
+  adminNote?: string | null;
+  refundReference?: string | null;
+  reviewedById?: number | null;
+  reviewedByName?: string | null;
+  reviewedAt?: string | null;
+  processedAt?: string | null;
+  createdAt: string;
+}
+
+export interface CustomerRefundKpisResponse {
+  totalCount: number;
+  pendingCount: number;
+  needsBankInfoCount: number;
+  processedCount: number;
+  rejectedCount: number;
+  totalRequestedAmount: number;
+  totalRefundedAmount: number;
+}
+
+export interface UpdateRefundBankInfoRequest {
+  bankName: string;
+  bankBin: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+}
+
+export interface CreateRefundComplaintRequest {
+  bookingId: number;
+  requestedAmount?: number;
+  reason: string;
+  bankName: string;
+  bankBin: string;
+  bankAccountNumber: string;
+  bankAccountName: string;
+}
+
 export interface BookingHoldResponse {
   bookingId?: number | null;
   bookingCode?: string | null;
@@ -46,7 +120,8 @@ export interface CustomerBookingItemResponse {
   qrTokenHash: string | null;
   pinCode: string | null;
   createdAt: string;
-  refundStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PROCESSED' | 'FAILED' | null;
+  refundId?: number | null;
+  refundStatus?: RefundStatusType | null;
   refundAmount?: number | null;
   refundReference?: string | null;
   refundBankName?: string | null;
@@ -166,4 +241,3 @@ export interface PageResponse<T> {
   totalRecords?: number;
   totalPages: number;
 }
-

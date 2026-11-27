@@ -21,8 +21,8 @@ interface RefundDetailsDrawerProps {
   refund: RefundRecord | null;
   isOpen: boolean;
   onClose: () => void;
-  onApprove: (refund: RefundRecord, note: string) => void;
-  onReject: (refund: RefundRecord, note: string) => void;
+  onApprove: (refund: RefundRecord, note: string) => Promise<unknown> | void;
+  onReject: (refund: RefundRecord, note: string) => Promise<unknown> | void;
   language?: 'vi' | 'en';
 }
 
@@ -423,12 +423,16 @@ export function RefundDetailsDrawer({
         actionType={actionModalType || 'approve'}
         refund={refund}
         adminNote={adminNote}
-        onConfirm={() => {
+        onConfirm={async () => {
           if (actionModalType === 'approve') {
-            onApprove(refund, adminNote);
+            return await onApprove(refund, adminNote);
           } else if (actionModalType === 'reject') {
-            onReject(refund, adminNote);
+            return await onReject(refund, adminNote);
           }
+        }}
+        onSuccess={() => {
+          setActionModalType(null);
+          onClose();
         }}
       />
 

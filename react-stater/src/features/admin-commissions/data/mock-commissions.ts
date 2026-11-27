@@ -62,15 +62,15 @@ export const MOCK_ACTIVE_FEE_TILES: ActiveFeeTile[] = [
     titleVi: 'Phí sàn Marketplace (Take-Rate)',
     category: 'MARKETPLACE TAKE-RATE',
     categoryVi: 'PHÍ HOA HỒNG SÀN',
-    rateDisplay: '12.0%',
+    rateDisplay: '10.0%',
     subRateLabel: 'per confirmed booking',
     subRateLabelVi: 'mỗi đặt chỗ thành công',
     description:
       'Applies to all on-demand hot desks, quiet booths, and hourly meeting rooms across Southeast Asia nodes.',
     descriptionVi:
       'Áp dụng cho toàn bộ bàn làm việc linh hoạt (hot desk), phòng họp theo giờ và buồng làm việc yên tĩnh.',
-    retained30d: '$17,100.00',
-    retained30dVnd: '434.500.000 ₫',
+    retained30d: '$14,250.00',
+    retained30dVnd: '362.000.000 ₫',
     volumeLabel: '3,842 transactions',
     volumeLabelVi: '3.842 giao dịch',
     statusBadge: 'Active',
@@ -106,13 +106,13 @@ export const MOCK_ACTIVE_FEE_TILES: ActiveFeeTile[] = [
     titleVi: 'Phí Cổng Thanh Toán (PayOS)',
     category: 'GATEWAY PASS-THROUGH (PAYOS)',
     categoryVi: 'CHUYỂN TIẾP TRUNG GIAN',
-    rateDisplay: '1.5% + 2.000 ₫',
-    subRateLabel: 'direct pass-through fee',
-    subRateLabelVi: 'phí xử lý chuyển tiếp trực tiếp',
+    rateDisplay: '0 ₫',
+    subRateLabel: 'zero pass-through fee',
+    subRateLabelVi: 'miễn phí chuyển tiếp qua cổng',
     description:
-      'Direct pass-through gateway fee via VietQR NAPAS247 & domestic card rails (Zero platform markup applied).',
+      'Direct pass-through gateway fee via VietQR NAPAS247 & domestic card rails (Zero platform fee applied).',
     descriptionVi:
-      'Phí xử lý giao dịch qua cổng VietQR NAPAS247 & thẻ nội địa (Sàn thu hộ chuyển tiếp, không chênh lệch).',
+      'Miễn phí chuyển tiếp trung gian qua cổng VietQR NAPAS247 & thẻ nội địa (0 ₫ phí chuyển tiếp).',
     retained30d: '100% matched',
     retained30dVnd: '100% cân khớp',
     volumeLabel: 'Reconciled',
@@ -131,11 +131,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 2450000000,
     gtvDisplay: '$98.0k',
     gtvDisplayVnd: '2,45 tỷ ₫',
-    netRevenueVnd: 294000000,
-    netDisplay: '$11.8k net',
-    netDisplayVnd: '294 tr ₫ net',
+    netRevenueVnd: 245000000,
+    netDisplay: '$9.8k net',
+    netDisplayVnd: '245 tr ₫ net',
     gtvPercent: 68,
-    revenuePercent: 28
+    revenuePercent: 24
   },
   {
     month: 'Sep 2025',
@@ -143,11 +143,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 2700000000,
     gtvDisplay: '$108.0k',
     gtvDisplayVnd: '2,70 tỷ ₫',
-    netRevenueVnd: 324000000,
-    netDisplay: '$13.0k net',
-    netDisplayVnd: '324 tr ₫ net',
+    netRevenueVnd: 270000000,
+    netDisplay: '$10.8k net',
+    netDisplayVnd: '270 tr ₫ net',
     gtvPercent: 74,
-    revenuePercent: 31
+    revenuePercent: 27
   },
   {
     month: 'Oct 2025',
@@ -155,11 +155,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 3000000000,
     gtvDisplay: '$120.0k',
     gtvDisplayVnd: '3,00 tỷ ₫',
-    netRevenueVnd: 360000000,
-    netDisplay: '$14.4k net',
-    netDisplayVnd: '360 tr ₫ net',
+    netRevenueVnd: 300000000,
+    netDisplay: '$12.0k net',
+    netDisplayVnd: '300 tr ₫ net',
     gtvPercent: 82,
-    revenuePercent: 34
+    revenuePercent: 30
   },
   {
     month: 'Nov 2025',
@@ -167,11 +167,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 3200000000,
     gtvDisplay: '$128.0k',
     gtvDisplayVnd: '3,20 tỷ ₫',
-    netRevenueVnd: 384000000,
-    netDisplay: '$15.3k net',
-    netDisplayVnd: '384 tr ₫ net',
+    netRevenueVnd: 320000000,
+    netDisplay: '$12.8k net',
+    netDisplayVnd: '320 tr ₫ net',
     gtvPercent: 88,
-    revenuePercent: 36
+    revenuePercent: 32
   },
   {
     month: 'Dec 2025',
@@ -179,11 +179,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 3375000000,
     gtvDisplay: '$135.0k',
     gtvDisplayVnd: '3,38 tỷ ₫',
-    netRevenueVnd: 405000000,
-    netDisplay: '$16.2k net',
-    netDisplayVnd: '405 tr ₫ net',
+    netRevenueVnd: 337500000,
+    netDisplay: '$13.5k net',
+    netDisplayVnd: '338 tr ₫ net',
     gtvPercent: 93,
-    revenuePercent: 38
+    revenuePercent: 34
   },
   {
     month: 'Jan 2026',
@@ -191,11 +191,11 @@ export const MOCK_GTV_MONTHLY_HISTORY: GtvMonthlyData[] = [
     gtvAmountVnd: 3562500000,
     gtvDisplay: '$142.5k',
     gtvDisplayVnd: '3,56 tỷ ₫',
-    netRevenueVnd: 427500000,
-    netDisplay: '$17.1k net',
-    netDisplayVnd: '427,5 tr ₫ net',
+    netRevenueVnd: 356250000,
+    netDisplay: '$14.3k net',
+    netDisplayVnd: '356,2 tr ₫ net',
     gtvPercent: 100,
-    revenuePercent: 41
+    revenuePercent: 36
   }
 ];
 
@@ -210,7 +210,7 @@ export const MOCK_COMMISSION_RULES: CommissionRule[] = [
     scope: 'Global Marketplace (All Spaces)',
     scopeVi: 'Toàn bộ sàn (Tất cả không gian)',
     scopeType: 'marketplace',
-    effectiveRate: 12.0,
+    effectiveRate: 10.0,
     effectiveFrom: '01/01/2025',
     effectiveTo: 'Vô thời hạn',
     status: 'ACTIVE',
@@ -249,22 +249,22 @@ export const MOCK_COMMISSION_RULES: CommissionRule[] = [
   {
     id: 'rule-03',
     ruleCode: 'NX_COMM_GW_PAYOS_03',
-    name: 'Instant PayOS VietQR Pass-through',
-    nameVi: 'Phí xử lý VietQR qua Cổng PayOS tức thì',
+    name: 'Instant PayOS VietQR Pass-through (Free)',
+    nameVi: 'Miễn phí Chuyển tiếp VietQR qua Cổng PayOS',
     subtitle: 'Domestic rails direct pass-through',
-    subtitleVi: 'Thu hộ chuyển tiếp cổng nội địa',
+    subtitleVi: 'Miễn phí chuyển tiếp trung gian (0 ₫)',
     scope: 'All VietQR & Domestic Rails',
     scopeVi: 'Cổng VietQR NAPAS247 & Thẻ nội địa',
     scopeType: 'gateway',
-    effectiveRate: 1.5,
-    fixedFeeVnd: 2000,
+    effectiveRate: 0.0,
+    fixedFeeVnd: 0,
     effectiveFrom: 'Ngày ra mắt',
     effectiveTo: 'Vô thời hạn',
     status: 'ACTIVE',
     description:
-      'Direct pass-through gateway rail charges via VietQR NAPAS247 and domestic credit/debit cards.',
+      'Zero fee direct pass-through gateway rail charges via VietQR NAPAS247 and domestic credit/debit cards.',
     descriptionVi:
-      'Phí xử lý kỹ thuật trung gian qua NAPAS247 và thẻ ngân hàng trong nước (Không thu chênh lệch).',
+      'Miễn phí xử lý kỹ thuật chuyển tiếp trung gian qua NAPAS247 và thẻ ngân hàng trong nước (0 ₫).',
     applicableSpaces: 'Domestic checkout transactions',
     applicableSpacesVi: 'Giao dịch thanh toán trực tuyến trong nước',
     calculationType: 'FLAT_VARIABLE',

@@ -14,7 +14,13 @@ import type {
   PageResponse,
   BookingHoldResponse,
   CustomerBookingItemResponse,
-  BookingStatus
+  BookingStatus,
+  CustomerRefundItemResponse,
+  CustomerRefundKpisResponse,
+  RefundStatusType,
+  RefundSourceType,
+  UpdateRefundBankInfoRequest,
+  CreateRefundComplaintRequest
 } from './types';
 
 export const paymentService = {
@@ -57,7 +63,6 @@ export const paymentService = {
    */
   getExchangeRate: (): Promise<ExchangeRateResponse> =>
     apiClient.get<ExchangeRateResponse>('/public/exchange-rate'),
-
 
   /**
    * Xem lịch sử thanh toán của khách hàng cá nhân.
@@ -131,6 +136,48 @@ export const paymentService = {
     apiClient.get<CustomerBookingItemResponse>(`/customer/bookings/${bookingId}`),
 
   /**
+   * Xem danh sách các yêu cầu hoàn tiền của khách hàng hiện tại.
+   */
+  getCustomerRefunds: (params?: {
+    status?: RefundStatusType;
+    source?: RefundSourceType;
+    search?: string;
+    page?: number;
+    size?: number;
+    sort?: string;
+  }): Promise<PageResponse<CustomerRefundItemResponse>> =>
+    apiClient.get<PageResponse<CustomerRefundItemResponse>>('/customer/refunds', { params }),
+
+  /**
+   * Lấy số liệu thống kê tổng quan các yêu cầu hoàn tiền của khách hàng hiện tại.
+   */
+  getCustomerRefundKpis: (): Promise<CustomerRefundKpisResponse> =>
+    apiClient.get<CustomerRefundKpisResponse>('/customer/refunds/kpis'),
+
+  /**
+   * Xem chi tiết một yêu cầu hoàn tiền của khách hàng hiện tại.
+   */
+  getCustomerRefundDetail: (refundId: number): Promise<CustomerRefundItemResponse> =>
+    apiClient.get<CustomerRefundItemResponse>(`/customer/refunds/${refundId}`),
+
+  /**
+   * Cập nhật thông tin tài khoản ngân hàng nhận tiền hoàn của khách hàng.
+   */
+  updateCustomerRefundBankInfo: (
+    refundId: number,
+    data: UpdateRefundBankInfoRequest
+  ): Promise<CustomerRefundItemResponse> =>
+    apiClient.patch<CustomerRefundItemResponse>(`/customer/refunds/${refundId}/bank-info`, data),
+
+  /**
+   * Gửi yêu cầu khiếu nại đòi hoàn tiền cho đơn đặt chỗ đã sử dụng.
+   */
+  createComplaintRefund: (
+    data: CreateRefundComplaintRequest
+  ): Promise<CustomerRefundItemResponse> =>
+    apiClient.post<CustomerRefundItemResponse>('/customer/refunds/complaint', data),
+
+  /**
    * Organizer xem lịch sử thanh toán của workspace thuộc quyền quản lý.
    */
   getOrganizerPaymentHistory: (
@@ -178,4 +225,3 @@ export const paymentService = {
   getReconciliationSummary: (): Promise<ReconciliationSummary> =>
     apiClient.get<ReconciliationSummary>('/admin/payments/reconciliation-summary')
 };
-

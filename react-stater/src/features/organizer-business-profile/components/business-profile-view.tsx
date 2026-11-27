@@ -124,10 +124,12 @@ function BusinessContactForm({
     notice.error,
     mutation.isPending || form.formState.isSubmitting
   );
+  const isBankLocked = !!profile.bankAccountConfigured;
   const bankDirty =
-    bankName.trim() !== (profile.bankName ?? '') ||
-    bankHolder.trim() !== (profile.bankAccountHolder ?? '') ||
-    bankNumber.trim() !== '';
+    !isBankLocked &&
+    (bankName.trim() !== (profile.bankName ?? '') ||
+      bankHolder.trim() !== (profile.bankAccountHolder ?? '') ||
+      bankNumber.trim() !== '');
   const dirty = form.formState.isDirty || bankDirty;
   const busy = mutation.isPending || form.formState.isSubmitting;
   const legalFields = [
@@ -142,7 +144,7 @@ function BusinessContactForm({
     setNotice({ success: '', error: '' });
     setBankErrors({});
     const input: BusinessProfileInput = { ...contacts };
-    if (bankDirty) {
+    if (!isBankLocked && bankDirty) {
       const parsed = bankDetailsSchema.safeParse({
         bankName,
         bankAccountHolder: bankHolder,
@@ -329,108 +331,171 @@ function BusinessContactForm({
                   <Landmark className='text-primary size-5' />
                   {c('Bank account', 'Tài khoản ngân hàng')}
                 </CardTitle>
-                <Badge variant='secondary'>{c('Optional', 'Không bắt buộc')}</Badge>
+                {isBankLocked ? (
+                  <Badge
+                    variant='outline'
+                    className='border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 gap-1.5 px-2.5 py-0.5 text-xs font-semibold'
+                  >
+                    <LockKeyhole className='size-3' />
+                    {c('Locked & Verified', 'Đã khóa cố định')}
+                  </Badge>
+                ) : (
+                  <Badge
+                    variant='outline'
+                    className='border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-400 gap-1.5 px-2.5 py-0.5 text-xs font-semibold'
+                  >
+                    {c('One-time setup', 'Thiết lập 1 lần')}
+                  </Badge>
+                )}
               </div>
               <CardDescription>
-                {c(
-                  'Save the bank account used by your business. This does not initiate a transfer.',
-                  'Lưu tài khoản ngân hàng của doanh nghiệp. Thao tác này không thực hiện chuyển tiền.'
-                )}
+                {isBankLocked
+                  ? c(
+                      'Payout beneficiary account is verified and locked for financial security.',
+                      'Tài khoản nhận quyết toán doanh thu đã xác thực và khóa an toàn.'
+                    )
+                  : c(
+                      'Save the bank account used by your business. Can only be configured once.',
+                      'Lưu tài khoản ngân hàng nhận tiền quyết toán. Chỉ được thiết lập 1 lần duy nhất.'
+                    )}
               </CardDescription>
             </CardHeader>
             <CardContent className='space-y-5'>
-              <div className='border-border bg-muted/30 flex gap-3 rounded-xl border p-3 text-sm'>
-                <ShieldCheck className='text-primary mt-0.5 size-4 shrink-0' />
-                <div>
-                  <p className='font-medium'>
-                    {profile.bankAccountLastFour
-                      ? c('Saved account: ', 'Tài khoản đã lưu: ') +
-                        '•••• ' +
-                        profile.bankAccountLastFour
-                      : profile.bankAccountConfigured
-                        ? c(
-                            'Re-enter the account number to update legacy bank details.',
-                            'Nhập lại số tài khoản để cập nhật thông tin ngân hàng cũ.'
-                          )
-                        : c('No bank account added', 'Chưa thêm tài khoản ngân hàng')}
-                  </p>
-                  <p className='text-muted-foreground mt-1 text-xs'>
-                    {c(
-                      'Account numbers are encrypted and only the last four digits are displayed.',
-                      'Số tài khoản được mã hóa và chỉ hiển thị 4 số cuối.'
-                    )}
-                  </p>
-                </div>
-              </div>
-              {!profile.bankingAvailable ? (
-                <p role='status' className='text-muted-foreground text-sm'>
-                  {c(
-                    'Bank account updates are temporarily unavailable. Contact details can still be saved.',
-                    'Tạm thời chưa thể cập nhật ngân hàng. Bạn vẫn có thể lưu thông tin liên hệ.'
-                  )}
-                </p>
-              ) : null}
-              <fieldset
-                disabled={busy || !profile.bankingAvailable}
-                className='space-y-5 disabled:opacity-60'
-              >
-                <BankSelector
-                  value={bankName}
-                  onChange={setBankName}
-                  disabled={busy || !profile.bankingAvailable}
-                  error={bankErrors.bankName}
-                />
-                {(
-                  [
-                    [
-                      'bankAccountHolder',
-                      c('Account holder', 'Chủ tài khoản'),
-                      bankHolder,
-                      setBankHolder,
-                      c('Name registered with the bank', 'Tên chủ tài khoản đăng ký tại ngân hàng'),
-                      UserRound
-                    ],
-                    [
-                      'bankAccountNumber',
-                      c('New account number', 'Số tài khoản mới'),
-                      bankNumber,
-                      setBankNumber,
-                      profile.bankAccountLastFour
-                        ? c('Leave blank to keep the saved number', 'Để trống để giữ số đang lưu')
-                        : c('Enter the bank account number', 'Nhập số tài khoản ngân hàng'),
-                      LockKeyhole
-                    ]
-                  ] as const
-                ).map(([name, label, value, setValue, placeholder, Icon]) => (
-                  <div key={name} className='space-y-2'>
-                    <label htmlFor={`business-${name}`} className='text-sm font-medium'>
-                      {label}
-                    </label>
-                    <div className='relative'>
-                      <Icon className='text-muted-foreground pointer-events-none absolute top-3 left-3 size-4' />
-                      <Input
-                        id={`business-${name}`}
-                        className='pl-10'
-                        value={value}
-                        onChange={(event) => setValue(event.target.value)}
-                        type='text'
-                        inputMode={name === 'bankAccountNumber' ? 'numeric' : undefined}
-                        autoComplete='off'
-                        spellCheck={false}
-                        maxLength={name === 'bankAccountNumber' ? 34 : 100}
-                        placeholder={placeholder}
-                        aria-invalid={!!bankErrors[name]}
-                        aria-describedby={bankErrors[name] ? `${name}-error` : undefined}
-                      />
-                    </div>
-                    {bankErrors[name] ? (
-                      <p id={`${name}-error`} role='alert' className='text-destructive text-sm'>
-                        {bankErrors[name]}
+              {isBankLocked ? (
+                <>
+                  <div className='border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10 flex gap-3 rounded-xl border p-4 text-sm'>
+                    <ShieldCheck className='text-emerald-600 dark:text-emerald-400 mt-0.5 size-5 shrink-0' />
+                    <div className='space-y-1'>
+                      <p className='font-semibold text-emerald-950 dark:text-emerald-200'>
+                        {c('Bank account locked permanently', 'Tài khoản ngân hàng đã được khóa cố định')}
                       </p>
-                    ) : null}
+                      <p className='text-muted-foreground text-xs leading-relaxed'>
+                        {c(
+                          'Each organizer account can only configure payout banking details once for financial security. If you need to update it due to corporate restructuring or legal changes, please contact the System Administrator.',
+                          'Mỗi tài khoản đối tác chỉ được cập nhật tài khoản ngân hàng 1 lần duy nhất nhằm bảo đảm an toàn dòng tiền. Nếu bạn cần thay đổi thông tin vì lý do pháp lý hoặc sáp nhập doanh nghiệp, vui lòng liên hệ Quản trị viên hệ thống.'
+                        )}
+                      </p>
+                    </div>
                   </div>
-                ))}
-              </fieldset>
+
+                  {/* Read-only bank details display */}
+                  <div className='border-border bg-muted/30 rounded-xl border p-4 space-y-3.5'>
+                    <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
+                      <div>
+                        <span className='text-xs text-muted-foreground font-medium block'>
+                          {c('Bank name', 'Ngân hàng thụ hưởng')}
+                        </span>
+                        <p className='text-sm font-semibold text-foreground mt-0.5'>
+                          {profile.bankName || c('Not configured', 'Chưa cấu hình')}
+                        </p>
+                      </div>
+                      <div>
+                        <span className='text-xs text-muted-foreground font-medium block'>
+                          {c('Account holder', 'Chủ tài khoản')}
+                        </span>
+                        <p className='text-sm font-semibold text-foreground uppercase mt-0.5'>
+                          {profile.bankAccountHolder || c('Not configured', 'Chưa cấu hình')}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className='border-t border-border/60 pt-3 flex items-center justify-between'>
+                      <span className='text-xs text-muted-foreground font-medium'>
+                        {c('Account number', 'Số tài khoản')}
+                      </span>
+                      <span className='font-mono font-semibold text-sm text-foreground tracking-wider'>
+                        {profile.bankAccountLastFour
+                          ? `•••• ${profile.bankAccountLastFour}`
+                          : c('Encrypted', 'Đã mã hóa')}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className='border-amber-500/20 bg-amber-500/5 dark:bg-amber-500/10 flex gap-3 rounded-xl border p-3.5 text-sm'>
+                    <ShieldCheck className='text-amber-600 dark:text-amber-400 mt-0.5 size-5 shrink-0' />
+                    <div className='space-y-1'>
+                      <p className='font-semibold text-amber-950 dark:text-amber-200'>
+                        {c('One-time bank account configuration', 'Cấu hình tài khoản ngân hàng 1 lần duy nhất')}
+                      </p>
+                      <p className='text-muted-foreground text-xs leading-relaxed'>
+                        {c(
+                          'Important: Each organizer account is only permitted to update banking information once. Once saved, it will be permanently locked. Please double-check your bank name, account holder, and account number.',
+                          'Lưu ý quan trọng: Mỗi tài khoản đối tác chỉ được cập nhật thông tin ngân hàng 1 lần duy nhất. Sau khi lưu, thông tin này sẽ được khóa cố định nhằm bảo vệ doanh thu. Vui lòng kiểm tra kỹ ngân hàng, tên chủ tài khoản và số tài khoản trước khi lưu.'
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {!profile.bankingAvailable ? (
+                    <p role='status' className='text-muted-foreground text-sm'>
+                      {c(
+                        'Bank account updates are temporarily unavailable. Contact details can still be saved.',
+                        'Tạm thời chưa thể cập nhật ngân hàng. Bạn vẫn có thể lưu thông tin liên hệ.'
+                      )}
+                    </p>
+                  ) : null}
+                  <fieldset
+                    disabled={busy || !profile.bankingAvailable}
+                    className='space-y-5 disabled:opacity-60'
+                  >
+                    <BankSelector
+                      value={bankName}
+                      onChange={setBankName}
+                      disabled={busy || !profile.bankingAvailable}
+                      error={bankErrors.bankName}
+                    />
+                    {(
+                      [
+                        [
+                          'bankAccountHolder',
+                          c('Account holder', 'Chủ tài khoản'),
+                          bankHolder,
+                          setBankHolder,
+                          c('Name registered with the bank', 'Tên chủ tài khoản đăng ký tại ngân hàng'),
+                          UserRound
+                        ],
+                        [
+                          'bankAccountNumber',
+                          c('Account number', 'Số tài khoản'),
+                          bankNumber,
+                          setBankNumber,
+                          c('Enter the bank account number', 'Nhập số tài khoản ngân hàng'),
+                          LockKeyhole
+                        ]
+                      ] as const
+                    ).map(([name, label, value, setValue, placeholder, Icon]) => (
+                      <div key={name} className='space-y-2'>
+                        <label htmlFor={`business-${name}`} className='text-sm font-medium'>
+                          {label}
+                        </label>
+                        <div className='relative'>
+                          <Icon className='text-muted-foreground pointer-events-none absolute top-3 left-3 size-4' />
+                          <Input
+                            id={`business-${name}`}
+                            className='pl-10'
+                            value={value}
+                            onChange={(event) => setValue(event.target.value)}
+                            type='text'
+                            inputMode={name === 'bankAccountNumber' ? 'numeric' : undefined}
+                            autoComplete='off'
+                            spellCheck={false}
+                            maxLength={name === 'bankAccountNumber' ? 34 : 100}
+                            placeholder={placeholder}
+                            aria-invalid={!!bankErrors[name]}
+                            aria-describedby={bankErrors[name] ? `${name}-error` : undefined}
+                          />
+                        </div>
+                        {bankErrors[name] ? (
+                          <p id={`${name}-error`} role='alert' className='text-destructive text-sm'>
+                            {bankErrors[name]}
+                          </p>
+                        ) : null}
+                      </div>
+                    ))}
+                  </fieldset>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>

@@ -156,7 +156,7 @@ function CommissionRulesConfigurationPage() {
             </div>
             <div className='flex items-baseline justify-between mt-3'>
               <span className='text-2xl font-extrabold text-foreground font-heading'>
-                12.0%
+                10.0%
               </span>
               <span className='text-[11px] text-muted-foreground font-medium'>
                 {language === 'vi' ? 'Bàn làm việc' : 'Standard Desk'}

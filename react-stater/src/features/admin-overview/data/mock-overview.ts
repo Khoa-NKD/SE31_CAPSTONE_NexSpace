@@ -109,9 +109,9 @@ export const MOCK_OVERVIEW_DATA: Record<string, OverviewDataSet> = {
       {
         id: 'net-fees',
         label: 'Net Take Rate / Fees',
-        value: '$17,100',
-        numericValue: 17100,
-        badgeText: '12% avg yield',
+        value: '$14,250',
+        numericValue: 14250,
+        badgeText: '10% avg yield',
         changeType: 'neutral',
         subtext: 'Net platform yield captured',
         icon: 'creditCard'
@@ -256,9 +256,9 @@ export const MOCK_OVERVIEW_DATA: Record<string, OverviewDataSet> = {
       {
         id: 'net-fees',
         label: 'Net Take Rate / Fees',
-        value: '$648',
-        numericValue: 648,
-        badgeText: '12% avg yield',
+        value: '$540',
+        numericValue: 540,
+        badgeText: '10% avg yield',
         changeType: 'neutral',
         subtext: 'Intraday captured yield',
         icon: 'creditCard'
@@ -378,11 +378,11 @@ export const MOCK_OVERVIEW_DATA: Record<string, OverviewDataSet> = {
       {
         id: 'net-fees',
         label: 'Net Take Rate / Fees',
-        value: '$17,100',
-        numericValue: 17100,
-        badgeText: '12% avg yield',
+        value: '$14,250',
+        numericValue: 14250,
+        badgeText: '10% avg yield',
         changeType: 'neutral',
-        subtext: '12% take rate on $142.5K GMV',
+        subtext: '10% take rate on $142.5K GMV',
         icon: 'creditCard'
       }
     ],
