@@ -64,8 +64,9 @@ app.organizer.bank.encryption-key=NexSpaceOrganizerBankKey32Bytes!
 # app.auth.inactive-threshold-days=90
 # app.client-url=http://localhost:3000
 # app.api-url=http://localhost:8080
-# Local-only demonstration agreements require explicit opt-in; configure the managed template above for normal issuance.
-app.organizer.contract.demo-enabled=false
+# The bundled agreement works on any Local development machine without a separate legal template.
+# Production signing still requires the managed configuration above.
+app.organizer.contract.demo-enabled=${ORGANIZER_CONTRACT_DEMO_ENABLED:true}
 # ── AI Gemini Configuration (Tách biệt token giữa Floor AI & Chatbot) ───────
 # API Key dành riêng cho Floor Plan AI Studio
 nexspace.floor-ai.gemini-api-key=${GEMINI_API_KEY:}

@@ -11,6 +11,7 @@ cp src/main/resources/application-local.properties.example src/main/resources/ap
 ```
 
 - Swagger UI: http://localhost:8080/swagger-ui.html
+- The default `local` profile includes the bundled Organizer agreement and stores generated PDFs under `${user.home}/.nexspace/organizer-contracts`. No machine-specific template or Cloudinary account is required for this agreement. Configure SMTP to deliver signing OTPs. Older local configuration files that explicitly set `app.organizer.contract.demo-enabled=false` must remove that override or set it to `true`. Production profiles continue to require the managed agreement and platform legal identity; Local demo agreements cannot be signed there.
 - Lần chạy đầu: Flyway tự động chạy migration (`src/main/resources/db/migration/V1__init_schema.sql`). Để nạp dữ liệu mẫu (Master + Accounts + Workspaces + Bookings), chạy `python3 scripts/db/init_data.py` (xem chi tiết tại [scripts/db/README.md](scripts/db/README.md)).
 
 ## Cấu trúc
