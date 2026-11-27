@@ -11,7 +11,11 @@ import type {
   PageResponse,
   BookingHoldResponse,
   CustomerBookingItemResponse,
-  BookingStatus
+  BookingStatus,
+  CustomerRefundItemResponse,
+  CustomerRefundKpisResponse,
+  RefundStatusType,
+  RefundSourceType
 } from './types';
 
 export const paymentKeys = {
@@ -20,6 +24,9 @@ export const paymentKeys = {
   pendingHold: () => [...paymentKeys.all, 'pending-hold'] as const,
   customerBookings: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer-bookings', params] as const,
   bookingDetail: (bookingId: number) => [...paymentKeys.all, 'booking-detail', bookingId] as const,
+  customerRefunds: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer-refunds', params] as const,
+  customerRefundKpis: () => [...paymentKeys.all, 'customer-refund-kpis'] as const,
+  customerRefundDetail: (refundId: number) => [...paymentKeys.all, 'customer-refund-detail', refundId] as const,
   status: (bookingId: number) => [...paymentKeys.all, 'status', bookingId] as const,
   customerList: (params?: Record<string, unknown>) => [...paymentKeys.all, 'customer', params] as const,
   organizerList: (workspaceId: number, params?: Record<string, unknown>) =>
@@ -56,6 +63,42 @@ export function useCustomerBookings(params?: {
   sort?: string;
 }) {
   return useQuery(customerBookingsQueryOptions(params));
+}
+
+export const customerRefundsQueryOptions = (params?: {
+  status?: RefundStatusType;
+  source?: RefundSourceType;
+  search?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}) =>
+  queryOptions<PageResponse<CustomerRefundItemResponse>>({
+    queryKey: paymentKeys.customerRefunds(params),
+    queryFn: () => paymentService.getCustomerRefunds(params),
+    staleTime: 10 * 1000
+  });
+
+export function useCustomerRefunds(params?: {
+  status?: RefundStatusType;
+  source?: RefundSourceType;
+  search?: string;
+  page?: number;
+  size?: number;
+  sort?: string;
+}) {
+  return useQuery(customerRefundsQueryOptions(params));
+}
+
+export const customerRefundKpisQueryOptions = () =>
+  queryOptions<CustomerRefundKpisResponse>({
+    queryKey: paymentKeys.customerRefundKpis(),
+    queryFn: () => paymentService.getCustomerRefundKpis(),
+    staleTime: 10 * 1000
+  });
+
+export function useCustomerRefundKpis() {
+  return useQuery(customerRefundKpisQueryOptions());
 }
 
 export const bookingDetailQueryOptions = (bookingId: number) =>
@@ -159,4 +202,3 @@ export function useReconciliationSummary() {
     queryFn: () => paymentService.getReconciliationSummary()
   });
 }
-

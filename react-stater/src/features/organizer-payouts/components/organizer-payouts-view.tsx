@@ -6,31 +6,51 @@ import { PayoutBalanceCards } from './payout-balance-cards';
 import { AutoPayoutSettingsCard } from './auto-payout-settings-card';
 import { WithdrawalHistoryTable } from './withdrawal-history-table';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { ShieldAlert, ArrowLeft } from '@/components/ui/hugeicons';
+import { Button } from '@/components/ui/button';
+import { ShieldAlert, Wallet, RefreshCw } from '@/components/ui/hugeicons';
+import { Spinner } from '@/components/ui/spinner';
 import { Link } from '@tanstack/react-router';
 import { useLanguage } from '@/features/landing/context/language-context';
+import { OrganizerPageHeader } from '@/components/layout/organizer-page-header';
 
 export const OrganizerPayoutsView: React.FC = () => {
   const { language } = useLanguage();
-  const { data: balance, isLoading: isBalanceLoading } = useQuery(
-    organizerPayoutQueries.balance()
-  );
 
-  const { data: settings, isLoading: isSettingsLoading } = useQuery(
-    organizerPayoutQueries.settings()
-  );
+  const {
+    data: balance,
+    isLoading: isBalanceLoading,
+    isFetching: isBalanceFetching,
+    refetch: refetchBalance
+  } = useQuery(organizerPayoutQueries.balance());
 
-  const { data: history, isLoading: isHistoryLoading } = useQuery(
-    organizerPayoutQueries.history(1, 20)
-  );
+  const {
+    data: settings,
+    isLoading: isSettingsLoading,
+    isFetching: isSettingsFetching,
+    refetch: refetchSettings
+  } = useQuery(organizerPayoutQueries.settings());
+
+  const {
+    data: history,
+    isLoading: isHistoryLoading,
+    isFetching: isHistoryFetching,
+    refetch: refetchHistory
+  } = useQuery(organizerPayoutQueries.history(1, 20));
+
+  const isRefreshing = isBalanceFetching || isSettingsFetching || isHistoryFetching;
+
+  const handleRefresh = async () => {
+    await Promise.all([refetchBalance(), refetchSettings(), refetchHistory()]);
+  };
 
   if (isBalanceLoading || isSettingsLoading) {
     return (
-      <div className="p-6 space-y-4">
-        <LoadingPlaceholder className="h-8 w-64 bg-slate-100 dark:bg-slate-800 rounded" />
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <LoadingPlaceholder key={i} className="h-32 bg-slate-100 dark:bg-slate-800 rounded-xl" />
+      <div className="space-y-4 pb-12">
+        <LoadingPlaceholder className="h-10 w-72 bg-muted rounded-xl" />
+        <LoadingPlaceholder className="h-36 w-full bg-muted rounded-2xl" />
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <LoadingPlaceholder key={i} className="h-24 bg-muted rounded-xl" />
           ))}
         </div>
       </div>
@@ -38,44 +58,48 @@ export const OrganizerPayoutsView: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
-            <Link to="/dashboard/organizer" className="hover:text-slate-800 flex items-center gap-1">
-              <ArrowLeft className="h-3 w-3" /> Dashboard
-            </Link>
-            <span>/</span>
-            <span>{language === 'vi' ? 'Doanh thu & Chi trả' : 'Payouts & Balance'}</span>
-          </div>
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white tracking-tight">
-            {language === 'vi' ? 'Quản lý Chi trả & Rút tiền' : 'Payouts & Balance Management'}
-          </h1>
-          <p className="text-xs text-slate-500 mt-0.5">
-            {language === 'vi'
-              ? 'Theo dõi số dư doanh thu, dòng tiền ký quỹ (HELD), rút tiền về ngân hàng và cài đặt rút tiền tự động hàng ngày.'
-              : 'Track revenue balance, escrow funds (HELD), bank withdrawals, and daily auto-payout configurations.'}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5 pb-12">
+      {/* Standard Header */}
+      <OrganizerPageHeader
+        icon={<Wallet className="h-5 w-5" />}
+        title={language === 'vi' ? 'Quản lý Chi trả & Rút tiền' : 'Payouts & Balance Management'}
+        description={
+          language === 'vi'
+            ? 'Theo dõi số dư doanh thu, dòng tiền ký quỹ (HELD), rút tiền về ngân hàng và cài đặt rút tiền tự động hàng ngày.'
+            : 'Track revenue balance, escrow funds (HELD), bank withdrawals, and daily auto-payout configurations.'
+        }
+      >
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={isRefreshing}
+          onClick={() => void handleRefresh()}
+          className="cursor-pointer gap-1.5 rounded-xl text-xs h-9"
+        >
+          {isRefreshing ? <Spinner className="size-3.5" /> : <RefreshCw className="size-3.5" />}
+          <span>{language === 'vi' ? 'Làm mới' : 'Refresh'}</span>
+        </Button>
+      </OrganizerPageHeader>
 
       {/* Cảnh báo chưa liên kết tài khoản ngân hàng */}
       {balance && !balance.hasConfiguredBank && (
-        <Alert variant="destructive" className="border-rose-200 dark:border-rose-900 bg-rose-50/70 dark:bg-rose-950/30">
-          <ShieldAlert className="h-4 w-4 text-rose-600" />
-          <AlertTitle className="text-sm font-semibold text-rose-800 dark:text-rose-200">
+        <Alert
+          variant="destructive"
+          className="border-rose-500/30 bg-rose-500/10 text-rose-800 dark:text-rose-200 rounded-xl"
+        >
+          <ShieldAlert className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+          <AlertTitle className="text-sm font-semibold">
             {language === 'vi'
               ? 'Chưa hoàn tất thông tin tài khoản ngân hàng'
               : 'Bank account information incomplete'}
           </AlertTitle>
-          <AlertDescription className="text-xs text-rose-700 dark:text-rose-300">
+          <AlertDescription className="text-xs text-rose-700 dark:text-rose-300 mt-1">
             {language === 'vi' ? (
               <>
                 Bạn cần cập nhật và xác thực số tài khoản ngân hàng trong{' '}
                 <Link
                   to="/dashboard/organizer/business-profile"
-                  className="font-bold underline hover:text-rose-900"
+                  className="font-bold underline hover:text-rose-950 dark:hover:text-rose-100"
                 >
                   Hồ sơ doanh nghiệp
                 </Link>{' '}
@@ -86,7 +110,7 @@ export const OrganizerPayoutsView: React.FC = () => {
                 You need to update and verify your bank account details in{' '}
                 <Link
                   to="/dashboard/organizer/business-profile"
-                  className="font-bold underline hover:text-rose-900"
+                  className="font-bold underline hover:text-rose-950 dark:hover:text-rose-100"
                 >
                   Business Profile
                 </Link>{' '}
@@ -97,7 +121,7 @@ export const OrganizerPayoutsView: React.FC = () => {
         </Alert>
       )}
 
-      {/* 4 Thẻ KPI số dư: Khả dụng, Đang tạm giữ HELD, Tổng doanh thu, Đã giải ngân */}
+      {/* Hero Balance & 3 Compact Secondary Metric Cards */}
       {balance && <PayoutBalanceCards balance={balance} />}
 
       {/* Cấu hình chế độ Auto Payout & Xét duyệt */}

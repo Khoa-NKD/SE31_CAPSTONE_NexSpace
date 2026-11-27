@@ -4,7 +4,10 @@ import { paymentKeys } from './queries';
 import type {
   PaymentCheckoutResponse,
   ReconciliationResult,
-  BatchReconciliationResponse
+  BatchReconciliationResponse,
+  CustomerRefundItemResponse,
+  UpdateRefundBankInfoRequest,
+  CreateRefundComplaintRequest
 } from './types';
 
 export function useCreatePaymentCheckout() {
@@ -28,6 +31,36 @@ export function useCancelPayment() {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['availability'] });
       queryClient.invalidateQueries({ queryKey: ['public-floor-maps'] });
+    }
+  });
+}
+
+export function useUpdateCustomerRefundBankInfo() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    CustomerRefundItemResponse,
+    Error,
+    { refundId: number; data: UpdateRefundBankInfoRequest }
+  >({
+    mutationFn: ({ refundId, data }) => paymentService.updateCustomerRefundBankInfo(refundId, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-notifications'] });
+    }
+  });
+}
+
+export function useCreateComplaintRefund() {
+  const queryClient = useQueryClient();
+
+  return useMutation<CustomerRefundItemResponse, Error, CreateRefundComplaintRequest>({
+    mutationFn: (data) => paymentService.createComplaintRefund(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: paymentKeys.all });
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['customer-notifications'] });
     }
   });
 }
@@ -59,4 +92,3 @@ export function useBatchReconcile() {
     }
   });
 }
-

@@ -91,7 +91,10 @@ export function NotificationCenter() {
       if (isAdmin) {
         router.navigate({ to: '/dashboard/admin/refunds' });
       } else {
-        router.navigate({ to: '/workspaces/my-bookings' });
+        router.navigate({
+          to: '/workspaces/my-refunds',
+          search: item.relatedEntityId ? { refundId: Number(item.relatedEntityId) } : undefined
+        });
       }
       return;
     }

@@ -30,6 +30,7 @@ export function FinancialLedger({
     />
   );
 }
+
 function LedgerTable({
   filter,
   kind,
@@ -64,56 +65,80 @@ function LedgerTable({
     enabled: !!actor
   });
   const pages = Math.max(1, Math.ceil((query.data?.total ?? 0) / 20));
-  // A refreshed server total may remove this page. The guard becomes false after one adjustment.
   if (query.data && page > pages) setPage(pages);
+
   return (
     <section className='min-w-0 rounded-2xl border border-border/70 bg-card p-4 shadow-sm sm:p-5'>
       <div className='mb-4 flex flex-wrap items-center justify-between gap-3'>
         <div>
-          <h2 className='font-semibold'>
-            {c('Cash transaction ledger', 'Đối chiếu giao dịch tiền')}
+          <h2 className='text-base font-semibold'>
+            {c('Cash transaction ledger', 'Sổ cái đối chiếu giao dịch dòng tiền')}
           </h2>
           <p className='text-xs text-muted-foreground'>
             {c(
-              'Positive: received · negative: refunded · one row per event',
-              'Dương: tiền nhận · âm: tiền hoàn · mỗi dòng là một giao dịch'
+              'Detailed log of every customer payment (+) and processed refund (−) in the period.',
+              'Chi tiết từng khoản tiền nhận từ khách (+) và tiền đã hoàn trả (−) trong kỳ.'
             )}
           </p>
         </div>
-        <select
+        <div
+          className='inline-flex rounded-xl border border-border/70 bg-muted/40 p-1 text-xs'
+          role='group'
           aria-label={c('Transaction type', 'Loại giao dịch')}
-          className='h-9 rounded-lg border bg-background px-3 text-sm'
-          value={kind}
-          onChange={(e) => onKind(e.target.value)}
         >
-          <option value=''>{c('All cash events', 'Tất cả giao dịch tiền')}</option>
-          <option value='PAYMENT'>{c('Payments received', 'Tiền nhận')}</option>
-          <option value='REFUND'>{c('Processed refunds', 'Tiền đã hoàn')}</option>
-        </select>
+          {(
+            [
+              ['', `${c('All', 'Tất cả')} (${summary.receiptCount + summary.refundCount})`],
+              ['PAYMENT', `${c('Received', 'Tiền nhận')} (${summary.receiptCount})`],
+              ['REFUND', `${c('Refunded', 'Tiền hoàn')} (${summary.refundCount})`]
+            ] as const
+          ).map(([val, label]) => (
+            <button
+              key={val}
+              type='button'
+              onClick={() => onKind(val)}
+              className={`rounded-lg px-2.5 py-1 font-medium transition-colors ${
+                kind === val
+                  ? 'bg-background text-foreground shadow-xs'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
-      <div className='mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5'>
+
+      <div className='mb-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4'>
         {[
-          [c('Customer payments', 'Tiền khách đã trả'), money(summary.receivedAmount, locale)],
           [
-            c('After refunds, before fees', 'Sau hoàn, chưa trừ phí'),
-            money(summary.netAmount, locale)
-          ],
-          [c('Refunds processed', 'Đã hoàn trong kỳ'), money(summary.refundedAmount, locale)],
-          [
-            c('Average per first-paid booking', 'Giá trị trung bình mỗi đơn đã thanh toán'),
-            money(summary.averagePaidBookingValue, locale)
+            c('Total customer payments', 'Tổng thu từ khách'),
+            money(summary.receivedAmount, locale),
+            'text-foreground'
           ],
           [
-            c('Cash events', 'Số giao dịch tiền'),
-            `${summary.receiptCount} ${c('receipts', 'nhận')} · ${summary.refundCount} ${c('refunds', 'hoàn')}`
+            c('Total refunds processed', 'Đã hoàn trả trong kỳ'),
+            `−${money(summary.refundedAmount, locale)}`,
+            'text-rose-600 dark:text-rose-400'
+          ],
+          [
+            c('Net cash (before fees)', 'Thực thu sau hoàn (trước phí)'),
+            money(summary.netAmount, locale),
+            'text-emerald-600 dark:text-emerald-400'
+          ],
+          [
+            c('Average paid booking', 'Trung bình mỗi đơn thanh toán'),
+            money(summary.averagePaidBookingValue, locale),
+            'text-foreground'
           ]
-        ].map(([label, value]) => (
-          <div key={label} className='rounded-xl border border-border/50 bg-muted/30 p-4'>
+        ].map(([label, value, colorClass]) => (
+          <div key={label} className='rounded-xl border border-border/60 bg-muted/25 p-3'>
             <p className='text-xs text-muted-foreground'>{label}</p>
-            <p className='mt-1 text-sm font-semibold tabular-nums'>{value}</p>
+            <p className={`mt-1 text-sm font-bold tabular-nums ${colorClass}`}>{value}</p>
           </div>
         ))}
       </div>
+
       {query.isPending && (
         <p role='status' className='py-8 text-center text-sm text-muted-foreground'>
           {c('Loading transactions…', 'Đang tải giao dịch…')}
@@ -122,7 +147,7 @@ function LedgerTable({
       {query.isError && (
         <p role='alert' className='text-sm text-destructive'>
           {c('Could not load transactions.', 'Không tải được giao dịch.')}{' '}
-          <button className='underline' onClick={() => void query.refetch()}>
+          <button type='button' className='underline' onClick={() => void query.refetch()}>
             {c('Retry', 'Thử lại')}
           </button>
         </p>
@@ -134,14 +159,14 @@ function LedgerTable({
               <thead className='border-y bg-muted/40 text-xs text-muted-foreground [&_th]:font-medium'>
                 <tr>
                   {[
-                    c('Recorded at', 'Ghi nhận'),
+                    c('Recorded at', 'Thời gian'),
                     c('Booking', 'Mã đặt chỗ'),
                     c('Workspace / resource', 'Không gian / chỗ'),
-                    c('Event', 'Giao dịch'),
+                    c('Type', 'Loại giao dịch'),
                     c('Amount', 'Số tiền'),
-                    c('Reconciliation', 'Đối soát')
+                    c('Status', 'Đối soát')
                   ].map((h) => (
-                    <th className='p-3' key={h}>
+                    <th className='p-2.5' key={h}>
                       {h}
                     </th>
                   ))}
@@ -153,43 +178,56 @@ function LedgerTable({
                     key={r.eventId}
                     className='border-b border-border/60 transition-colors last:border-0 hover:bg-muted/30'
                   >
-                    <td className='whitespace-nowrap p-3 text-xs'>
+                    <td className='whitespace-nowrap p-2.5 text-xs text-muted-foreground'>
                       {displayAnalyticsDate(r.occurredAt)}
                     </td>
-                    <td className='p-3'>
+                    <td className='p-2.5'>
                       <span className='font-medium'>{r.bookingCode}</span>
-                      <p className='mt-1 text-[10px] text-muted-foreground'>
+                      <p className='mt-0.5 text-[11px] text-muted-foreground'>
                         {statusLabels[r.bookingStatus] ?? r.bookingStatus}
                       </p>
                     </td>
-                    <td className='p-3'>
-                      <p>{r.workspaceName}</p>
+                    <td className='p-2.5'>
+                      <p className='font-medium'>{r.workspaceName}</p>
                       <p className='text-xs text-muted-foreground'>{r.resourceName}</p>
                     </td>
-                    <td className='p-3 text-xs'>
+                    <td className='p-2.5 text-xs'>
                       <span
                         className={
-                          'inline-flex rounded-full px-2 py-1 font-medium ' +
+                          'inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ' +
                           (r.kind === 'PAYMENT'
                             ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400')
+                            : 'bg-rose-500/10 text-rose-700 dark:text-rose-400')
                         }
                       >
                         {r.kind === 'PAYMENT' ? c('Received', 'Đã nhận') : c('Refunded', 'Đã hoàn')}
                       </span>
-                      <p className='mt-1 text-[10px] text-muted-foreground'>{r.eventId}</p>
+                      <p className='mt-0.5 text-[10px] text-muted-foreground'>{r.eventId}</p>
                     </td>
                     <td
-                      className={`whitespace-nowrap p-3 font-medium tabular-nums ${r.kind === 'REFUND' ? 'text-amber-700 dark:text-amber-400' : ''}`}
+                      className={`whitespace-nowrap p-2.5 font-semibold tabular-nums ${
+                        r.kind === 'REFUND'
+                          ? 'text-rose-600 dark:text-rose-400'
+                          : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
                     >
+                      {r.kind === 'PAYMENT' ? '+' : ''}
                       {money(r.amount, locale)}
                     </td>
-                    <td className='p-3 text-xs'>
-                      {r.reconciliationStatus === 'MATCHED'
-                        ? c('Matched', 'Đã khớp')
-                        : r.kind === 'REFUND'
-                          ? c('Processed', 'Đã xử lý')
-                          : c('Needs review', 'Cần kiểm tra')}
+                    <td className='p-2.5 text-xs'>
+                      <span
+                        className={`inline-flex rounded-md px-2 py-0.5 text-[11px] font-medium ${
+                          r.reconciliationStatus === 'MATCHED' || r.kind === 'REFUND'
+                            ? 'bg-muted text-muted-foreground'
+                            : 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                        }`}
+                      >
+                        {r.reconciliationStatus === 'MATCHED'
+                          ? c('Matched', 'Đã khớp')
+                          : r.kind === 'REFUND'
+                            ? c('Processed', 'Đã xử lý')
+                            : c('Needs review', 'Cần kiểm tra')}
+                      </span>
                     </td>
                   </tr>
                 ))}
@@ -227,12 +265,6 @@ function LedgerTable({
           </div>
         </>
       )}
-      <p className='mt-4 text-xs text-muted-foreground'>
-        {c(
-          'The transaction list refreshes when opened. If new payments arrive, refresh the report to reconcile the totals.',
-          'Danh sách giao dịch được tải khi mở. Nếu có tiền về mới, làm mới báo cáo để đối chiếu tổng số.'
-        )}
-      </p>
     </section>
   );
 }

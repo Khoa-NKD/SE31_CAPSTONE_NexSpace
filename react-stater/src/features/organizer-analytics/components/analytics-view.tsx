@@ -1,11 +1,28 @@
 import { Spinner } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Download, RefreshCw, BarChart3, AlertTriangle, SlidersHorizontal } from '@/components/ui/hugeicons';
+import {
+  Download,
+  RefreshCw,
+  BarChart3,
+  AlertTriangle,
+  SlidersHorizontal,
+  CalendarDays,
+  ChevronDown
+} from '@/components/ui/hugeicons';
 import { analyticsApi, type AnalyticsFilter, type AnalyticsReport } from '../api';
-import { chartTrends, localDate, preset, displayAnalyticsDate } from '../format';
+import {
+  ANALYTICS_TIMEZONE,
+  chartTrends,
+  displayAnalyticsDate,
+  formatVnDate,
+  previousComparisonRange,
+  resolveDatePreset,
+  todayInHoChiMinh,
+  type DatePresetKey
+} from '../format';
 import { useOrganizerCopy } from '@/hooks/use-organizer-copy';
 import { useAuthStore } from '@/features/auth/store/auth-store';
 import { Button } from '@/components/ui/button';
@@ -17,20 +34,170 @@ import { SummaryCards } from './summary-cards';
 const selectClass = 'organizer-control';
 const panelClass = 'organizer-surface p-4 sm:p-5';
 
+interface PresetDefinition {
+  key: DatePresetKey;
+  labelEn: string;
+  labelVi: string;
+  purposeEn: string;
+  purposeVi: string;
+  category: 'day' | 'period' | 'other';
+  quickBar?: boolean;
+}
+
+const PRESET_DEFINITIONS: PresetDefinition[] = [
+  {
+    key: 'today',
+    labelEn: 'Today',
+    labelVi: 'Hôm nay',
+    purposeEn: 'Track daily revenue',
+    purposeVi: 'Theo dõi doanh thu trong ngày',
+    category: 'day',
+    quickBar: true
+  },
+  {
+    key: 'yesterday',
+    labelEn: 'Yesterday',
+    labelVi: 'Hôm qua',
+    purposeEn: 'Review previous day transactions',
+    purposeVi: 'Kiểm tra giao dịch ngày trước',
+    category: 'day',
+    quickBar: true
+  },
+  {
+    key: 'last_7_days',
+    labelEn: 'Last 7 days',
+    labelVi: '7 ngày qua',
+    purposeEn: 'Short-term business tracking',
+    purposeVi: 'Theo dõi kinh doanh ngắn hạn',
+    category: 'day',
+    quickBar: true
+  },
+  {
+    key: 'last_30_days',
+    labelEn: 'Last 30 days',
+    labelVi: '30 ngày qua',
+    purposeEn: 'Recent revenue analysis',
+    purposeVi: 'Phân tích doanh thu gần đây',
+    category: 'day',
+    quickBar: true
+  },
+  {
+    key: 'last_90_days',
+    labelEn: 'Last 90 days',
+    labelVi: '90 ngày qua',
+    purposeEn: 'Long-term trend monitoring',
+    purposeVi: 'Theo dõi xu hướng dài hạn',
+    category: 'day'
+  },
+  {
+    key: 'this_week',
+    labelEn: 'This week',
+    labelVi: 'Tuần này',
+    purposeEn: 'Current week statistics (Mon – today)',
+    purposeVi: 'Thống kê theo tuần hiện tại',
+    category: 'period'
+  },
+  {
+    key: 'last_week',
+    labelEn: 'Last week',
+    labelVi: 'Tuần trước',
+    purposeEn: 'Previous week reconciliation (Mon – Sun)',
+    purposeVi: 'Đối soát tuần trước',
+    category: 'period'
+  },
+  {
+    key: 'this_month',
+    labelEn: 'This month',
+    labelVi: 'Tháng này',
+    purposeEn: 'Track current month revenue',
+    purposeVi: 'Theo dõi doanh thu tháng hiện tại',
+    category: 'period',
+    quickBar: true
+  },
+  {
+    key: 'last_month',
+    labelEn: 'Last month',
+    labelVi: 'Tháng trước',
+    purposeEn: 'Monthly revenue reconciliation',
+    purposeVi: 'Đối soát doanh thu hàng tháng',
+    category: 'period',
+    quickBar: true
+  },
+  {
+    key: 'this_quarter',
+    labelEn: 'This quarter',
+    labelVi: 'Quý này',
+    purposeEn: 'Quarterly business report',
+    purposeVi: 'Báo cáo kinh doanh theo quý',
+    category: 'period'
+  },
+  {
+    key: 'last_quarter',
+    labelEn: 'Last quarter',
+    labelVi: 'Quý trước',
+    purposeEn: 'Compare quarterly business results',
+    purposeVi: 'Đối chiếu kết quả kinh doanh',
+    category: 'period'
+  },
+  {
+    key: 'this_year',
+    labelEn: 'This year',
+    labelVi: 'Năm này',
+    purposeEn: 'Annual revenue summary',
+    purposeVi: 'Tổng kết doanh thu trong năm',
+    category: 'period'
+  },
+  {
+    key: 'last_year',
+    labelEn: 'Last year',
+    labelVi: 'Năm trước',
+    purposeEn: 'Year-over-year revenue comparison',
+    purposeVi: 'Đối chiếu doanh thu hàng năm',
+    category: 'period'
+  },
+  {
+    key: 'all_time',
+    labelEn: 'All time',
+    labelVi: 'Toàn thời gian',
+    purposeEn: 'Statistics from business start',
+    purposeVi: 'Thống kê từ khi bắt đầu kinh doanh',
+    category: 'other'
+  },
+  {
+    key: 'custom',
+    labelEn: 'Custom',
+    labelVi: 'Tùy chỉnh',
+    purposeEn: 'Choose a custom date range',
+    purposeVi: 'Tự chọn khoảng thời gian',
+    category: 'other'
+  }
+];
+
 export function OrganizerAnalyticsView() {
   const navigate = useNavigate();
   const c = useOrganizerCopy();
   const locale = c('en-US', 'vi-VN');
   const actor = useAuthStore((state) => state.user?.id);
   const queryClient = useQueryClient();
-  const [filter, setFilter] = useState<AnalyticsFilter>(() => preset(30));
-  const [draft, setDraft] = useState(filter);
+
+  const contentSectionRef = useRef<HTMLDivElement>(null);
+  const fromInputRef = useRef<HTMLInputElement>(null);
+
+  // Default preset is "Tháng này" (this_month) in Asia/Ho_Chi_Minh timezone
+  const [activePreset, setActivePreset] = useState<DatePresetKey>('this_month');
+  const [showMorePresets, setShowMorePresets] = useState(false);
+  const [filter, setFilter] = useState<AnalyticsFilter>(() => resolveDatePreset('this_month'));
+  const [draft, setDraft] = useState<AnalyticsFilter>(filter);
+
   const [tab, setTab] = useState<'overview' | 'performance' | 'finance'>('overview');
   const [group, setGroup] = useState<'day' | 'week' | 'month'>('day');
   const [ledgerKind, setLedgerKind] = useState('');
   const [advanced, setAdvanced] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+
+  const maxToday = todayInHoChiMinh();
+
   const options = useQuery({
     queryKey: ['organizer-analytics', actor, 'options'],
     queryFn: ({ signal }) => analyticsApi.options(signal),
@@ -56,9 +223,54 @@ export function OrganizerAnalyticsView() {
         (!draft.workspaceId || t.workspaceId === draft.workspaceId) &&
         (!draft.category || t.category === draft.category)
     ) ?? [];
+
   const duration = (Date.parse(draft.to) - Date.parse(draft.from)) / 86_400_000 + 1;
-  const valid = Number.isFinite(duration) && duration > 0 && duration <= 366;
+  const hasFutureDate =
+    (Boolean(draft.from) && draft.from > maxToday) || (Boolean(draft.to) && draft.to > maxToday);
+  const validRangeLength = Number.isFinite(duration) && duration > 0 && duration <= 366;
+  const valid = validRangeLength && !hasFutureDate;
   const dirty = JSON.stringify(draft) !== JSON.stringify(filter);
+
+  const comparison = useMemo(
+    () => previousComparisonRange(filter.from, filter.to),
+    [filter.from, filter.to]
+  );
+  const comparisonShortLabel = comparison
+    ? `${formatVnDate(comparison.from)} – ${formatVnDate(comparison.to)}`
+    : undefined;
+
+  function applyInstantFilter(next: AnalyticsFilter) {
+    setDraft(next);
+    const nextDuration = (Date.parse(next.to) - Date.parse(next.from)) / 86_400_000 + 1;
+    const future =
+      (Boolean(next.from) && next.from > maxToday) || (Boolean(next.to) && next.to > maxToday);
+    if (Number.isFinite(nextDuration) && nextDuration > 0 && nextDuration <= 366 && !future) {
+      setFilter(next);
+      setExportError('');
+    }
+  }
+
+  function handleSelectPreset(key: DatePresetKey) {
+    setActivePreset(key);
+    if (key === 'custom') {
+      fromInputRef.current?.focus();
+      return;
+    }
+    const range = resolveDatePreset(key, maxToday);
+    applyInstantFilter({
+      ...draft,
+      from: range.from,
+      to: range.to
+    });
+  }
+
+  function handleManualDateChange(field: 'from' | 'to', value: string) {
+    setActivePreset('custom');
+    setDraft((prev) => ({
+      ...prev,
+      [field]: value
+    }));
+  }
 
   async function refreshReport() {
     await Promise.all([
@@ -70,10 +282,34 @@ export function OrganizerAnalyticsView() {
   function applyWorkspace(workspaceId: number) {
     void navigate({ to: '/dashboard/organizer/bookings', search: { workspaceId } });
   }
+
+  function scrollToAnalyticsTabs() {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        const el = document.getElementById('organizer-analytics-tabs') || contentSectionRef.current;
+        if (el) {
+          try {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          } catch {}
+          const rect = el.getBoundingClientRect();
+          const targetY = window.pageYOffset + rect.top - 80;
+          window.scrollTo({ top: targetY, behavior: 'smooth' });
+        }
+      }, 100);
+    });
+  }
+
   function showMoney(kind: string) {
     setLedgerKind(kind);
     setTab('finance');
+    scrollToAnalyticsTabs();
   }
+
+  function showCharts() {
+    setTab('overview');
+    scrollToAnalyticsTabs();
+  }
+
   async function exportCsv() {
     setExporting(true);
     setExportError('');
@@ -99,38 +335,46 @@ export function OrganizerAnalyticsView() {
     }
   }
 
+  const quickPresets = PRESET_DEFINITIONS.filter((p) => p.quickBar);
+  const activePresetDef =
+    PRESET_DEFINITIONS.find((p) => p.key === activePreset) ??
+    PRESET_DEFINITIONS[PRESET_DEFINITIONS.length - 1];
+  const isSecondaryPresetActive = !activePresetDef.quickBar;
+
   return (
-    <div className='min-w-0 space-y-5 pb-8'>
+    <div className='min-w-0 space-y-4 pb-8'>
       <OrganizerPageHeader
         icon={<BarChart3 />}
-        title={c('Business analytics', 'Thống kê kinh doanh')}
+        title={c('Business analytics', 'Phân tích dòng tiền & kinh doanh')}
         description={c(
-          'Bookings, cash flow and workspace performance.',
-          'Lượt đặt, dòng tiền và hiệu quả từng không gian.'
+          'Track customer payments, refunds, net organizer earnings and workspace performance.',
+          'Theo dõi trực quan dòng tiền thu/hoàn, khoản thực hưởng và hiệu quả từng không gian.'
         )}
       >
         <div className='flex gap-2'>
           <Button
             variant='outline'
+            size='sm'
             disabled={report.isFetching}
             onClick={() => void refreshReport()}
           >
-            {report.isFetching ? <Spinner className={'size-4'} /> : <RefreshCw className={'size-4'} />}
+            {report.isFetching ? <Spinner className='size-4' /> : <RefreshCw className='size-4' />}
             {c('Refresh', 'Làm mới')}
           </Button>
           <Button
             variant='default'
+            size='sm'
             disabled={!data || exporting || report.isFetching}
             onClick={() => void exportCsv()}
           >
             <Download className='size-4' />
-            {exporting ? c('Exporting…', 'Đang xuất…') : c('Export transactions', 'Xuất giao dịch')}
+            {exporting ? c('Exporting…', 'Đang xuất…') : c('Export CSV', 'Xuất giao dịch CSV')}
           </Button>
         </div>
       </OrganizerPageHeader>
 
       <form
-        className={`${panelClass} space-y-3`}
+        className={`${panelClass} space-y-4 rounded-2xl`}
         onSubmit={(event) => {
           event.preventDefault();
           if (valid) {
@@ -139,91 +383,189 @@ export function OrganizerAnalyticsView() {
           }
         }}
       >
-        <div className='flex flex-wrap items-center justify-between gap-3'>
-          <div className='flex flex-wrap gap-1 rounded-lg bg-muted/50 p-1'>
-            {[1, 7, 30, 90].map((days) => (
-              <Button
-                key={days}
+        {/* Header: Bộ lọc thời gian + Nút Bộ lọc */}
+        <div className='flex flex-wrap items-center justify-between gap-2'>
+          <h2 className='text-base font-semibold tracking-tight text-foreground'>
+            {c('Time filter', 'Bộ lọc thời gian')}
+          </h2>
+
+          <div className='flex items-center gap-2'>
+            {(draft.workspaceId ||
+              draft.floorNumber !== undefined ||
+              draft.category ||
+              draft.resourceTypeId) && (
+              <button
                 type='button'
-                size='sm'
-                variant={
-                  draft.from === preset(days).from && draft.to === preset(days).to
-                    ? 'secondary'
-                    : 'ghost'
-                }
-                onClick={() => setDraft({ ...draft, ...preset(days) })}
+                onClick={() => {
+                  const defaultRange = resolveDatePreset('this_month', maxToday);
+                  setActivePreset('this_month');
+                  applyInstantFilter({ from: defaultRange.from, to: defaultRange.to });
+                }}
+                className='cursor-pointer rounded-lg px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground'
               >
-                {days === 1 ? c('Today', 'Hôm nay') : `${days} ${c('days', 'ngày')}`}
-              </Button>
-            ))}
-            <Button
-              type='button'
-              size='sm'
-              variant='outline'
-              onClick={() =>
-                setDraft({
-                  ...draft,
-                  from: localDate(new Date(new Date().getFullYear(), new Date().getMonth(), 1)),
-                  to: localDate(new Date())
-                })
-              }
-            >
-              {c('This month', 'Tháng này')}
-            </Button>
-          </div>
-          <Button
-            type='button'
-            size='sm'
-            variant={advanced ? 'secondary' : 'ghost'}
-            aria-expanded={advanced}
-            onClick={() => setAdvanced(!advanced)}
-          >
-            <SlidersHorizontal className='size-4' />
-            {c('Advanced filters', 'Lọc nâng cao')}
-            {(draft.category || draft.resourceTypeId || draft.floorNumber !== undefined) && (
-              <span className='size-2 rounded-full bg-primary' />
+                {c('Reset all', 'Đặt lại mặc định')}
+              </button>
             )}
-          </Button>
-          {(draft.workspaceId ||
-            draft.floorNumber !== undefined ||
-            draft.category ||
-            draft.resourceTypeId) && (
-            <Button
+            <button
               type='button'
-              size='sm'
-              variant='ghost'
-              onClick={() => setDraft({ from: draft.from, to: draft.to })}
+              aria-expanded={advanced}
+              onClick={() => setAdvanced(!advanced)}
+              className={`inline-flex cursor-pointer items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                advanced
+                  ? 'bg-primary/10 text-primary'
+                  : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+              }`}
             >
-              {c('Clear filters', 'Xóa bộ lọc')}
-            </Button>
-          )}
+              <SlidersHorizontal className='size-4' />
+              <span>{c('Filters', 'Bộ lọc')}</span>
+              {(draft.category || draft.resourceTypeId || draft.floorNumber !== undefined) && (
+                <span className='size-2 rounded-full bg-primary' />
+              )}
+            </button>
+          </div>
         </div>
-        <div className='grid items-end gap-3 sm:grid-cols-2 xl:grid-cols-[1fr_1fr_1.5fr_auto]'>
-          <label className='space-y-1 text-xs text-muted-foreground'>
-            {c('From (inclusive)', 'Từ ngày')}
+
+        {/* Top Quick Preset Pills Bar */}
+        <div className='flex flex-wrap items-center gap-2'>
+          {quickPresets.map((item) => {
+            const isSelected = activePreset === item.key;
+            return (
+              <button
+                key={item.key}
+                type='button'
+                title={c(item.purposeEn, item.purposeVi)}
+                onClick={() => handleSelectPreset(item.key)}
+                className={`cursor-pointer rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all select-none ${
+                  isSelected
+                    ? 'border-foreground bg-foreground text-background shadow-xs'
+                    : 'border-border/80 bg-transparent text-muted-foreground hover:border-foreground/40 hover:text-foreground'
+                }`}
+              >
+                {c(item.labelEn, item.labelVi)}
+              </button>
+            );
+          })}
+
+          <button
+            type='button'
+            aria-expanded={showMorePresets}
+            onClick={() => setShowMorePresets((prev) => !prev)}
+            className={`inline-flex cursor-pointer items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-xs font-medium transition-all select-none ${
+              isSecondaryPresetActive
+                ? 'border-foreground bg-foreground text-background shadow-xs'
+                : showMorePresets
+                  ? 'border-foreground/50 bg-muted/60 text-foreground'
+                  : 'border-border/80 bg-transparent text-muted-foreground hover:border-foreground/40 hover:text-foreground'
+            }`}
+          >
+            <span>
+              {isSecondaryPresetActive
+                ? `${c('Other', 'Khác')}: ${c(activePresetDef.labelEn, activePresetDef.labelVi)}`
+                : c('Other', 'Khác')}
+            </span>
+            <ChevronDown
+              className={`size-3.5 transition-transform duration-150 ${
+                showMorePresets ? 'rotate-180' : ''
+              }`}
+            />
+          </button>
+        </div>
+
+        {/* Expanded Categorized Preset Panel (Theo ngày / Theo kỳ / Khác) */}
+        {showMorePresets && (
+          <div className='space-y-3.5 rounded-2xl border border-border/80 bg-muted/20 p-4'>
+            {(
+              [
+                ['day', c('By day', 'Theo ngày')],
+                ['period', c('By period', 'Theo kỳ')],
+                ['other', c('Other', 'Khác')]
+              ] as const
+            ).map(([catKey, catTitle]) => {
+              const groupItems = PRESET_DEFINITIONS.filter((p) => p.category === catKey);
+              return (
+                <div key={catKey} className='space-y-2'>
+                  <p className='text-xs font-medium text-muted-foreground'>{catTitle}</p>
+                  <div className='flex flex-wrap items-center gap-1.5'>
+                    {groupItems.map((item) => {
+                      const isSelected = activePreset === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type='button'
+                          title={c(item.purposeEn, item.purposeVi)}
+                          onClick={() => handleSelectPreset(item.key)}
+                          className={`cursor-pointer rounded-full px-3.5 py-1.5 text-xs font-medium transition-all select-none ${
+                            isSelected
+                              ? 'bg-foreground font-semibold text-background shadow-xs'
+                              : 'text-muted-foreground hover:bg-muted/70 hover:text-foreground'
+                          }`}
+                        >
+                          {c(item.labelEn, item.labelVi)}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Date Range Inputs Row: Từ ngày & Đến hết ngày */}
+        <div className='grid gap-3 sm:grid-cols-2'>
+          <div className='space-y-1.5'>
+            <label
+              htmlFor='analytics-from-date'
+              className='block text-xs font-medium text-muted-foreground'
+            >
+              {c('From date', 'Từ ngày')}
+            </label>
             <DateInput
+              id='analytics-from-date'
+              ref={fromInputRef}
               type='date'
               required
+              max={maxToday}
               value={draft.from}
-              onValueChange={(dateValue) => setDraft({ ...draft, from: dateValue })}
+              className='h-10 rounded-full bg-background/80 px-3.5 text-sm'
+              onValueChange={(dateValue) => handleManualDateChange('from', dateValue)}
             />
-          </label>
-          <label className='space-y-1 text-xs text-muted-foreground'>
-            {c('To (inclusive)', 'Đến hết ngày')}
+          </div>
+          <div className='space-y-1.5'>
+            <label
+              htmlFor='analytics-to-date'
+              className='block text-xs font-medium text-muted-foreground'
+            >
+              {c('To date (inclusive)', 'Đến hết ngày')}
+            </label>
             <DateInput
+              id='analytics-to-date'
               type='date'
               required
+              min={draft.from || undefined}
+              max={maxToday}
               value={draft.to}
-              onValueChange={(dateValue) => setDraft({ ...draft, to: dateValue })}
+              className='h-10 rounded-full bg-background/80 px-3.5 text-sm'
+              onValueChange={(dateValue) => handleManualDateChange('to', dateValue)}
             />
-          </label>
-          <label className='space-y-1 text-xs text-muted-foreground'>
+          </div>
+        </div>
+
+        {/* Workspace Select + Apply Button Row */}
+        <div className='space-y-1.5'>
+          <label
+            htmlFor='analytics-workspace-select'
+            className='block text-xs font-medium text-muted-foreground'
+          >
             {c('Workspace', 'Không gian')}
+          </label>
+          <div className='flex flex-wrap items-center gap-2.5 sm:flex-nowrap'>
             <select
-              className={`${selectClass} w-full`}
+              id='analytics-workspace-select'
+              className={`${selectClass} h-10 min-w-0 flex-1 rounded-full bg-background/80 px-4 text-sm`}
               value={draft.workspaceId ?? ''}
               onChange={(e) =>
-                setDraft({
+                applyInstantFilter({
                   ...draft,
                   workspaceId: e.target.value ? Number(e.target.value) : undefined,
                   floorNumber: undefined,
@@ -238,21 +580,28 @@ export function OrganizerAnalyticsView() {
                 </option>
               ))}
             </select>
-          </label>
-          <Button type='submit' disabled={!valid || report.isFetching} className='h-10'>
-            {c('Apply filters', 'Áp dụng bộ lọc')}
-          </Button>
+
+            <button
+              type='submit'
+              disabled={!valid || report.isFetching}
+              className='inline-flex h-10 shrink-0 cursor-pointer items-center justify-center rounded-full bg-foreground px-5 text-xs font-semibold text-background shadow-xs transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 sm:text-sm'
+            >
+              {c('Apply', 'Áp dụng')}
+            </button>
+          </div>
         </div>
+
+        {/* Advanced Resource Filters (Floor, Category, Resource Type) */}
         {advanced && (
-          <div className='grid gap-3 border-t border-dashed pt-3 sm:grid-cols-3'>
+          <div className='grid gap-3 border-t border-dashed border-border/70 pt-3.5 sm:grid-cols-3'>
             <label className='space-y-1 text-xs text-muted-foreground'>
               {c('Floor', 'Tầng')}
               <select
-                className={`${selectClass} w-full`}
+                className={`${selectClass} w-full rounded-xl`}
                 disabled={!draft.workspaceId}
                 value={draft.floorNumber ?? ''}
                 onChange={(e) =>
-                  setDraft({
+                  applyInstantFilter({
                     ...draft,
                     floorNumber: e.target.value === '' ? undefined : Number(e.target.value)
                   })
@@ -269,10 +618,10 @@ export function OrganizerAnalyticsView() {
             <label className='min-w-40 flex-1 space-y-1 text-xs text-muted-foreground'>
               {c('Category', 'Nhóm chỗ')}
               <select
-                className={`${selectClass} w-full`}
+                className={`${selectClass} w-full rounded-xl`}
                 value={draft.category ?? ''}
                 onChange={(e) =>
-                  setDraft({
+                  applyInstantFilter({
                     ...draft,
                     category: (e.target.value || undefined) as AnalyticsFilter['category'],
                     resourceTypeId: undefined
@@ -287,10 +636,10 @@ export function OrganizerAnalyticsView() {
             <label className='min-w-48 flex-1 space-y-1 text-xs text-muted-foreground'>
               {c('Resource type', 'Loại chỗ')}
               <select
-                className={`${selectClass} w-full`}
+                className={`${selectClass} w-full rounded-xl`}
                 value={draft.resourceTypeId ?? ''}
                 onChange={(e) =>
-                  setDraft({
+                  applyInstantFilter({
                     ...draft,
                     resourceTypeId: e.target.value ? Number(e.target.value) : undefined
                   })
@@ -309,30 +658,72 @@ export function OrganizerAnalyticsView() {
             </label>
           </div>
         )}
-        {!valid && (
-          <p role='alert' className='text-sm text-destructive'>
+
+        {/* Validation Alerts */}
+        {hasFutureDate && (
+          <p role='alert' className='text-xs font-medium text-destructive'>
+            {c(
+              'Future dates are not allowed for actual cash flow reports.',
+              'Không cho phép chọn ngày tương lai đối với báo cáo dòng tiền thực tế.'
+            )}
+          </p>
+        )}
+        {!hasFutureDate && !validRangeLength && (
+          <p role='alert' className='text-xs font-medium text-destructive'>
             {c(
               'Choose a valid date range of up to 366 days.',
-              'Chọn khoảng ngày hợp lệ, tối đa 366 ngày.'
+              'Chọn khoảng ngày hợp lệ (Từ ngày ≤ Đến hết ngày, tối đa 366 ngày).'
             )}
           </p>
         )}
         {dirty && valid && (
           <p className='text-xs text-amber-600 dark:text-amber-400'>
             {c(
-              'Filters changed. Apply them to update the report below.',
-              'Bộ lọc đã đổi. Bấm Áp dụng để cập nhật báo cáo bên dưới.'
+              'Custom date range modified. Click Apply to refresh the report.',
+              'Khoảng thời gian tùy chỉnh đã thay đổi. Bấm Áp dụng để cập nhật báo cáo.'
             )}
           </p>
         )}
         {options.isError && (
-          <p role='alert' className='text-sm text-destructive'>
+          <p role='alert' className='text-xs text-destructive'>
             {c('Could not load filter options.', 'Không tải được danh sách bộ lọc.')}{' '}
             <button type='button' className='underline' onClick={() => void options.refetch()}>
               {c('Retry', 'Thử lại')}
             </button>
           </p>
         )}
+
+        {/* Filter Card Footer: Active Date Range + Purpose + Comparison Period */}
+        <div className='flex flex-wrap items-center justify-between gap-2 border-t border-border/60 pt-3 text-xs text-muted-foreground'>
+          <div className='flex flex-wrap items-center gap-2'>
+            <span className='inline-flex items-center gap-1.5 font-medium text-foreground tabular-nums'>
+              <CalendarDays className='size-3.5 text-muted-foreground' />
+              {formatVnDate(filter.from)} – {formatVnDate(filter.to)}
+            </span>
+            <span className='text-border'>•</span>
+            <span>
+              <strong className='font-medium text-foreground'>
+                {c(activePresetDef.labelEn, activePresetDef.labelVi)}
+              </strong>
+              {' — '}
+              {c(activePresetDef.purposeEn, activePresetDef.purposeVi)}
+            </span>
+          </div>
+
+          <div className='flex flex-wrap items-center gap-2 text-[11px]'>
+            {comparisonShortLabel && (
+              <span>
+                {c('Comparison period', 'Kỳ so sánh')}:{' '}
+                <strong className='font-medium text-foreground tabular-nums'>
+                  {comparisonShortLabel}
+                </strong>
+              </span>
+            )}
+            <span className='rounded-md border border-border/60 bg-muted/30 px-1.5 py-0.5 text-[10px]'>
+              {ANALYTICS_TIMEZONE}
+            </span>
+          </div>
+        </div>
       </form>
 
       {exportError && (
@@ -346,7 +737,7 @@ export function OrganizerAnalyticsView() {
             'Could not load analytics. No estimated or sample values are shown.',
             'Không tải được thống kê. Hệ thống không thay bằng số ước lượng hoặc số mẫu.'
           )}{' '}
-          <Button variant='outline' className='ml-2' onClick={() => void report.refetch()}>
+          <Button variant='outline' size='sm' className='ml-2' onClick={() => void report.refetch()}>
             {c('Retry', 'Thử lại')}
           </Button>
         </div>
@@ -358,111 +749,131 @@ export function OrganizerAnalyticsView() {
       )}
       {data && !report.isError && (
         <>
-          <div className='flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground'>
+          <div className='flex flex-wrap items-center justify-between gap-2 px-0.5 text-xs text-muted-foreground'>
+            <div className='flex flex-wrap items-center gap-1.5'>
+              <span className='rounded-md border border-border/70 bg-card px-2 py-0.5'>
+                {options.data?.workspaces.find((w) => w.id === filter.workspaceId)?.name ??
+                  c('All workspaces', 'Tất cả không gian')}
+              </span>
+              {filter.floorNumber !== undefined && (
+                <span className='rounded-md border border-border/70 bg-card px-2 py-0.5'>
+                  {c('Floor', 'Tầng')} {filter.floorNumber}
+                </span>
+              )}
+              {filter.category && (
+                <span className='rounded-md border border-border/70 bg-card px-2 py-0.5'>
+                  {filter.category === 'ROOM' ? c('Rooms', 'Phòng') : c('Desks', 'Ghế')}
+                </span>
+              )}
+              {filter.resourceTypeId && (
+                <span className='rounded-md border border-border/70 bg-card px-2 py-0.5'>
+                  {options.data?.resourceTypes.find((t) => t.id === filter.resourceTypeId)?.name ??
+                    c('Selected resource type', 'Loại chỗ đã chọn')}
+                </span>
+              )}
+            </div>
             <span>
-              {displayAnalyticsDate(data.filter.from)} → {displayAnalyticsDate(data.filter.to)} ·
-              VND · {c('Stored timestamp zone', 'Múi giờ ghi nhận')}: {data.timestampZone}
-            </span>
-            <span>
-              {c('Updated', 'Cập nhật')}: {displayAnalyticsDate(data.generatedAt)}{' '}
-              {report.isFetching && c(' · refreshing…', ' · đang cập nhật…')}
+              {c('Updated', 'Cập nhật')}: {displayAnalyticsDate(data.generatedAt)}
+              {report.isFetching && c(' · refreshing…', ' · đang làm mới…')}
             </span>
           </div>
-          <div className='flex flex-wrap gap-2 text-xs'>
-            <span className='rounded-full border bg-card px-3 py-1.5'>
-              {options.data?.workspaces.find((w) => w.id === filter.workspaceId)?.name ??
-                c('All my workspaces', 'Tất cả không gian của tôi')}
-            </span>
-            {filter.floorNumber !== undefined && (
-              <span className='rounded-full border bg-card px-3 py-1.5'>
-                {c('Floor', 'Tầng')} {filter.floorNumber}
-              </span>
-            )}
-            {filter.category && (
-              <span className='rounded-full border bg-card px-3 py-1.5'>
-                {filter.category === 'ROOM' ? c('Rooms', 'Phòng') : c('Desks', 'Ghế')}
-              </span>
-            )}
-            {filter.resourceTypeId && (
-              <span className='rounded-full border bg-card px-3 py-1.5'>
-                {options.data?.resourceTypes.find((t) => t.id === filter.resourceTypeId)?.name ??
-                  c('Selected resource type', 'Loại chỗ đã chọn')}
-              </span>
-            )}
-          </div>
+
           <ReportNotes report={data} warningsOnly />
+
           <SummaryCards
             current={data.current}
             earnings={data.earnings}
             previousEarnings={data.previousEarnings}
+            comparisonLabel={comparisonShortLabel}
             onMoney={showMoney}
+            onCharts={showCharts}
           />
-          <nav
-            className='flex gap-1 overflow-x-auto border-b pb-2'
-            aria-label={c('Analytics sections', 'Các phần thống kê')}
-          >
-            {(['overview', 'performance', 'finance'] as const).map((value) => (
-              <Button
-                key={value}
-                variant={tab === value ? 'secondary' : 'ghost'}
-                size='sm'
-                aria-pressed={tab === value}
-                onClick={() => setTab(value)}
+
+          {/* Anchor target for jumping to charts / transaction ledger */}
+          <div ref={contentSectionRef} id='organizer-analytics-tabs' className='scroll-mt-20 space-y-4'>
+            <div className='flex flex-wrap items-center justify-between gap-3 border-b border-border/70 pb-2.5'>
+              <nav
+                className='inline-flex rounded-xl border border-border/70 bg-muted/40 p-1'
+                aria-label={c('Analytics sections', 'Các phần thống kê')}
               >
-                {value === 'overview'
-                  ? c('Overview', 'Tổng quan')
-                  : value === 'performance'
-                    ? c('Rental performance', 'Hiệu quả cho thuê')
-                    : c('Financial transactions', 'Giao dịch tài chính')}
-              </Button>
-            ))}
-          </nav>
-          {tab === 'overview' && (
-            <>
-              <div className='flex flex-wrap items-center justify-between gap-3'>
-                <div>
-                  <h2 className='text-lg font-semibold tracking-tight'>
-                    {c('Business trends', 'Xu hướng kinh doanh')}
-                  </h2>
-                  <p className='text-xs text-muted-foreground'>
-                    {c(
-                      'Follow cash flow and demand across the selected period.',
-                      'Theo dõi dòng tiền và nhu cầu trong kỳ đã chọn.'
-                    )}
-                  </p>
-                </div>
-                <label className='flex items-center gap-2 text-sm'>
-                  {c('Group by', 'Nhóm theo')}
-                  <select
-                    className={selectClass}
-                    value={group}
-                    onChange={(e) => setGroup(e.target.value as typeof group)}
+                {(
+                  [
+                    ['overview', c('Overview & trends', 'Tổng quan & xu hướng')],
+                    ['performance', c('Rental performance', 'Hiệu quả cho thuê')],
+                    [
+                      'finance',
+                      `${c('Transaction ledger', 'Sổ cái giao dịch')} (${data.current.receiptCount + data.current.refundCount})`
+                    ]
+                  ] as const
+                ).map(([value, label]) => (
+                  <button
+                    key={value}
+                    type='button'
+                    aria-pressed={tab === value}
+                    onClick={() => setTab(value)}
+                    className={`cursor-pointer rounded-lg px-3 py-1.5 text-xs font-medium transition-colors sm:text-sm ${
+                      tab === value
+                        ? 'bg-background text-foreground shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
                   >
-                    <option value='day'>{c('Day', 'Ngày')}</option>
-                    <option value='week'>{c('Week', 'Tuần')}</option>
-                    <option value='month'>{c('Month', 'Tháng')}</option>
-                  </select>
-                </label>
+                    {label}
+                  </button>
+                ))}
+              </nav>
+
+              {tab === 'overview' && (
+                <div className='flex items-center gap-2 text-xs'>
+                  <span className='text-muted-foreground'>{c('Group by', 'Nhóm theo')}:</span>
+                  <div className='inline-flex rounded-lg border border-border/70 bg-muted/40 p-0.5'>
+                    {(
+                      [
+                        ['day', c('Day', 'Ngày')],
+                        ['week', c('Week', 'Tuần')],
+                        ['month', c('Month', 'Tháng')]
+                      ] as const
+                    ).map(([val, label]) => (
+                      <button
+                        key={val}
+                        type='button'
+                        onClick={() => setGroup(val)}
+                        className={`cursor-pointer rounded-md px-2.5 py-1 font-medium transition-colors ${
+                          group === val
+                            ? 'bg-background text-foreground shadow-xs'
+                            : 'text-muted-foreground hover:text-foreground'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {tab === 'overview' && (
+              <div className='space-y-4'>
+                <AnalyticsCharts rows={trends} locale={locale} />
+                <AnalyticsRankings report={data} onWorkspace={applyWorkspace} />
               </div>
-              <AnalyticsCharts rows={trends} locale={locale} />
-              <AnalyticsRankings report={data} onWorkspace={applyWorkspace} />
-            </>
-          )}
-          {tab === 'performance' && (
-            <>
-              <BookingBreakdown report={data} />
-              <AnalyticsRankings report={data} onWorkspace={applyWorkspace} />
-            </>
-          )}
-          {tab === 'finance' && (
-            <FinancialLedger
-              filter={filter}
-              kind={ledgerKind}
-              onKind={setLedgerKind}
-              summary={data.current}
-              actor={actor}
-            />
-          )}
+            )}
+            {tab === 'performance' && (
+              <div className='space-y-4'>
+                <BookingBreakdown report={data} />
+                <AnalyticsRankings report={data} onWorkspace={applyWorkspace} />
+              </div>
+            )}
+            {tab === 'finance' && (
+              <FinancialLedger
+                filter={filter}
+                kind={ledgerKind}
+                onKind={setLedgerKind}
+                summary={data.current}
+                actor={actor}
+              />
+            )}
+          </div>
+
           <ReportNotes report={data} />
         </>
       )}
@@ -533,12 +944,15 @@ function ReportNotes({
   const resolved = report.notices.filter(
     (n) => n.count > 0 && n.code === 'DUPLICATE_PAYMENTS_REFUNDED'
   );
+  if (warningsOnly && resolved.length === 0 && warnings.length === 0) {
+    return null;
+  }
   return (
-    <div className='space-y-3'>
+    <div className='space-y-2.5'>
       {warningsOnly && resolved.length > 0 && (
         <div
           role='status'
-          className='rounded-xl border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground'
+          className='rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-xs text-muted-foreground'
         >
           {resolved.map((notice) => (
             <p key={notice.code}>
@@ -550,14 +964,14 @@ function ReportNotes({
       {warningsOnly && warnings.length > 0 && (
         <div
           role='status'
-          className='space-y-2 rounded-xl border border-amber-500/30 bg-amber-500/5 p-4'
+          className='space-y-1.5 rounded-xl border border-amber-500/30 bg-amber-500/5 px-3.5 py-3'
         >
-          <p className='flex items-center gap-2 font-medium text-amber-700 dark:text-amber-400'>
-            <AlertTriangle className='size-4' />
+          <p className='flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400'>
+            <AlertTriangle className='size-3.5' />
             {c('Data requiring review', 'Dữ liệu cần kiểm tra')}
           </p>
           {warnings.some((notice) => notice.code === 'EXCLUDED_FINANCIAL_RECORDS') && (
-            <p className='text-sm font-medium'>
+            <p className='text-xs font-medium'>
               {c(
                 'Money totals below include only records with a verified basis. Resolve excluded records before treating this as a complete financial report.',
                 'Tổng tiền bên dưới chỉ gồm bản ghi đủ căn cứ. Cần xử lý các bản ghi bị loại trước khi xem đây là báo cáo tài chính đầy đủ.'
@@ -565,18 +979,18 @@ function ReportNotes({
             </p>
           )}
           {warnings.map((n) => (
-            <p key={n.code} className='text-sm'>
+            <p key={n.code} className='text-xs text-muted-foreground'>
               {n.count} · {descriptions[n.code]}
             </p>
           ))}
         </div>
       )}
       {!warningsOnly && (
-        <details className={panelClass}>
-          <summary className='cursor-pointer text-sm font-medium'>
-            {c('Calculation rules and data limitations', 'Cách tính và phạm vi dữ liệu')}
+        <details className='rounded-xl border border-border/60 bg-card/60 px-3.5 py-2.5 text-xs'>
+          <summary className='cursor-pointer font-medium text-muted-foreground hover:text-foreground'>
+            {c('Calculation rules and data limitations', 'Quy tắc tính toán và phạm vi dữ liệu')}
           </summary>
-          <ul className='mt-3 space-y-2 pl-4 text-xs leading-relaxed text-muted-foreground'>
+          <ul className='mt-2.5 space-y-1.5 pl-4 text-[11px] leading-relaxed text-muted-foreground'>
             {report.notices
               .filter((n) => n.count === 0)
               .map((n) => (

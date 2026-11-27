@@ -53,12 +53,13 @@ function formatCurrency(val: number) {
 }
 
 const POPULAR_BANKS = [
-  { bin: '970422', name: 'MBBank (Ngân hàng Quân Đội)' },
+  { bin: '970422', name: 'MB Bank (Ngân hàng Quân Đội) — Hỗ trợ hoàn tự động PayOS' },
+  { bin: '970416', name: 'ACB (Ngân hàng Á Châu) — Hỗ trợ hoàn tự động PayOS' },
+  { bin: '970452', name: 'KienlongBank (Ngân hàng Kiên Long) — Hỗ trợ hoàn tự động PayOS' },
   { bin: '970436', name: 'Vietcombank (Ngoại thương Việt Nam)' },
   { bin: '970415', name: 'VietinBank (Công thương Việt Nam)' },
   { bin: '970407', name: 'Techcombank (Kỹ thương Việt Nam)' },
   { bin: '970418', name: 'BIDV (Đầu tư và Phát triển VN)' },
-  { bin: '970416', name: 'ACB (Á Châu)' },
   { bin: '970423', name: 'TPBank (Tiên Phong)' },
   { bin: '970432', name: 'VPBank (Việt Nam Thịnh Vượng)' }
 ];
@@ -201,6 +202,22 @@ export function MyBookingsPage() {
           </Badge>
         );
       case 'EXPIRED':
+        if (refundStatus === 'PROCESSED' || refundStatus === 'APPROVED') {
+          return (
+            <Badge className='bg-purple-500/10 text-purple-700 dark:text-purple-400 border-purple-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+              <CheckCircle2 className='h-3 w-3 text-purple-600 dark:text-purple-400' />
+              <span>{isVi ? 'Quá hạn Hold • Đã tự động hoàn tiền' : 'Expired Hold • Auto-Refunded'}</span>
+            </Badge>
+          );
+        }
+        if (refundStatus === 'PENDING') {
+          return (
+            <Badge className='bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
+              <Clock3 className='h-3 w-3 text-amber-600 dark:text-amber-400' />
+              <span>{isVi ? 'Quá hạn Hold • Chờ hoàn tiền' : 'Expired Hold • Refund Pending'}</span>
+            </Badge>
+          );
+        }
         return (
           <Badge className='bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/30 gap-1 font-semibold text-xs py-0.5 px-2.5'>
             <AlertCircle className='h-3 w-3 text-zinc-500' />
@@ -294,16 +311,26 @@ export function MyBookingsPage() {
             </p>
           </div>
 
-          <div className='flex items-center gap-3'>
+          <div className='flex flex-wrap items-center gap-2.5'>
             <Button
               variant='outline'
               size='sm'
               onClick={() => refetch()}
               disabled={isFetching}
-              className='gap-2 text-xs font-semibold h-9 rounded-lg border-border'
+              className='gap-2 text-xs font-semibold h-9 rounded-lg border-border cursor-pointer'
             >
               {isFetching ? <Loader2 className='h-3.5 w-3.5' /> : <Clock className='h-3.5 w-3.5' />}
               <span>{isVi ? 'Làm mới' : 'Refresh'}</span>
+            </Button>
+            <Button
+              asChild
+              variant='outline'
+              size='sm'
+              className='gap-1.5 text-xs font-semibold h-9 rounded-lg border-primary/40 text-primary hover:bg-primary/10'
+            >
+              <Link to='/workspaces/my-refunds'>
+                <span>{isVi ? 'Quản lý yêu cầu hoàn tiền' : 'My Refund Requests'}</span>
+              </Link>
             </Button>
             <Button
               asChild
@@ -546,43 +573,100 @@ export function MyBookingsPage() {
                         </>
                       )}
 
-                      {b.status === 'CANCELLED' && (
-                        b.refundStatus === 'PROCESSED' || b.refundStatus === 'APPROVED' ? (
-                          <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-400 text-xs font-medium border border-purple-500/25'>
-                            <CheckCircle2 className='size-3.5 shrink-0 text-purple-600 dark:text-purple-400' />
-                            <div>
+                      {(b.status === 'CANCELLED' || (b.status === 'EXPIRED' && b.refundStatus)) && (
+                        <>
+                          {b.refundStatus === 'PROCESSED' || b.refundStatus === 'APPROVED' ? (
+                            <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-purple-500/10 text-purple-700 dark:text-purple-400 text-xs font-medium border border-purple-500/25'>
+                              <CheckCircle2 className='size-3.5 shrink-0 text-purple-600 dark:text-purple-400' />
+                              <div>
+                                <span>
+                                  {isVi
+                                    ? `Đã hoàn tiền ${formatCurrency(b.refundAmount || 0)} qua PayOS`
+                                    : `Refunded ${formatCurrency(b.refundAmount || 0)} via PayOS`}
+                                </span>
+                                {b.refundBankName && b.refundAccountNumber && (
+                                  <span className='text-[11px] text-muted-foreground ml-1.5'>
+                                    ({b.refundBankName} ••••{b.refundAccountNumber.slice(-4)})
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          ) : b.refundStatus === 'PENDING' ? (
+                            <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-medium border border-amber-500/25'>
+                              <Clock3 className='size-3.5 shrink-0 text-amber-600' />
                               <span>
                                 {isVi
-                                  ? `Đã hoàn tiền ${formatCurrency(b.refundAmount || 0)} qua PayOS`
-                                  : `Refunded ${formatCurrency(b.refundAmount || 0)} via PayOS`}
+                                  ? b.refundAccountNumber
+                                    ? `Đang chờ hoàn ${formatCurrency(b.refundAmount || 0)}`
+                                    : `Cần điền TK ngân hàng để nhận hoàn ${formatCurrency(b.refundAmount || 0)}`
+                                  : `Pending refund ${formatCurrency(b.refundAmount || 0)}`}
                               </span>
-                              {b.refundBankName && b.refundAccountNumber && (
-                                <span className='text-[11px] text-muted-foreground ml-1.5'>
-                                  ({b.refundBankName} ••••{b.refundAccountNumber.slice(-4)})
-                                </span>
-                              )}
                             </div>
-                          </div>
-                        ) : b.refundStatus === 'PENDING' ? (
-                          <div className='flex items-center gap-2 px-3 py-1.5 rounded-xl bg-amber-500/10 text-amber-700 dark:text-amber-400 text-xs font-medium border border-amber-500/25'>
-                            <Clock3 className='size-3.5 shrink-0 text-amber-600' />
-                            <span>
-                              {isVi
-                                ? `Đang chờ duyệt hoàn ${formatCurrency(b.refundAmount || 0)}`
-                                : `Pending refund review ${formatCurrency(b.refundAmount || 0)}`}
-                            </span>
-                          </div>
-                        ) : b.refundStatus === 'REJECTED' ? (
-                          <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-500/20'>
-                            <XCircle className='size-3.5 shrink-0' />
-                            <span>{isVi ? 'Yêu cầu hoàn tiền bị từ chối' : 'Refund Request Rejected'}</span>
-                          </div>
-                        ) : (
-                          <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium border border-red-500/20'>
-                            <XCircle className='size-3.5 shrink-0' />
-                            <span>{isVi ? 'Đơn đã hủy' : 'Cancelled'}</span>
-                          </div>
-                        )
+                          ) : b.refundStatus === 'REJECTED' ? (
+                            <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 text-xs font-medium border border-rose-500/20'>
+                              <XCircle className='size-3.5 shrink-0' />
+                              <span>{isVi ? 'Yêu cầu hoàn tiền bị từ chối' : 'Refund Request Rejected'}</span>
+                            </div>
+                          ) : (
+                            <div className='flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-medium border border-red-500/20'>
+                              <XCircle className='size-3.5 shrink-0' />
+                              <span>{isVi ? 'Đơn đã hủy' : 'Cancelled'}</span>
+                            </div>
+                          )}
+
+                          {b.refundStatus && (
+                            <Button
+                              size='sm'
+                              asChild
+                              variant={b.refundStatus === 'PENDING' && !b.refundAccountNumber ? 'default' : 'outline'}
+                              className='cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl'
+                            >
+                              <Link
+                                to='/workspaces/my-refunds'
+                                search={{
+                                  refundId: b.refundId ?? undefined,
+                                  bookingId: b.bookingId,
+                                  action:
+                                    b.refundStatus === 'PENDING' && !b.refundAccountNumber
+                                      ? 'bank'
+                                      : 'detail'
+                                }}
+                                hash={
+                                  b.refundId
+                                    ? `refund-${b.refundId}`
+                                    : `refund-booking-${b.bookingId}`
+                                }
+                              >
+                                <span>
+                                  {b.refundStatus === 'PENDING' && !b.refundAccountNumber
+                                    ? isVi
+                                      ? 'Điền STK nhận hoàn tiền'
+                                      : 'Add Bank Info'
+                                    : isVi
+                                      ? 'Xem chi tiết hoàn tiền'
+                                      : 'View Refund Details'}
+                                </span>
+                              </Link>
+                            </Button>
+                          )}
+                        </>
+                      )}
+
+                      {(b.status === 'COMPLETED' || b.status === 'CHECKED_IN') && !b.refundStatus && (
+                        <Button
+                          size='sm'
+                          asChild
+                          variant='outline'
+                          className='cursor-pointer gap-1.5 text-xs font-semibold h-9 rounded-xl border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10'
+                        >
+                          <Link
+                            to='/workspaces/my-refunds'
+                            search={{ action: 'complaint', bookingId: b.bookingId }}
+                          >
+                            <AlertCircle className='h-3.5 w-3.5' />
+                            <span>{isVi ? 'Khiếu nại & Hoàn tiền' : 'Dispute & Refund'}</span>
+                          </Link>
+                        </Button>
                       )}
 
                       {isPending && (

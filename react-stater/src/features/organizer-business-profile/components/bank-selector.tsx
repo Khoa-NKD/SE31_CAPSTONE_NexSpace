@@ -67,6 +67,7 @@ export function BankSelector({
             variant='outline'
             role='combobox'
             aria-expanded={open && !disabled}
+            aria-controls='bank-selector-command'
             aria-invalid={!!error}
             aria-describedby={error ? 'bankName-error' : undefined}
             disabled={disabled}
@@ -96,6 +97,7 @@ export function BankSelector({
           className='w-[var(--radix-popover-trigger-width)] overflow-hidden p-0'
         >
           <Command
+            id='bank-selector-command'
             filter={(value, search) =>
               bankSearchText(value).includes(bankSearchText(search.trim())) ? 1 : 0
             }

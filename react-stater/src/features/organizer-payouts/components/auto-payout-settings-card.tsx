@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -38,159 +38,157 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
 
   return (
     <>
-      <Card className="border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-        <CardHeader className="bg-slate-50/50 dark:bg-slate-900/40 border-b border-slate-100 dark:border-slate-800/80 pb-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <Card className="border border-border/70 shadow-sm rounded-2xl bg-card overflow-hidden">
+        <CardContent className="p-4 sm:p-5 space-y-4">
+          {/* Header Row: Title + Status + Action Buttons */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-border/60">
             <div>
-              <div className="flex items-center gap-2">
-                <CardTitle className="text-base font-bold text-slate-900 dark:text-white">
-                  {language === 'vi' ? 'Chế độ Chi trả & Rút tiền' : 'Payout & Withdrawal Mode'}
-                </CardTitle>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-base font-bold text-foreground">
+                  {language === 'vi' ? 'Phương thức Chi trả & Rút tiền' : 'Payout & Withdrawal Mode'}
+                </h3>
                 {isAutoDaily ? (
-                  <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800 gap-1 text-[11px] font-semibold">
-                    <Sparkles className="h-3 w-3" />{' '}
-                    {language === 'vi' ? 'Tự động hàng ngày (Auto Daily)' : 'Auto Daily'}
+                  <Badge className="bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border-indigo-500/30 gap-1 text-[11px] font-semibold">
+                    <Sparkles className="h-3 w-3" />
+                    {language === 'vi' ? 'Tự động hàng ngày (Auto Payout)' : 'Daily Auto Payout'}
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="bg-slate-50 text-slate-700 dark:bg-slate-800 dark:text-slate-300 gap-1 text-[11px] font-semibold">
-                    <ShieldCheck className="h-3 w-3 text-slate-500" />{' '}
+                  <Badge variant="outline" className="border-border/80 text-muted-foreground gap-1 text-[11px] font-semibold">
+                    <ShieldCheck className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                     {language === 'vi' ? 'Rút tiền thủ công (Manual)' : 'Manual Withdrawal'}
                   </Badge>
                 )}
               </div>
-              <CardDescription className="text-xs text-slate-500 mt-1">
+              <p className="text-xs text-muted-foreground mt-0.5">
                 {language === 'vi'
-                  ? 'Quản lý cách thức giải ngân doanh thu từ ví NexSpace về tài khoản ngân hàng của bạn.'
-                  : 'Manage how revenue is disbursed from your NexSpace balance to your bank account.'}
-              </CardDescription>
+                  ? 'Quản lý cách giải ngân doanh thu từ NexSpace về tài khoản ngân hàng của bạn.'
+                  : 'Configure how your revenue balance is disbursed to your bank account.'}
+              </p>
             </div>
 
-            {/* Trạng thái xét duyệt của Admin */}
-            <div>
+            {/* Approval Badges */}
+            <div className="flex items-center gap-2">
               {isPendingEnable && (
-                <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
+                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
                   <Clock className="h-3.5 w-3.5" />
                   {isAutoDaily
                     ? (language === 'vi'
-                        ? `Chờ Admin duyệt đổi sang ${formatHour(settings.pendingAutoPayoutHour)}`
-                        : `Pending Admin approval to switch to ${formatHour(settings.pendingAutoPayoutHour)}`)
+                        ? `Chờ duyệt đổi sang ${formatHour(settings.pendingAutoPayoutHour)}`
+                        : `Pending hour change to ${formatHour(settings.pendingAutoPayoutHour)}`)
                     : (language === 'vi'
-                        ? `Chờ Admin duyệt kích hoạt (${formatHour(settings.pendingAutoPayoutHour)})`
-                        : `Pending Admin approval (${formatHour(settings.pendingAutoPayoutHour)})`)}
+                        ? `Chờ duyệt kích hoạt (${formatHour(settings.pendingAutoPayoutHour)})`
+                        : `Pending approval (${formatHour(settings.pendingAutoPayoutHour)})`)}
                 </Badge>
               )}
               {isPendingDisable && (
-                <Badge className="bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 border-amber-200 dark:border-amber-800 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
-                  <Clock className="h-3.5 w-3.5" />{' '}
-                  {language === 'vi' ? 'Chờ Admin duyệt hủy Auto' : 'Pending cancellation approval'}
+                <Badge className="bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30 gap-1 text-xs py-1 px-2.5 font-medium animate-pulse">
+                  <Clock className="h-3.5 w-3.5" />
+                  {language === 'vi' ? 'Chờ duyệt hủy Auto' : 'Pending cancellation approval'}
                 </Badge>
               )}
               {isAutoDaily && !isPendingDisable && !isPendingEnable && (
-                <Badge className="bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800 gap-1 text-xs py-1 px-2.5 font-medium">
-                  <CheckCircle2 className="h-3.5 w-3.5" />{' '}
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 gap-1 text-xs py-1 px-2.5 font-medium">
+                  <CheckCircle2 className="h-3.5 w-3.5" />
                   {language === 'vi'
-                    ? `Đang hoạt động (${formatHour(settings.autoPayoutHour)} hàng ngày)`
-                    : `Active (${formatHour(settings.autoPayoutHour)} daily)`}
+                    ? `Hoạt động lúc ${formatHour(settings.autoPayoutHour)} hàng ngày`
+                    : `Active at ${formatHour(settings.autoPayoutHour)} daily`}
                 </Badge>
               )}
               {isRejected && (
-                <Badge className="bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300 border-rose-200 dark:border-rose-800 gap-1 text-xs py-1 px-2.5 font-medium">
-                  <XCircle className="h-3.5 w-3.5" />{' '}
-                  {language === 'vi' ? 'Yêu cầu gần nhất bị từ chối' : 'Latest request rejected'}
+                <Badge className="bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30 gap-1 text-xs py-1 px-2.5 font-medium">
+                  <XCircle className="h-3.5 w-3.5" />
+                  {language === 'vi' ? 'Yêu cầu bị từ chối' : 'Request rejected'}
                 </Badge>
               )}
             </div>
           </div>
-        </CardHeader>
 
-        <CardContent className="p-5 space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Box 1: Chế độ rút tiền thủ công (Manual) */}
+          {/* 2 Streamlined Mode Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {/* Box 1: Manual */}
             <div
-              className={`p-4 rounded-xl border transition-all ${
+              className={`p-3.5 rounded-xl border transition-all ${
                 !isAutoDaily
-                  ? 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/20 dark:bg-emerald-950/10'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/30 opacity-70'
+                  ? 'border-emerald-500/40 bg-emerald-500/[0.04]'
+                  : 'border-border/60 bg-muted/20 opacity-75'
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    {language === 'vi' ? 'Rút tiền thủ công (Mặc định)' : 'Manual Withdrawal (Default)'}
-                    {!isAutoDaily && (
-                      <span className="text-[10px] bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 px-1.5 py-0.5 rounded font-bold">
-                        {language === 'vi' ? 'Đang chọn' : 'Selected'}
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {language === 'vi'
-                      ? 'Chủ động ấn nút rút tiền bất kỳ khi nào bạn có số dư khả dụng từ 1.000 đ. Thích hợp nếu bạn muốn kiểm soát chính xác dòng tiền.'
-                      : 'Manually withdraw whenever you have available funds. Best for exact cash flow management.'}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  {language === 'vi' ? 'Rút tiền thủ công' : 'Manual Withdrawal'}
+                </span>
+                {!isAutoDaily && (
+                  <span className="text-[10px] bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 rounded-full font-bold">
+                    {language === 'vi' ? 'Đang kích hoạt' : 'Active'}
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {language === 'vi'
+                  ? 'Chủ động bấm rút tiền bất kỳ khi nào có số dư khả dụng từ 1.000 ₫. Phù hợp nếu bạn muốn kiểm soát chính xác từng lệnh chuyển.'
+                  : 'Manually request withdrawals whenever you have available funds (from 1,000 VND). Best for exact cash flow management.'}
+              </p>
             </div>
 
-            {/* Box 2: Chế độ Auto Payout */}
+            {/* Box 2: Auto Daily */}
             <div
-              className={`p-4 rounded-xl border transition-all ${
+              className={`p-3.5 rounded-xl border transition-all ${
                 isAutoDaily
-                  ? 'border-indigo-300 dark:border-indigo-800 bg-indigo-50/20 dark:bg-indigo-950/10'
-                  : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/30'
+                  ? 'border-indigo-500/40 bg-indigo-500/[0.04]'
+                  : 'border-border/60 bg-muted/20'
               }`}
             >
-              <div className="flex items-start justify-between">
-                <div>
-                  <h4 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-                    {language === 'vi' ? 'Tự động hàng ngày (Auto Payout)' : 'Daily Auto Payout'}
-                    {isAutoDaily && (
-                      <span className="text-[10px] bg-indigo-100 text-indigo-800 dark:bg-indigo-900/60 dark:text-indigo-300 px-1.5 py-0.5 rounded font-bold">
-                        {language === 'vi' ? 'Đang chọn' : 'Selected'}
-                      </span>
-                    )}
-                  </h4>
-                  <p className="text-xs text-slate-500 mt-1">
-                    {language === 'vi' ? (
-                      <>
-                        Hệ thống tự động gom toàn bộ số dư khả dụng và chuyển khoản qua PayOS vào{' '}
-                        <strong className="text-indigo-600 dark:text-indigo-400">
-                          {formatHour(settings.autoPayoutHour)}
-                        </strong>{' '}
-                        hàng ngày mà không cần thao tác tay.
-                      </>
-                    ) : (
-                      <>
-                        The system automatically transfers all available balance via PayOS at{' '}
-                        <strong className="text-indigo-600 dark:text-indigo-400">
-                          {formatHour(settings.autoPayoutHour)}
-                        </strong>{' '}
-                        daily without manual steps.
-                      </>
-                    )}
-                  </p>
-                </div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-sm font-semibold text-foreground flex items-center gap-1.5">
+                  <Sparkles className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                  {language === 'vi' ? 'Tự động hàng ngày (Auto Payout)' : 'Daily Auto Payout'}
+                </span>
+                {isAutoDaily && (
+                  <span className="text-[10px] bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-full font-bold">
+                    {language === 'vi' ? 'Đang kích hoạt' : 'Active'}
+                  </span>
+                )}
               </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {language === 'vi' ? (
+                  <>
+                    Hệ thống tự động chuyển toàn bộ số dư khả dụng về ngân hàng vào{' '}
+                    <strong className="text-indigo-600 dark:text-indigo-400">
+                      {formatHour(settings.autoPayoutHour)}
+                    </strong>{' '}
+                    mỗi ngày mà không cần thao tác tay.
+                  </>
+                ) : (
+                  <>
+                    Automatically transfers all available balance to your bank at{' '}
+                    <strong className="text-indigo-600 dark:text-indigo-400">
+                      {formatHour(settings.autoPayoutHour)}
+                    </strong>{' '}
+                    daily without manual effort.
+                  </>
+                )}
+              </p>
             </div>
           </div>
 
-          {/* Phản hồi từ Admin nếu có từ chối */}
+          {/* Admin Feedback on Rejection */}
           {isRejected && settings.adminFeedback && (
-            <div className="p-3.5 rounded-lg border border-rose-200 dark:border-rose-900/40 bg-rose-50/60 dark:bg-rose-950/20 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2.5">
+            <div className="p-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2.5">
               <AlertCircle className="h-4 w-4 shrink-0 text-rose-600 mt-0.5" />
               <div>
-                <strong>{language === 'vi' ? 'Lý do Admin từ chối yêu cầu Auto Payout:' : 'Admin Rejection Reason:'}</strong> {settings.adminFeedback}
+                <strong>{language === 'vi' ? 'Lý do Admin từ chối yêu cầu:' : 'Admin Rejection Reason:'}</strong> {settings.adminFeedback}
               </div>
             </div>
           )}
 
-          {/* Nút hành động thay đổi cấu hình */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-            <div className="text-xs text-slate-500 flex items-center gap-1.5">
-              <HelpCircle className="h-3.5 w-3.5 text-slate-400" />
+          {/* Action Row */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs">
+            <div className="text-muted-foreground flex items-center gap-1.5">
+              <HelpCircle className="h-3.5 w-3.5 text-muted-foreground/70" />
               {language === 'vi'
-                ? 'Mọi thay đổi chế độ rút tiền đều cần gửi yêu cầu lên Admin để bảo đảm an toàn bảo mật.'
-                : 'All payout mode changes require Admin review for security assurance.'}
+                ? 'Thay đổi phương thức Auto Payout cần duyệt qua Admin để bảo đảm an toàn.'
+                : 'Auto Payout changes require Admin review for security assurance.'}
             </div>
 
             <div className="flex items-center gap-2">
@@ -199,7 +197,7 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                   size="sm"
                   onClick={() => setRequestAutoOpen(true)}
                   disabled={isPendingEnable}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3 gap-1.5"
+                  className="cursor-pointer bg-indigo-600 hover:bg-indigo-700 text-white text-xs h-8 px-3.5 rounded-lg gap-1.5 shadow-xs"
                 >
                   <Sparkles className="h-3.5 w-3.5" />
                   {isPendingEnable
@@ -213,7 +211,7 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                     variant="outline"
                     onClick={() => setRequestAutoOpen(true)}
                     disabled={isPendingEnable || isPendingDisable}
-                    className="border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-900/50 dark:text-indigo-300 dark:hover:bg-indigo-950/30 text-xs h-8 px-3 gap-1.5"
+                    className="cursor-pointer text-xs h-8 px-3 rounded-lg gap-1.5 border-border/80"
                   >
                     <Clock className="h-3.5 w-3.5" />
                     {isPendingEnable
@@ -222,15 +220,15 @@ export const AutoPayoutSettingsCard: React.FC<AutoPayoutSettingsCardProps> = ({ 
                   </Button>
                   <Button
                     size="sm"
-                    variant="outline"
+                    variant="ghost"
                     onClick={() => setRequestCancelOpen(true)}
                     disabled={isPendingDisable || isPendingEnable}
-                    className="text-amber-700 hover:text-amber-800 border-amber-200 hover:bg-amber-50 dark:border-amber-900/50 dark:hover:bg-amber-950/30 text-xs h-8 px-3 gap-1.5"
+                    className="cursor-pointer text-rose-600 hover:text-rose-700 hover:bg-rose-500/10 text-xs h-8 px-3 rounded-lg gap-1.5"
                   >
                     <CalendarCheck className="h-3.5 w-3.5" />
                     {isPendingDisable
-                      ? (language === 'vi' ? 'Yêu cầu hủy đang chờ duyệt' : 'Cancellation Pending')
-                      : (language === 'vi' ? 'Yêu cầu hủy Auto Payout' : 'Cancel Auto Payout')}
+                      ? (language === 'vi' ? 'Chờ duyệt hủy Auto' : 'Cancellation Pending')
+                      : (language === 'vi' ? 'Hủy chế độ Auto' : 'Cancel Auto Mode')}
                   </Button>
                 </>
               )}

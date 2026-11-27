@@ -188,10 +188,10 @@ function RefundManagementPage() {
     return MOCK_REFUND_KPIS;
   }, [kpisData]);
 
-  const handleApproveRefund = (targetRefund: RefundRecord, note: string) => {
+  const handleApproveRefund = async (targetRefund: RefundRecord, note: string) => {
     const numericId = targetRefund.numericId || parseInt(targetRefund.id.replace(/\D/g, ''), 10);
     if (numericId && targetRefund.numericId) {
-      approveMutation.mutate({
+      return await approveMutation.mutateAsync({
         id: numericId,
         data: {
           approvedAmount: targetRefund.calculatedRefundVnd,
@@ -199,6 +199,7 @@ function RefundManagementPage() {
         }
       });
     } else {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       toast.success(
         isVi
           ? `Đã duyệt hoàn tiền ${targetRefund.id}`
@@ -209,19 +210,21 @@ function RefundManagementPage() {
             : `Disbursed ${formatVnd(targetRefund.calculatedRefundVnd)} via PayOS Escrow.`
         }
       );
+      return { refundReference: targetRefund.escrowReserveCode };
     }
   };
 
-  const handleRejectRefund = (targetRefund: RefundRecord, note: string) => {
+  const handleRejectRefund = async (targetRefund: RefundRecord, note: string) => {
     const numericId = targetRefund.numericId || parseInt(targetRefund.id.replace(/\D/g, ''), 10);
     if (numericId && targetRefund.numericId) {
-      rejectMutation.mutate({
+      return await rejectMutation.mutateAsync({
         id: numericId,
         data: {
           reason: note
         }
       });
     } else {
+      await new Promise((resolve) => setTimeout(resolve, 800));
       toast.error(
         isVi
           ? `Đã từ chối khiếu nại hoàn tiền ${targetRefund.id}`
@@ -232,6 +235,7 @@ function RefundManagementPage() {
             : `Rejection notice dispatched to customer.`
         }
       );
+      return { success: true };
     }
   };
 

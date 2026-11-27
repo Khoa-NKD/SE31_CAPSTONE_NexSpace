@@ -122,31 +122,6 @@ export function Navbar({ sticky = true, brand }: NavbarProps = {}) {
           >
             {t('nav.listSpace')}
           </Link>
-
-          {isAuthenticated && userRole === 'USER' && (
-            <>
-              <Link
-                to='/workspaces/my-bookings'
-                className='whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
-                activeProps={{
-                  className:
-                    'whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
-                }}
-              >
-                {t('nav.myBookings')}
-              </Link>
-              <Link
-                to='/dashboard/preferences'
-                className='hidden lg:inline-flex whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-medium text-slate-600 transition-colors hover:text-slate-950 focus-visible:ring-2 focus-visible:ring-indigo-600 focus-visible:outline-none dark:text-slate-300 dark:hover:text-white'
-                activeProps={{
-                  className:
-                    'hidden lg:inline-flex whitespace-nowrap shrink-0 rounded-lg px-2 py-1.5 text-sm font-semibold text-[#4b41e1] dark:text-indigo-400'
-                }}
-              >
-                {t('nav.preferences')}
-              </Link>
-            </>
-          )}
         </nav>
 
         {/* Right Controls - Aligned to right corner */}
@@ -312,6 +287,14 @@ export function Navbar({ sticky = true, brand }: NavbarProps = {}) {
                         >
                           <CalendarCheck className='size-4 text-[#4b41e1] dark:text-indigo-400' />
                           <span>{t('nav.myBookings')}</span>
+                        </button>
+                        <button
+                          type='button'
+                          onClick={() => handleMobileNavigate('/workspaces/my-refunds')}
+                          className='flex w-full cursor-pointer items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm font-semibold text-slate-800 hover:bg-slate-100 dark:text-slate-100 dark:hover:bg-slate-800/70'
+                        >
+                          <ShieldCheck className='size-4 text-[#4b41e1] dark:text-indigo-400' />
+                          <span>{t('nav.myRefunds')}</span>
                         </button>
                         <button
                           type='button'
