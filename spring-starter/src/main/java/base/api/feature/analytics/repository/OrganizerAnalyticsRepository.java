@@ -179,7 +179,7 @@ public class OrganizerAnalyticsRepository {
         BigDecimal cash = events.stream().filter(e -> !e.at().isBefore(filter.start()))
                 .map(e -> "REFUND".equals(e.kind()) ? e.amount().negate() : e.amount())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal retainedGross = allocation.rental().add(allocation.vat());
+        BigDecimal retainedGross = allocation.organizer().add(allocation.fee());
         return new Earnings(issues == 0 ? money(allocation.rental()) : null,
                 issues == 0 ? money(allocation.vat()) : null, issues == 0 ? money(allocation.fee()) : null,
                 issues == 0 ? money(allocation.organizer()) : null, issues == 0 ? money(allocation.rentalEarnings()) : null,

@@ -32,6 +32,13 @@ public interface INotificationService {
 
     void sendRefundCompletedNotification(RefundRequestModel refund);
 
+    default void sendAutoRefundBankInfoRequiredNotification(RefundRequestModel refund, String detectedBank) {
+        sendRefundRequestedNotification(refund);
+    }
+
+    default void sendRefundBankInfoUpdatedNotification(RefundRequestModel refund) {
+    }
+
     void sendWorkspaceReviewToOrganizerNotification(Long organizerId, String workspaceName, String customerName, int rating, String comment, Long reviewId);
 
     void sendComplaintToOrganizerNotification(Long organizerId, String workspaceName, String customerName, String complaintTitle, String complaintDetail, Long caseId);

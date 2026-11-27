@@ -293,8 +293,8 @@ class NotificationServiceImplTest {
 
         notificationService.sendRefundRequestedNotification(refund);
 
-        // Chỉ lưu thông báo cho admin, không gửi email hay thông báo cho organizer
-        verify(notificationRepository).save(any(UserNotificationModel.class));
+        // Lưu thông báo cho cả khách hàng và admin, không gửi email hay thông báo cho organizer
+        verify(notificationRepository, times(2)).save(any(UserNotificationModel.class));
         verify(emailService, never()).sendHtmlEmail(eq("organizer@nexspace.vn"), anyString(), anyString());
     }
 

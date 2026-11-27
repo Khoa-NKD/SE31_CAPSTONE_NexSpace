@@ -1,6 +1,7 @@
 package base.api.feature.payment.repository;
 
 import base.api.shared.entity.payment.RefundRequestModel;
+import base.api.shared.enums.RefundSource;
 import base.api.shared.enums.RefundStatus;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.domain.Page;
@@ -22,6 +23,8 @@ public interface IRefundRequestRepository extends JpaRepository<RefundRequestMod
 
     List<RefundRequestModel> findByBookingIdIn(java.util.Collection<Long> bookingIds);
 
+    List<RefundRequestModel> findByPaymentTransactionId(Long paymentTransactionId);
+
     Optional<RefundRequestModel> findTopByBookingIdOrderByCreatedAtDesc(Long bookingId);
 
     Page<RefundRequestModel> findByStatus(RefundStatus status, Pageable pageable);
@@ -31,6 +34,8 @@ public interface IRefundRequestRepository extends JpaRepository<RefundRequestMod
             "LEFT JOIN FETCH b.customer " +
             "LEFT JOIN FETCH b.workspace " +
             "LEFT JOIN FETCH b.resource " +
+            "LEFT JOIN FETCH r.paymentTransaction " +
+            "LEFT JOIN FETCH r.reviewedBy " +
             "WHERE r.booking.id = :bookingId ORDER BY r.createdAt DESC")
     List<RefundRequestModel> findByBookingIdWithDetails(@Param("bookingId") Long bookingId);
 
@@ -43,6 +48,55 @@ public interface IRefundRequestRepository extends JpaRepository<RefundRequestMod
             "LEFT JOIN FETCH r.reviewedBy " +
             "WHERE r.id = :id")
     Optional<RefundRequestModel> findByIdWithDetails(@Param("id") Long id);
+
+    @Query("SELECT r FROM RefundRequestModel r " +
+            "JOIN FETCH r.booking b " +
+            "JOIN FETCH b.customer c " +
+            "LEFT JOIN FETCH b.workspace " +
+            "LEFT JOIN FETCH b.resource " +
+            "LEFT JOIN FETCH r.paymentTransaction " +
+            "LEFT JOIN FETCH r.reviewedBy " +
+            "WHERE c.id = :customerId ORDER BY r.createdAt DESC")
+    List<RefundRequestModel> findAllByCustomerIdWithDetails(@Param("customerId") Long customerId);
+
+    @Query(value = "SELECT r FROM RefundRequestModel r " +
+            "JOIN FETCH r.booking b " +
+            "JOIN FETCH b.customer c " +
+            "LEFT JOIN FETCH b.workspace w " +
+            "LEFT JOIN FETCH b.resource res " +
+            "LEFT JOIN FETCH r.paymentTransaction tx " +
+            "LEFT JOIN FETCH r.reviewedBy " +
+            "WHERE c.id = :customerId " +
+            "AND (:status IS NULL OR r.status = :status) " +
+            "AND (:source IS NULL OR r.source = :source) " +
+            "AND (:search IS NULL OR :search = '' OR " +
+            "     LOWER(COALESCE(b.bookingCode, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(w.name, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(res.name, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(r.reason, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(r.refundReference, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     CAST(r.id AS string) LIKE CONCAT('%', :search, '%'))",
+            countQuery = "SELECT COUNT(r) FROM RefundRequestModel r " +
+            "JOIN r.booking b " +
+            "JOIN b.customer c " +
+            "LEFT JOIN b.workspace w " +
+            "LEFT JOIN b.resource res " +
+            "WHERE c.id = :customerId " +
+            "AND (:status IS NULL OR r.status = :status) " +
+            "AND (:source IS NULL OR r.source = :source) " +
+            "AND (:search IS NULL OR :search = '' OR " +
+            "     LOWER(COALESCE(b.bookingCode, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(w.name, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(res.name, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(r.reason, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     LOWER(COALESCE(r.refundReference, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
+            "     CAST(r.id AS string) LIKE CONCAT('%', :search, '%'))")
+    Page<RefundRequestModel> searchCustomerRefunds(
+            @Param("customerId") Long customerId,
+            @Param("status") RefundStatus status,
+            @Param("source") RefundSource source,
+            @Param("search") String search,
+            Pageable pageable);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT r FROM RefundRequestModel r WHERE r.id = :id")
@@ -88,4 +142,3 @@ public interface IRefundRequestRepository extends JpaRepository<RefundRequestMod
     @Query("SELECT COALESCE(SUM(r.approvedAmount), 0) FROM RefundRequestModel r WHERE r.status = :status")
     BigDecimal sumApprovedAmountByStatus(@Param("status") RefundStatus status);
 }
-

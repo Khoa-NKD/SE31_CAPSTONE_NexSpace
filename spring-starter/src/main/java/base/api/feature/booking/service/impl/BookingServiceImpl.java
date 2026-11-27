@@ -226,9 +226,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType(), dto.getAmenityIds());
 
         BigDecimal platformCommissionPercent = getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT);
-        BigDecimal platformFeeAmount = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount()).add(priceCalc.getAddonAmount())
+        BigDecimal vatPercent = getDecimalSetting("payment.vat_percent", DEFAULT_VAT_PERCENT);
+        BigDecimal preTaxRental = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount()).add(priceCalc.getAddonAmount());
+        BigDecimal basePlatformFee = preTaxRental
                 .multiply(platformCommissionPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal platformFeeVat = basePlatformFee.multiply(vatPercent)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal platformFeeAmount = basePlatformFee.add(platformFeeVat);
 
         LocalDateTime holdExpiresAt = now.plusMinutes(getEffectiveHoldMinutes());
 
@@ -345,9 +350,14 @@ public class BookingServiceImpl implements base.api.feature.booking.service.IBoo
         booking.setServiceFeeAmount(quote.getServiceFeeAmount());
         booking.setFinalPrice(quote.getFinalPrice());
         booking.setPricingSnapshot(buildPricingSnapshot(quote, booking.getResource()));
-        booking.setPlatformFeeAmount(quote.getBaseAmount().add(quote.getSurchargeAmount()).add(quote.getAddonAmount())
+        BigDecimal preTaxRentalQuote = quote.getBaseAmount().add(quote.getSurchargeAmount()).add(quote.getAddonAmount());
+        BigDecimal baseFeeQuote = preTaxRentalQuote
                 .multiply(getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT))
-                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP));
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal feeVatQuote = baseFeeQuote
+                .multiply(getDecimalSetting("payment.vat_percent", DEFAULT_VAT_PERCENT))
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        booking.setPlatformFeeAmount(baseFeeQuote.add(feeVatQuote));
         bookingRepository.save(booking);
         return enrichBookingDto(booking);
     }
