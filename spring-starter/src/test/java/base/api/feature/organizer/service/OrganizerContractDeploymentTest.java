@@ -66,6 +66,9 @@ class OrganizerContractDeploymentTest {
         var contract = holder.get();
         assertThat(contract.isDemo()).isFalse();
         assertThat(contract.getTemplateVersion()).isEqualTo("NEXSPACE-OTP-1");
+        assertThat(contract.getContentSnapshot())
+                .contains("10% tổng giá trị hóa đơn đã bao gồm VAT", "NexSpace nhận 11.000 đồng", "Organizer nhận 99.000 đồng")
+                .doesNotContain("10% tiền thuê cơ bản chưa VAT");
         assertThat(service.current(12L).canSign()).isTrue();
         service.requestOtp(12L, contract.getId(), contract.getContentHash());
         var html = ArgumentCaptor.forClass(String.class);
