@@ -1,5 +1,6 @@
+/* oxlint-disable jsx-a11y/no-noninteractive-tabindex -- Read-only agreement regions need keyboard focus for scrolling to consent. */
 import { Spinner, Spinner as Loader2 } from '@/components/ui/spinner';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useRouter } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -39,6 +40,7 @@ import {
   signContract
 } from '../api/contract';
 import { ContractAddenda } from './contract-addenda';
+import { agreementReadComplete } from '../utils/agreement-reading';
 
 const PdfViewer = lazy(() =>
   import('@/features/admin-organizers/components/pdf-document-viewer').then((m) => ({
@@ -61,18 +63,43 @@ export function ContractPanel({
   const { language } = useLanguage();
   const t = (vi: string, en: string) => (language === 'vi' ? vi : en);
   const actor = useAuthStore((s) => s.user);
+  const accessToken = useAuthStore((s) => s.accessToken);
   const client = useQueryClient();
   const router = useRouter();
   const options = contractQueryOptions(actor?.id ?? 0, applicationId);
-  const query = useQuery({ ...options, enabled: !!actor && !!useAuthStore.getState().accessToken });
-  const [consent, setConsent] = useState(false);
+  const query = useQuery({ ...options, enabled: !!actor && !!accessToken });
+  const [consentVersion, setConsentVersion] = useState<string | null>(null);
+  const [readVersion, setReadVersion] = useState<string | null>(null);
   const [otp, setOtp] = useState('');
   const [busy, setBusy] = useState<'otp' | 'sign' | 'pdf' | null>(null);
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
-  const [now, setNow] = useState(0);
+  const [now, setNow] = useState(() => +new Date());
   const operation = useRef(false);
   const downloadController = useRef<AbortController | null>(null);
   const contract = query.data;
+  const agreementVersion = contract ? `${actor?.id}:${contract.id}:${contract.contentHash}` : '';
+  const hasRead = !!agreementVersion && readVersion === agreementVersion;
+  const consent = hasRead && consentVersion === agreementVersion;
+  const setConsent = (accepted: boolean) => {
+    setConsentVersion(accepted ? agreementVersion : null);
+    if (!accepted) setOtp('');
+  };
+  const contentElement = useRef<HTMLDivElement | null>(null);
+  const checkReading = useCallback(
+    (element: HTMLDivElement) => {
+      if (agreementVersion && agreementReadComplete(element)) setReadVersion(agreementVersion);
+    },
+    [agreementVersion]
+  );
+  useEffect(() => {
+    if (presentation === 'record') return;
+    const element = contentElement.current;
+    if (!element || !agreementVersion) return;
+    element.scrollTop = 0;
+    const observer = new ResizeObserver(() => checkReading(element));
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [agreementVersion, checkReading, presentation]);
   const signed = contract?.status === 'SIGNED';
   useEffect(() => {
     if (
@@ -86,7 +113,6 @@ export function ContractPanel({
     }
   }, [signed, applicationId, presentation, actor, router]);
   useEffect(() => {
-    setNow(Date.now());
     if (!contract?.resendAvailableAt || signed) return;
     const interval = window.setInterval(() => setNow(Date.now()), 1000);
     return () => window.clearInterval(interval);
@@ -100,7 +126,7 @@ export function ContractPanel({
   useEffect(() => () => downloadController.current?.abort(), []);
   const cooldown = Math.max(0, Math.ceil((utc(contract?.resendAvailableAt ?? null) - now) / 1000));
   async function execute(action: 'otp' | 'sign') {
-    if (!contract || operation.current) return;
+    if (!contract || operation.current || !hasRead || !consent) return;
     operation.current = true;
     setBusy(action);
     const signingToken = useAuthStore.getState().accessToken;
@@ -110,6 +136,7 @@ export function ContractPanel({
           ? await requestContractOtp(contract)
           : await signContract(contract, otp, consent);
       client.setQueryData(options.queryKey, result);
+      setNow(+new Date());
       if (action === 'otp') {
         setOtp('');
         toast.success(
@@ -341,7 +368,11 @@ export function ContractPanel({
                 aria-label={t('Làm mới hợp đồng', 'Refresh agreement')}
                 onClick={() => void invalidateLifecycle(client)}
               >
-                {query.isFetching ? <Spinner className={'size-4'} /> : <RefreshCw className={'size-4'} />}
+                {query.isFetching ? (
+                  <Spinner className={'size-4'} />
+                ) : (
+                  <RefreshCw className={'size-4'} />
+                )}
               </Button>
             </div>
           </div>
@@ -367,6 +398,8 @@ export function ContractPanel({
               </p>
               <div
                 tabIndex={0}
+                role='region'
+                aria-label={t('Nội dung hợp đồng đã phát hành', 'Issued agreement contents')}
                 className='max-h-80 overflow-auto whitespace-pre-wrap break-words text-sm leading-7 text-muted-foreground'
               >
                 {contract.content}
@@ -464,7 +497,11 @@ export function ContractPanel({
               </div>
             </div>
             <div
+              key={agreementVersion}
+              ref={contentElement}
+              onScroll={(event) => checkReading(event.currentTarget)}
               tabIndex={0}
+              role='region'
               aria-label={t('Nội dung hợp đồng', 'Agreement contents')}
               className='max-h-[440px] overflow-y-auto whitespace-pre-wrap break-words p-5 text-sm leading-7 text-foreground/85 sm:p-6'
             >
@@ -530,11 +567,22 @@ export function ContractPanel({
           </div>
           {!applicationId && contract.canSign && !signed && (
             <div className='space-y-4'>
+              <p role='status' className='text-xs leading-5 text-muted-foreground'>
+                {hasRead
+                  ? t(
+                      'Đã xem đến cuối hợp đồng. Bạn có thể đồng ý và xác nhận OTP.',
+                      'You reached the end. You can now accept the agreement and verify your email code.'
+                    )
+                  : t(
+                      'Cuộn đến cuối nội dung hợp đồng để mở bước đồng ý và nhập OTP.',
+                      'Scroll to the end of the agreement to enable consent and email verification.'
+                    )}
+              </p>
               <label className='flex cursor-pointer items-start gap-3 text-sm leading-6'>
                 <input
                   type='checkbox'
                   checked={consent}
-                  disabled={!!busy}
+                  disabled={!!busy || !hasRead}
                   onChange={(e) => setConsent(e.target.checked)}
                   className='mt-1 size-4 shrink-0 accent-primary'
                 />
@@ -549,14 +597,10 @@ export function ContractPanel({
                 type='button'
                 variant='outline'
                 className='w-full'
-                disabled={!!busy || !consent || cooldown > 0}
+                disabled={!!busy || !hasRead || !consent || cooldown > 0}
                 onClick={() => void execute('otp')}
               >
-                {busy === 'otp' ? (
-                  <Loader2 className='size-4' />
-                ) : (
-                  <Mail className='size-4' />
-                )}
+                {busy === 'otp' ? <Loader2 className='size-4' /> : <Mail className='size-4' />}
                 {cooldown > 0 ? (
                   <>
                     {t('Gửi lại sau', 'Resend in')}{' '}
@@ -583,7 +627,7 @@ export function ContractPanel({
                   <VerificationCode
                     ariaLabel={t('Mã OTP gồm 6 số', '6-digit verification code')}
                     value={otp}
-                    disabled={!!busy}
+                    disabled={!!busy || !hasRead || !consent}
                     onChange={setOtp}
                   />
                   <p className='text-xs leading-5 text-muted-foreground'>
@@ -599,6 +643,7 @@ export function ContractPanel({
                 className='h-11 w-full'
                 disabled={
                   !!busy ||
+                  !hasRead ||
                   !consent ||
                   otp.length !== 6 ||
                   !contract.otpExpiresAt ||
@@ -629,7 +674,11 @@ export function ContractPanel({
             disabled={!!busy || query.isFetching}
             onClick={() => void invalidateLifecycle(client)}
           >
-            {query.isFetching ? <Spinner className={`size-3.5 `} /> : <RefreshCw className={`size-3.5 `} />}
+            {query.isFetching ? (
+              <Spinner className={`size-3.5 `} />
+            ) : (
+              <RefreshCw className={`size-3.5 `} />
+            )}
             {t('Làm mới hợp đồng', 'Refresh agreement')}
           </Button>
         </aside>

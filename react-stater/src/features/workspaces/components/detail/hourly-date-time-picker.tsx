@@ -1,7 +1,8 @@
 import { useSearchCalendarQuery } from '../../api/queries';
-import { searchHourlySlots } from '../../utils/search-hourly-slots';
+import { hasSearchHourlyStart, searchHourlySlots } from '../../utils/search-hourly-slots';
+import { searchCalendarMonthRange } from '../../utils/search-calendar-range';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
-import { useState, useId, useEffect } from 'react';
+import { useState, useId, useEffect, useMemo } from 'react';
 import {
   ChevronLeft,
   ChevronRight,
@@ -20,6 +21,7 @@ import type { WorkspaceOperatingHour } from '../../api/types';
 import type { ScheduleSelection, DateTimePickerModalProps } from './date-time-picker-modal';
 
 const MONTH_NAMES = Array.from({ length: 12 }, (_, index) => 'Tháng ' + (index + 1));
+const EMPTY_INTERVALS: import('../../utils/search-hourly-slots').SearchOperatingInterval[] = [];
 const money = (value: number) =>
   new Intl.NumberFormat('vi-VN', { maximumFractionDigits: 0 }).format(value) + ' ₫';
 function initialMinutes(value: string | undefined, fallback: number) {
@@ -76,35 +78,36 @@ export function HourlyDateTimePicker(
     endId = useId();
   const searching = !props.workspaceId;
   const date = localTimestamp(selectedDate).slice(0, 10);
-  const nextDay = new Date(selectedDate);
-  nextDay.setDate(nextDay.getDate() + 1);
-  const monthStart = new Date(viewYear, viewMonth, 1),
-    monthEnd = new Date(viewYear, viewMonth + 1, 1);
-  const monthFrom = monthStart < today ? today : monthStart;
-  const monthMax = new Date(maxDate);
-  monthMax.setDate(monthMax.getDate() + 1);
-  const monthTo = monthEnd > monthMax ? monthMax : monthEnd;
+  const selectedMonthRange = searchCalendarMonthRange(
+    selectedDate.getFullYear(),
+    selectedDate.getMonth(),
+    today,
+    maxDate
+  );
+  const viewedMonthRange = searchCalendarMonthRange(viewYear, viewMonth, today, maxDate);
+  const sameMonth =
+    selectedMonthRange.from === viewedMonthRange.from &&
+    selectedMonthRange.to === viewedMonthRange.to;
   const calendar = useSearchCalendarQuery(
     {
-      from: date,
-      to: localTimestamp(nextDay).slice(0, 10),
+      ...selectedMonthRange,
       workspaceId: props.workspaceId,
       ...props.searchFilters
     },
     true
   );
-  const monthCalendar = useSearchCalendarQuery(
+  const otherMonthCalendar = useSearchCalendarQuery(
     {
-      from: localTimestamp(monthFrom).slice(0, 10),
-      to: localTimestamp(monthTo).slice(0, 10),
+      ...viewedMonthRange,
       workspaceId: props.workspaceId,
       ...props.searchFilters
     },
-    calendarOpen
+    calendarOpen && !sameMonth
   );
+  const monthCalendar = sameMonth ? calendar : otherMonthCalendar;
   const ready = !!calendar.data && !calendar.isError;
-  const intervals = ready ? calendar.data!.intervals : [];
-  const options = searchHourlySlots(date, intervals, now);
+  const intervals = ready ? calendar.data!.intervals : EMPTY_INTERVALS;
+  const options = useMemo(() => searchHourlySlots(date, intervals, now), [date, intervals, now]);
   const startTimeOptions = options.starts.map((minutes) => ({
     minutes,
     label: hourlyTimeLabel(minutes)
@@ -157,26 +160,46 @@ export function HourlyDateTimePicker(
   const offset = (new Date(viewYear, viewMonth, 1).getDay() + 6) % 7;
   const count = new Date(viewYear, viewMonth + 1, 0).getDate();
   const cellCount = Math.ceil((offset + count) / 7) * 7;
-  const calendarGrid = Array.from({ length: cellCount }, (_, index) => {
-    const cellDate = new Date(viewYear, viewMonth, index - offset + 1);
-    const day = localTimestamp(cellDate).slice(0, 10);
-    const inRange = cellDate >= today && cellDate <= maxDate;
-    const inMonth = cellDate.getMonth() === viewMonth;
-    const monthReady = !!monthCalendar.data && !monthCalendar.isError;
-    const closed =
-      monthReady && !searchHourlySlots(day, monthCalendar.data!.intervals, now).starts.length;
-    const available = monthReady && inRange && inMonth && !closed;
-    return {
-      key: day,
-      dayNumber: cellDate.getDate(),
-      date: cellDate,
-      isCurrentMonth: inMonth,
-      isClosed: closed,
-      isToday: +cellDate === +today,
-      isSelected: +cellDate === +selectedDate,
-      isDisabled: !available
-    };
-  });
+  const monthReady = !!monthCalendar.data && !monthCalendar.isError;
+  const monthIntervals = monthReady ? monthCalendar.data!.intervals : EMPTY_INTERVALS;
+  const todayKey = localTimestamp(today).slice(0, 10);
+  const maxDateKey = localTimestamp(maxDate).slice(0, 10);
+  const calendarGrid = useMemo(
+    () =>
+      calendarOpen
+        ? Array.from({ length: cellCount }, (_, index) => {
+            const cellDate = new Date(viewYear, viewMonth, index - offset + 1);
+            const day = localTimestamp(cellDate).slice(0, 10);
+            const inRange = day >= todayKey && day <= maxDateKey;
+            const inMonth = cellDate.getMonth() === viewMonth;
+            const closed = monthReady && !hasSearchHourlyStart(day, monthIntervals, now);
+            const available = monthReady && inRange && inMonth && !closed;
+            return {
+              key: day,
+              dayNumber: cellDate.getDate(),
+              date: cellDate,
+              isCurrentMonth: inMonth,
+              isClosed: closed,
+              isToday: day === todayKey,
+              isSelected: day === date,
+              isDisabled: !available
+            };
+          })
+        : [],
+    [
+      calendarOpen,
+      cellCount,
+      date,
+      maxDateKey,
+      monthIntervals,
+      monthReady,
+      now,
+      offset,
+      todayKey,
+      viewMonth,
+      viewYear
+    ]
+  );
   const applyPreset = (value: number | 'close') =>
     setEndTimeMinutes(
       value === 'close'

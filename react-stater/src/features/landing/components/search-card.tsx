@@ -1,5 +1,11 @@
 import { toast } from 'sonner';
-import { workspaceService } from '@/features/workspaces/api/service';
+import { useQueryClient } from '@tanstack/react-query';
+import {
+  publicWorkspacesQueryOptions,
+  PUBLIC_SEARCH_PAGE_SIZE,
+  PUBLIC_SEARCH_SORT_BY,
+  PUBLIC_SEARCH_SORT_ORDER
+} from '@/features/workspaces/api/queries';
 import React, { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import {
@@ -97,6 +103,7 @@ export function SearchCard({
 }: SearchCardProps) {
   const { t, language } = useLanguage();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const isControlled = criteria !== undefined;
   const [internalMode, setInternalMode] = useState<WorkspaceType | 'all'>('all');
@@ -155,13 +162,19 @@ export function SearchCard({
       }
       setCheckingSearch(true);
       try {
-        const check = await workspaceService.getPublicWorkspaces({
-          search: location.trim() || undefined,
-          category: modeOptions.find((item) => item.id === activeMode)?.categoryParam,
-          startTime: selectedSchedule.isoStartTime,
-          endTime: selectedSchedule.isoEndTime,
-          page: 1,
-          limit: 1
+        // Keep the fresh preflight result under the same key the results page consumes.
+        const check = await queryClient.fetchQuery({
+          ...publicWorkspacesQueryOptions({
+            search: location.trim() || undefined,
+            category: modeOptions.find((item) => item.id === activeMode)?.categoryParam,
+            startTime: selectedSchedule.isoStartTime,
+            endTime: selectedSchedule.isoEndTime,
+            page: 1,
+            limit: PUBLIC_SEARCH_PAGE_SIZE,
+            sortBy: PUBLIC_SEARCH_SORT_BY,
+            sortOrder: PUBLIC_SEARCH_SORT_ORDER
+          }),
+          staleTime: 0
         });
         if (!check.content?.length) {
           toast.error('Không còn không gian phù hợp với khoảng thời gian này. Vui lòng chọn lại.');
