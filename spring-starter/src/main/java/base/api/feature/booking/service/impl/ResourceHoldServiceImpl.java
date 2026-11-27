@@ -230,10 +230,15 @@ public class ResourceHoldServiceImpl implements IResourceHoldService {
         PriceCalculationResponseDto priceCalc = computePrice(workspace, resource, startTime, endTime, dto.getPriceType(), dto.getAmenityIds());
 
         BigDecimal platformCommissionPercent = getDecimalSetting("payment.platform_commission_percent", DEFAULT_COMMISSION_PERCENT);
-        BigDecimal platformFeeAmount = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount())
-                .add(priceCalc.getAddonAmount() != null ? priceCalc.getAddonAmount() : BigDecimal.ZERO)
+        BigDecimal vatPercent = getDecimalSetting("payment.vat_percent", DEFAULT_VAT_PERCENT);
+        BigDecimal preTaxRental = priceCalc.getBaseAmount().add(priceCalc.getSurchargeAmount())
+                .add(priceCalc.getAddonAmount() != null ? priceCalc.getAddonAmount() : BigDecimal.ZERO);
+        BigDecimal basePlatformFee = preTaxRental
                 .multiply(platformCommissionPercent)
                 .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal platformFeeVat = basePlatformFee.multiply(vatPercent)
+                .divide(BigDecimal.valueOf(100), 2, RoundingMode.HALF_UP);
+        BigDecimal platformFeeAmount = basePlatformFee.add(platformFeeVat);
 
         LocalDateTime holdExpiresAt = now.plusMinutes(getEffectiveHoldMinutes());
 

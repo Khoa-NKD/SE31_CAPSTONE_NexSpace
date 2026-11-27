@@ -7,17 +7,19 @@ import base.api.feature.notification.service.INotificationService;
 import base.api.feature.payment.dto.response.WebhookProcessResultDTO;
 import base.api.feature.payment.repository.IOrganizerPayoutRepository;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
-import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.impl.PayOSWebhookServiceImpl;
 import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
+import base.api.shared.entity.payment.RefundRequestModel;
 import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.CancelSource;
 import base.api.shared.enums.PaymentStatus;
 import base.api.shared.enums.ReconciliationStatus;
+import base.api.shared.enums.RefundSource;
+import base.api.shared.enums.RefundStatus;
 import base.api.shared.exception.BadRequestException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -50,6 +52,7 @@ class PayOSWebhookServiceImplTest {
     private IResourceStateSyncService resourceStateSyncService;
     private IUserRepository userRepository;
     private IOrganizerPayoutRepository payoutRepository;
+    private IRefundService refundService;
     private PayOSWebhookServiceImpl webhookService;
 
     @BeforeEach
@@ -64,6 +67,7 @@ class PayOSWebhookServiceImplTest {
         resourceStateSyncService = mock(IResourceStateSyncService.class);
         userRepository = mock(IUserRepository.class);
         payoutRepository = mock(IOrganizerPayoutRepository.class);
+        refundService = mock(IRefundService.class);
 
         when(payOS.webhooks()).thenReturn(webhooksService);
 
@@ -78,6 +82,7 @@ class PayOSWebhookServiceImplTest {
                 userRepository,
                 payoutRepository
         );
+        webhookService.setRefundService(refundService);
     }
 
     private UserModel createCustomer() {
@@ -372,8 +377,8 @@ class PayOSWebhookServiceImplTest {
     }
 
     @Test
-    @DisplayName("processWebhook: booking is EXPIRED but payment succeeds - transitions to CONFIRMED successfully")
-    void processWebhook_expiredBooking_success() {
+    @DisplayName("processWebhook: booking is EXPIRED when payment succeeds - does NOT confirm booking and triggers 100% auto-refund")
+    void processWebhook_expiredBooking_triggersAutoRefund() {
         UserModel customer = createCustomer();
         BookingModel booking = createBooking(customer);
         booking.setStatus(BookingStatus.EXPIRED);
@@ -390,6 +395,10 @@ class PayOSWebhookServiceImplTest {
         webhookData.setCode("00");
         webhookData.setDesc("success");
         webhookData.setReference("FT2611-LATE");
+        webhookData.setCounterAccountBankId("970422");
+        webhookData.setCounterAccountBankName("MBBank");
+        webhookData.setCounterAccountNumber("0123456789");
+        webhookData.setCounterAccountName("HUY MINH");
 
         Webhook webhook = new Webhook();
         webhook.setCode("00");
@@ -398,33 +407,58 @@ class PayOSWebhookServiceImplTest {
         webhook.setData(webhookData);
         webhook.setSignature("valid_sig");
 
+        RefundRequestModel autoRefund = new RefundRequestModel();
+        autoRefund.setId(901L);
+        autoRefund.setBooking(booking);
+        autoRefund.setPaymentTransaction(tx);
+        autoRefund.setSource(RefundSource.PAYMENT_DISCREPANCY);
+        autoRefund.setStatus(RefundStatus.PROCESSED);
+        autoRefund.setBankName("MB Bank (Ngân hàng Quân Đội)");
+        autoRefund.setBankBin("970422");
+        autoRefund.setBankAccountNumber("0123456789");
+
         when(webhooksService.verify(webhook)).thenReturn(webhookData);
         when(paymentTransactionRepository.findByOrderCodeForUpdate(orderCode)).thenReturn(Optional.of(tx));
         when(bookingRepository.findByIdForUpdate(500L)).thenReturn(Optional.of(booking));
         when(paymentTransactionRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
         when(bookingRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(refundService.processPostExpiryAutoRefund(
+                eq(booking),
+                eq(tx),
+                eq("970422"),
+                eq("MBBank"),
+                eq("0123456789"),
+                eq("HUY MINH"),
+                any()
+        )).thenReturn(autoRefund);
 
         WebhookProcessResultDTO result = webhookService.processWebhook(webhook, "{\"raw\":\"payload\"}");
 
-        assertThat(result.getStatus()).isEqualTo("SUCCESS");
+        assertThat(result.getStatus()).isEqualTo("EXPIRED_HOLD_AUTO_REFUNDED");
         assertThat(tx.getStatus()).isEqualTo(PaymentStatus.SUCCESS);
-        assertThat(tx.getReconciliationStatus()).isEqualTo(ReconciliationStatus.MATCHED);
-        assertThat(booking.getStatus()).isEqualTo(BookingStatus.CONFIRMED);
-        assertThat(booking.getQrTokenHash()).isNotNull();
-        assertThat(booking.getCancelReason()).isNull();
+        assertThat(booking.getStatus()).isEqualTo(BookingStatus.EXPIRED); // Must NOT be CONFIRMED
+        assertThat(booking.getQrTokenHash()).isNull();
 
+        verify(refundService).processPostExpiryAutoRefund(
+                eq(booking),
+                eq(tx),
+                eq("970422"),
+                eq("MBBank"),
+                eq("0123456789"),
+                eq("HUY MINH"),
+                any()
+        );
         verify(auditService).log(
                 eq(customer),
                 eq(AuditActorType.PAYMENT_WEBHOOK),
                 eq("PAYMENT"),
-                eq("BOOKING_CONFIRMED"),
+                eq("EXPIRED_HOLD_AUTO_REFUND"),
                 eq("Booking"),
                 eq(500L),
                 eq("EXPIRED"),
-                eq("CONFIRMED"),
+                eq("EXPIRED"),
                 contains("orderCode=" + orderCode),
                 isNull()
         );
     }
 }
-

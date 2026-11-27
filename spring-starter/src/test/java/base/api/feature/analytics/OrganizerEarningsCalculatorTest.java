@@ -12,7 +12,7 @@ class OrganizerEarningsCalculatorTest {
     private static final LocalDateTime START = LocalDateTime.parse("2026-11-01T00:00:00");
     private static final LocalDateTime END = LocalDateTime.parse("2026-12-01T00:00:00");
     private static BigDecimal amount(String value) { return new BigDecimal(value); }
-    private static Basis basis() { return new Basis(1,"VND",amount("108000"),amount("8000"),amount("10000"),BigDecimal.ZERO); }
+    private static Basis basis() { return new Basis(1,"VND",amount("108000"),amount("8000"),amount("10800"),BigDecimal.ZERO); }
     private static Event payment(String id, String at, String value) {
         return new Event(1,id,"PAYMENT",LocalDateTime.parse(at),amount(value),amount("108000"),"MATCHED",false,Long.parseLong(id));
     }
@@ -25,27 +25,40 @@ class OrganizerEarningsCalculatorTest {
 
     @Test void separatesOrganizerTaxCommissionAndRentalIncome() {
         var result=calculate(payment("1","2026-11-01T10:00:00","108000"));
-        assertThat(result.organizer()).isEqualByComparingTo("98000");
+        assertThat(result.organizer()).isEqualByComparingTo("97200");
         assertThat(result.rental()).isEqualByComparingTo("100000");
-        assertThat(result.vat()).isEqualByComparingTo("8000");
-        assertThat(result.fee()).isEqualByComparingTo("10000");
+        assertThat(result.vat()).isEqualByComparingTo("7200");
+        assertThat(result.fee()).isEqualByComparingTo("10800");
         assertThat(result.rentalEarnings()).isEqualByComparingTo("90000");
         assertThat(result.excludedBookings()).isZero();
     }
 
+    @Test void seventeenThousandTwoHundredEightyVndExampleReconcilesExactTaxAndFeeDeduction() {
+        var b = new Basis(2, "VND", amount("17280"), amount("1280"), amount("1728"), BigDecimal.ZERO);
+        var paid = new Event(2, "1", "PAYMENT", START, amount("17280"), amount("17280"), "MATCHED", false, 2);
+        var result = OrganizerEarningsCalculator.calculate(List.of(b), List.of(paid), START, END);
+        assertThat(result.organizer()).isEqualByComparingTo("15552");
+        assertThat(result.rentalEarnings()).isEqualByComparingTo("14400");
+        assertThat(result.vat()).isEqualByComparingTo("1152");
+        assertThat(result.fee()).isEqualByComparingTo("1728");
+        assertThat(result.rental()).isEqualByComparingTo("16000");
+        assertThat(result.organizer().add(result.fee())).isEqualByComparingTo("17280");
+        assertThat(result.rentalEarnings().add(result.vat())).isEqualByComparingTo("15552");
+    }
+
     @Test void tenPercentVatExampleReconcilesFullPartialAndCompleteRefunds() {
-        var basis = new Basis(1, "VND", amount("1100000"), amount("100000"), amount("100000"), BigDecimal.ZERO);
+        var basis = new Basis(1, "VND", amount("1100000"), amount("100000"), amount("110000"), BigDecimal.ZERO);
         var paid = new Event(1, "1", "PAYMENT", START, amount("1100000"), amount("1100000"), "MATCHED", false, 1);
         var received = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid), START, END);
-        assertThat(received.organizer()).isEqualByComparingTo("1000000");
+        assertThat(received.organizer()).isEqualByComparingTo("990000");
         assertThat(received.rentalEarnings()).isEqualByComparingTo("900000");
-        assertThat(received.vat()).isEqualByComparingTo("100000");
+        assertThat(received.vat()).isEqualByComparingTo("90000");
         assertThat(received.organizer().add(received.fee())).isEqualByComparingTo("1100000");
         var partial = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid,
                 refund("2", "2026-11-02T10:00:00", "550000")), START, END);
-        assertThat(partial.organizer()).isEqualByComparingTo("500000");
-        assertThat(partial.vat()).isEqualByComparingTo("50000");
-        assertThat(partial.fee()).isEqualByComparingTo("50000");
+        assertThat(partial.organizer()).isEqualByComparingTo("495000");
+        assertThat(partial.vat()).isEqualByComparingTo("45000");
+        assertThat(partial.fee()).isEqualByComparingTo("55000");
         assertThat(partial.organizer().add(partial.fee()).add(amount("550000"))).isEqualByComparingTo("1100000");
         var fullyRefunded = OrganizerEarningsCalculator.calculate(List.of(basis), List.of(paid,
                 refund("2", "2026-11-02T10:00:00", "1100000")), START, END);
@@ -55,9 +68,9 @@ class OrganizerEarningsCalculatorTest {
     }
     @Test void partialRefundReducesTaxAndFeeByTheSameProportion() {
         var result=calculate(payment("1","2026-11-01T10:00:00","108000"),refund("2","2026-11-02T10:00:00","54000"));
-        assertThat(result.organizer()).isEqualByComparingTo("49000");
-        assertThat(result.fee()).isEqualByComparingTo("5000");
-        assertThat(result.vat()).isEqualByComparingTo("4000");
+        assertThat(result.organizer()).isEqualByComparingTo("48600");
+        assertThat(result.fee()).isEqualByComparingTo("5400");
+        assertThat(result.vat()).isEqualByComparingTo("3600");
         assertThat(result.rentalEarnings()).isEqualByComparingTo("45000");
     }
     @Test void fullRefundReversesAllFeesAndTax() {
@@ -67,21 +80,21 @@ class OrganizerEarningsCalculatorTest {
     @Test void refundInALaterPeriodReversesOriginalAllocationWithoutChargingFeesTwice() {
         var result=OrganizerEarningsCalculator.calculate(List.of(basis()),List.of(
                 payment("1","2026-10-31T10:00:00","108000"), refund("2","2026-11-02T10:00:00","54000")),START,END);
-        assertThat(result.organizer()).isEqualByComparingTo("-49000");
-        assertThat(result.fee()).isEqualByComparingTo("-5000"); assertThat(result.vat()).isEqualByComparingTo("-4000");
+        assertThat(result.organizer()).isEqualByComparingTo("-48600");
+        assertThat(result.fee()).isEqualByComparingTo("-5400"); assertThat(result.vat()).isEqualByComparingTo("-3600");
     }
     @Test void duplicateReceiptsAndRefundsDoNotMultiplyOrganizerEarnings() {
         var result=calculate(payment("1","2026-11-01T10:00:00","108000"),payment("2","2026-11-02T10:00:00","108000"),
                 new Event(1,"3","REFUND",LocalDateTime.parse("2026-11-03T10:00:00"),amount("108000"),null,null,false,2));
-        assertThat(result.organizer()).isEqualByComparingTo("98000"); assertThat(result.fee()).isEqualByComparingTo("10000");
+        assertThat(result.organizer()).isEqualByComparingTo("97200"); assertThat(result.fee()).isEqualByComparingTo("10800");
     }
     @Test void excessPaymentIsNotOrganizerIncomeAndUnderpaymentDoesNotEstablishSettlement() {
-        assertThat(calculate(payment("1","2026-11-01T10:00:00","118000")).organizer()).isEqualByComparingTo("98000");
+        assertThat(calculate(payment("1","2026-11-01T10:00:00","118000")).organizer()).isEqualByComparingTo("97200");
         assertThat(calculate(payment("1","2026-11-01T10:00:00","50000")).organizer()).isZero();
     }
     @Test void futureEventsAndExclusiveEndBoundaryCannotChangeThisPeriod() {
         var result=calculate(payment("1","2026-11-01T00:00:00","108000"),refund("2","2026-12-01T00:00:00","108000"));
-        assertThat(result.organizer()).isEqualByComparingTo("98000");
+        assertThat(result.organizer()).isEqualByComparingTo("97200");
     }
     @Test void incompleteOrUnsupportedSourcesAreExcludedInsteadOfInventingIncome() {
         var event=payment("1","2026-11-01T10:00:00","108000");
@@ -110,6 +123,6 @@ class OrganizerEarningsCalculatorTest {
     @Test void sameTimestampChoosesLowestNumericPaymentIdAndNeverUsesAFutureRefund() {
         var result=calculate(payment("10","2026-11-01T10:00:00","108000"),payment("2","2026-11-01T10:00:00","108000"),
                 new Event(1,"20","REFUND",LocalDateTime.parse("2026-11-02T10:00:00"),amount("54000"),null,null,false,2));
-        assertThat(result.organizer()).isEqualByComparingTo("49000");
+        assertThat(result.organizer()).isEqualByComparingTo("48600");
     }
 }

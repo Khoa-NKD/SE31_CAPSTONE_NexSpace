@@ -321,35 +321,35 @@ public class OrganizerAnalyticsRepositoryTest {
     private void earningsFixture() {
         sql.update("DELETE FROM refund_request"); sql.update("DELETE FROM payment_transaction"); sql.update("DELETE FROM booking");
         booking(100,1,1,100,"CONFIRMED","2026-11-01 00:00:00","2026-11-02 09:00:00","2026-11-02 10:00:00");
-        sql.update("UPDATE booking SET final_price=108000,tax_amount=8000,platform_fee_amount=10000,service_fee_amount=0 WHERE id=100");
+        sql.update("UPDATE booking SET final_price=108000,tax_amount=8000,platform_fee_amount=10800,service_fee_amount=0 WHERE id=100");
         receipt(100,100,"SUCCESS","2026-11-01 10:00:00","108000","MATCHED");
     }
     @Test void organizerAllocationIncludesVatButSeparatesRentalIncomeAndActualTransfers() {
         earningsFixture();
         var result=repository.earnings(10,filter);
-        assertThat(result.organizerAmount()).isEqualTo("98000.00");
+        assertThat(result.organizerAmount()).isEqualTo("97200.00");
         assertThat(result.rentalEarningsAmount()).isEqualTo("90000.00");
-        assertThat(result.vatAmount()).isEqualTo("8000.00");
-        assertThat(result.platformFeeAmount()).isEqualTo("10000.00");
+        assertThat(result.vatAmount()).isEqualTo("7200.00");
+        assertThat(result.platformFeeAmount()).isEqualTo("10800.00");
         assertThat(result.transferTrackingAvailable()).isFalse(); assertThat(result.transferredAmount()).isNull();
         assertThat(repository.earnings(20,filter).organizerAmount()).isEqualTo("0.00");
-        sql.update("INSERT INTO organizer_payout VALUES(1,10,100,'PAID',98000,'BANK-VERIFIED-1','2026-11-02 10:00:00','2026-11-03 10:00:00')");
-        assertThat(repository.earnings(10,filter).transferredAmount()).isEqualTo("98000.00");
+        sql.update("INSERT INTO organizer_payout VALUES(1,10,100,'PAID',97200,'BANK-VERIFIED-1','2026-11-02 10:00:00','2026-11-03 10:00:00')");
+        assertThat(repository.earnings(10,filter).transferredAmount()).isEqualTo("97200.00");
         assertThat(repository.earnings(20,filter).transferTrackingAvailable()).isFalse();
     }
     @Test void partialRefundReducesOriginalFeeAndDoesNotUseCurrentRates() {
         earningsFixture();
         sql.update("INSERT INTO refund_request VALUES(100,100,100,'PROCESSED','2026-11-03 10:00:00',54000)");
         var result=repository.earnings(10,filter);
-        assertThat(result.organizerAmount()).isEqualTo("49000.00");
-        assertThat(result.platformFeeAmount()).isEqualTo("5000.00"); assertThat(result.vatAmount()).isEqualTo("4000.00");
-        sql.update("UPDATE booking SET platform_fee_amount=20000 WHERE id=100");
-        assertThat(repository.earnings(10,filter).organizerAmount()).isEqualTo("44000.00");
+        assertThat(result.organizerAmount()).isEqualTo("48600.00");
+        assertThat(result.platformFeeAmount()).isEqualTo("5400.00"); assertThat(result.vatAmount()).isEqualTo("3600.00");
+        sql.update("UPDATE booking SET platform_fee_amount=21600 WHERE id=100");
+        assertThat(repository.earnings(10,filter).organizerAmount()).isEqualTo("43200.00");
     }
     @Test void duplicatePaymentsRemainUnallocatedAndMissingFeeCannotBecomeZero() {
         earningsFixture(); receipt(101,100,"SUCCESS","2026-11-02 10:00:00","108000","MATCHED");
         var result=repository.earnings(10,filter);
-        assertThat(result.organizerAmount()).isEqualTo("98000.00"); assertThat(result.unallocatedAmount()).isEqualTo("108000.00");
+        assertThat(result.organizerAmount()).isEqualTo("97200.00"); assertThat(result.unallocatedAmount()).isEqualTo("108000.00");
         sql.update("UPDATE booking SET platform_fee_amount=NULL WHERE id=100");
         result=repository.earnings(10,filter);
         assertThat(result.organizerAmount()).isNull(); assertThat(result.validationIssues()).isPositive();

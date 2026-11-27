@@ -579,20 +579,43 @@ public class NotificationServiceImpl implements INotificationService {
         }
 
         BookingModel booking = refund.getBooking();
+        UserModel customer = booking.getCustomer();
         String bookingCode = booking.getBookingCode();
         String workspaceName = (booking.getWorkspace() != null && booking.getWorkspace().getName() != null)
                 ? booking.getWorkspace().getName()
                 : "NexSpace";
         String amountStr = formatCurrency(refund.getRequestedAmount());
         String reasonStr = StringUtils.hasText(refund.getReason()) ? refund.getReason() : "Khách hàng hủy theo chính sách hoàn tiền";
+        String sourceLabel = base.api.feature.payment.mapper.RefundRequestMapper.resolveSourceLabel(refund.getSource());
 
+        // 1. Gửi thông báo In-App cho Khách hàng
+        if (customer != null) {
+            String customerTitle = "Đã ghi nhận yêu cầu hoàn tiền - #" + bookingCode;
+            String bankDesc = (StringUtils.hasText(refund.getBankName()) && StringUtils.hasText(refund.getBankAccountNumber()))
+                    ? String.format(" về tài khoản %s (%s - %s)", refund.getBankName(), refund.getBankAccountNumber(),
+                            StringUtils.hasText(refund.getBankAccountName()) ? refund.getBankAccountName() : "Chủ TK")
+                    : " (Vui lòng bổ sung tài khoản ngân hàng nhận tiền hoàn tại trang Quản lý hoàn tiền)";
+            String customerContent = String.format(
+                    "[%s] Yêu cầu hoàn tiền %s đ cho đơn #%s tại %s%s đã được ghi nhận và đang chờ xử lý. Lý do: %s.",
+                    sourceLabel, amountStr, bookingCode, workspaceName, bankDesc, reasonStr
+            );
+            saveInAppNotification(
+                    customer,
+                    NotificationType.REFUND,
+                    customerTitle,
+                    customerContent,
+                    "RefundRequest",
+                    refund.getId()
+            );
+        }
+
+        // 2. Gửi thông báo cho Quản trị viên (Admin) xử lý hoàn tiền
         String title = "Yêu cầu hoàn tiền mới cần xử lý - #" + bookingCode;
         String content = String.format(
-                "Đơn đặt chỗ #%s tại %s phát sinh yêu cầu hoàn lại %s đ (Lý do: %s). Vui lòng vào trang Quản lý hoàn tiền để duyệt và xử lý.",
-                bookingCode, workspaceName, amountStr, reasonStr
+                "[%s] Đơn đặt chỗ #%s tại %s phát sinh yêu cầu hoàn lại %s đ (Lý do: %s). Vui lòng vào trang Quản lý hoàn tiền để duyệt và xử lý.",
+                sourceLabel, bookingCode, workspaceName, amountStr, reasonStr
         );
 
-        // Thông báo hoàn tiền CHỈ gửi cho Quản trị viên (Admin) xử lý hoàn tiền, KHÔNG gửi cho Organizer
         try {
             List<UserModel> admins = userRepository.findActiveUsersByRoleName("ADMIN");
             for (UserModel admin : admins) {
@@ -612,6 +635,82 @@ public class NotificationServiceImpl implements INotificationService {
 
     @Override
     @Transactional
+    public void sendAutoRefundBankInfoRequiredNotification(RefundRequestModel refund, String detectedBank) {
+        if (refund == null || refund.getBooking() == null) {
+            return;
+        }
+        BookingModel booking = refund.getBooking();
+        UserModel customer = booking.getCustomer();
+        String bookingCode = booking.getBookingCode();
+        String workspaceName = (booking.getWorkspace() != null && booking.getWorkspace().getName() != null)
+                ? booking.getWorkspace().getName()
+                : "NexSpace";
+        String amountStr = formatCurrency(refund.getRequestedAmount());
+        String detectedText = StringUtils.hasText(detectedBank)
+                ? "Ngân hàng chuyển khoản gốc (" + detectedBank + ") chưa nằm trong danh sách PayOS hỗ trợ hoàn tự động (MB Bank, ACB, KienlongBank)"
+                : "Hệ thống cần thông tin số tài khoản ngân hàng của bạn (PayOS hỗ trợ hoàn tự động về MB Bank, ACB, KienlongBank)";
+
+        if (customer != null) {
+            String customerTitle = "Cần điền tài khoản nhận tiền hoàn (Thanh toán quá hạn giữ chỗ) - #" + bookingCode;
+            String customerContent = String.format(
+                    "Đơn #%s tại %s đã hết thời gian giữ chỗ trước khi bạn hoàn tất thanh toán. Hệ thống đã tạo lệnh hoàn trả 100%% (%s đ). %s. Vui lòng vào trang 'Quản lý hoàn tiền của tôi' để điền thông tin tài khoản nhận hoàn tiền.",
+                    bookingCode, workspaceName, amountStr, detectedText
+            );
+            saveInAppNotification(
+                    customer,
+                    NotificationType.REFUND,
+                    customerTitle,
+                    customerContent,
+                    "RefundRequest",
+                    refund.getId()
+            );
+        }
+
+        try {
+            String adminTitle = "Hoàn tiền tự động chờ khách bổ sung STK - #" + bookingCode;
+            String adminContent = String.format(
+                    "Khách hàng thanh toán sau khi hết hạn giữ chỗ cho đơn #%s (%s đ). Đang chờ khách bổ sung/xác nhận tài khoản nhận tiền hoàn.",
+                    bookingCode, amountStr
+            );
+            List<UserModel> admins = userRepository.findActiveUsersByRoleName("ADMIN");
+            for (UserModel admin : admins) {
+                saveInAppNotification(
+                        admin,
+                        NotificationType.REFUND,
+                        adminTitle,
+                        adminContent,
+                        "RefundRequest",
+                        refund.getId()
+                );
+            }
+        } catch (Exception e) {
+            log.warn("Failed to notify admins of pending auto-refund bank info: {}", e.getMessage());
+        }
+    }
+
+    @Override
+    @Transactional
+    public void sendRefundBankInfoUpdatedNotification(RefundRequestModel refund) {
+        if (refund == null || refund.getBooking() == null || refund.getBooking().getCustomer() == null) {
+            return;
+        }
+        BookingModel booking = refund.getBooking();
+        UserModel customer = booking.getCustomer();
+        String bookingCode = booking.getBookingCode();
+        String amountStr = formatCurrency(refund.getRequestedAmount());
+        String bankInfo = String.format("%s - STK %s (%s)",
+                refund.getBankName(), refund.getBankAccountNumber(), refund.getBankAccountName());
+
+        String title = "Đã cập nhật tài khoản nhận hoàn tiền - #" + bookingCode;
+        String content = String.format(
+                "Bạn đã cập nhật tài khoản nhận tiền hoàn (%s đ) cho đơn #%s sang: %s. Yêu cầu đang được xử lý chuyển khoản.",
+                amountStr, bookingCode, bankInfo
+        );
+        saveInAppNotification(customer, NotificationType.REFUND, title, content, "RefundRequest", refund.getId());
+    }
+
+    @Override
+    @Transactional
     public void sendRefundCompletedNotification(RefundRequestModel refund) {
         if (refund == null || refund.getBooking() == null || refund.getBooking().getCustomer() == null) {
             log.warn("Cannot send refund completed notification: refund, booking, or customer is null");
@@ -627,33 +726,49 @@ public class NotificationServiceImpl implements INotificationService {
 
         BigDecimal approvedAmount = refund.getApprovedAmount() != null ? refund.getApprovedAmount() : refund.getRequestedAmount();
         String amountStr = formatCurrency(approvedAmount);
+        String sourceLabel = base.api.feature.payment.mapper.RefundRequestMapper.resolveSourceLabel(refund.getSource());
+        String processedTimeStr = (refund.getProcessedAt() != null ? refund.getProcessedAt() : java.time.LocalDateTime.now()).format(DATE_FORMATTER);
+        String bankDetailStr = (StringUtils.hasText(refund.getBankName()) && StringUtils.hasText(refund.getBankAccountNumber()))
+                ? String.format("%s • STK: %s (%s)", refund.getBankName(), refund.getBankAccountNumber(),
+                        StringUtils.hasText(refund.getBankAccountName()) ? refund.getBankAccountName() : "Chủ TK")
+                : "Tài khoản thanh toán của bạn";
+        String refStr = StringUtils.hasText(refund.getRefundReference()) ? " Mã GD hoàn: " + refund.getRefundReference() + "." : "";
 
-        String title = "Hoàn tiền hoàn tất - #" + bookingCode;
-        String content = String.format(
-                "Yêu cầu hoàn tiền số tiền %s đ cho đơn đặt chỗ #%s tại %s đã được xử lý hoàn tất thành công. Số tiền sẽ được chuyển về tài khoản của bạn.",
-                amountStr, bookingCode, workspaceName
-        );
+        boolean isRejected = refund.getStatus() == base.api.shared.enums.RefundStatus.REJECTED;
+        String title = isRejected
+                ? "Yêu cầu hoàn tiền bị từ chối - #" + bookingCode
+                : (refund.getSource() == base.api.shared.enums.RefundSource.PAYMENT_DISCREPANCY
+                    ? "Đã tự động hoàn tiền 100% (Thanh toán sau khi hết giữ chỗ) - #" + bookingCode
+                    : "Hoàn tiền thành công về tài khoản - #" + bookingCode);
+        String content = isRejected
+                ? String.format("[%s] Yêu cầu hoàn tiền cho đơn #%s tại %s đã bị từ chối. Lý do phản hồi: %s.",
+                        sourceLabel, bookingCode, workspaceName,
+                        StringUtils.hasText(refund.getAdminNote()) ? refund.getAdminNote() : "Không đủ điều kiện hoàn tiền theo quy định")
+                : String.format(
+                        "[%s] Đã hoàn trả thành công %s đ cho đơn #%s tại %s về tài khoản %s vào lúc %s.%s",
+                        sourceLabel, amountStr, bookingCode, workspaceName, bankDetailStr, processedTimeStr, refStr
+                );
 
         // 1. In-app notification for Customer
-        saveInAppNotification(customer, NotificationType.REFUND, title, content, "Booking", booking.getId());
+        saveInAppNotification(customer, NotificationType.REFUND, title, content, "RefundRequest", refund.getId());
 
         // 2. Email notification for Customer
         if (StringUtils.hasText(customer.getEmail())) {
             String customerName = getCustomerFullName(customer);
-            String manageBookingUrl = clientUrl + "/workspaces/my-bookings";
+            String manageBookingUrl = clientUrl + "/workspaces/my-refunds";
 
             String html = String.format("""
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 28px; border: 1px solid #e2e8f0; border-radius: 16px; background-color: #ffffff; color: #1e293b;">
                     <div style="text-align: center; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1px solid #f1f5f9;">
                         <h2 style="color: #059669; margin: 0 0 6px 0; font-size: 24px; font-weight: 800; letter-spacing: -0.5px;">NexSpace</h2>
-                        <span style="display: inline-block; padding: 4px 14px; background-color: #ecfdf5; color: #059669; border-radius: 9999px; font-size: 12px; font-weight: 700;">HOÀN TIỀN HOÀN TẤT</span>
-                        <p style="color: #64748b; font-size: 13px; margin: 10px 0 0 0;">Xác nhận xử lý hoàn tiền từ NexSpace</p>
+                        <span style="display: inline-block; padding: 4px 14px; background-color: #ecfdf5; color: #059669; border-radius: 9999px; font-size: 12px; font-weight: 700;">%s</span>
+                        <p style="color: #64748b; font-size: 13px; margin: 10px 0 0 0;">%s</p>
                     </div>
 
                     <div style="background-color: #f8fafc; border-radius: 12px; padding: 18px; margin-bottom: 24px;">
                         <p style="margin: 0 0 8px 0; font-size: 14px; color: #334155;">Kính gửi <strong>%s</strong>,</p>
                         <p style="margin: 0; font-size: 13px; color: #475569; line-height: 1.6;">
-                            Yêu cầu hoàn tiền cho đơn đặt chỗ <strong>#%s</strong> tại <strong>%s</strong> đã được duyệt và xử lý thành công.
+                            %s
                         </p>
                     </div>
 
@@ -664,23 +779,41 @@ public class NotificationServiceImpl implements INotificationService {
                                 <td style="padding: 10px 0; font-weight: 700; color: #0f172a; text-align: right; font-family: monospace;">#%s</td>
                             </tr>
                             <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Phân loại hoàn tiền:</td>
+                                <td style="padding: 10px 0; font-weight: 600; color: #0f172a; text-align: right;">%s</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
                                 <td style="padding: 10px 0; color: #64748b;">Số tiền hoàn lại:</td>
                                 <td style="padding: 10px 0; font-weight: 700; color: #059669; text-align: right;">%s đ</td>
                             </tr>
+                            <tr style="border-bottom: 1px solid #f1f5f9;">
+                                <td style="padding: 10px 0; color: #64748b;">Tài khoản nhận hoàn:</td>
+                                <td style="padding: 10px 0; font-weight: 600; color: #0f172a; text-align: right;">%s</td>
+                            </tr>
                             <tr>
-                                <td style="padding: 10px 0; color: #64748b;">Trạng thái xử lý:</td>
-                                <td style="padding: 10px 0; font-weight: 700; color: #059669; text-align: right;">HOÀN TẤT</td>
+                                <td style="padding: 10px 0; color: #64748b;">Thời điểm hoàn tất:</td>
+                                <td style="padding: 10px 0; font-weight: 700; color: #059669; text-align: right;">%s</td>
                             </tr>
                         </table>
                     </div>
 
                     <div style="text-align: center; margin-bottom: 24px;">
                         <a href="%s" style="display: inline-block; padding: 12px 28px; background-color: #4f46e5; color: #ffffff; text-decoration: none; border-radius: 10px; font-size: 14px; font-weight: 700; box-shadow: 0 2px 4px rgba(79, 70, 229, 0.2);">
-                            Xem lịch sử đặt chỗ của bạn
+                            Theo dõi chi tiết hoàn tiền của bạn
                         </a>
                     </div>
                 </div>
-                """, customerName, bookingCode, workspaceName, bookingCode, amountStr, manageBookingUrl);
+                """,
+                isRejected ? "TỪ CHỐI HOÀN TIỀN" : "HOÀN TIỀN HOÀN TẤT",
+                sourceLabel,
+                customerName,
+                content,
+                bookingCode,
+                sourceLabel,
+                amountStr,
+                bankDetailStr,
+                processedTimeStr,
+                manageBookingUrl);
 
             try {
                 emailService.sendHtmlEmail(customer.getEmail(), "[NexSpace] " + title, html);

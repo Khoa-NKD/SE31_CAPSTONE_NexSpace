@@ -39,15 +39,18 @@ public class OrganizerBusinessProfileService {
         requireOwnedApprovedProfile(actorId, profile);
         var bank = request.bankDetails();
         if (bank != null) {
+            boolean alreadyConfigured = profile.getBankAccountNumber() != null && !profile.getBankAccountNumber().isBlank();
+            if (alreadyConfigured) {
+                throw new ConflictException("Tài khoản ngân hàng chỉ được cập nhật một lần duy nhất và không thể thay đổi.");
+            }
             if (!bankCipher.isConfigured()) {
                 throw new ConflictException("Bank account updates are temporarily unavailable");
             }
             String number = bank.bankAccountNumber();
-            if (number != null && !number.isBlank()) {
-                profile.setBankAccountNumber(bankCipher.encrypt(profile.getId(), number));
-            } else if (bankCipher.lastFour(profile.getId(), profile.getBankAccountNumber()) == null) {
+            if (number == null || number.isBlank()) {
                 throw new base.api.shared.exception.BadRequestException("Enter a new bank account number before saving bank details");
             }
+            profile.setBankAccountNumber(bankCipher.encrypt(profile.getId(), number));
             profile.setBankName(bank.bankName());
             profile.setBankAccountHolder(bank.bankAccountHolder());
         }

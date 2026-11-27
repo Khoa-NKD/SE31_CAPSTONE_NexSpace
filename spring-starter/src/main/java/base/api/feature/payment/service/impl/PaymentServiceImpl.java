@@ -571,6 +571,7 @@ public class PaymentServiceImpl implements IPaymentService {
                 ? booking.getResource().getFloorPlan().getId()
                 : null;
 
+        Long refundId = refund != null ? refund.getId() : null;
         RefundStatus refundStatus = refund != null ? refund.getStatus() : null;
         BigDecimal refundAmount = refund != null
                 ? (refund.getApprovedAmount() != null ? refund.getApprovedAmount() : refund.getRequestedAmount())
@@ -597,6 +598,7 @@ public class PaymentServiceImpl implements IPaymentService {
                 .qrTokenHash(booking.getQrTokenHash())
                 .pinCode(pinCode)
                 .createdAt(booking.getCreatedAt())
+                .refundId(refundId)
                 .refundStatus(refundStatus)
                 .refundAmount(refundAmount)
                 .refundReference(refundRef)

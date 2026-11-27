@@ -1,20 +1,28 @@
 package base.api.feature.payment.controller;
 
+import base.api.feature.payment.dto.refund.CreateRefundComplaintDto;
+import base.api.feature.payment.dto.refund.CustomerRefundKpisDto;
+import base.api.feature.payment.dto.refund.RefundRequestResponseDto;
+import base.api.feature.payment.dto.refund.UpdateRefundBankInfoDto;
 import base.api.feature.payment.dto.response.InvoiceResponseDTO;
 import base.api.feature.payment.dto.response.PaymentCheckoutResponseDTO;
 import base.api.feature.payment.dto.response.PaymentStatusResponseDTO;
 import base.api.feature.payment.dto.response.PaymentTransactionResponseDTO;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPaymentService;
+import base.api.feature.payment.service.IRefundService;
 import base.api.shared.base.BaseAPIController;
 import base.api.shared.dto.ApiResponse;
 import base.api.shared.dto.PageRequestDTO;
 import base.api.shared.dto.PageResponseDTO;
 import base.api.shared.enums.PaymentStatus;
+import base.api.shared.enums.RefundSource;
+import base.api.shared.enums.RefundStatus;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -22,8 +30,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -31,11 +41,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping({"/api/v1/customer", "/api/customer"})
 @RequiredArgsConstructor
-@Tag(name = "Customer Payments", description = "Endpoints for initiating PayOS checkout, VietQR rendering, payment history, and e-invoices")
+@Tag(name = "Customer Payments & Refunds", description = "Endpoints for initiating PayOS checkout, VietQR rendering, payment history, e-invoices, and customer refund management")
 public class CustomerPaymentController extends BaseAPIController {
 
     private final IPaymentService paymentService;
     private final IInvoiceService invoiceService;
+
+    @Autowired(required = false)
+    private IRefundService refundService;
 
     @GetMapping("/bookings/current-pending")
     @PreAuthorize("isAuthenticated()")
@@ -131,5 +144,57 @@ public class CustomerPaymentController extends BaseAPIController {
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"invoice_booking_" + bookingId + ".pdf\"")
                 .body(pdfBytes);
     }
-}
 
+    @GetMapping("/refunds")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lấy danh sách yêu cầu hoàn tiền của khách hàng hiện tại")
+    public ResponseEntity<ApiResponse<PageResponseDTO<RefundRequestResponseDto>>> getMyRefunds(
+            @RequestParam(required = false) RefundStatus status,
+            @RequestParam(required = false) RefundSource source,
+            @RequestParam(required = false) String search,
+            @Valid @ModelAttribute PageRequestDTO pageRequest) {
+        Long actorId = getCurrentUserId();
+        PageResponseDTO<RefundRequestResponseDto> page = refundService.getCustomerRefunds(actorId, status, source, search, pageRequest);
+        return success(page, "Lấy danh sách yêu cầu hoàn tiền thành công");
+    }
+
+    @GetMapping("/refunds/kpis")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Lấy số liệu thống kê tổng quan các yêu cầu hoàn tiền của khách hàng hiện tại")
+    public ResponseEntity<ApiResponse<CustomerRefundKpisDto>> getMyRefundKpis() {
+        Long actorId = getCurrentUserId();
+        CustomerRefundKpisDto kpis = refundService.getCustomerRefundKpis(actorId);
+        return success(kpis, "Lấy thống kê hoàn tiền thành công");
+    }
+
+    @GetMapping("/refunds/{refundId}")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Xem chi tiết một yêu cầu hoàn tiền của khách hàng hiện tại")
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> getMyRefundDetail(
+            @PathVariable Long refundId) {
+        Long actorId = getCurrentUserId();
+        RefundRequestResponseDto detail = refundService.getCustomerRefundById(actorId, refundId);
+        return success(detail, "Lấy chi tiết yêu cầu hoàn tiền thành công");
+    }
+
+    @PatchMapping("/refunds/{refundId}/bank-info")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Cập nhật thông tin tài khoản ngân hàng nhận tiền hoàn (tự động hoàn nếu là đơn quá hạn giữ chỗ với ngân hàng hỗ trợ)")
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> updateMyRefundBankInfo(
+            @PathVariable Long refundId,
+            @Valid @RequestBody UpdateRefundBankInfoDto dto) {
+        Long actorId = getCurrentUserId();
+        RefundRequestResponseDto updated = refundService.updateCustomerRefundBankInfo(actorId, refundId, dto);
+        return success(updated, "Cập nhật thông tin tài khoản nhận hoàn tiền thành công");
+    }
+
+    @PostMapping("/refunds/complaint")
+    @PreAuthorize("isAuthenticated()")
+    @Operation(summary = "Gửi yêu cầu khiếu nại đòi hoàn tiền cho đơn đặt chỗ đã sử dụng")
+    public ResponseEntity<ApiResponse<RefundRequestResponseDto>> createComplaintRefund(
+            @Valid @RequestBody CreateRefundComplaintDto dto) {
+        Long actorId = getCurrentUserId();
+        RefundRequestResponseDto created = refundService.createCustomerComplaintRefund(actorId, dto);
+        return created(created, "Đã gửi khiếu nại yêu cầu hoàn tiền thành công");
+    }
+}

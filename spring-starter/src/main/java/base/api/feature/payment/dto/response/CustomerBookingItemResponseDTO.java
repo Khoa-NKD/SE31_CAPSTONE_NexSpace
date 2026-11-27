@@ -27,6 +27,7 @@ public class CustomerBookingItemResponseDTO {
     String qrTokenHash;
     String pinCode;
     LocalDateTime createdAt;
+    Long refundId;
     RefundStatus refundStatus;
     BigDecimal refundAmount;
     String refundReference;

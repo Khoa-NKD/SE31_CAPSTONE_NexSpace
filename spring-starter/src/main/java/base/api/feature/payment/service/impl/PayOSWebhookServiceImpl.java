@@ -9,21 +9,24 @@ import base.api.feature.payment.repository.IOrganizerPayoutRepository;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPayOSWebhookService;
+import base.api.feature.payment.service.IRefundService;
 import base.api.feature.resource.service.IResourceStateSyncService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.OrganizerPayoutModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
+import base.api.shared.entity.payment.RefundRequestModel;
 import base.api.shared.enums.AuditActorType;
 import base.api.shared.enums.BookingStatus;
 import base.api.shared.enums.CancelSource;
 import base.api.shared.enums.PaymentStatus;
 import base.api.shared.enums.PayoutStatus;
 import base.api.shared.enums.ReconciliationStatus;
+import base.api.shared.enums.RefundStatus;
 import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -39,7 +42,6 @@ import java.util.UUID;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
 
     private final IPaymentTransactionRepository paymentTransactionRepository;
@@ -51,6 +53,34 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
     private final IResourceStateSyncService resourceStateSyncService;
     private final IUserRepository userRepository;
     private final IOrganizerPayoutRepository payoutRepository;
+
+    @Autowired(required = false)
+    private IRefundService refundService;
+
+    public PayOSWebhookServiceImpl(
+            IPaymentTransactionRepository paymentTransactionRepository,
+            IBookingRepository bookingRepository,
+            IAuditService auditService,
+            PayOS payOS,
+            IInvoiceService invoiceService,
+            INotificationService notificationService,
+            IResourceStateSyncService resourceStateSyncService,
+            IUserRepository userRepository,
+            IOrganizerPayoutRepository payoutRepository) {
+        this.paymentTransactionRepository = paymentTransactionRepository;
+        this.bookingRepository = bookingRepository;
+        this.auditService = auditService;
+        this.payOS = payOS;
+        this.invoiceService = invoiceService;
+        this.notificationService = notificationService;
+        this.resourceStateSyncService = resourceStateSyncService;
+        this.userRepository = userRepository;
+        this.payoutRepository = payoutRepository;
+    }
+
+    public void setRefundService(IRefundService refundService) {
+        this.refundService = refundService;
+    }
 
     @Override
     @Transactional
@@ -144,7 +174,11 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                 webhook.getCode(),
                 webhook.getDesc(),
                 isSuccess,
-                rawPayload
+                rawPayload,
+                verifiedData.getCounterAccountBankId(),
+                verifiedData.getCounterAccountBankName(),
+                verifiedData.getCounterAccountNumber(),
+                verifiedData.getCounterAccountName()
         );
     }
 
@@ -189,7 +223,11 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                 code,
                 desc,
                 success,
-                simulatedPayload
+                simulatedPayload,
+                null,
+                null,
+                null,
+                null
         );
     }
 
@@ -201,7 +239,11 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
             String code,
             String desc,
             boolean isSuccess,
-            String rawPayload) {
+            String rawPayload,
+            String counterBankId,
+            String counterBankName,
+            String counterAccountNumber,
+            String counterAccountName) {
 
         // Save raw webhook payload for audit and dispute resolution
         tx.setWebhookPayload(rawPayload);
@@ -249,18 +291,75 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                         .build();
             }
 
-            // Valid payment confirmation
+            // Valid payment received by PayOS
             tx.setStatus(PaymentStatus.SUCCESS);
             tx.setReceivedAmount(BigDecimal.valueOf(received));
             tx.setPaidAt(LocalDateTime.now());
             tx.setReconciliationStatus(ReconciliationStatus.MATCHED);
             paymentTransactionRepository.save(tx);
 
-            // Gửi thông báo thanh toán thành công (In-app + Email)
-            notificationService.sendPaymentSuccessNotification(tx, booking);
-
             if (booking != null) {
-                if (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.EXPIRED) {
+                LocalDateTime now = LocalDateTime.now();
+                boolean isHoldExpired = booking.getStatus() == BookingStatus.EXPIRED
+                        || booking.getStatus() == BookingStatus.CANCELLED
+                        || (booking.getStatus() == BookingStatus.PENDING_PAYMENT
+                            && booking.getHoldExpiresAt() != null
+                            && booking.getHoldExpiresAt().isBefore(now));
+
+                if (isHoldExpired) {
+                    log.warn("Payment received AFTER hold expiry for bookingId={}, code={}, currentStatus={}. Initiating 100% auto-refund instead of confirming booking!",
+                            booking.getId(), booking.getBookingCode(), booking.getStatus());
+
+                    BookingStatus previousStatus = booking.getStatus();
+                    if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                        booking.setStatus(BookingStatus.EXPIRED);
+                    }
+                    booking.setHoldExpiresAt(null);
+                    booking.setCancelReason("Thanh toán sau khi đã hết thời gian giữ chỗ (Hold Expired). Hệ thống không xác nhận đặt chỗ để tránh trùng lặp và tự động hoàn tiền 100%.");
+                    bookingRepository.save(booking);
+
+                    tx.setReconciliationNote("Thanh toán sau khi hết thời gian giữ chỗ — Chuyển sang hoàn tiền tự động 100%");
+                    paymentTransactionRepository.save(tx);
+
+                    RefundRequestModel refund = null;
+                    if (refundService != null) {
+                        refund = refundService.processPostExpiryAutoRefund(
+                                booking,
+                                tx,
+                                counterBankId,
+                                counterBankName,
+                                counterAccountNumber,
+                                counterAccountName,
+                                "Tự động hoàn tiền 100% do khách hàng chuyển khoản sau khi đã hết thời gian giữ chỗ (Hold Expired)"
+                        );
+                    }
+
+                    boolean autoRefundDone = refund != null && refund.getStatus() == RefundStatus.PROCESSED;
+                    String auditMsg = autoRefundDone
+                            ? "Thanh toán sau khi hết hạn giữ chỗ (orderCode=" + orderCode + "). Đã tự động hoàn tiền 100% về tài khoản " + refund.getBankName() + " (" + refund.getBankAccountNumber() + ")."
+                            : "Thanh toán sau khi hết hạn giữ chỗ (orderCode=" + orderCode + "). Đã tạo yêu cầu hoàn tiền 100% chờ bổ sung/xử lý tài khoản nhận hoàn.";
+
+                    auditService.log(
+                            booking.getCustomer(),
+                            AuditActorType.PAYMENT_WEBHOOK,
+                            "PAYMENT",
+                            "EXPIRED_HOLD_AUTO_REFUND",
+                            "Booking",
+                            booking.getId(),
+                            previousStatus.name(),
+                            booking.getStatus().name(),
+                            auditMsg,
+                            null
+                    );
+
+                    return WebhookProcessResultDTO.builder()
+                            .orderCode(orderCode)
+                            .status(autoRefundDone ? "EXPIRED_HOLD_AUTO_REFUNDED" : "EXPIRED_HOLD_REFUND_PENDING_BANK_INFO")
+                            .message(auditMsg)
+                            .build();
+                }
+
+                if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
                     BookingStatus previousStatus = booking.getStatus();
                     // Phòng vệ đa tầng cuối cùng (Last-mile Defense): Kiểm tra xem vị trí này đã bị đơn khác CONFIRMED trong cùng khung giờ chưa
                     boolean alreadyBooked = false;
@@ -269,7 +368,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                                 List.of(booking.getResource().getId()),
                                 List.of(BookingStatus.CONFIRMED, BookingStatus.CHECKED_IN),
                                 BookingStatus.CONFIRMED,
-                                LocalDateTime.now(),
+                                now,
                                 booking.getStartTime(),
                                 booking.getEndTime(),
                                 booking.getId()
@@ -281,9 +380,21 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                                 booking.getId(), booking.getBookingCode());
                         booking.setStatus(BookingStatus.CANCELLED);
                         booking.setCancelReason("Hệ thống phát hiện xung đột thanh toán đồng thời (Đã có khách hàng thanh toán thành công trước đó). Yêu cầu hoàn tiền tự động 100%.");
-                        booking.setCancelledAt(LocalDateTime.now());
+                        booking.setCancelledAt(now);
                         booking.setHoldExpiresAt(null);
                         bookingRepository.save(booking);
+
+                        if (refundService != null) {
+                            refundService.processPostExpiryAutoRefund(
+                                    booking,
+                                    tx,
+                                    counterBankId,
+                                    counterBankName,
+                                    counterAccountNumber,
+                                    counterAccountName,
+                                    "Hoàn tiền tự động 100% do xung đột đặt trùng chỗ (Đã có khách hàng khác thanh toán xác nhận trước)"
+                            );
+                        }
 
                         auditService.log(
                                 booking.getCustomer(),
@@ -304,6 +415,9 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                                 .message("Phát hiện xung đột đặt trùng chỗ. Đơn hàng đã được đánh dấu hủy để hoàn tiền 100%.")
                                 .build();
                     }
+
+                    // Gửi thông báo thanh toán thành công (In-app + Email) khi đơn thực sự được xác nhận trong thời gian hold
+                    notificationService.sendPaymentSuccessNotification(tx, booking);
 
                     booking.setStatus(BookingStatus.CONFIRMED);
                     booking.setHoldExpiresAt(null);
@@ -333,7 +447,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                             booking.getId(),
                             previousStatus.name(),
                             BookingStatus.CONFIRMED.name(),
-                            "Thanh toán thành công qua PayOS (orderCode=" + orderCode + ")" + (previousStatus == BookingStatus.EXPIRED ? " sau khi hết hạn giữ chỗ" : ""),
+                            "Thanh toán thành công qua PayOS (orderCode=" + orderCode + ")",
                             null
                     );
 
@@ -354,7 +468,7 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
                     // Khởi tạo bản ghi OrganizerPayout ở trạng thái HELD
                     createHeldPayoutForBooking(booking);
                 } else {
-                    // Late payment after cancellation
+                    // Late payment after other status
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
                     tx.setReconciliationNote("Nhận tiền thành công nhưng đơn đặt chỗ đã ở trạng thái " + booking.getStatus());
                     paymentTransactionRepository.save(tx);
@@ -444,4 +558,3 @@ public class PayOSWebhookServiceImpl implements IPayOSWebhookService {
         }
     }
 }
-

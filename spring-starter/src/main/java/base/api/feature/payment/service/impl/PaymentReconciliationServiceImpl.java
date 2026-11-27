@@ -10,6 +10,7 @@ import base.api.feature.payment.dto.response.ReconciliationSummaryDTO;
 import base.api.feature.payment.repository.IPaymentTransactionRepository;
 import base.api.feature.payment.service.IInvoiceService;
 import base.api.feature.payment.service.IPaymentReconciliationService;
+import base.api.feature.payment.service.IRefundService;
 import base.api.shared.entity.UserModel;
 import base.api.shared.entity.booking.BookingModel;
 import base.api.shared.entity.payment.PaymentTransactionModel;
@@ -21,11 +22,13 @@ import base.api.shared.exception.BadRequestException;
 import base.api.shared.exception.NotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import vn.payos.PayOS;
 import vn.payos.model.v2.paymentRequests.PaymentLink;
 import vn.payos.model.v2.paymentRequests.PaymentLinkStatus;
+import vn.payos.model.v2.paymentRequests.Transaction;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -45,6 +48,9 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
     private final IInvoiceService invoiceService;
     private final INotificationService notificationService;
     private final IUserRepository userRepository;
+
+    @Autowired(required = false)
+    private IRefundService refundService;
 
     @Override
     @Transactional
@@ -100,7 +106,6 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
         Long gatewayPaid = paymentLink.getAmountPaid() != null ? paymentLink.getAmountPaid() : 0L;
         String gatewayStatusStr = (gatewayStatus != null) ? gatewayStatus.name() : "UNKNOWN";
 
-        boolean statusMatched = false;
         String note = "";
 
         if (gatewayStatus == PaymentLinkStatus.PAID) {
@@ -108,27 +113,61 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                 if (tx.getAmount() != null && tx.getAmount().longValue() == gatewayPaid) {
                     tx.setReconciliationStatus(ReconciliationStatus.MATCHED);
                     note = "Đã khớp hoàn toàn (Số tiền: " + gatewayPaid + " VND)";
-                    statusMatched = true;
                 } else {
                     tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
                     note = "Lệch số tiền: PayOS nhận " + gatewayPaid + " VND, nội bộ " + tx.getAmount() + " VND";
                 }
-            } else if (tx.getStatus() == PaymentStatus.PENDING) {
+            } else if (tx.getStatus() == PaymentStatus.PENDING || tx.getStatus() == PaymentStatus.EXPIRED) {
                 // Auto-healing: webhook was missed, but payment is confirmed on gateway
                 log.info("Auto-healing missed webhook for orderCode={}", orderCode);
                 tx.setStatus(PaymentStatus.SUCCESS);
                 tx.setReceivedAmount(BigDecimal.valueOf(gatewayPaid));
                 tx.setPaidAt(now);
                 tx.setReconciliationStatus(ReconciliationStatus.MATCHED);
-                note = "Tự động đồng bộ và xác nhận từ cổng PayOS (bù đắp webhook)";
-                statusMatched = true;
 
                 BookingModel booking = tx.getBooking();
-                notificationService.sendPaymentSuccessNotification(tx, booking);
-
                 if (booking != null) {
                     booking = bookingRepository.findByIdForUpdate(booking.getId()).orElse(booking);
-                    if (booking.getStatus() == BookingStatus.PENDING_PAYMENT || booking.getStatus() == BookingStatus.EXPIRED) {
+                    boolean isHoldExpired = booking.getStatus() == BookingStatus.EXPIRED
+                            || booking.getStatus() == BookingStatus.CANCELLED
+                            || (booking.getStatus() == BookingStatus.PENDING_PAYMENT
+                                && booking.getHoldExpiresAt() != null
+                                && booking.getHoldExpiresAt().isBefore(now));
+
+                    if (isHoldExpired) {
+                        if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                            booking.setStatus(BookingStatus.EXPIRED);
+                        }
+                        booking.setHoldExpiresAt(null);
+                        booking.setCancelReason("Thanh toán sau khi hết thời gian giữ chỗ (Hold Expired). Hệ thống tự động hoàn tiền 100%.");
+                        bookingRepository.save(booking);
+
+                        String counterBankId = null;
+                        String counterBankName = null;
+                        String counterAccountNum = null;
+                        String counterAccountName = null;
+                        if (paymentLink.getTransactions() != null && !paymentLink.getTransactions().isEmpty()) {
+                            Transaction firstTx = paymentLink.getTransactions().get(0);
+                            counterBankId = firstTx.getCounterAccountBankId();
+                            counterBankName = firstTx.getCounterAccountBankName();
+                            counterAccountNum = firstTx.getCounterAccountNumber();
+                            counterAccountName = firstTx.getCounterAccountName();
+                        }
+
+                        if (refundService != null) {
+                            refundService.processPostExpiryAutoRefund(
+                                    booking,
+                                    tx,
+                                    counterBankId,
+                                    counterBankName,
+                                    counterAccountNum,
+                                    counterAccountName,
+                                    "Tự động hoàn tiền 100% do thanh toán sau khi hết thời gian giữ chỗ (Đối soát PayOS)"
+                            );
+                        }
+                        note = "Thanh toán sau khi hết thời gian giữ chỗ — Đã kích hoạt hoàn tiền tự động 100%";
+                    } else if (booking.getStatus() == BookingStatus.PENDING_PAYMENT) {
+                        notificationService.sendPaymentSuccessNotification(tx, booking);
                         booking.setStatus(BookingStatus.CONFIRMED);
                         booking.setHoldExpiresAt(null);
                         booking.setCancelledAt(null);
@@ -136,21 +175,19 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                         booking.setQrTokenHash("NXQR-" + booking.getBookingCode() + "-" + UUID.randomUUID().toString().replace("-", "").substring(0, 8).toUpperCase());
                         bookingRepository.save(booking);
 
-                        // Tự động gỡ bỏ trạng thái tạm khóa đặt chỗ khi khách hàng thanh toán thành công
                         if (booking.getCustomer() != null && booking.getCustomer().getBookingSuspendedUntil() != null) {
                             UserModel customer = booking.getCustomer();
                             customer.setBookingSuspendedUntil(null);
                             userRepository.save(customer);
-                            log.info("Reset bookingSuspendedUntil to null for customerId={} upon reconciliation confirmation", customer.getId());
                         }
 
-                        // Gửi hóa đơn điện tử đính kèm file PDF qua email của khách hàng
                         invoiceService.sendInvoiceEmail(booking.getId());
-
-                        // Gửi thông báo đặt chỗ thành công (In-app + Email)
                         notificationService.sendBookingConfirmedNotification(booking);
                         notificationService.sendNewBookingToOrganizerNotification(booking);
+                        note = "Tự động đồng bộ và xác nhận từ cổng PayOS (bù đắp webhook)";
                     }
+                } else {
+                    note = "Tự động đồng bộ giao dịch thành công từ cổng PayOS";
                 }
             } else {
                 tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
@@ -160,7 +197,6 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
             if (tx.getStatus() == PaymentStatus.CANCELLED || tx.getStatus() == PaymentStatus.EXPIRED) {
                 tx.setReconciliationStatus(ReconciliationStatus.MATCHED);
                 note = "Khớp trạng thái hủy/hết hạn (" + gatewayStatusStr + ")";
-                statusMatched = true;
             } else {
                 tx.setReconciliationStatus(ReconciliationStatus.MISMATCH);
                 note = "Lệch trạng thái: PayOS=" + gatewayStatusStr + ", nội bộ=" + tx.getStatus();
@@ -268,4 +304,3 @@ public class PaymentReconciliationServiceImpl implements IPaymentReconciliationS
                 .build();
     }
 }
-

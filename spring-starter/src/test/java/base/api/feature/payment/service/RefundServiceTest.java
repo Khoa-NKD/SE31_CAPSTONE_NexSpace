@@ -286,4 +286,66 @@ class RefundServiceTest {
                 .isInstanceOf(NotFoundException.class)
                 .hasMessageContaining("Không tìm thấy đơn đặt chỗ");
     }
+
+    @Test
+    @DisplayName("processPostExpiryAutoRefund - Tự động hoàn tiền ngay khi tài khoản thuộc MB Bank / ACB / KienlongBank")
+    void processPostExpiryAutoRefund_SupportedBank_AutoProcessed() {
+        ReflectionTestUtils.setField(refundService, "clientId", "live-client-id");
+        when(refundRequestRepository.findByBookingId(500L)).thenReturn(List.of());
+        when(payOS.payouts()).thenReturn(payoutsService);
+
+        Payout mockPayout = new Payout();
+        mockPayout.setId("PAYOUT_AUTO_999");
+        when(payoutsService.create(any(PayoutRequests.class))).thenReturn(mockPayout);
+        when(refundRequestRepository.saveAndFlush(any(RefundRequestModel.class))).thenAnswer(i -> {
+            RefundRequestModel r = i.getArgument(0);
+            if (r.getId() == null) r.setId(950L);
+            return r;
+        });
+
+        RefundRequestModel result = refundService.processPostExpiryAutoRefund(
+                mockBooking,
+                mockTx,
+                "970422",
+                "MBBank",
+                "0987654321",
+                "NGUYEN VAN A",
+                "Thanh toán quá hạn giữ chỗ"
+        );
+
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(RefundStatus.PROCESSED);
+        assertThat(result.getSource()).isEqualTo(RefundSource.PAYMENT_DISCREPANCY);
+        assertThat(result.getBankBin()).isEqualTo("970422");
+        assertThat(result.getBankAccountNumber()).isEqualTo("0987654321");
+        assertThat(result.getRefundReference()).isEqualTo("PAYOUT_AUTO_999");
+        assertThat(result.getProcessedAt()).isNotNull();
+    }
+
+    @Test
+    @DisplayName("processPostExpiryAutoRefund - Giữ PENDING chờ điền STK khi ngân hàng gốc không được PayOS hỗ trợ hoàn tự động")
+    void processPostExpiryAutoRefund_UnsupportedBank_PendingBankInfo() {
+        when(refundRequestRepository.findByBookingId(500L)).thenReturn(List.of());
+        when(refundRequestRepository.saveAndFlush(any(RefundRequestModel.class))).thenAnswer(i -> {
+            RefundRequestModel r = i.getArgument(0);
+            if (r.getId() == null) r.setId(951L);
+            return r;
+        });
+
+        RefundRequestModel result = refundService.processPostExpiryAutoRefund(
+                mockBooking,
+                mockTx,
+                "970436",
+                "Vietcombank",
+                "0071009999999",
+                "NGUYEN VAN A",
+                "Thanh toán quá hạn giữ chỗ"
+        );
+
+        assertThat(result).isNotNull();
+        assertThat(result.getStatus()).isEqualTo(RefundStatus.PENDING);
+        assertThat(result.getSource()).isEqualTo(RefundSource.PAYMENT_DISCREPANCY);
+        assertThat(result.getBankAccountNumber()).isNull();
+        assertThat(result.getAdminNote()).contains("không nằm trong danh sách PayOS hỗ trợ hoàn tự động");
+    }
 }

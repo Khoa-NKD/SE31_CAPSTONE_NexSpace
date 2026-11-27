@@ -42,7 +42,7 @@ public final class OrganizerEarningsCalculator {
         Map<Long, List<Event>> grouped = new HashMap<>();
         for (var event : events) if (event.at() != null && event.at().isBefore(end))
             grouped.computeIfAbsent(event.bookingId(), ignored -> new ArrayList<>()).add(event);
-        BigDecimal rental = ZERO, vat = ZERO, fee = ZERO, organizer = ZERO;
+        BigDecimal rental = ZERO, vat = ZERO, fee = ZERO, organizer = ZERO, rentalEarnings = ZERO;
         long excluded = 0;
         for (var basis : bases) {
             var history = grouped.getOrDefault(basis.bookingId(), List.of());
@@ -63,8 +63,9 @@ public final class OrganizerEarningsCalculator {
             vat = vat.add(after[1].subtract(before[1]));
             fee = fee.add(after[2].subtract(before[2]));
             organizer = organizer.add(after[3].subtract(before[3]));
+            rentalEarnings = rentalEarnings.add(after[4].subtract(before[4]));
         }
-        return new Allocation(rental, vat, fee, organizer, rental.subtract(fee), excluded);
+        return new Allocation(rental, vat, fee, organizer, rentalEarnings, excluded);
     }
 
     private static boolean valid(Basis b) {
@@ -98,7 +99,7 @@ public final class OrganizerEarningsCalculator {
         }
     }
 
-    private static BigDecimal[] empty() { return new BigDecimal[] {ZERO, ZERO, ZERO, ZERO}; }
+    private static BigDecimal[] empty() { return new BigDecimal[] {ZERO, ZERO, ZERO, ZERO, ZERO}; }
 
     private static BigDecimal[] amounts(Basis basis, Balance balance) {
         if (balance.principalPayment == null) return empty();
@@ -107,10 +108,34 @@ public final class OrganizerEarningsCalculator {
         BigDecimal surplus = payment.received.subtract(settled).max(ZERO);
         BigDecimal principalRefund = payment.refunded.subtract(surplus).max(ZERO);
         BigDecimal retained = settled.subtract(principalRefund).max(ZERO);
-        BigDecimal tax = basis.vat().multiply(retained).divide(settled, 2, RoundingMode.HALF_UP);
-        BigDecimal fee = basis.fee().multiply(retained).divide(settled, 2, RoundingMode.HALF_UP);
-        // A rounding cent cannot make tax plus commission exceed the retained customer funds.
-        fee = fee.min(retained.subtract(tax));
-        return new BigDecimal[] {retained.subtract(tax), tax, fee, retained.subtract(fee)};
+
+        // Pre-tax gross and VAT portions of the booking
+        BigDecimal totalGross = basis.gross().setScale(0, RoundingMode.HALF_UP);
+        BigDecimal totalTax = basis.vat() != null ? basis.vat() : ZERO;
+        BigDecimal totalPreTax = totalGross.subtract(totalTax).max(ZERO);
+
+        // Retained pre-tax rental and gross tax
+        BigDecimal preTaxRental = totalGross.signum() > 0
+                ? totalPreTax.multiply(retained).divide(totalGross, 2, RoundingMode.HALF_UP)
+                : ZERO;
+        BigDecimal grossTax = totalGross.signum() > 0
+                ? totalTax.multiply(retained).divide(totalGross, 2, RoundingMode.HALF_UP)
+                : ZERO;
+        BigDecimal totalFee = totalGross.signum() > 0
+                ? basis.fee().multiply(retained).divide(totalGross, 2, RoundingMode.HALF_UP)
+                : ZERO;
+
+        // Decompose total platform fee into base commission (on pre-tax) and fee VAT
+        BigDecimal baseFee = (totalGross.signum() > 0 && totalPreTax.signum() > 0)
+                ? totalFee.multiply(totalPreTax).divide(totalGross, 2, RoundingMode.HALF_UP)
+                : totalFee;
+        BigDecimal feeVat = totalFee.subtract(baseFee).max(ZERO);
+
+        // Organizer gets 90% pre-tax rental (rentalEarnings) + 90% VAT (netVat) = retained - totalFee
+        BigDecimal rentalEarnings = preTaxRental.subtract(baseFee).max(ZERO);
+        BigDecimal netVat = grossTax.subtract(feeVat).max(ZERO);
+        BigDecimal organizer = retained.subtract(totalFee).max(ZERO);
+
+        return new BigDecimal[] {preTaxRental, netVat, totalFee, organizer, rentalEarnings};
     }
 }

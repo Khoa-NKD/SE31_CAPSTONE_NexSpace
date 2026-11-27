@@ -187,11 +187,17 @@ class OrganizerBusinessProfileServiceTest {
         assertThat(result.bankName()).isEqualTo("Example Bank");
         assertThat(result.bankAccountHolder()).isEqualTo("EXAMPLE COMPANY");
         assertThat(profile.getStatus()).isEqualTo(OrganizerProfileStatus.APPROVED);
-        var stored = profile.getBankAccountNumber();
-        service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("123 Example Street", "contact@example.test", "0901234567",
-                new UpdateOrganizerBusinessProfileRequest.BankDetails("Updated Bank", "EXAMPLE COMPANY", "")));
-        assertThat(profile.getBankAccountNumber()).isEqualTo(stored);
-        assertThat(profile.getBankName()).isEqualTo("Updated Bank");
+
+        // A second bank update is rejected because the bank account can only be configured once
+        assertThatThrownBy(() -> service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("123 Example Street", "contact@example.test", "0901234567",
+                new UpdateOrganizerBusinessProfileRequest.BankDetails("Updated Bank", "EXAMPLE COMPANY", "009876543210"))))
+                .isInstanceOf(ConflictException.class)
+                .hasMessage("Tài khoản ngân hàng chỉ được cập nhật một lần duy nhất và không thể thay đổi.");
+
+        // But contact updates without bank details are still allowed and keep the bank account intact
+        var contactUpdate = service.updateCurrentProfile(7L, new UpdateOrganizerBusinessProfileRequest("789 Updated Rd", "contact@example.test", "0901234567", null));
+        assertThat(contactUpdate.address()).isEqualTo("789 Updated Rd");
+        assertThat(profile.getBankName()).isEqualTo("Example Bank");
     }
 
     @Test
