@@ -83,6 +83,7 @@ export interface HoldResourceRequestDto {
   endTime: string;   // ISO 8601
   partySize?: number;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  amenityIds?: number[];
   notes?: string;
 }
 
@@ -104,6 +105,7 @@ export interface HoldResourceResponseDto {
   holdDurationMinutes?: number;
   isReused: boolean;
   baseAmount: number;
+  addonAmount?: number;
   finalPrice: number;
   currency: string;
   remainingHoldAttempts?: number;

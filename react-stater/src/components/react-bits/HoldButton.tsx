@@ -57,6 +57,7 @@ const TAP_MS = 250;
 const HIT_PAD = 10;
 const LINEAR = (t: number) => t;
 const EASE_OUT = (t: number) => 1 - Math.pow(1 - t, 3);
+const getPerfNow = () => performance.now();
 
 const HoldButton: React.FC<HoldButtonProps> = ({
   children = 'Hold to delete',
@@ -109,7 +110,7 @@ const HoldButton: React.FC<HoldButtonProps> = ({
     cancelAnimationFrame(m.raf);
     m.from = m.p;
     m.to = to;
-    m.start = performance.now();
+    m.start = getPerfNow();
     const step = (now: number) => {
       const t = duration > 0 ? Math.min(1, (now - m.start) / duration) : 1;
       m.p = m.from + (m.to - m.from) * ease(t);
@@ -126,7 +127,7 @@ const HoldButton: React.FC<HoldButtonProps> = ({
 
   const complete = () => {
     if (phaseRef.current !== 'holding') return;
-    if (performance.now() - gesture.current.start < holdTime - 50) return;
+    if (getPerfNow() - gesture.current.start < holdTime - 50) return;
     clearTimers();
     go('done', inputRef.current);
     onHold?.();
@@ -142,7 +143,7 @@ const HoldButton: React.FC<HoldButtonProps> = ({
     if (disabled || phaseRef.current !== 'idle') return false;
     const button = buttonRef.current;
     if (!button) return false;
-    gesture.current.start = performance.now();
+    gesture.current.start = getPerfNow();
     gesture.current.rect = button.getBoundingClientRect();
     go('holding', kind);
     drive(1, holdTime, LINEAR);
@@ -153,13 +154,15 @@ const HoldButton: React.FC<HoldButtonProps> = ({
   const release = ({ drifted = false }: ReleaseOptions = {}) => {
     if (phaseRef.current !== 'holding') return;
     clearTimers();
-    const held = performance.now() - gesture.current.start;
+    const held = getPerfNow() - gesture.current.start;
     go('idle');
     drive(0, releaseTime, EASE_OUT);
     if (!drifted && held < TAP_MS) onTap?.();
   };
   const releaseRef = useRef(release);
-  releaseRef.current = release;
+  useEffect(() => {
+    releaseRef.current = release;
+  });
 
   const handlePointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (e.button !== 0 || !e.isPrimary || gesture.current.pointerId !== null) return;

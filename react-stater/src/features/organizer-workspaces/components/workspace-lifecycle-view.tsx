@@ -78,7 +78,11 @@ export function WorkspaceLifecycleView({
   function transition(action: 'ACTIVATE' | 'DRAFT') {
     if (mutation.isPending) return;
     mutation.mutate(
-      { id: String(data.id), dto: { action }, workspaceName: data.name },
+      {
+        id: String(data.id),
+        dto: { action, expectedVersion: data.version },
+        workspaceName: data.name
+      },
       {
         onSuccess: () => {
           void query.refetch();

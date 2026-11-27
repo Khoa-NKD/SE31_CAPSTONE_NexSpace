@@ -161,11 +161,13 @@ export function WorkspaceDetailPage({
     return loadedFloors;
   }, [directFloors, loadedFloors]);
 
-  useEffect(() => {
+  const [prevFloors, setPrevFloors] = useState(floors);
+  if (floors !== prevFloors) {
+    setPrevFloors(floors);
     if (floors.length > 0 && activeFloorId === undefined) {
       setActiveFloorId(floors[0].id);
     }
-  }, [floors, activeFloorId]);
+  }
 
   // Fetch real-time resource availability for the whole workspace (all floors) when date/time is chosen
   const { data: availabilityList } = useWorkspaceAvailabilityQuery(

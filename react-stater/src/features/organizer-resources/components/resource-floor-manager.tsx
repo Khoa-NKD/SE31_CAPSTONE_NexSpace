@@ -91,13 +91,15 @@ export function ResourceFloorManager({
       setBusy(false);
     }
   }
-  useEffect(() => {
+  const [prevLayout, setPrevLayout] = useState(query.data);
+  if (query.data !== prevLayout) {
+    setPrevLayout(query.data);
     if (query.data) {
       setWidth(query.data.width?.toString() ?? '1200');
       setHeight(query.data.height?.toString() ?? '800');
       setConfirmed(false);
     }
-  }, [query.data]);
+  }
   const canvasWidth = Number(width) || 1200,
     canvasHeight = Number(height) || 800;
   const missing =

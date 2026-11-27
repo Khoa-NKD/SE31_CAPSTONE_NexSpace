@@ -253,11 +253,18 @@ const BlurText = ({
 }: BlurTextProps) => {
   const ref = useRef<HTMLSpanElement>(null);
   const [phase, setPhase] = useState<Phase>(() => startPhase(trigger));
-  const firstPhase = useRef(phase).current;
+  const [firstPhase] = useState(phase);
+  const [prevTrigger, setPrevTrigger] = useState(trigger);
+  if (trigger !== prevTrigger) {
+    setPrevTrigger(trigger);
+    setPhase(startPhase(trigger));
+  }
   const [focusWord, setFocusWord] = useState(-1);
   const settledRef = useRef(phase === 'rest');
   const completeRef = useRef(onAnimationComplete);
-  completeRef.current = onAnimationComplete;
+  useEffect(() => {
+    completeRef.current = onAnimationComplete;
+  });
 
   const fx = useMemo(() => buildEffect(effect, direction, blur, distance), [effect, direction, blur, distance]);
 
@@ -309,14 +316,6 @@ const BlurText = ({
 
   useEffect(() => {
     if (phase !== 'from') return undefined;
-    if (trigger === 'load') {
-      setPhase('in');
-      return undefined;
-    }
-    if (trigger === 'hover' || trigger === 'click') {
-      setPhase('rest');
-      return undefined;
-    }
     const element = ref.current;
     if (!element) return undefined;
     const observer = new IntersectionObserver(
@@ -425,27 +424,51 @@ const BlurText = ({
     };
   };
 
+  const inner = (
+    <>
+      <span style={SR_ONLY}>{text}</span>
+      {groups.map((indices, w) => (
+        <span
+          key={`word-${w}`}
+          style={wordStyle(w)}
+          onPointerEnter={focusOnHover ? () => setFocusWord(w) : undefined}
+          onPointerLeave={focusOnHover ? () => setFocusWord(-1) : undefined}
+        >
+          {indices.map(renderPiece)}
+        </span>
+      ))}
+    </>
+  );
+
   return (
     <MotionConfig reducedMotion="user">
-      <span
-        ref={ref}
-        className={className}
-        style={{ display: 'flex', flexWrap: 'wrap', color, cursor: trigger === 'click' ? 'pointer' : undefined }}
-        onPointerEnter={trigger === 'hover' ? handleEnter : undefined}
-        onClick={trigger === 'click' ? replay : undefined}
-      >
-        <span style={SR_ONLY}>{text}</span>
-        {groups.map((indices, w) => (
-          <span
-            key={`word-${w}`}
-            style={wordStyle(w)}
-            onPointerEnter={focusOnHover ? () => setFocusWord(w) : undefined}
-            onPointerLeave={focusOnHover ? () => setFocusWord(-1) : undefined}
-          >
-            {indices.map(renderPiece)}
-          </span>
-        ))}
-      </span>
+      {trigger === 'click' ? (
+        <span
+          ref={ref}
+          className={className}
+          role="button"
+          tabIndex={0}
+          style={{ display: 'flex', flexWrap: 'wrap', color, cursor: 'pointer' }}
+          onClick={replay}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              replay();
+            }
+          }}
+        >
+          {inner}
+        </span>
+      ) : (
+        <span
+          ref={ref}
+          className={className}
+          style={{ display: 'flex', flexWrap: 'wrap', color }}
+          onPointerEnter={trigger === 'hover' ? handleEnter : undefined}
+        >
+          {inner}
+        </span>
+      )}
     </MotionConfig>
   );
 };

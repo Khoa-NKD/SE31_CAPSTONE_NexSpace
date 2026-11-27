@@ -5,8 +5,8 @@ export interface CreateBookingPayload {
   endTime: string; // ISO 8601 string, e.g. "2026-11-25T13:00:00"
   partySize?: number;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  amenityIds?: number[];
   notes?: string;
-  addonAmount?: number;
 }
 
 export interface CalculatePricePayload {
@@ -15,6 +15,7 @@ export interface CalculatePricePayload {
   startTime: string;
   endTime: string;
   priceType?: 'HOURLY' | 'DAILY' | 'MONTHLY';
+  amenityIds?: number[];
 }
 
 export interface PriceCalculationResult {

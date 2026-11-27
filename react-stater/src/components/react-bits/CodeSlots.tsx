@@ -431,6 +431,7 @@ const CodeSlots: React.FC<CodeSlotsProps> = ({
     >
       <div
         ref={rowRef}
+        role="presentation"
         className="code-slots__row"
         data-status={status}
         data-focused={focused ? '' : undefined}

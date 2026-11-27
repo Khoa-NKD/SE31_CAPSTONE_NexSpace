@@ -1,6 +1,6 @@
 import { Spinner } from '@/components/ui/spinner';
 import { DateInput } from '@/components/ui/date-input';
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from '@/components/ui/card';
 import {
   AlertDialog,
@@ -48,8 +48,9 @@ export function ProfileForm({ user }: ProfileFormProps) {
   const updateProfileMutation = useUpdateProfileMutation();
   const isPending = updateProfileMutation.isPending;
 
-  // Sync initial state when user loads or updates
-  useEffect(() => {
+  const [prevUser, setPrevUser] = useState(user);
+  if (user !== prevUser) {
+    setPrevUser(user);
     if (user) {
       setFirstName(user.firstName || '');
       setLastName(user.lastName || '');
@@ -58,7 +59,7 @@ export function ProfileForm({ user }: ProfileFormProps) {
       setGender(user.gender || '');
       setFieldErrors({});
     }
-  }, [user]);
+  }
 
   // Reset to current user values
   const handleReset = () => {

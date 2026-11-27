@@ -11,8 +11,7 @@ import {
   Wifi,
   VolumeX,
   Calendar,
-  QrCode,
-  Monitor
+  QrCode
 } from '@/components/ui/hugeicons';
 import type { PublicWorkspaceDetail } from '../../api/types';
 
@@ -28,7 +27,6 @@ interface BookingSummaryCardProps {
   startTime?: string;
   endTime?: string;
   date?: string;
-  addonName?: string;
   isLoading?: boolean;
 }
 
@@ -39,7 +37,6 @@ export function BookingSummaryCard({
   startTime,
   endTime,
   date,
-  addonName,
   isLoading = false
 }: BookingSummaryCardProps) {
   const schedule = formatSchedule(startTime, endTime, date);
@@ -133,16 +130,6 @@ export function BookingSummaryCard({
           <span>Locked for Hold</span>
         </div>
       </div>
-
-      {addonName && (
-        <div className='flex items-center gap-2.5 rounded-xl border border-primary/20 bg-primary/5 p-3 text-xs'>
-          <BadgeCheck className='size-4 shrink-0 text-primary' />
-          <div>
-            <p className='font-medium'>{addonName}</p>
-            <p className='mt-1 text-muted-foreground'>Tiện ích đã chọn kèm đơn đặt chỗ</p>
-          </div>
-        </div>
-      )}
 
       {/* Booking Time & Slot */}
       <div className='bg-muted/40 border-border/60 rounded-xl border p-4'>

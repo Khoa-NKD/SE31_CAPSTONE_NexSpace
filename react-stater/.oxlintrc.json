@@ -6,7 +6,7 @@
     "browser": true,
     "node": true
   },
-  "ignorePatterns": [".tanstack/**", "dist/**", "build/**", "src/routeTree.gen.ts", "scripts/**"],
+  "ignorePatterns": [".tanstack/**", "dist/**", "build/**", "src/routeTree.gen.ts", "scripts/**", "mock-server/**", "public/**", "*.mjs"],
   "settings": {
     "jsx-a11y": {
       "components": {

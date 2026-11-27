@@ -202,8 +202,17 @@ export function SeatsListView({
             return (
               <div
                 key={res.id}
+                role='button'
+                aria-disabled={!isAvailable}
+                tabIndex={isAvailable ? 0 : -1}
                 onClick={() => {
                   if (isAvailable) onSelectResource?.(res);
+                }}
+                onKeyDown={(e) => {
+                  if (isAvailable && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    onSelectResource?.(res);
+                  }
                 }}
                 className={`group relative flex flex-col justify-between overflow-hidden rounded-2xl border bg-card transition-all duration-300 hover:shadow-xl cursor-pointer ${
                   isSelected
