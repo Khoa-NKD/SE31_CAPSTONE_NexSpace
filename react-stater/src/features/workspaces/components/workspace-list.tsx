@@ -3,7 +3,13 @@ import { Spinner as Loader2 } from '@/components/ui/spinner';
 import React from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, AlertTriangle, Building2, Navigation } from '@/components/ui/hugeicons';
 import { WorkspaceCard } from './workspace-card';
-import { usePublicWorkspacesQuery, useNearbyWorkspacesQuery } from '../api/queries';
+import {
+  usePublicWorkspacesQuery,
+  useNearbyWorkspacesQuery,
+  PUBLIC_SEARCH_PAGE_SIZE,
+  PUBLIC_SEARCH_SORT_BY,
+  PUBLIC_SEARCH_SORT_ORDER
+} from '../api/queries';
 import type { PublicWorkspaceSummary } from '../api/types';
 import { Button } from '@/components/ui/button';
 
@@ -55,10 +61,10 @@ export function WorkspaceList({
   onHoverWorkspace,
   hoveredWorkspaceId
 }: WorkspaceListProps) {
-  const [internalSortBy, setInternalSortBy] = React.useState<string>('featuredPosition');
-  const [internalSortOrder, setInternalSortOrder] = React.useState<'asc' | 'desc'>('desc');
+  const [internalSortBy, setInternalSortBy] = React.useState<string>(PUBLIC_SEARCH_SORT_BY);
+  const [internalSortOrder, setInternalSortOrder] = React.useState<'asc' | 'desc'>(PUBLIC_SEARCH_SORT_ORDER);
   const [page, setPage] = React.useState(1);
-  const limit = 8;
+  const limit = PUBLIC_SEARCH_PAGE_SIZE;
 
   const activeSortBy = sortBy || internalSortBy;
   const activeSortOrder = sortOrder || internalSortOrder;

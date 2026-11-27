@@ -37,6 +37,10 @@ export const workspaceQueryKeys = {
   adminKpis: () => [...workspaceQueryKeys.all, 'admin-kpis'] as const
 };
 
+export const PUBLIC_SEARCH_PAGE_SIZE = 8;
+export const PUBLIC_SEARCH_SORT_BY = 'featuredPosition';
+export const PUBLIC_SEARCH_SORT_ORDER = 'desc' as const;
+
 /**
  * TanStack Query options for the workspaces list.
  */

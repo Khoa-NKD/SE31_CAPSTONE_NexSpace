@@ -1,6 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { searchHourlySlots, searchIntervalFits } from './search-hourly-slots.ts';
+import {
+  hasSearchHourlyStart,
+  searchHourlySlots,
+  searchIntervalFits
+} from './search-hourly-slots.ts';
 
 const now = new Date('2030-01-06T12:00:00+07:00');
 const window = (start: string, end: string) => ({
@@ -62,4 +66,24 @@ test('daily search cannot stitch adjacent windows from different resources', () 
   ];
   assert.equal(searchIntervalFits(intervals, '2030-01-07T00:00:00', '2030-01-09T00:00:00'), false);
   assert.equal(searchIntervalFits(intervals, '2030-01-07T00:00:00', '2030-01-08T00:00:00'), true);
+});
+
+test('calendar day availability agrees with full slot choices across gaps and midnight', () => {
+  const cases = [
+    [],
+    [window('08:15', '08:45')],
+    [window('08:15', '08:40')],
+    [window('08:00', '12:00'), window('14:00', '18:00')],
+    [{ start: '2030-01-07T00:00:00', end: '2030-01-09T00:00:00' }],
+    [{ start: '2030-01-07T23:50:00', end: '2030-01-08T00:20:00' }]
+  ];
+  for (const intervals of cases) {
+    for (const time of ['07:46', '08:15', '19:31', '23:50']) {
+      const clock = new Date('2030-01-07T' + time + ':00+07:00');
+      assert.equal(
+        hasSearchHourlyStart('2030-01-07', intervals, clock),
+        searchHourlySlots('2030-01-07', intervals, clock).starts.length > 0
+      );
+    }
+  }
 });
